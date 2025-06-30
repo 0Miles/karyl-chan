@@ -171,6 +171,20 @@ export class RconConnectionService {
                     });
                 }
             })
+            .on('server', (str: string) => {
+                console.log(`Received server message from ${connectionName}: ${str}`);
+                for(const channel of connection.channels) {
+                    channel.send({
+                        embeds: [{
+                            color: SUCCEEDED_COLOR,
+                            title: 'Server Message',
+                            description: str || '（無內容）'
+                        }]
+                    }).catch(error => {
+                        console.error(`Error sending server message to channel ${channel.id}:`, error);
+                    });
+                }
+            })
             .on('error', (err: Error) => {
                 console.error(`RCON connection error for ${connectionName}:`, err.message);
                 for(const channel of connection.channels) {
