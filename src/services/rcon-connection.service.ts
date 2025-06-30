@@ -195,20 +195,7 @@ export class RconConnectionService {
         if (!connection) return;
 
         try {
-            // 通知所有頻道連接已關閉
-            for (const channel of connection.channels) {
-                try {
-                    await channel.send({
-                        embeds: [{
-                            color: DEFAULT_COLOR,
-                            title: 'Connection Closed',
-                            description: `與 ${connection.host}:${connection.port} 的連接已關閉。未發送的指令將被清除。`
-                        }]
-                    });
-                } catch (error) {
-                    console.error(`無法發送連接關閉通知到頻道 ${channel.id}:`, error);
-                }
-            }
+            console.log(`與 ${connection.host}:${connection.port} 的連接已關閉。未發送的指令將被清除。`)
 
             // 清理所有待處理的指令
             if (connection.queuedCommands.length > 0) {
