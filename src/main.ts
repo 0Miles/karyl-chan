@@ -41,12 +41,28 @@ bot.on('guildCreate', async (guild: Guild) => {
     await bot.initGuildApplicationCommands(guild.id, bot.applicationCommandSlashes as any);
 });
 
-bot.on('interactionCreate', (interaction: Interaction) => {
-    bot.executeInteraction(interaction);
+bot.on('interactionCreate', async (interaction: Interaction) => {
+    try {
+        await bot.executeInteraction(interaction);
+    } catch (error) {
+        console.error('executeInteraction failed:', error);
+    }
 });
 
 bot.on('messageCreate', async (message: Message) => {
-    bot.executeCommand(message);
+    try {
+        await bot.executeCommand(message);
+    } catch (error) {
+        console.error('executeCommand failed:', error);
+    }
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
 });
 
 async function run() {
