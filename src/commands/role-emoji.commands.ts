@@ -3,6 +3,7 @@ import { CommandInteraction, ApplicationCommandOptionType, Role } from 'discord.
 import { Discord, Slash, SlashGroup, SlashOption } from 'discordx';
 import { addRoleEmoji, removeRoleEmoji, findRoleEmoji, findGuildAllRoleEmojis } from '../models/role-emoji.model.js';
 import { findRoleReceiveMessage, addRoleReceiveMessage, removeRoleReceiveMessage } from '../models/role-receive-message.model.js';
+import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
 @SlashGroup({ description: 'Manage role emoji', name: 'role-emoji', defaultMemberPermissions: '268435456' })
@@ -23,6 +24,7 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.Role,
         }) role: Role,
         command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         try {
             const emojiMatch = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/.exec(emoji);
             if (!emojiMatch) {
@@ -65,6 +67,7 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.String,
         }) emoji: string,
         command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         try {
             const emojiMatch = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/.exec(emoji);
             if (!emojiMatch) {
@@ -99,6 +102,7 @@ export class RoleEmojiCommands {
 
     @Slash({ name: 'list', description: 'List all role emoji' })
     async list(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         try {
             const allRoleEmojis = await findGuildAllRoleEmojis(command.guildId as string);
             const result = allRoleEmojis
@@ -141,6 +145,7 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.String,
         }) messageId: string,
         command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         try {
             const message = await command.channel?.messages.fetch({ message: messageId });
             if (message) {
@@ -194,6 +199,7 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.String,
         }) messageId: string,
         command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         try {
             const message = await command.channel?.messages.fetch({ message: messageId });
             if (message) {

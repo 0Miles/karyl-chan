@@ -3,6 +3,7 @@ import { addTodoMessage } from '../models/todo-message.model.js';
 import { addTodoChannel, findTodoChannel } from '../models/todo-channel.model.js';
 import { CommandInteraction, TextChannel, MessageType } from 'discord.js';
 import { Discord, Slash, SlashGroup } from 'discordx';
+import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
 @SlashGroup({ description: 'Manage todo list channel', name: 'todo-channel', defaultMemberPermissions: '16' })
@@ -11,6 +12,7 @@ export class TodoChannelCommands {
 
     @Slash({ name: 'watch', description: 'Watch this channel as a todo list' })
     async watchChannel(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'todo.manage'))) return;
         const recordedTodoChannel = await findTodoChannel(command.guildId as string, command.channelId);
         if (!recordedTodoChannel) {
             await addTodoChannel(command.guildId as string, command.channelId);
@@ -36,6 +38,7 @@ export class TodoChannelCommands {
 
     @Slash({ name: 'stop-watch', description: 'Stop watching this channel as a todo list' })
     async stopWatchChannel(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'todo.manage'))) return;
         const recordedTodoChannel = await findTodoChannel(command.guildId as string, command.channelId);
         if (recordedTodoChannel) {
             await recordedTodoChannel.destroy();
@@ -61,6 +64,7 @@ export class TodoChannelCommands {
 
     @Slash({ name: 'check-cache', description: 'Check the cache for todo messages' })
     async checkCacheMessage(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'todo.manage'))) return;
         const channel = command.client.channels.cache.get(command.channelId) as TextChannel;
         const messages = await channel.messages.fetch({
             limit: 100,

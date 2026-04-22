@@ -2,6 +2,7 @@ import { PictureOnlyChannel } from '../models/picture-only-channel.model.js';
 import { CommandInteraction, ModalBuilder, ModalSubmitInteraction, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { Discord, ModalComponent, Slash, SlashGroup } from 'discordx';
 import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
+import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
 @SlashGroup({ description: 'Manage picture only channel', name: 'picture-only-channel', defaultMemberPermissions: '16' })
@@ -9,6 +10,7 @@ import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
 export class PictureOnlyChannelCommands {
     @Slash({ name: 'watch', description: 'Watch this channel as a rcon forward channel' })
     async watchChannel(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'picture-only.manage'))) return;
         const existingRecord = await PictureOnlyChannel.findOne({
             where: {
                 channelId: command.channelId,
@@ -42,6 +44,7 @@ export class PictureOnlyChannelCommands {
 
     @Slash({ name: 'stop-watch', description: 'Stop watching this channel as a rcon forward channel' })
     async stopWatchChannel(command: CommandInteraction): Promise<void> {
+        if (!(await requireCapability(command, 'picture-only.manage'))) return;
         const existingRecord = await PictureOnlyChannel.findOne({
             where: {
                 channelId: command.channelId,
