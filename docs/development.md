@@ -2,7 +2,7 @@
 
 ## 環境需求
 
-- Node.js 22（見 `package.json` engines）
+- Node.js 24（見 `package.json` engines，要求 >= 22）
 - npm 10+
 - 可執行 `sqlite3` 的系統（Windows / macOS / Linux 皆可；sqlite3 npm package 會自動編譯 native bindings）
 

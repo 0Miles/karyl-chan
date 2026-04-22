@@ -4,7 +4,7 @@
 
 | 項目 | 最低版本 | 備註 |
 |---|---|---|
-| Node.js | 22 | 若使用 Docker 不需本機安裝 |
+| Node.js | 24 (LTS) | 若使用 Docker 不需本機安裝；最低 22 |
 | npm | 10 | 通常隨 Node 安裝 |
 | Docker / Compose | 24+ | 僅容器部署需要 |
 | Discord bot token | — | 見下方「建立 Discord bot」 |
