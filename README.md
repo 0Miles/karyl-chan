@@ -1,48 +1,22 @@
 # Karyl Chan
 <img src="https://i.imgur.com/1YbH4xE.gif" width="180">
 
-## Overview
-Discord todo list bot.  
-There may be other features.
-  
-## Getting Started
-1. npm install
-```
-npm i
-```
-2. Setup bot token
-```
-// bash
-export BOT_TOKEN=REPLACE_THIS_WITH_YOUR_BOT_TOKEN
+個人 Discord 輔助 bot，附帶在 guild 中提供 todo、圖片頻道、身分組 emoji、RCON 轉發等實用功能。
 
-// cmd
-set BOT_TOKEN=REPLACE_THIS_WITH_YOUR_BOT_TOKEN
+## 文件目錄
 
-// powershell
-$ENV:BOT_TOKEN="REPLACE_THIS_WITH_YOUR_BOT_TOKEN"
-```
-3. Run
-```
-npm start
-```
+### 入門 / 運維
+- [安裝與部署](docs/setup.md) — 環境需求、環境變數、本機開發、Docker 部署
+- [運維手冊](docs/operations.md) — 資料庫備份、日誌、升級、常見問題
 
-## Todo channel
-Use discord channel as a todo list.  
-A message that mentions someone is considered a todo, and any reaction emoji is attached to the message to indicate that the todo is done.  
-Mention the bot when you want to see undone todos. The bot will pull all undone todos to channel bottom.
+### 功能
+- [Todo channel](docs/features/todo-channel.md) — 把頻道當待辦清單
+- [Picture-only channel](docs/features/picture-only-channel.md) — 只允許圖片的頻道
+- [Role emoji](docs/features/role-emoji.md) — 以 reaction 領取身分組
+- [RCON forward channel](docs/features/rcon-forward-channel.md) — 把頻道訊息轉發到遊戲伺服器 RCON
 
-### Commands
- - ``/todo-channel watch`` Watch the current Channel as a todo list.  
- - ``/todo-channel stop-watch`` Stop watching the current channel as a todo list.
- - ``/todo-channel check-cache`` Check cache message.
-  
+### 權限
+- [權限系統](docs/permissions.md) — 雙層模型、capability 清單、`/permission` 指令
 
-## Role emoji
-Allows guild members to acquire desired roles by attaching reaction emoji to designated message.  
-
-### Commands
- - ``/role-emoji add`` Add a new role emoji.  
- - ``/role-emoji remove`` Remove a role emoji.
- - ``/role-emoji list`` List all role emoji.
- - ``/role-emoji watch-message`` Watch a message's reactions.
- - ``/role-emoji stop-watch-message`` Stop watching a message's reactions.
+### 開發
+- [開發指南](docs/development.md) — build/test/CI、專案結構、貢獻流程
