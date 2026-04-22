@@ -104,10 +104,10 @@ export class PermissionCommands {
 
         const fields = CAPABILITY_KEYS.map(cap => {
             const roleIds = byCapability.get(cap) ?? [];
-            const fallback = EVERYONE_DEFAULTS[cap] ? 'allow' : 'deny';
+            const defaultLabel = EVERYONE_DEFAULTS[cap] ? 'open' : 'closed';
             const grantLabel = roleIds.length === 0
-                ? `_no grants_ (fallback: ${fallback} for @everyone)`
-                : roleIds.map(rid => {
+                ? `_no grants — default ${defaultLabel} (Discord permissions still apply)_`
+                : '**restricted to:** ' + roleIds.map(rid => {
                     if (rid === guildId) return '@everyone';
                     const role = guild?.roles.cache.get(rid);
                     return role ? role.toString() : `<unknown ${rid}>`;

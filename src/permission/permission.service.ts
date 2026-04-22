@@ -16,14 +16,22 @@ export interface CapabilityCheckInput {
 }
 
 // Pure evaluator — safe to unit-test without touching Discord or the DB.
-// Callers provide the per-capability default via `defaultAllow`.
+//
+// Whitelist-on-grant semantics: when at least one grant exists for a
+// capability in this guild, only members of those granted roles (or the
+// guild's @everyone role, id === guildId) can use it. When no grants
+// exist, the capability falls back to `defaultAllow`. Owner/Administrator
+// always bypass.
 export function evaluateCapability(input: CapabilityCheckInput): boolean {
     if (input.isOwnerOrAdmin) return true;
+    if (input.grantedRoleIds.size === 0) {
+        return input.defaultAllow;
+    }
     if (input.grantedRoleIds.has(input.guildId)) return true;
     for (const roleId of input.memberRoleIds) {
         if (input.grantedRoleIds.has(roleId)) return true;
     }
-    return input.defaultAllow;
+    return false;
 }
 
 export async function hasCapability(guild: Guild, member: GuildMember, capability: Capability): Promise<boolean> {

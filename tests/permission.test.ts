@@ -16,85 +16,21 @@ describe('evaluateCapability', () => {
             })).toBe(true);
         });
 
-        it('short-circuits before any grant lookup', () => {
+        it('allows even when grants exist and member is not in any granted role', () => {
             expect(evaluateCapability({
-                memberRoleIds: [],
+                memberRoleIds: ['unrelated'],
                 guildId,
                 isOwnerOrAdmin: true,
-                grantedRoleIds: new Set(['unrelated']),
+                grantedRoleIds: new Set(['ops']),
                 defaultAllow: false
             })).toBe(true);
         });
     });
 
-    describe('role-specific grants', () => {
-        it('allows when a member role is in the grant set', () => {
+    describe('no grants: fallback to defaultAllow', () => {
+        it('allows when defaultAllow is true and grants are empty', () => {
             expect(evaluateCapability({
-                memberRoleIds: ['R1'],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1']),
-                defaultAllow: false
-            })).toBe(true);
-        });
-
-        it('denies when no member role matches and defaultAllow is false', () => {
-            expect(evaluateCapability({
-                memberRoleIds: ['R2'],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1']),
-                defaultAllow: false
-            })).toBe(false);
-        });
-
-        it('allows if ANY of multiple member roles matches', () => {
-            expect(evaluateCapability({
-                memberRoleIds: ['R2', 'R3', 'R1'],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1']),
-                defaultAllow: false
-            })).toBe(true);
-        });
-
-        it('allows when a single member role matches one of many grants', () => {
-            expect(evaluateCapability({
-                memberRoleIds: ['R5'],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1', 'R3', 'R5', 'R9']),
-                defaultAllow: false
-            })).toBe(true);
-        });
-    });
-
-    describe('@everyone grant (roleId === guildId)', () => {
-        it('allows when guildId is in the grant set', () => {
-            expect(evaluateCapability({
-                memberRoleIds: [],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set([guildId]),
-                defaultAllow: false
-            })).toBe(true);
-        });
-
-        it('applies even to a member with no other roles', () => {
-            expect(evaluateCapability({
-                memberRoleIds: [guildId],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set([guildId]),
-                defaultAllow: false
-            })).toBe(true);
-        });
-    });
-
-    describe('defaultAllow fallback', () => {
-        it('returns true when no grant matches and defaultAllow is true', () => {
-            expect(evaluateCapability({
-                memberRoleIds: ['R1'],
+                memberRoleIds: ['R1', 'R2'],
                 guildId,
                 isOwnerOrAdmin: false,
                 grantedRoleIds: new Set(),
@@ -102,14 +38,101 @@ describe('evaluateCapability', () => {
             })).toBe(true);
         });
 
-        it('returns false when no grant matches and defaultAllow is false', () => {
+        it('denies when defaultAllow is false and grants are empty', () => {
             expect(evaluateCapability({
-                memberRoleIds: ['R1'],
+                memberRoleIds: ['R1', 'R2'],
                 guildId,
                 isOwnerOrAdmin: false,
                 grantedRoleIds: new Set(),
                 defaultAllow: false
             })).toBe(false);
+        });
+
+        it('allows a member with zero roles when defaultAllow is true', () => {
+            expect(evaluateCapability({
+                memberRoleIds: [],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(),
+                defaultAllow: true
+            })).toBe(true);
+        });
+    });
+
+    describe('whitelist mode (grants present)', () => {
+        it('allows when a member role matches a grant', () => {
+            expect(evaluateCapability({
+                memberRoleIds: ['ops'],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(['ops']),
+                defaultAllow: true
+            })).toBe(true);
+        });
+
+        it('denies a non-granted member even though defaultAllow is true', () => {
+            // This is the key "tightening" behavior: admin has added ANY grant,
+            // so defaultAllow no longer applies to non-granted members.
+            expect(evaluateCapability({
+                memberRoleIds: ['other'],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(['ops']),
+                defaultAllow: true
+            })).toBe(false);
+        });
+
+        it('allows if ANY of multiple member roles matches', () => {
+            expect(evaluateCapability({
+                memberRoleIds: ['member', 'ops', 'vip'],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(['ops']),
+                defaultAllow: true
+            })).toBe(true);
+        });
+
+        it('allows when a single member role matches one of many granted roles', () => {
+            expect(evaluateCapability({
+                memberRoleIds: ['mods'],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(['ops', 'mods', 'admins']),
+                defaultAllow: true
+            })).toBe(true);
+        });
+
+        it('denies a member with zero roles when grants exist', () => {
+            expect(evaluateCapability({
+                memberRoleIds: [],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set(['ops']),
+                defaultAllow: true
+            })).toBe(false);
+        });
+    });
+
+    describe('@everyone grant (roleId === guildId)', () => {
+        it('allows everyone in the guild when @everyone is granted', () => {
+            expect(evaluateCapability({
+                memberRoleIds: [],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set([guildId]),
+                defaultAllow: false
+            })).toBe(true);
+        });
+
+        it('cancels out whitelist tightening when combined with other grants', () => {
+            // @everyone + ops → everyone passes (via @everyone); ops is redundant
+            expect(evaluateCapability({
+                memberRoleIds: ['other'],
+                guildId,
+                isOwnerOrAdmin: false,
+                grantedRoleIds: new Set([guildId, 'ops']),
+                defaultAllow: false
+            })).toBe(true);
         });
     });
 
@@ -121,7 +144,7 @@ describe('evaluateCapability', () => {
                 guildId,
                 isOwnerOrAdmin: false,
                 grantedRoleIds: new Set([otherGuildId]),
-                defaultAllow: false
+                defaultAllow: true
             })).toBe(false);
         });
     });
@@ -135,14 +158,9 @@ describe('EVERYONE_DEFAULTS', () => {
         }
     });
 
-    it('management capabilities default to deny', () => {
-        expect(EVERYONE_DEFAULTS['todo.manage']).toBe(false);
-        expect(EVERYONE_DEFAULTS['picture-only.manage']).toBe(false);
-        expect(EVERYONE_DEFAULTS['rcon.configure']).toBe(false);
-        expect(EVERYONE_DEFAULTS['role-emoji.manage']).toBe(false);
-    });
-
-    it('rcon.execute defaults to allow (channel post permission is the gate)', () => {
-        expect(EVERYONE_DEFAULTS['rcon.execute']).toBe(true);
+    it('all capabilities default to allow (Discord filter is the first gate)', () => {
+        for (const cap of CAPABILITY_KEYS) {
+            expect(EVERYONE_DEFAULTS[cap]).toBe(true);
+        }
     });
 });

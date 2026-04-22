@@ -14,20 +14,17 @@ export function isCapability(value: string): value is Capability {
     return (CAPABILITY_KEYS as string[]).includes(value);
 }
 
-// Fallback when no explicit grant exists for a member.
-//
-// Management capabilities (*.manage, rcon.configure) default to deny —
-// only guild owner and Administrator can touch them until an admin
-// explicitly grants the capability to a role.
-//
-// rcon.execute defaults to allow because the real gate is the channel's
-// post permission: anyone trusted enough to post in a watched channel
-// is trusted to trigger the forwarder. Admins wanting to restrict
-// further should rely on channel permissions.
+// Fallback applied ONLY when no grants exist for a capability in this guild.
+// All capabilities default to allow because the first-level filter is
+// Discord's defaultMemberPermissions on each SlashGroup (e.g. MANAGE_CHANNELS
+// for channel-watch commands) and, for rcon.execute, the channel post
+// permission. Our capability system exists so admins can tighten further
+// by adding grants — as soon as any grant exists for a capability, the
+// evaluator flips to whitelist mode.
 export const EVERYONE_DEFAULTS: Record<Capability, boolean> = {
-    'todo.manage': false,
-    'picture-only.manage': false,
-    'rcon.configure': false,
-    'role-emoji.manage': false,
+    'todo.manage': true,
+    'picture-only.manage': true,
+    'rcon.configure': true,
+    'role-emoji.manage': true,
     'rcon.execute': true
 };

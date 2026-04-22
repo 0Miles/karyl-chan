@@ -6,7 +6,7 @@ import { Discord, Slash, SlashGroup } from 'discordx';
 import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
-@SlashGroup({ description: 'Manage todo list channel', name: 'todo-channel' })
+@SlashGroup({ description: 'Manage todo list channel', name: 'todo-channel', defaultMemberPermissions: '16' })
 @SlashGroup('todo-channel')
 export class TodoChannelCommands {
 

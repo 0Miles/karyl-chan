@@ -6,7 +6,7 @@ import { encryptSecret } from '../utils/crypto.js';
 import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
-@SlashGroup({ description: 'Manage rcon forward channel', name: 'rcon-forward-channel' })
+@SlashGroup({ description: 'Manage rcon forward channel', name: 'rcon-forward-channel', defaultMemberPermissions: '16' })
 @SlashGroup('rcon-forward-channel')
 export class RconForwardChannelCommands {
     @Slash({ name: 'watch', description: 'Watch this channel as a rcon forward channel' })

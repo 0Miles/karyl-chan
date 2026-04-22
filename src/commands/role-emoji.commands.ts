@@ -6,7 +6,7 @@ import { findRoleReceiveMessage, addRoleReceiveMessage, removeRoleReceiveMessage
 import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
-@SlashGroup({ description: 'Manage role emoji', name: 'role-emoji' })
+@SlashGroup({ description: 'Manage role emoji', name: 'role-emoji', defaultMemberPermissions: '268435456' })
 @SlashGroup('role-emoji')
 export class RoleEmojiCommands {
     @Slash({ name: 'add', description: 'Add a new role emoji' })

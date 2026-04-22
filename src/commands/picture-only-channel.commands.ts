@@ -5,7 +5,7 @@ import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
 import { requireCapability } from '../permission/permission-check.js';
 
 @Discord()
-@SlashGroup({ description: 'Manage picture only channel', name: 'picture-only-channel' })
+@SlashGroup({ description: 'Manage picture only channel', name: 'picture-only-channel', defaultMemberPermissions: '16' })
 @SlashGroup('picture-only-channel')
 export class PictureOnlyChannelCommands {
     @Slash({ name: 'watch', description: 'Watch this channel as a rcon forward channel' })
