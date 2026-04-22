@@ -102,11 +102,7 @@ export class RconForwardChannelCommands {
                     commandPrefix,
                     host,
                     password: encryptSecret(password),
-                    port: parseInt(portString),
-                    option: {
-                        tcp: true,
-                        challenge: false
-                    }
+                    port: parseInt(portString)
                 });
             } else {
                 const updates: Record<string, unknown> = {

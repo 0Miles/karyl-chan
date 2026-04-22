@@ -15,6 +15,5 @@ export const RconForwardChannel = sequelize.define('RconForwardChannel', {
     triggerPrefix: DataTypes.STRING,
     host: DataTypes.STRING,
     port: DataTypes.INTEGER,
-    password: DataTypes.STRING,
-    options: DataTypes.JSON
+    password: DataTypes.STRING
 });
