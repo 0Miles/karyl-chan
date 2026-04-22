@@ -4,6 +4,12 @@ export class RateLimiter {
         windowMs: 60 * 1000, // 1 minute
         maxCommands: 10
     };
+    private cleanupTimer: NodeJS.Timeout;
+
+    constructor(cleanupIntervalMs: number = 10 * 60 * 1000) {
+        this.cleanupTimer = setInterval(() => this.cleanup(), cleanupIntervalMs);
+        this.cleanupTimer.unref();
+    }
 
     isRateLimited(channelId: string): boolean {
         const now = Date.now();
