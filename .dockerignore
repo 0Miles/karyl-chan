@@ -5,3 +5,5 @@ build
 .git
 .gitignore
 README.md
+tests
+tsconfig.test.json
