@@ -3,7 +3,7 @@ import Rcon from 'rcon';
 import { DEFAULT_COLOR, FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
 import { assertAllowedTarget, HostPolicyError } from '../utils/host-policy.js';
 
-interface RconConnection {
+export interface RconConnection {
     conn: Rcon;
     channels: Set<TextChannel>;
     authenticated: boolean;
@@ -19,7 +19,7 @@ interface RconConnectionManager {
     [key: string]: RconConnection;
 }
 
-interface QueuedCommand {
+export interface QueuedCommand {
     content: string;
     timestamp: number;
     channelId: string;

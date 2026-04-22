@@ -1,5 +1,5 @@
 import { Message, TextChannel } from 'discord.js';
-import { RconConnectionService } from './rcon-connection.service.js';
+import { RconConnection, RconConnectionService } from './rcon-connection.service.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
 import { FAILED_COLOR } from '../utils/constant.js';
 
@@ -7,17 +7,15 @@ export class RconQueueService {
     private static rateLimiter = new RateLimiter();
     private static readonly QUEUE_COMMAND_EXPIRY = 5 * 60 * 1000;
 
-    private static cleanExpiredCommands(connection: any) {
+    private static cleanExpiredCommands(connection: RconConnection) {
         const now = Date.now();
-        const expiredCommands = connection.queuedCommands.filter(
-            (cmd: any) => now - cmd.timestamp >= this.QUEUE_COMMAND_EXPIRY
+        const before = connection.queuedCommands.length;
+        connection.queuedCommands = connection.queuedCommands.filter(
+            cmd => now - cmd.timestamp < this.QUEUE_COMMAND_EXPIRY
         );
-
-        if (expiredCommands.length > 0) {
-            connection.queuedCommands = connection.queuedCommands.filter(
-                (cmd: any) => now - cmd.timestamp < this.QUEUE_COMMAND_EXPIRY
-            );
-            console.log(`Cleaned ${expiredCommands.length} expired commands from queue for ${connection.host}:${connection.port}`);
+        const removed = before - connection.queuedCommands.length;
+        if (removed > 0) {
+            console.log(`Cleaned ${removed} expired commands from queue for ${connection.host}:${connection.port}`);
         }
     }
 
