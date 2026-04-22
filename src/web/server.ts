@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
+import { Client } from 'discordx';
 import { existsSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -7,10 +8,12 @@ import { fileURLToPath } from 'url';
 export interface WebServerOptions {
     port: number;
     host?: string;
+    bot?: Client;
 }
 
 export interface CreateWebServerOptions {
     staticRoot?: string;
+    bot?: Client;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -41,6 +44,20 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         };
     });
 
+    const bot = options.bot;
+    if (bot) {
+        server.get('/api/bot/status', async () => {
+            const ready = bot.isReady();
+            return {
+                ready,
+                userTag: ready ? bot.user?.tag ?? null : null,
+                userId: ready ? bot.user?.id ?? null : null,
+                guildCount: bot.guilds.cache.size,
+                uptimeMs: bot.uptime ?? 0
+            };
+        });
+    }
+
     const staticRoot = options.staticRoot ?? defaultStaticRoot();
     if (staticRoot) {
         await server.register(fastifyStatic, {
@@ -68,7 +85,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
 }
 
 export async function startWebServer(options: WebServerOptions): Promise<FastifyInstance> {
-    const server = await createWebServer();
+    const server = await createWebServer({ bot: options.bot });
     await server.listen({
         port: options.port,
         host: options.host ?? '0.0.0.0'

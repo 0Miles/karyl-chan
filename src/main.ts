@@ -68,7 +68,7 @@ async function run() {
         await sequelize.sync();
 
         const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
-        await startWebServer({ port: webPort });
+        await startWebServer({ port: webPort, bot });
         console.log(`Web server listening on :${webPort}`);
 
         await bot.login(process.env.BOT_TOKEN ?? '');
