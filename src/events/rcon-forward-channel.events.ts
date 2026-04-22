@@ -5,6 +5,7 @@ import { FAILED_COLOR } from '../utils/constant.js';
 import { RconQueueService } from '../services/rcon-queue.service.js';
 import { RconConnectionService } from '../services/rcon-connection.service.js';
 import { decryptSecret } from '../utils/crypto.js';
+import { hasCapability } from '../permission/permission.service.js';
 
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -37,6 +38,7 @@ export class RconForwardChannelEvents {
     async messageCreate([message]: ArgsOf<'messageCreate'>, client: Client): Promise<void> {
         try {
             if (message.author.bot) return;
+            if (!message.guild || !message.member) return;
 
             const existingRecord = await RconForwardChannel.findOne({
                 where: {
@@ -47,17 +49,22 @@ export class RconForwardChannelEvents {
 
             if (existingRecord) {
                 const triggerPrefix: string = existingRecord.getDataValue('triggerPrefix');
-                const commandPrefix: string = existingRecord.getDataValue('commandPrefix');
-                if (message.content.startsWith(triggerPrefix)) {
-                    const command = commandPrefix + message.content.substring(triggerPrefix.length);
-                    await RconQueueService.send(
-                        message,
-                        existingRecord.getDataValue('host'),
-                        existingRecord.getDataValue('port'),
-                        decryptSecret(existingRecord.getDataValue('password')),
-                        command
-                    );
+                if (!message.content.startsWith(triggerPrefix)) return;
+
+                if (!(await hasCapability(message.guild, message.member, 'rcon.execute'))) {
+                    console.log(`rcon.execute denied: user=${message.author.id} channel=${message.channelId}`);
+                    return;
                 }
+
+                const commandPrefix: string = existingRecord.getDataValue('commandPrefix');
+                const command = commandPrefix + message.content.substring(triggerPrefix.length);
+                await RconQueueService.send(
+                    message,
+                    existingRecord.getDataValue('host'),
+                    existingRecord.getDataValue('port'),
+                    decryptSecret(existingRecord.getDataValue('password')),
+                    command
+                );
             }
         } catch (error) {
             console.error('Message handling error:', error);
