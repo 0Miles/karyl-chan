@@ -148,7 +148,7 @@ export class RconConnectionService {
                 this.processQueuedCommands(connectionName);
             })
             .on('response', (str: string) => {
-                console.log(`Received response from ${connectionName}: ${str}`);
+                console.log(`Received response from ${connectionName} (${str?.length ?? 0} bytes)`);
                 connection.lastUsed = new Date();
                 for(const channel of connection.channels) {
                     channel.send({
@@ -162,7 +162,7 @@ export class RconConnectionService {
                 }
             })
             .on('server', (str: string) => {
-                console.log(`Received server message from ${connectionName}: ${str}`);
+                console.log(`Received server message from ${connectionName} (${str?.length ?? 0} bytes)`);
                 for(const channel of connection.channels) {
                     channel.send({
                         embeds: [{
