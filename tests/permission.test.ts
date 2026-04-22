@@ -1,27 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { evaluateCapability } from '../src/permission/permission.service.js';
+import { CAPABILITY_KEYS, EVERYONE_DEFAULTS } from '../src/permission/capabilities.js';
 
 const guildId = 'G-1';
 
 describe('evaluateCapability', () => {
     describe('owner / administrator bypass', () => {
-        it('grants everything to owner/admin, even a deny-default capability', () => {
+        it('always allows, even when defaultAllow is false and no grants exist', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: [],
                 guildId,
                 isOwnerOrAdmin: true,
-                grantedRoleIds: new Set()
+                grantedRoleIds: new Set(),
+                defaultAllow: false
             })).toBe(true);
         });
 
-        it('does not require any grants for owner/admin', () => {
+        it('short-circuits before any grant lookup', () => {
             expect(evaluateCapability({
-                capability: 'todo.manage',
                 memberRoleIds: [],
                 guildId,
                 isOwnerOrAdmin: true,
-                grantedRoleIds: new Set()
+                grantedRoleIds: new Set(['unrelated']),
+                defaultAllow: false
             })).toBe(true);
         });
     });
@@ -29,143 +30,119 @@ describe('evaluateCapability', () => {
     describe('role-specific grants', () => {
         it('allows when a member role is in the grant set', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: ['R1'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1'])
+                grantedRoleIds: new Set(['R1']),
+                defaultAllow: false
             })).toBe(true);
         });
 
-        it('denies when no member role matches and default is deny', () => {
+        it('denies when no member role matches and defaultAllow is false', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: ['R2'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1'])
+                grantedRoleIds: new Set(['R1']),
+                defaultAllow: false
             })).toBe(false);
         });
 
         it('allows if ANY of multiple member roles matches', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: ['R2', 'R3', 'R1'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1'])
+                grantedRoleIds: new Set(['R1']),
+                defaultAllow: false
             })).toBe(true);
         });
 
-        it('allows when exactly one role matches', () => {
+        it('allows when a single member role matches one of many grants', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: ['R5'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set(['R1', 'R3', 'R5', 'R9'])
+                grantedRoleIds: new Set(['R1', 'R3', 'R5', 'R9']),
+                defaultAllow: false
             })).toBe(true);
         });
     });
 
-    describe('@everyone grant', () => {
-        it('applies when guildId (the @everyone role id) is granted', () => {
+    describe('@everyone grant (roleId === guildId)', () => {
+        it('allows when guildId is in the grant set', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: [],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set([guildId])
+                grantedRoleIds: new Set([guildId]),
+                defaultAllow: false
             })).toBe(true);
         });
 
-        it('applies to a member with zero other roles', () => {
+        it('applies even to a member with no other roles', () => {
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: [guildId],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set([guildId])
+                grantedRoleIds: new Set([guildId]),
+                defaultAllow: false
             })).toBe(true);
         });
     });
 
-    describe('fallback defaults (no grants for capability)', () => {
-        it('falls back to allow for todo.manage', () => {
+    describe('defaultAllow fallback', () => {
+        it('returns true when no grant matches and defaultAllow is true', () => {
             expect(evaluateCapability({
-                capability: 'todo.manage',
                 memberRoleIds: ['R1'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
+                grantedRoleIds: new Set(),
+                defaultAllow: true
             })).toBe(true);
         });
 
-        it('falls back to allow for picture-only.manage', () => {
+        it('returns false when no grant matches and defaultAllow is false', () => {
             expect(evaluateCapability({
-                capability: 'picture-only.manage',
-                memberRoleIds: [],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
-            })).toBe(true);
-        });
-
-        it('falls back to allow for rcon.configure', () => {
-            expect(evaluateCapability({
-                capability: 'rcon.configure',
-                memberRoleIds: [],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
-            })).toBe(true);
-        });
-
-        it('falls back to allow for role-emoji.manage', () => {
-            expect(evaluateCapability({
-                capability: 'role-emoji.manage',
-                memberRoleIds: [],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
-            })).toBe(true);
-        });
-
-        it('falls back to deny for rcon.execute', () => {
-            expect(evaluateCapability({
-                capability: 'rcon.execute',
-                memberRoleIds: ['R1', 'R2'],
-                guildId,
-                isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
-            })).toBe(false);
-        });
-    });
-
-    describe('grant isolation', () => {
-        it('grants for one capability do not leak to another', () => {
-            // Caller only passes grants for the target capability anyway, but confirm
-            // the function does not rely on any other state.
-            expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: ['R1'],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set()
+                grantedRoleIds: new Set(),
+                defaultAllow: false
             })).toBe(false);
         });
     });
 
     describe('cross-guild safety', () => {
-        it('treats @everyone of a different guild as a normal role (not auto-applied)', () => {
+        it('a different guild id in the grant set is not treated as @everyone', () => {
             const otherGuildId = 'G-2';
             expect(evaluateCapability({
-                capability: 'rcon.execute',
                 memberRoleIds: [],
                 guildId,
                 isOwnerOrAdmin: false,
-                grantedRoleIds: new Set([otherGuildId])
+                grantedRoleIds: new Set([otherGuildId]),
+                defaultAllow: false
             })).toBe(false);
         });
+    });
+});
+
+describe('EVERYONE_DEFAULTS', () => {
+    it('defines a default for every capability', () => {
+        for (const cap of CAPABILITY_KEYS) {
+            expect(EVERYONE_DEFAULTS).toHaveProperty(cap);
+            expect(typeof EVERYONE_DEFAULTS[cap]).toBe('boolean');
+        }
+    });
+
+    it('management capabilities default to deny', () => {
+        expect(EVERYONE_DEFAULTS['todo.manage']).toBe(false);
+        expect(EVERYONE_DEFAULTS['picture-only.manage']).toBe(false);
+        expect(EVERYONE_DEFAULTS['rcon.configure']).toBe(false);
+        expect(EVERYONE_DEFAULTS['role-emoji.manage']).toBe(false);
+    });
+
+    it('rcon.execute defaults to allow (channel post permission is the gate)', () => {
+        expect(EVERYONE_DEFAULTS['rcon.execute']).toBe(true);
     });
 });

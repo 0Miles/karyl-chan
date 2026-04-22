@@ -8,21 +8,22 @@ export function isOwnerOrAdmin(guild: Guild, member: GuildMember): boolean {
 }
 
 export interface CapabilityCheckInput {
-    capability: Capability;
     memberRoleIds: string[];
     guildId: string;
     isOwnerOrAdmin: boolean;
     grantedRoleIds: Set<string>;
+    defaultAllow: boolean;
 }
 
 // Pure evaluator — safe to unit-test without touching Discord or the DB.
+// Callers provide the per-capability default via `defaultAllow`.
 export function evaluateCapability(input: CapabilityCheckInput): boolean {
     if (input.isOwnerOrAdmin) return true;
     if (input.grantedRoleIds.has(input.guildId)) return true;
     for (const roleId of input.memberRoleIds) {
         if (input.grantedRoleIds.has(roleId)) return true;
     }
-    return EVERYONE_DEFAULTS[input.capability];
+    return input.defaultAllow;
 }
 
 export async function hasCapability(guild: Guild, member: GuildMember, capability: Capability): Promise<boolean> {
@@ -31,11 +32,11 @@ export async function hasCapability(guild: Guild, member: GuildMember, capabilit
     });
     const grantedRoleIds = new Set(grants.map(g => g.getDataValue('roleId') as string));
     return evaluateCapability({
-        capability,
         memberRoleIds: [...member.roles.cache.keys()],
         guildId: guild.id,
         isOwnerOrAdmin: isOwnerOrAdmin(guild, member),
-        grantedRoleIds
+        grantedRoleIds,
+        defaultAllow: EVERYONE_DEFAULTS[capability]
     });
 }
 

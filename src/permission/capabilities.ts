@@ -14,13 +14,20 @@ export function isCapability(value: string): value is Capability {
     return (CAPABILITY_KEYS as string[]).includes(value);
 }
 
-// Fallback when no explicit grant exists for a member. Critical capabilities
-// default to deny; other features still have Discord's defaultMemberPermissions
-// as a first-level visual filter on the slash commands.
+// Fallback when no explicit grant exists for a member.
+//
+// Management capabilities (*.manage, rcon.configure) default to deny —
+// only guild owner and Administrator can touch them until an admin
+// explicitly grants the capability to a role.
+//
+// rcon.execute defaults to allow because the real gate is the channel's
+// post permission: anyone trusted enough to post in a watched channel
+// is trusted to trigger the forwarder. Admins wanting to restrict
+// further should rely on channel permissions.
 export const EVERYONE_DEFAULTS: Record<Capability, boolean> = {
-    'todo.manage': true,
-    'picture-only.manage': true,
-    'rcon.configure': true,
-    'role-emoji.manage': true,
-    'rcon.execute': false
+    'todo.manage': false,
+    'picture-only.manage': false,
+    'rcon.configure': false,
+    'role-emoji.manage': false,
+    'rcon.execute': true
 };
