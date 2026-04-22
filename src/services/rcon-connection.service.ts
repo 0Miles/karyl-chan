@@ -1,6 +1,7 @@
 import { TextChannel } from 'discord.js';
 import Rcon from 'rcon';
 import { DEFAULT_COLOR, FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
+import { assertAllowedTarget, HostPolicyError } from '../utils/host-policy.js';
 
 interface RconConnection {
     conn: Rcon;
@@ -55,12 +56,7 @@ export class RconConnectionService {
         this.connectionLocks.set(connectionName, connectionLockPromise);
 
         try {
-            if (!this.isValidHostname(host)) {
-                throw new Error('無效的主機名稱');
-            }
-            if (!this.isValidPort(port)) {
-                throw new Error('無效的端口號碼');
-            }
+            await assertAllowedTarget(host, port);
 
             if (this.connectionMap[connectionName]) {
                 try {
@@ -99,12 +95,15 @@ export class RconConnectionService {
             lockResolver.resolve();
             return true;
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : '未知錯誤';
+            console.error(`Connection init failed for ${connectionName}:`, error);
+            const userMessage = error instanceof HostPolicyError
+                ? error.message
+                : '無法建立連接，請確認 host/port 設定是否正確。';
             await channel.send({
                 embeds: [{
                     color: FAILED_COLOR,
                     title: 'Connection Error',
-                    description: `無法建立連接: ${errorMessage}`
+                    description: userMessage
                 }]
             }).catch(console.error);
 
@@ -115,7 +114,7 @@ export class RconConnectionService {
                 delete this.connectionMap[connectionName];
             }
 
-            lockResolver.reject(error instanceof Error ? error : new Error(errorMessage));
+            lockResolver.reject(error instanceof Error ? error : new Error('未知錯誤'));
             return false;
         } finally {
             this.connectionLocks.delete(connectionName);
@@ -132,15 +131,6 @@ export class RconConnectionService {
 
     static async cleanupConnection(connectionName: string): Promise<void> {
         return this.handleConnectionEnd(connectionName);
-    }
-
-    private static isValidHostname(host: string): boolean {
-        return /^[a-zA-Z0-9]([a-zA-Z0-9\-\.]*[a-zA-Z0-9])?$/.test(host) || 
-               /^(\d{1,3}\.){3}\d{1,3}$/.test(host);
-    }
-
-    private static isValidPort(port: number): boolean {
-        return Number.isInteger(port) && port > 0 && port < 65536;
     }
 
     private static setupEventListeners(connectionName: string, host: string, port: number, password: string) {
@@ -192,7 +182,7 @@ export class RconConnectionService {
                         embeds: [{
                             color: FAILED_COLOR,
                             title: 'RCON Error',
-                            description: `連接錯誤: ${err.message}`
+                            description: '連線發生錯誤，將嘗試重新連線。'
                         }]
                     }).catch(console.error);
                 }
