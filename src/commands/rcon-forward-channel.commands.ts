@@ -2,6 +2,7 @@ import { RconForwardChannel } from './../models/rcon-forward-channel.model.js';
 import { CommandInteraction, ModalBuilder, ModalSubmitInteraction, TextInputBuilder, TextInputStyle, ActionRowBuilder } from 'discord.js';
 import { Discord, ModalComponent, Slash, SlashGroup } from 'discordx';
 import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
+import { encryptSecret } from '../utils/crypto.js';
 
 @Discord()
 @SlashGroup({ description: 'Manage rcon forward channel', name: 'rcon-forward-channel', defaultMemberPermissions: '16' })
@@ -100,7 +101,7 @@ export class RconForwardChannelCommands {
                     triggerPrefix,
                     commandPrefix,
                     host,
-                    password,
+                    password: encryptSecret(password),
                     port: parseInt(portString),
                     option: {
                         tcp: true,
@@ -108,13 +109,16 @@ export class RconForwardChannelCommands {
                     }
                 });
             } else {
-                await existingRecord.update({
+                const updates: Record<string, unknown> = {
                     triggerPrefix,
                     commandPrefix,
                     host,
-                    password,
                     port: parseInt(portString)
-                });
+                };
+                if (password) {
+                    updates.password = encryptSecret(password);
+                }
+                await existingRecord.update(updates);
             }
 
             await this.replyStatus(
@@ -122,8 +126,7 @@ export class RconForwardChannelCommands {
                 triggerPrefix,
                 commandPrefix,
                 host,
-                portString,
-                password,
+                portString
             );
 
             return;
@@ -132,7 +135,7 @@ export class RconForwardChannelCommands {
         }
     }
 
-    async replyStatus(interaction: CommandInteraction, triggerPrefix: string, commandPrefix: string, host: string, port: string, password: string) {
+    async replyStatus(interaction: CommandInteraction, triggerPrefix: string, commandPrefix: string, host: string, port: string) {
         await interaction.reply({
             flags: 'Ephemeral',
             embeds: [{
@@ -156,7 +159,7 @@ export class RconForwardChannelCommands {
                     },
                     {
                         name: `Password`,
-                        value: password
+                        value: '••••••••'
                     }
                 ]
             }]
@@ -202,7 +205,7 @@ export class RconForwardChannelCommands {
             }
         });
         if (existingRecord) {
-            await this.replyStatus(command, existingRecord.getDataValue('triggerPrefix'), existingRecord.getDataValue('commandPrefix'), existingRecord.getDataValue('host'), existingRecord.getDataValue('port'), existingRecord.getDataValue('password'));
+            await this.replyStatus(command, existingRecord.getDataValue('triggerPrefix'), existingRecord.getDataValue('commandPrefix'), existingRecord.getDataValue('host'), existingRecord.getDataValue('port').toString());
         } else {
             await command.reply({
                 embeds: [{
@@ -242,8 +245,8 @@ export class RconForwardChannelCommands {
                         .setCustomId('fieldPassword')
                         .setLabel('Password')
                         .setStyle(TextInputStyle.Short)
-                        .setValue(existingRecord.getDataValue('password'))
-                        .setMinLength(1)
+                        .setPlaceholder('留空以保持原密碼')
+                        .setRequired(false)
                         .setMaxLength(300)
                 ),
                 new ActionRowBuilder<TextInputBuilder>().addComponents(

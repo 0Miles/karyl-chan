@@ -4,6 +4,7 @@ import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
 import { FAILED_COLOR } from '../utils/constant.js';
 import { RconQueueService } from '../services/rcon-queue.service.js';
 import { RconConnectionService } from '../services/rcon-connection.service.js';
+import { decryptSecret } from '../utils/crypto.js';
 
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -70,10 +71,10 @@ export class RconForwardChannelEvents {
                 if (message.content.startsWith(triggerPrefix)) {
                     const command = commandPrefix + message.content.substring(triggerPrefix.length);
                     await RconQueueService.send(
-                        message, 
-                        existingRecord.getDataValue('host'), 
-                        existingRecord.getDataValue('port'), 
-                        existingRecord.getDataValue('password'), 
+                        message,
+                        existingRecord.getDataValue('host'),
+                        existingRecord.getDataValue('port'),
+                        decryptSecret(existingRecord.getDataValue('password')),
                         command
                     );
                 }

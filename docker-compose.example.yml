@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  bot:
+    image: ghcr.io/0miles/karyl-chan:latest
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
+      # 若要使用 /rcon-forward-channel 功能需設定（openssl rand -hex 32）；其他功能不需要
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+    volumes:
+      - karyl-chan-data:/usr/src/app/data
+    networks:
+      - mc-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    restart: unless-stopped
+
+volumes:
+  karyl-chan-data:
+
+networks:
+  mc-network:
+    external: true
