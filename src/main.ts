@@ -23,11 +23,7 @@ export const bot = new Client({
         Partials.Reaction
     ],
 
-    silent: false,
-    
-    simpleCommand: {
-        prefix: '!',
-    },
+    silent: false
 });
 
 bot.once('ready', async () => {

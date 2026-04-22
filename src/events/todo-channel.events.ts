@@ -6,22 +6,19 @@ import { addTodoMessage, removeTodoMessage, findChannelTodoMessages } from '../m
 
 async function loadTodoMessage(message: Message) {
     const todoMessageIds = await findChannelTodoMessages(message.guildId as string, message.channelId);
-    const messages: Message[] = [];
-    await Promise.allSettled(todoMessageIds.map(x => {
-        return new Promise<void>(async (resolve, rejects) => {
-            message.channel.messages.fetch({ message: x.getDataValue('messageId') })
-                .then(result => {
-                    messages.push(result);
-                    resolve();
-                })
-                .catch(_ => {
-                    removeTodoMessage(x.getDataValue('guildId'), x.getDataValue('channelId'), x.getDataValue('messageId'))
-                        .finally(() => {
-                            rejects();
-                        });
-                });
+    const results = await Promise.allSettled(
+        todoMessageIds.map(async x => {
+            try {
+                return await message.channel.messages.fetch({ message: x.getDataValue('messageId') });
+            } catch (error) {
+                await removeTodoMessage(x.getDataValue('guildId'), x.getDataValue('channelId'), x.getDataValue('messageId'));
+                throw error;
+            }
         })
-    }));
+    );
+    const messages = results
+        .filter((r): r is PromiseFulfilledResult<Message> => r.status === 'fulfilled')
+        .map(r => r.value);
     return messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 

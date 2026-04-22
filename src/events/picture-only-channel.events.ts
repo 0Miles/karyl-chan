@@ -7,17 +7,15 @@ export class PictureOnlyChannelEvents {
     @On()
     async messageCreate([message]: ArgsOf<'messageCreate'>, client: Client): Promise<void> {
         try {
-            const existingRecord = await await PictureOnlyChannel.findOne({
+            const existingRecord = await PictureOnlyChannel.findOne({
                 where: {
                     channelId: message.channelId,
                     guildId: message.guildId
                 }
             });
 
-            if (existingRecord) {
-                if (!message.attachments.find(x => true)) {
-                    await message.delete();
-                }
+            if (existingRecord && message.attachments.size === 0) {
+                await message.delete();
             }
         } catch (ex) {
             console.error(ex);
