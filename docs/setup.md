@@ -29,6 +29,7 @@
 | `ENCRYPTION_KEY` | 使用 RCON 功能時必填 | 32 bytes 的 hex 字串，用於加密 RCON 密碼。產生方式：`openssl rand -hex 32` |
 | `NODE_ENV` | 否 | 預設 `production` |
 | `SQLITE_DB_PATH` | 否 | SQLite 檔案路徑，預設 `./data/database.sqlite`（容器內為 `/usr/src/app/data/database.sqlite`） |
+| `WEB_PORT` | 否 | 管理 API HTTP 埠，預設 `3000` |
 
 複製範本：
 ```bash

@@ -5,6 +5,7 @@ import type { Interaction, Message } from 'discord.js';
 import { IntentsBitField, Partials } from 'discord.js';
 import { Client } from 'discordx';
 import { sequelize } from './models/db.js';
+import { startWebServer } from './web/server.js';
 
 export const bot = new Client({
     botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
@@ -65,6 +66,11 @@ async function run() {
     try {
         await importx(dirname(import.meta.url) + '/{events,commands}/**/*.{ts,js}');
         await sequelize.sync();
+
+        const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
+        await startWebServer({ port: webPort });
+        console.log(`Web server listening on :${webPort}`);
+
         await bot.login(process.env.BOT_TOKEN ?? '');
     } catch (ex) {
         console.error(ex);

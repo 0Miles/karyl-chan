@@ -69,7 +69,9 @@ src/
     crypto.ts                  # AES-256-GCM helper
     host-policy.ts             # RCON host allowlist / blocklist
     rate-limiter.ts            # 頻道級速率限制
-  main.ts                      # 入口；bot 啟動與事件分發
+  web/                         # HTTP API (Fastify)
+    server.ts                  # Fastify instance + routes
+  main.ts                      # 入口；bot 啟動 + web server 並行
 
 tests/                         # vitest 單元測試
   crypto.test.ts
