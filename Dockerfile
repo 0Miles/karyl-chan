@@ -1,4 +1,15 @@
-FROM node:24-slim AS build
+FROM node:24-trixie-slim AS frontend-build
+
+WORKDIR /app
+
+COPY frontend/package*.json frontend/
+RUN cd frontend && npm ci
+
+COPY frontend/ frontend/
+RUN cd frontend && npm run build
+
+
+FROM node:24-trixie-slim AS backend-build
 
 WORKDIR /usr/src/app
 
@@ -9,7 +20,7 @@ COPY . .
 RUN npm run build
 
 
-FROM node:24-slim AS runtime
+FROM node:24-trixie-slim AS runtime
 
 WORKDIR /usr/src/app
 
@@ -20,9 +31,17 @@ ENV NODE_ENV=production \
 EXPOSE 3000
 
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
 
-COPY --from=build /usr/src/app/build ./build
+# Copy the node_modules resolved in the backend-build stage (where cross-
+# platform lockfile issues do not surface because the full install ran
+# there) and prune dev dependencies. This avoids `npm ci --omit=dev` in
+# the runtime stage, which can fail when the lockfile was generated on
+# a different platform (e.g. Windows dev) than the build (Linux).
+COPY --from=backend-build /usr/src/app/node_modules ./node_modules
+RUN npm prune --omit=dev && npm cache clean --force
+
+COPY --from=backend-build /usr/src/app/build ./build
+COPY --from=frontend-build /app/frontend/dist ./build/public
 
 RUN mkdir -p /usr/src/app/data && chown -R node:node /usr/src/app
 

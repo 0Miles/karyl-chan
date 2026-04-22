@@ -8,6 +8,8 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       - karyl-chan-data:/usr/src/app/data
 

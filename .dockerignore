@@ -8,3 +8,5 @@ README.md
 docs
 tests
 tsconfig.test.json
+frontend/dist
+frontend/node_modules

@@ -8,6 +8,8 @@ services:
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
       # 若要使用 /rcon-forward-channel 功能需設定（openssl rand -hex 32）；其他功能不需要
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       - karyl-chan-data:/usr/src/app/data
     networks:
