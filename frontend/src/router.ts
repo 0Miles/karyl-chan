@@ -9,9 +9,9 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true }
     },
     {
-        path: '/dm',
-        name: 'dm',
-        component: () => import('./views/dm/DmPage.vue'),
+        path: '/messages',
+        name: 'messages',
+        component: () => import('./views/messages/MessagesPage.vue'),
         meta: { requiresAuth: true }
     },
     {

@@ -1,4 +1,6 @@
 import { ApiError, authedFetch } from './client';
+import { getAccessToken } from '../auth';
+import type { Message, MessageEmoji } from '../libs/messages';
 
 export interface GuildSummary {
     id: string;
@@ -64,4 +66,150 @@ export async function listGuilds(): Promise<GuildSummary[]> {
 export async function getGuildDetail(guildId: string): Promise<GuildDetail> {
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}`);
     return jsonOrThrow<GuildDetail>(response);
+}
+
+// ── Guild text-channel messaging ───────────────────────────────────────────
+
+export interface GuildTextChannel {
+    id: string;
+    name: string;
+}
+
+export interface GuildChannelCategory {
+    id: string | null;
+    name: string | null;
+    channels: GuildTextChannel[];
+}
+
+export type GuildChannelEvent =
+    | { type: 'guild-message-created'; guildId: string; channelId: string; message: Message }
+    | { type: 'guild-message-updated'; guildId: string; channelId: string; message: Message }
+    | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string };
+
+export async function listGuildTextChannels(guildId: string): Promise<GuildChannelCategory[]> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/text-channels`);
+    const body = await jsonOrThrow<{ categories: GuildChannelCategory[] }>(response);
+    return body.categories;
+}
+
+export async function getGuildMessages(
+    guildId: string,
+    channelId: string,
+    opts: { limit?: number; before?: string } = {}
+): Promise<{ messages: Message[]; hasMore: boolean }> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.before) params.set('before', opts.before);
+    const query = params.toString();
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages${query ? `?${query}` : ''}`;
+    const response = await authedFetch(url);
+    return jsonOrThrow<{ messages: Message[]; hasMore: boolean }>(response);
+}
+
+export async function sendGuildMessage(
+    guildId: string,
+    channelId: string,
+    content: string,
+    files: File[] = [],
+    stickerIds: string[] = [],
+    replyToMessageId?: string
+): Promise<Message> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages`;
+    let response: Response;
+    if (files.length > 0) {
+        const form = new FormData();
+        if (content) form.set('content', content);
+        if (replyToMessageId) form.set('replyToMessageId', replyToMessageId);
+        stickerIds.forEach(id => form.append('stickerIds', id));
+        files.forEach(file => form.append('files', file, file.name));
+        response = await authedFetch(url, { method: 'POST', body: form });
+    } else {
+        response = await authedFetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, replyToMessageId, stickerIds: stickerIds.length ? stickerIds : undefined })
+        });
+    }
+    const body = await jsonOrThrow<{ message: Message }>(response);
+    return body.message;
+}
+
+export async function editGuildMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    content: string
+): Promise<Message> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+    });
+    const body = await jsonOrThrow<{ message: Message }>(response);
+    return body.message;
+}
+
+export async function deleteGuildMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete message');
+}
+
+export async function addGuildReaction(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    emoji: MessageEmoji
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji })
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Failed to add reaction');
+}
+
+export async function removeGuildReaction(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    emoji: MessageEmoji
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji })
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Failed to remove reaction');
+}
+
+export interface GuildEventStreamHandlers {
+    onEvent: (event: GuildChannelEvent) => void;
+    onError?: (event: Event) => void;
+}
+
+export function subscribeGuildEvents(handlers: GuildEventStreamHandlers): () => void {
+    const token = getAccessToken();
+    const params = token ? `?access_token=${encodeURIComponent(token)}` : '';
+    const source = new EventSource(`/api/guilds/events${params}`);
+    if (handlers.onError) source.onerror = handlers.onError;
+    const dispatch = (raw: MessageEvent) => {
+        try {
+            const data = JSON.parse(raw.data) as GuildChannelEvent;
+            handlers.onEvent(data);
+        } catch {
+            // ignore malformed events
+        }
+    };
+    source.addEventListener('guild-message-created', dispatch as EventListener);
+    source.addEventListener('guild-message-updated', dispatch as EventListener);
+    source.addEventListener('guild-message-deleted', dispatch as EventListener);
+    return () => source.close();
 }

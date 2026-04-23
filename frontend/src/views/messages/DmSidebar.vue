@@ -2,9 +2,12 @@
 import { ref } from 'vue';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../../modules/discord-chat';
 import type { DmChannelSummary } from '../../api/dm';
+import type { GuildSummary } from '../../api/guilds';
+import ModeSelect from './ModeSelect.vue';
 
 defineProps<{
-    title?: string;
+    guilds: GuildSummary[];
+    mode: string;
     channels: DmChannelSummary[];
     selectedId: string | null;
     loading?: boolean;
@@ -14,6 +17,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
+    (e: 'mode-change', mode: string): void;
     (e: 'select', channelId: string): void;
     (e: 'toggle-start'): void;
     (e: 'submit-start'): void;
@@ -44,7 +48,7 @@ function formatTimestamp(iso: string | null): string {
 <template>
     <aside class="sidebar">
         <header class="sidebar-header">
-            <h2>{{ title ?? 'DMs' }}</h2>
+            <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
             <button type="button" class="ghost" @click="emit('toggle-start')">+</button>
         </header>
         <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
@@ -90,15 +94,13 @@ function formatTimestamp(iso: string | null): string {
 .sidebar-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border);
-}
-.sidebar-header h2 {
-    margin: 0;
-    font-size: 0.95rem;
+    flex-shrink: 0;
 }
 .ghost {
+    flex-shrink: 0;
     background: none;
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -113,6 +115,7 @@ function formatTimestamp(iso: string | null): string {
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 .start-form input {
     flex: 1;

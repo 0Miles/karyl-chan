@@ -12,3 +12,4 @@ export { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 
 // Workspace composables — one per Discord chat surface.
 export { useDiscordDm, type UseDiscordDmOptions } from './useDiscordDm';
+export { useDiscordGuildChannel, type UseDiscordGuildChannelOptions } from './useDiscordGuildChannel';
