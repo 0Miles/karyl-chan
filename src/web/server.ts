@@ -8,6 +8,7 @@ import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.j
 import fastifyMultipart from '@fastify/multipart';
 import { registerDmRoutes } from './dm-routes.js';
 import { registerDiscordRoutes } from './discord-routes.js';
+import { registerGuildsRoutes } from './guilds-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 
 export interface WebServerOptions {
@@ -140,6 +141,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         });
         await registerDmRoutes(server, { bot, inbox: options.dmInbox });
         await registerDiscordRoutes(server, { bot });
+        await registerGuildsRoutes(server, { bot });
     }
 
     const staticRoot = options.staticRoot ?? defaultStaticRoot();
