@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import {
     MessageView,
     MessageComposer,
@@ -10,6 +11,7 @@ import {
     type Message,
     type MessageReference
 } from '../messages';
+import { ApiError } from '../api/client';
 import {
     addReaction,
     getMessages,
@@ -19,6 +21,17 @@ import {
     startChannel,
     type DmChannelSummary
 } from '../api/dm';
+
+const router = useRouter();
+
+function bailOnAuthError(err: unknown): boolean {
+    if (err instanceof ApiError && err.status === 401) {
+        stopTimers();
+        router.replace({ name: 'auth' });
+        return true;
+    }
+    return false;
+}
 
 const channels = ref<DmChannelSummary[]>([]);
 const selectedChannelId = ref<string | null>(null);
@@ -50,6 +63,7 @@ async function refreshChannels(autoSelect = true) {
         }
         error.value = null;
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to load channels';
     } finally {
         loadingChannels.value = false;
@@ -66,6 +80,7 @@ async function refreshMessages() {
         if (wasNearBottom) requestAnimationFrame(scrollToBottom);
         error.value = null;
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to load messages';
     } finally {
         loadingMessages.value = false;
@@ -103,6 +118,7 @@ async function onSend(payload: OutgoingMessage) {
         requestAnimationFrame(scrollToBottom);
         refreshChannels(false);
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to send';
     } finally {
         sending.value = false;
@@ -115,6 +131,7 @@ async function onReactionAdd(messageId: string, emoji: MessageEmoji) {
         await addReaction(selectedChannelId.value, messageId, emoji);
         refreshMessages();
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to react';
     }
 }
@@ -125,6 +142,7 @@ async function onReactionRemove(messageId: string, emoji: MessageEmoji) {
         await removeReaction(selectedChannelId.value, messageId, emoji);
         refreshMessages();
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to remove reaction';
     }
 }
@@ -152,6 +170,7 @@ async function startNewDm() {
         showStart.value = false;
         newRecipientId.value = '';
     } catch (err) {
+        if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to start DM';
     }
 }
@@ -170,14 +189,18 @@ watch(selectedChannelId, () => {
     }
 });
 
+function stopTimers() {
+    if (channelTimer) { clearInterval(channelTimer); channelTimer = null; }
+    if (messageTimer) { clearInterval(messageTimer); messageTimer = null; }
+}
+
 onMounted(() => {
     refreshChannels();
     channelTimer = setInterval(() => refreshChannels(false), CHANNEL_REFRESH_MS);
 });
 
 onUnmounted(() => {
-    if (channelTimer) clearInterval(channelTimer);
-    if (messageTimer) clearInterval(messageTimer);
+    stopTimers();
 });
 
 function formatTimestamp(iso: string | null): string {
