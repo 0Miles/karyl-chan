@@ -68,7 +68,7 @@ const avatarSrc = computed(() => {
     display: flex;
     flex-direction: column;
     padding: 0.4rem 0.75rem;
-    gap: 0.075rem;
+    gap: 0.15rem;
 }
 .message:hover {
     background: var(--bg-surface-hover);
@@ -126,6 +126,7 @@ const avatarSrc = computed(() => {
 }
 .body {
     margin-left: 2.85rem;
+    margin-top: -0.7rem;
 }
 .compact .body {
     margin-left: 2.85rem;
