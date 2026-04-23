@@ -19,7 +19,8 @@ export const bot = new Client({
         IntentsBitField.Flags.GuildMessageReactions,
         IntentsBitField.Flags.GuildVoiceStates,
         IntentsBitField.Flags.MessageContent,
-        IntentsBitField.Flags.DirectMessages
+        IntentsBitField.Flags.DirectMessages,
+        IntentsBitField.Flags.DirectMessageReactions
     ],
     partials: [
         Partials.Message,

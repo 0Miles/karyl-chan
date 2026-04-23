@@ -1,9 +1,24 @@
 import type { ArgsOf } from 'discordx';
 import { Discord, On } from 'discordx';
-import { ChannelType, type DMChannel, type Message, type PartialMessage } from 'discord.js';
+import { ChannelType, type DMChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction } from 'discord.js';
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
 import { dmEventBus } from '../web/dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
+
+async function publishReactionUpdate(reaction: MessageReaction | PartialMessageReaction): Promise<void> {
+    const resolved = reaction.partial ? await reaction.fetch().catch(() => null) : reaction;
+    if (!resolved) return;
+    if (resolved.message.channel.type !== ChannelType.DM) return;
+    const message = resolved.message.partial
+        ? await (resolved.message as PartialMessage).fetch().catch(() => null)
+        : (resolved.message as Message);
+    if (!message) return;
+    dmEventBus.publish({
+        type: 'message-updated',
+        channelId: message.channelId,
+        message: toApiMessage(message)
+    });
+}
 
 function recipientFor(channel: DMChannel): DmRecipient | null {
     const user = channel.recipient;
@@ -63,6 +78,24 @@ export class DmInboxEvents {
             });
         } catch (err) {
             console.error('dm-inbox messageDelete failed:', err);
+        }
+    }
+
+    @On()
+    async messageReactionAdd([reaction]: ArgsOf<'messageReactionAdd'>): Promise<void> {
+        try {
+            await publishReactionUpdate(reaction);
+        } catch (err) {
+            console.error('dm-inbox messageReactionAdd failed:', err);
+        }
+    }
+
+    @On()
+    async messageReactionRemove([reaction]: ArgsOf<'messageReactionRemove'>): Promise<void> {
+        try {
+            await publishReactionUpdate(reaction);
+        } catch (err) {
+            console.error('dm-inbox messageReactionRemove failed:', err);
         }
     }
 }

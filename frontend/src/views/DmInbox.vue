@@ -56,6 +56,9 @@ let dragCounter = 0;
 const botUserId = ref<string | null>(null);
 const editingMessageId = ref<string | null>(null);
 const reactingMessageId = ref<string | null>(null);
+const shiftHeld = ref(false);
+function trackShift(event: KeyboardEvent) { shiftHeld.value = event.shiftKey; }
+function releaseShift() { shiftHeld.value = false; }
 
 function isOwnMessage(message: Message): boolean {
     return botUserId.value !== null && message.author.id === botUserId.value;
@@ -325,9 +328,10 @@ async function submitEdit(message: Message, content: string) {
     }
 }
 
-async function confirmDelete(message: Message) {
+async function confirmDelete(message: Message, event?: MouseEvent) {
     if (!selectedChannelId.value || !isOwnMessage(message)) return;
-    if (!window.confirm('Delete this message?')) return;
+    const skipPrompt = event?.shiftKey === true;
+    if (!skipPrompt && !window.confirm('Delete this message?')) return;
     try {
         await deleteMessage(selectedChannelId.value, message.id);
     } catch (err) {
@@ -403,11 +407,17 @@ onMounted(() => {
         onEvent: applyEvent,
         onError: () => { /* EventSource auto-reconnects */ }
     });
+    document.addEventListener('keydown', trackShift);
+    document.addEventListener('keyup', trackShift);
+    window.addEventListener('blur', releaseShift);
 });
 
 onUnmounted(() => {
     unsubscribeEvents?.();
     unsubscribeEvents = null;
+    document.removeEventListener('keydown', trackShift);
+    document.removeEventListener('keyup', trackShift);
+    window.removeEventListener('blur', releaseShift);
 });
 
 function formatTimestamp(iso: string | null): string {
@@ -494,7 +504,12 @@ function formatTimestamp(iso: string | null): string {
                         <button type="button" class="action" title="Reply" @click="onMessageReply(message)">↩</button>
                         <template v-if="isOwnMessage(message)">
                             <button type="button" class="action" title="Edit" @click="startEdit(message)">✏</button>
-                            <button type="button" class="action" title="Delete" @click="confirmDelete(message)">🗑</button>
+                            <button
+                                type="button"
+                                :class="['action', { danger: shiftHeld }]"
+                                :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
+                                @click="confirmDelete(message, $event)"
+                            >🗑</button>
                         </template>
                     </div>
                     <div v-if="reactingMessageId === message.id" class="react-pop">
@@ -739,6 +754,10 @@ function formatTimestamp(iso: string | null): string {
 .action.active {
     background: var(--accent-bg);
     color: var(--accent-text-strong);
+}
+.action.danger {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--danger);
 }
 .react-pop {
     position: absolute;
