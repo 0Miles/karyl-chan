@@ -1,17 +1,20 @@
-import type { ArgsOf } from 'discordx';
+import type { ArgsOf, Client } from 'discordx';
 import { Discord, On } from 'discordx';
-import { ChannelType, type DMChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction } from 'discord.js';
+import { ChannelType, type DMChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction, type PartialUser, type User } from 'discord.js';
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
 import { dmEventBus } from '../web/dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
 
-async function publishReactionUpdate(reaction: MessageReaction | PartialMessageReaction): Promise<void> {
+async function publishReactionUpdate(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser, client: Client): Promise<void> {
     const channel = reaction.message.channel;
     if (channel.type !== ChannelType.DM) return;
+    // Skip our own reactions: the admin web that drove this change already
+    // applied an optimistic update. Discord's REST view briefly lags behind
+    // the gateway, so a refetch here would push back the pre-change state
+    // and overwrite the operator's UI before reconciling.
+    if (client.user && user.id === client.user.id) return;
     const channelId = reaction.message.channelId;
     const messageId = reaction.message.id;
-    // Bypass discord.js's reaction cache (which can lag behind the actual
-    // server state for a moment after a remove) by hitting REST directly.
     const message = await (channel as DMChannel).messages.fetch({ message: messageId, force: true }).catch(() => null);
     if (!message) return;
     dmEventBus.publish({
@@ -83,18 +86,18 @@ export class DmInboxEvents {
     }
 
     @On()
-    async messageReactionAdd([reaction]: ArgsOf<'messageReactionAdd'>): Promise<void> {
+    async messageReactionAdd([reaction, user]: ArgsOf<'messageReactionAdd'>, client: Client): Promise<void> {
         try {
-            await publishReactionUpdate(reaction);
+            await publishReactionUpdate(reaction, user, client);
         } catch (err) {
             console.error('dm-inbox messageReactionAdd failed:', err);
         }
     }
 
     @On()
-    async messageReactionRemove([reaction]: ArgsOf<'messageReactionRemove'>): Promise<void> {
+    async messageReactionRemove([reaction, user]: ArgsOf<'messageReactionRemove'>, client: Client): Promise<void> {
         try {
-            await publishReactionUpdate(reaction);
+            await publishReactionUpdate(reaction, user, client);
         } catch (err) {
             console.error('dm-inbox messageReactionRemove failed:', err);
         }
