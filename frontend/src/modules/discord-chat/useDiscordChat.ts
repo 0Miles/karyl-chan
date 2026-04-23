@@ -37,11 +37,6 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
 
     let messagesContainer: HTMLElement | null = null;
 
-    // Per-channel saved scroll position: stored only when user was not near the bottom.
-    // Keyed by channelId → { scrollTop, scrollHeight at save time }.
-    const savedScrolls = new Map<string, { scrollTop: number; scrollHeight: number }>();
-    const MAX_SAVED_SCROLLS = 100;
-
     function bindContainers(refs: { messagesContainer: HTMLElement | null; messagesEnd?: HTMLElement | null }) {
         messagesContainer = refs.messagesContainer;
     }
@@ -193,19 +188,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         }
     }
 
-    watch(opts.channelId, async (id, oldId) => {
-        // Save scroll position for the channel we're leaving (container still points to old element here).
-        if (oldId && messagesContainer) {
-            if (!isNearBottom()) {
-                if (savedScrolls.size >= MAX_SAVED_SCROLLS) {
-                    savedScrolls.delete(savedScrolls.keys().next().value!);
-                }
-                savedScrolls.set(oldId, { scrollTop: messagesContainer.scrollTop, scrollHeight: messagesContainer.scrollHeight });
-            } else {
-                savedScrolls.delete(oldId);
-            }
-        }
-
+    watch(opts.channelId, async (id) => {
         replyTo.value = null;
         editingMessageId.value = null;
         error.value = null;
@@ -217,18 +200,6 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
             return;
         }
         if (id !== opts.channelId.value) return;
-        // After nextTick the container is the new element (bindContainers has been called).
-        await nextTick();
-        const saved = savedScrolls.get(id);
-        if (saved && messagesContainer) {
-            messagesContainer.scrollTop = saved.scrollTop * (messagesContainer.scrollHeight / saved.scrollHeight);
-        } else {
-            scrollToBottom();
-            // Second scroll after RAF: virtual scroller measures item heights post-paint.
-            requestAnimationFrame(() => {
-                if (opts.channelId.value === id) scrollToBottom();
-            });
-        }
         await fillIfNoScrollbar();
     });
 

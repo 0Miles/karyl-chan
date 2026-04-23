@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
@@ -85,7 +85,95 @@ function closeReactPicker() {
     reactingButton.value = null;
 }
 
-watch(() => props.channelId, closeReactPicker);
+// ── Scroll anchor memory ────────────────────────────────────────────────────
+// Keyed by channelId → messageId of the topmost fully-visible message when the
+// user left. Missing entry means "scroll to bottom" on return.
+const savedAnchors = new Map<string, string>();
+const MAX_SAVED_ANCHORS = 100;
+
+type PendingRestore =
+    | { channelId: string; type: 'anchor'; messageId: string }
+    | { channelId: string; type: 'bottom' };
+let pendingRestore: PendingRestore | null = null;
+
+function getTopAnchor(): string | null {
+    const container = messagesContainer.value;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    // Scan top-to-bottom in 16 px increments to find first message element.
+    for (let dy = 0; dy < container.clientHeight; dy += 16) {
+        let el = document.elementFromPoint(x, rect.top + dy) as HTMLElement | null;
+        while (el && el !== container) {
+            if (el.dataset.messageId) return el.dataset.messageId;
+            el = el.parentElement;
+        }
+    }
+    return null;
+}
+
+function applyAnchor(messageId: string) {
+    if (useVirtual.value) {
+        const idx = props.messages.findIndex(m => m.id === messageId);
+        if (idx >= 0) (scrollerRef.value as any)?.scrollToItem(idx);
+    } else {
+        const container = plainListRef.value;
+        const msgEl = container?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
+        if (container && msgEl) {
+            container.scrollTop += msgEl.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        }
+    }
+}
+
+watch(() => props.channelId, (newId, oldId) => {
+    // Save topmost visible message for the channel we're leaving.
+    if (oldId) {
+        if (isNearBottom()) {
+            savedAnchors.delete(oldId);
+        } else {
+            const anchor = getTopAnchor();
+            if (anchor) {
+                if (savedAnchors.size >= MAX_SAVED_ANCHORS) {
+                    savedAnchors.delete(savedAnchors.keys().next().value!);
+                }
+                savedAnchors.set(oldId, anchor);
+            } else {
+                savedAnchors.delete(oldId);
+            }
+        }
+    }
+    closeReactPicker();
+    // Queue restore action for the incoming channel.
+    if (newId) {
+        const saved = savedAnchors.get(newId);
+        pendingRestore = saved
+            ? { channelId: newId, type: 'anchor', messageId: saved }
+            : { channelId: newId, type: 'bottom' };
+    } else {
+        pendingRestore = null;
+    }
+});
+
+// Apply pendingRestore once when the new channel's messages arrive.
+watch(() => props.messages, () => {
+    const restore = pendingRestore;
+    if (!restore || restore.channelId !== props.channelId || props.messages.length === 0) return;
+    pendingRestore = null;
+    if (restore.type === 'anchor') {
+        const id = restore.messageId;
+        // First pass: instant scroll before virtual scroller measures heights.
+        // Second pass (RAF): after paint, heights are stable — scroll again to land precisely.
+        nextTick().then(() => {
+            applyAnchor(id);
+            if (useVirtual.value) requestAnimationFrame(() => applyAnchor(id));
+        });
+    } else {
+        nextTick().then(() => {
+            scrollToBottom();
+            requestAnimationFrame(scrollToBottom);
+        });
+    }
+});
 
 watch([scrollerRef, plainListRef], ([scroller, plain], _prev, onCleanup) => {
     const el = (scroller ? (scroller.$el as HTMLElement) : plain) ?? null;
@@ -178,7 +266,10 @@ const replyToProp = computed(() => props.replyTo);
                     ]"
                     :data-index="idx"
                 >
-                    <div :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]">
+                    <div
+                        :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
+                        :data-message-id="message.id"
+                    >
                         <MessageView
                             :message="message"
                             :compact="isContinuation(messages[idx - 1], message)"
@@ -225,6 +316,7 @@ const replyToProp = computed(() => props.replyTo);
                     v-for="(message, idx) in messages"
                     :key="message.id"
                     :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
+                    :data-message-id="message.id"
                 >
                     <MessageView
                         :message="message"
