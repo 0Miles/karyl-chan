@@ -24,7 +24,7 @@ export class DmInboxEvents {
             const channel = message.channel as DMChannel;
             const recipient = recipientFor(channel);
             if (!recipient) return;
-            dmInboxService.recordMessage(channel.id, recipient, toApiMessage(message));
+            await dmInboxService.recordMessage(channel.id, recipient, toApiMessage(message));
         } catch (err) {
             console.error('dm-inbox messageCreate failed:', err);
         }
@@ -36,7 +36,7 @@ export class DmInboxEvents {
             if (newMessage.channel.type !== ChannelType.DM) return;
             const fetched = newMessage.partial ? await (newMessage as PartialMessage).fetch().catch(() => null) : (newMessage as Message);
             if (!fetched) return;
-            dmInboxService.updateMessage(fetched.channelId, toApiMessage(fetched));
+            await dmInboxService.updateMessage(fetched.channelId, toApiMessage(fetched));
         } catch (err) {
             console.error('dm-inbox messageUpdate failed:', err);
         }
@@ -46,7 +46,7 @@ export class DmInboxEvents {
     async messageDelete([message]: ArgsOf<'messageDelete'>): Promise<void> {
         try {
             if (message.channel.type !== ChannelType.DM) return;
-            dmInboxService.removeMessage(message.channelId, message.id);
+            await dmInboxService.removeMessage(message.channelId, message.id);
         } catch (err) {
             console.error('dm-inbox messageDelete failed:', err);
         }

@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { createWebServer } from '../src/web/server.js';
-import { DmInboxService, type DmRecipient } from '../src/web/dm-inbox.service.js';
+import { InMemoryDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
 
 const RECIPIENT: DmRecipient = {
     id: 'u1',
@@ -63,19 +63,19 @@ describe('DM routes', () => {
     });
 
     let server: FastifyInstance;
-    let inbox: DmInboxService;
+    let inbox: InMemoryDmInbox;
 
     afterEach(async () => {
         if (server) await server.close();
     });
 
     beforeEach(() => {
-        inbox = new DmInboxService();
+        inbox = new InMemoryDmInbox();
     });
 
     it('GET /api/dm/channels lists everything in the inbox', async () => {
-        inbox.upsertChannel('c1', RECIPIENT);
-        inbox.recordMessage('c1', RECIPIENT, {
+        await inbox.upsertChannel('c1', RECIPIENT);
+        await inbox.recordMessage('c1', RECIPIENT, {
             id: 'm1', channelId: 'c1', author: { id: 'u1', username: 'alice', globalName: 'Alice', avatarUrl: null },
             content: 'hello', createdAt: '2026-04-23T10:00:00.000Z'
         });
@@ -100,12 +100,12 @@ describe('DM routes', () => {
     });
 
     it('GET messages returns the cached list ordered by createdAt', async () => {
-        inbox.recordMessage('c1', RECIPIENT, {
+        await inbox.recordMessage('c1', RECIPIENT, {
             id: 'm2', channelId: 'c1',
             author: { id: 'u1', username: 'alice', globalName: 'Alice', avatarUrl: null },
             content: 'second', createdAt: '2026-04-23T11:00:00.000Z'
         });
-        inbox.recordMessage('c1', RECIPIENT, {
+        await inbox.recordMessage('c1', RECIPIENT, {
             id: 'm1', channelId: 'c1',
             author: { id: 'u1', username: 'alice', globalName: 'Alice', avatarUrl: null },
             content: 'first', createdAt: '2026-04-23T10:00:00.000Z'
@@ -184,7 +184,7 @@ describe('DM routes', () => {
         });
         expect(response.statusCode).toBe(200);
         expect(response.json().channel.id).toBe('c-new');
-        expect(inbox.getChannel('c-new')?.recipient.username).toBe('bob');
+        expect((await inbox.getChannel('c-new'))?.recipient.username).toBe('bob');
     });
 
     it('POST reaction calls message.react with the resolvable form', async () => {

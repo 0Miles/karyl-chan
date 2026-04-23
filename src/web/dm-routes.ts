@@ -2,13 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { dmInboxService, type DmInboxService } from './dm-inbox.service.js';
+import { dmInboxService, type DmInboxStore } from './dm-inbox.service.js';
 import { toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 
 export interface DmRoutesOptions {
     bot: Client;
-    inbox?: DmInboxService;
+    inbox?: DmInboxStore;
 }
 
 interface ReactionBody {
@@ -46,22 +46,25 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     const inbox = options.inbox ?? dmInboxService;
 
     server.get('/api/dm/channels', async () => {
-        return { channels: inbox.listChannels() };
+        return { channels: await inbox.listChannels() };
     });
 
-    server.get<{ Params: { channelId: string }; Querystring: { limit?: string } }>(
+    server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
             const { channelId } = request.params;
             const limit = request.query.limit ? Number(request.query.limit) : undefined;
-            const summary = inbox.getChannel(channelId);
+            const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
+            const summary = await inbox.getChannel(channelId);
             if (!summary) {
                 reply.code(404).send({ error: 'Unknown channel' });
                 return;
             }
+            const messages = await inbox.getMessages(channelId, { limit, before });
             return {
                 channel: summary,
-                messages: inbox.getMessages(channelId, limit)
+                messages,
+                hasMore: messages.length === (limit ?? 10)
             };
         }
     );
@@ -103,7 +106,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         try {
             const user = await bot.users.fetch(recipientUserId);
             const channel = await user.createDM();
-            const summary = inbox.upsertChannel(channel.id, {
+            const summary = await inbox.upsertChannel(channel.id, {
                 id: user.id,
                 username: user.username,
                 globalName: user.globalName ?? null,
@@ -128,7 +131,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             try {
                 const message = await channel.messages.fetch(request.params.messageId);
                 await message.react(resolvable);
-                inbox.updateMessage(channel.id, toApiMessage(message));
+                await inbox.updateMessage(channel.id, toApiMessage(message));
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to add reaction');
@@ -150,7 +153,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 const message = await channel.messages.fetch(request.params.messageId);
                 const reaction = message.reactions.cache.get(key);
                 if (reaction && bot.user) await reaction.users.remove(bot.user.id);
-                inbox.updateMessage(channel.id, toApiMessage(message));
+                await inbox.updateMessage(channel.id, toApiMessage(message));
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to remove reaction');
