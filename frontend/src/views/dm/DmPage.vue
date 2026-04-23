@@ -7,9 +7,9 @@ import {
     createDiscordMediaProvider,
     useDiscordChat,
     type ChannelMessageEvent
-} from '../modules/discord-chat';
-import { ApiError, api as botApi } from '../api/client';
-import { listEmojis, listStickers, loadStickerLottie } from '../api/discord';
+} from '../../modules/discord-chat';
+import { ApiError, api as botApi } from '../../api/client';
+import { listEmojis, listStickers, loadStickerLottie } from '../../api/discord';
 import {
     addReaction,
     deleteMessage,
@@ -22,9 +22,9 @@ import {
     subscribeEvents,
     type DmChannelSummary,
     type DmEvent
-} from '../api/dm';
-import { MessageContextKey, type MessageContext } from '../libs/messages';
-import type { MediaSelection } from '../libs/messages/picker/MediaPicker.vue';
+} from '../../api/dm';
+import { MessageContextKey, type MessageContext } from '../../libs/messages';
+import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 
 const router = useRouter();
 

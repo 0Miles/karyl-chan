@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { ApiError, api } from '../api/client';
-import { listGuilds, type GuildSummary } from '../api/guilds';
-import type { BotStatus, HealthStatus } from '../api/types';
+import { ApiError, api } from '../../api/client';
+import { listGuilds, type GuildSummary } from '../../api/guilds';
+import type { BotStatus, HealthStatus } from '../../api/types';
 
 const router = useRouter();
 

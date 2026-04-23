@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ApiError } from '../api/client';
-import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../api/guilds';
+import { ApiError } from '../../api/client';
+import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../api/guilds';
 
 const router = useRouter();
 

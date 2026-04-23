@@ -5,25 +5,25 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/',
         name: 'dashboard',
-        component: () => import('./views/Dashboard.vue'),
+        component: () => import('./views/dashboard/DashboardPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/dm',
         name: 'dm',
-        component: () => import('./views/DmInbox.vue'),
+        component: () => import('./views/dm/DmPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/guilds',
         name: 'guilds',
-        component: () => import('./views/Guilds.vue'),
+        component: () => import('./views/guilds/GuildsPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/auth',
         name: 'auth',
-        component: () => import('./views/Auth.vue')
+        component: () => import('./views/auth/AuthPage.vue')
     }
 ];
 
