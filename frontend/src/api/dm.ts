@@ -1,4 +1,5 @@
 import { ApiError, authedFetch } from './client';
+import { getAccessToken } from '../auth';
 import type { Message, MessageEmoji } from '../messages';
 
 export interface DmRecipient {
@@ -13,8 +14,19 @@ export interface DmChannelSummary {
     recipient: DmRecipient;
     lastMessageAt: string | null;
     lastMessagePreview: string | null;
-    messageCount: number;
 }
+
+export interface MessagesPage {
+    channel: DmChannelSummary;
+    messages: Message[];
+    hasMore: boolean;
+}
+
+export type DmEvent =
+    | { type: 'message-created'; channelId: string; message: Message }
+    | { type: 'message-updated'; channelId: string; message: Message }
+    | { type: 'message-deleted'; channelId: string; messageId: string }
+    | { type: 'channel-touched'; channel: DmChannelSummary };
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -30,12 +42,6 @@ export async function listChannels(): Promise<DmChannelSummary[]> {
     return body.channels;
 }
 
-export interface MessagesPage {
-    channel: DmChannelSummary;
-    messages: Message[];
-    hasMore: boolean;
-}
-
 export async function getMessages(channelId: string, opts: { limit?: number; before?: string } = {}): Promise<MessagesPage> {
     const params = new URLSearchParams();
     if (opts.limit) params.set('limit', String(opts.limit));
@@ -46,12 +52,27 @@ export async function getMessages(channelId: string, opts: { limit?: number; bef
     return jsonOrThrow<MessagesPage>(response);
 }
 
-export async function sendMessage(channelId: string, content: string, replyToMessageId?: string): Promise<Message> {
-    const response = await authedFetch(`/api/dm/channels/${encodeURIComponent(channelId)}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, replyToMessageId })
-    });
+export async function sendMessage(
+    channelId: string,
+    content: string,
+    files: File[] = [],
+    replyToMessageId?: string
+): Promise<Message> {
+    let response: Response;
+    const url = `/api/dm/channels/${encodeURIComponent(channelId)}/messages`;
+    if (files.length > 0) {
+        const form = new FormData();
+        if (content) form.set('content', content);
+        if (replyToMessageId) form.set('replyToMessageId', replyToMessageId);
+        files.forEach(file => form.append('files', file, file.name));
+        response = await authedFetch(url, { method: 'POST', body: form });
+    } else {
+        response = await authedFetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, replyToMessageId })
+        });
+    }
     const body = await jsonOrThrow<{ message: Message }>(response);
     return body.message;
 }
@@ -82,4 +103,31 @@ export async function removeReaction(channelId: string, messageId: string, emoji
         body: JSON.stringify({ emoji })
     });
     if (!response.ok) throw new ApiError(response.status, 'Failed to remove reaction');
+}
+
+export interface EventStreamHandlers {
+    onEvent: (event: DmEvent) => void;
+    onError?: (event: Event) => void;
+    onOpen?: () => void;
+}
+
+export function subscribeEvents(handlers: EventStreamHandlers): () => void {
+    const token = getAccessToken();
+    const params = token ? `?access_token=${encodeURIComponent(token)}` : '';
+    const source = new EventSource(`/api/dm/events${params}`);
+    if (handlers.onOpen) source.onopen = handlers.onOpen;
+    if (handlers.onError) source.onerror = handlers.onError;
+    const dispatch = (raw: MessageEvent) => {
+        try {
+            const data = JSON.parse(raw.data) as DmEvent;
+            handlers.onEvent(data);
+        } catch {
+            // ignore malformed events
+        }
+    };
+    source.addEventListener('message-created', dispatch as EventListener);
+    source.addEventListener('message-updated', dispatch as EventListener);
+    source.addEventListener('message-deleted', dispatch as EventListener);
+    source.addEventListener('channel-touched', dispatch as EventListener);
+    return () => source.close();
 }

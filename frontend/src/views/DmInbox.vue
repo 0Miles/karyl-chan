@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
     MessageView,
@@ -19,19 +19,12 @@ import {
     removeReaction,
     sendMessage,
     startChannel,
-    type DmChannelSummary
+    subscribeEvents,
+    type DmChannelSummary,
+    type DmEvent
 } from '../api/dm';
 
 const router = useRouter();
-
-function bailOnAuthError(err: unknown): boolean {
-    if (err instanceof ApiError && err.status === 401) {
-        stopTimers();
-        router.replace({ name: 'auth' });
-        return true;
-    }
-    return false;
-}
 
 const channels = ref<DmChannelSummary[]>([]);
 const selectedChannelId = ref<string | null>(null);
@@ -49,10 +42,17 @@ const messagesEnd = ref<HTMLDivElement | null>(null);
 const messagesContainer = ref<HTMLDivElement | null>(null);
 
 const PAGE_SIZE = 10;
-const CHANNEL_REFRESH_MS = 10_000;
-const MESSAGE_REFRESH_MS = 5_000;
-let channelTimer: ReturnType<typeof setInterval> | null = null;
-let messageTimer: ReturnType<typeof setInterval> | null = null;
+let unsubscribeEvents: (() => void) | null = null;
+
+function bailOnAuthError(err: unknown): boolean {
+    if (err instanceof ApiError && err.status === 401) {
+        unsubscribeEvents?.();
+        unsubscribeEvents = null;
+        router.replace({ name: 'auth' });
+        return true;
+    }
+    return false;
+}
 
 const selectedChannel = computed(() =>
     channels.value.find(c => c.id === selectedChannelId.value) ?? null
@@ -91,19 +91,26 @@ async function loadInitialMessages() {
     }
 }
 
-async function pollNewMessages() {
-    if (!selectedChannelId.value) return;
-    try {
-        const result = await getMessages(selectedChannelId.value, { limit: PAGE_SIZE });
-        const seen = new Set(messages.value.map(m => m.id));
-        const additions = result.messages.filter(m => !seen.has(m.id));
-        if (additions.length === 0) return;
+function applyEvent(event: DmEvent) {
+    if (event.type === 'channel-touched') {
+        const idx = channels.value.findIndex(c => c.id === event.channel.id);
+        if (idx === -1) channels.value = [event.channel, ...channels.value];
+        else channels.value = channels.value
+            .map(c => (c.id === event.channel.id ? event.channel : c));
+        channels.value = [...channels.value].sort((a, b) =>
+            (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? ''));
+        return;
+    }
+    if (event.channelId !== selectedChannelId.value) return;
+    if (event.type === 'message-created') {
+        if (messages.value.some(m => m.id === event.message.id)) return;
         const wasNearBottom = isNearBottom();
-        messages.value = [...messages.value, ...additions];
+        messages.value = [...messages.value, event.message];
         if (wasNearBottom) requestAnimationFrame(scrollToBottom);
-    } catch (err) {
-        if (bailOnAuthError(err)) return;
-        // Don't surface poll errors loudly — initial load already shows them.
+    } else if (event.type === 'message-updated') {
+        messages.value = messages.value.map(m => (m.id === event.message.id ? event.message : m));
+    } else if (event.type === 'message-deleted') {
+        messages.value = messages.value.filter(m => m.id !== event.messageId);
     }
 }
 
@@ -165,15 +172,14 @@ async function onSend(payload: OutgoingMessage) {
     if (!selectedChannelId.value) return;
     sending.value = true;
     try {
-        const sent = await sendMessage(
+        await sendMessage(
             selectedChannelId.value,
             payload.content,
+            payload.attachments ?? [],
             payload.reference?.messageId ?? undefined
         );
-        messages.value = [...messages.value, sent];
         replyTo.value = null;
-        requestAnimationFrame(scrollToBottom);
-        refreshChannels(false);
+        // SSE will deliver the message-created event for our own send.
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to send';
@@ -186,7 +192,6 @@ async function onReactionAdd(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
     try {
         await addReaction(selectedChannelId.value, messageId, emoji);
-        pollNewMessages();
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to react';
@@ -197,7 +202,6 @@ async function onReactionRemove(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
     try {
         await removeReaction(selectedChannelId.value, messageId, emoji);
-        pollNewMessages();
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to remove reaction';
@@ -239,25 +243,17 @@ const ctx: MessageContext = {
 };
 provide(MessageContextKey, ctx);
 
-watch(selectedChannelId, () => {
-    if (messageTimer) clearInterval(messageTimer);
-    if (selectedChannelId.value) {
-        messageTimer = setInterval(pollNewMessages, MESSAGE_REFRESH_MS);
-    }
-});
-
-function stopTimers() {
-    if (channelTimer) { clearInterval(channelTimer); channelTimer = null; }
-    if (messageTimer) { clearInterval(messageTimer); messageTimer = null; }
-}
-
 onMounted(() => {
     refreshChannels();
-    channelTimer = setInterval(() => refreshChannels(false), CHANNEL_REFRESH_MS);
+    unsubscribeEvents = subscribeEvents({
+        onEvent: applyEvent,
+        onError: () => { /* EventSource auto-reconnects */ }
+    });
 });
 
 onUnmounted(() => {
-    stopTimers();
+    unsubscribeEvents?.();
+    unsubscribeEvents = null;
 });
 
 function formatTimestamp(iso: string | null): string {
