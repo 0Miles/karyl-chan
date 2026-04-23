@@ -111,9 +111,9 @@ describe('toApiMessage', () => {
 });
 
 describe('avatarUrlFor', () => {
-    it('returns animated webp for hashes that start with a_', () => {
+    it('returns the static webp URL for animated hashes; the frontend opts into animation on hover', () => {
         const url = avatarUrlFor(USER_ID, ANIMATED_HASH);
-        expect(url).toBe(`https://cdn.discordapp.com/avatars/${USER_ID}/${ANIMATED_HASH}.webp?size=128&animated=true`);
+        expect(url).toBe(`https://cdn.discordapp.com/avatars/${USER_ID}/${ANIMATED_HASH}.webp?size=128`);
     });
 
     it('returns static webp for non-animated hashes', () => {

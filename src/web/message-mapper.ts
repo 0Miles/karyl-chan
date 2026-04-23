@@ -10,18 +10,15 @@ import type {
 } from './message-types.js';
 
 // Discord no longer serves the .gif endpoint for many animated avatars (returns
-// HTTP 415), but discord.js's displayAvatarURL still forces .gif whenever the
-// hash starts with `a_`. Build the URL ourselves and request animated webp
-// instead, which Discord serves reliably for both static and animated avatars.
+// HTTP 415), so build the URL ourselves and ask for webp; the still frame is
+// served by default and the frontend opts into the animated variant on hover
+// by appending &animated=true.
 export function avatarUrlFor(userId: string, avatarHash: string | null, size = 128): string {
     if (!avatarHash) {
         const idx = Number((BigInt(userId) >> 22n) % 6n);
         return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
     }
-    const animated = avatarHash.startsWith('a_');
-    const params = new URLSearchParams({ size: String(size) });
-    if (animated) params.set('animated', 'true');
-    return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.webp?${params.toString()}`;
+    return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.webp?size=${size}`;
 }
 
 export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot' | 'avatar'>): MessageAuthor {

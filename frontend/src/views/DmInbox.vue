@@ -12,6 +12,7 @@ import {
     type MessageReference
 } from '../messages';
 import { ApiError } from '../api/client';
+import { animatedAvatarUrl, isAnimatedAvatar } from '../messages/avatar';
 import {
     addReaction,
     getMessages,
@@ -43,6 +44,14 @@ const messagesContainer = ref<HTMLDivElement | null>(null);
 
 const PAGE_SIZE = 10;
 let unsubscribeEvents: (() => void) | null = null;
+const hoveredChannelId = ref<string | null>(null);
+
+function rowAvatarSrc(channel: DmChannelSummary): string | null {
+    const url = channel.recipient.avatarUrl;
+    if (!url) return null;
+    if (hoveredChannelId.value === channel.id && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
+    return url;
+}
 
 function bailOnAuthError(err: unknown): boolean {
     if (err instanceof ApiError && err.status === 401) {
@@ -300,8 +309,10 @@ function formatTimestamp(iso: string | null): string {
                     :key="channel.id"
                     :class="{ active: channel.id === selectedChannelId }"
                     @click="selectChannel(channel.id)"
+                    @mouseenter="hoveredChannelId = channel.id"
+                    @mouseleave="hoveredChannelId = null"
                 >
-                    <img v-if="channel.recipient.avatarUrl" :src="channel.recipient.avatarUrl" alt="" class="avatar" />
+                    <img v-if="rowAvatarSrc(channel)" :src="rowAvatarSrc(channel) ?? ''" alt="" class="avatar" />
                     <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
                     <div class="meta">
                         <div class="row">
@@ -434,9 +445,6 @@ function formatTimestamp(iso: string | null): string {
     border-radius: 50%;
     flex-shrink: 0;
     object-fit: cover;
-    /* Promote to its own compositor layer so Chrome doesn't pause the
-       animated webp when the row scrolls or sits idle. */
-    transform: translateZ(0);
 }
 .avatar-fallback {
     background: var(--accent);

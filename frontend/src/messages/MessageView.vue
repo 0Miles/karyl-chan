@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import MessageContent from './MessageContent.vue';
 import MessageReplyHeader from './MessageReplyHeader.vue';
 import MessageAttachment from './MessageAttachment.vue';
@@ -7,6 +7,7 @@ import MessageSticker from './MessageSticker.vue';
 import MessageReactions from './MessageReactions.vue';
 import MessageEmbed from './MessageEmbed.vue';
 import { parseMessageContent } from './markdown';
+import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 import type { Message } from './types';
 
 const props = defineProps<{
@@ -20,13 +21,26 @@ const time = computed(() => {
     return Number.isNaN(d.getTime()) ? props.message.createdAt : d.toLocaleString();
 });
 const displayName = computed(() => props.message.author.globalName ?? props.message.author.username);
+
+const hovered = ref(false);
+const avatarSrc = computed(() => {
+    const url = props.message.author.avatarUrl;
+    if (!url) return null;
+    if (hovered.value && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
+    return url;
+});
 </script>
 
 <template>
-    <article :class="['message', { compact }]" :data-message-id="message.id">
+    <article
+        :class="['message', { compact }]"
+        :data-message-id="message.id"
+        @mouseenter="hovered = true"
+        @mouseleave="hovered = false"
+    >
         <MessageReplyHeader v-if="message.referencedMessage" :referenced="message.referencedMessage" />
         <header v-if="!compact" class="header">
-            <img v-if="message.author.avatarUrl" :src="message.author.avatarUrl" alt="" class="avatar" />
+            <img v-if="avatarSrc" :src="avatarSrc" alt="" class="avatar" />
             <div v-else class="avatar avatar-fallback">{{ displayName.charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <span class="name">{{ displayName }}</span>
@@ -74,7 +88,6 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
-    transform: translateZ(0);
 }
 .avatar-fallback {
     background: var(--accent);
