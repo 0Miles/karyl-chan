@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue';
-import EmojiPicker from './picker/EmojiPicker.vue';
-import StickerPicker from './picker/StickerPicker.vue';
+import MediaPicker, { type MediaSelection } from './picker/MediaPicker.vue';
 import type { StickerRecent } from './picker/recents';
 import type { OutgoingMessage, MessageReference } from './types';
 
@@ -20,23 +19,26 @@ const content = ref('');
 const attachments = shallowRef<File[]>([]);
 const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
-const showEmojiPicker = ref(false);
-const showStickerPicker = ref(false);
+const showPicker = ref(false);
 const textArea = ref<HTMLTextAreaElement | null>(null);
 
 const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 
-function onEmojiSelect(payload: { kind: 'unicode'; value: string } | { kind: 'custom'; id: string; name: string; animated: boolean }) {
-    const text = payload.kind === 'unicode' ? payload.value : `<${payload.animated ? 'a' : ''}:${payload.name}:${payload.id}>`;
+function onMediaSelect(selection: MediaSelection) {
+    if (selection.type === 'sticker') {
+        if (stickerLimitReached.value) return;
+        pendingStickers.value = [...pendingStickers.value, {
+            id: selection.id,
+            name: selection.name,
+            formatType: selection.formatType
+        }];
+        return;
+    }
+    const text = selection.type === 'unicode'
+        ? selection.value
+        : `<${selection.animated ? 'a' : ''}:${selection.name}:${selection.id}>`;
     insertAtCursor(text);
-    showEmojiPicker.value = false;
     textArea.value?.focus();
-}
-
-function onStickerSelect(sticker: StickerRecent) {
-    if (stickerLimitReached.value) return;
-    pendingStickers.value = [...pendingStickers.value, sticker];
-    showStickerPicker.value = false;
 }
 
 function removeSticker(idx: number) {
@@ -123,15 +125,11 @@ function stickerPreview(id: string): string {
                 class="textarea"
                 @keydown="onKeydown"
             />
-            <button type="button" class="icon-button" :disabled="disabled" @click="showStickerPicker = !showStickerPicker; showEmojiPicker = false" title="Sticker">🏷</button>
-            <button type="button" class="icon-button" :disabled="disabled" @click="showEmojiPicker = !showEmojiPicker; showStickerPicker = false" title="Emoji">😊</button>
+            <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
         </div>
-        <div v-if="showEmojiPicker" class="picker-pop emoji-pop">
-            <EmojiPicker @select="onEmojiSelect" />
-        </div>
-        <div v-if="showStickerPicker" class="picker-pop sticker-pop">
-            <StickerPicker @select="onStickerSelect" />
+        <div v-if="showPicker" class="picker-pop">
+            <MediaPicker @select="onMediaSelect" />
         </div>
     </div>
 </template>
@@ -236,14 +234,9 @@ function stickerPreview(id: string): string {
 .picker-pop {
     position: absolute;
     bottom: 100%;
+    right: 0;
     margin-bottom: 0.35rem;
     z-index: 10;
-}
-.emoji-pop {
-    right: 0;
-}
-.sticker-pop {
-    right: 0;
 }
 .hidden {
     display: none;
