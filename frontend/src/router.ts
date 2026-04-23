@@ -9,6 +9,12 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true }
     },
     {
+        path: '/dm',
+        name: 'dm',
+        component: () => import('./views/DmInbox.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
         path: '/auth',
         name: 'auth',
         component: () => import('./views/Auth.vue')

@@ -18,6 +18,7 @@ async function signOut() {
             <nav>
                 <template v-if="isAuthenticated">
                     <RouterLink to="/">Dashboard</RouterLink>
+                    <RouterLink to="/dm">DMs</RouterLink>
                     <button type="button" class="link-button" @click="signOut">Sign out</button>
                 </template>
             </nav>

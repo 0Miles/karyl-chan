@@ -44,7 +44,7 @@ async function attemptRefresh(): Promise<boolean> {
     return refreshInFlight;
 }
 
-async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
     if (accessTokenExpired() && getRefreshToken()) {
         await attemptRefresh();
     }
