@@ -283,11 +283,33 @@ async function onSend(payload: OutgoingMessage) {
     }
 }
 
+function emojiMatches(a: MessageEmoji, b: MessageEmoji): boolean {
+    if (a.id || b.id) return a.id === b.id;
+    return a.name === b.name;
+}
+
+function applyReactionDelta(messageId: string, emoji: MessageEmoji, delta: 1 | -1) {
+    messages.value = messages.value.map(m => {
+        if (m.id !== messageId) return m;
+        const existing = m.reactions ?? [];
+        let found = false;
+        const updated = existing.map(r => {
+            if (!emojiMatches(r.emoji, emoji)) return r;
+            found = true;
+            return { ...r, count: Math.max(0, r.count + delta), me: delta > 0 };
+        }).filter(r => r.count > 0);
+        if (!found && delta > 0) updated.push({ emoji, count: 1, me: true });
+        return { ...m, reactions: updated };
+    });
+}
+
 async function onReactionAdd(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
+    applyReactionDelta(messageId, emoji, 1);
     try {
         await addReaction(selectedChannelId.value, messageId, emoji);
     } catch (err) {
+        applyReactionDelta(messageId, emoji, -1);
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to react';
     }
@@ -295,9 +317,11 @@ async function onReactionAdd(messageId: string, emoji: MessageEmoji) {
 
 async function onReactionRemove(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
+    applyReactionDelta(messageId, emoji, -1);
     try {
         await removeReaction(selectedChannelId.value, messageId, emoji);
     } catch (err) {
+        applyReactionDelta(messageId, emoji, 1);
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to remove reaction';
     }
