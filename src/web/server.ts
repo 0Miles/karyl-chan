@@ -13,6 +13,7 @@ import { registerGuildsRoutes } from './guilds-routes.js';
 import { registerGuildChannelRoutes } from './guild-channel-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { registerSystemRoutes } from './system-routes.js';
+import { registerAdminManagementRoutes } from './admin-management-routes.js';
 
 declare module 'fastify' {
     interface FastifyRequest {
@@ -150,6 +151,8 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             timestamp: new Date().toISOString()
         };
     });
+
+    await registerAdminManagementRoutes(server);
 
     const bot = options.bot;
     if (bot) {
