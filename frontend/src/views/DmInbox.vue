@@ -434,6 +434,9 @@ function formatTimestamp(iso: string | null): string {
     border-radius: 50%;
     flex-shrink: 0;
     object-fit: cover;
+    /* Promote to its own compositor layer so Chrome doesn't pause the
+       animated webp when the row scrolls or sits idle. */
+    transform: translateZ(0);
 }
 .avatar-fallback {
     background: var(--accent);

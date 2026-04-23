@@ -74,6 +74,7 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
+    transform: translateZ(0);
 }
 .avatar-fallback {
     background: var(--accent);
