@@ -90,6 +90,13 @@ function formatTimestamp(iso: string | null): string {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    min-height: 0;
+}
+@media (max-width: 768px) {
+    .sidebar {
+        border-right: none;
+        height: 100%;
+    }
 }
 .sidebar-header {
     display: flex;

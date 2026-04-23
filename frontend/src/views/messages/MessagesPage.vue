@@ -3,9 +3,15 @@ import { onMounted, ref } from 'vue';
 import DmWorkspace from './DmWorkspace.vue';
 import GuildWorkspace from './GuildWorkspace.vue';
 import { listGuilds, type GuildSummary } from '../../api/guilds';
+import { useBreakpoint } from '../../composables/use-breakpoint';
+import { useFlushMain, useOverlayExtras } from '../../composables/use-app-shell';
 
 const mode = ref<string>('dm');
 const guilds = ref<GuildSummary[]>([]);
+const { isMobile } = useBreakpoint();
+
+useFlushMain();
+useOverlayExtras();
 
 onMounted(async () => {
     try {
@@ -17,11 +23,12 @@ onMounted(async () => {
 </script>
 
 <template>
-    <section class="messages-page">
+    <section class="messages-page" :class="{ 'messages-page--mobile': isMobile }">
         <DmWorkspace
             v-if="mode === 'dm'"
             :guilds="guilds"
             :mode="mode"
+            :is-mobile="isMobile"
             @mode-change="mode = $event"
         />
         <GuildWorkspace
@@ -29,6 +36,7 @@ onMounted(async () => {
             :guilds="guilds"
             :mode="mode"
             :guild-id="mode"
+            :is-mobile="isMobile"
             @mode-change="mode = $event"
         />
     </section>
@@ -45,5 +53,10 @@ onMounted(async () => {
     background: var(--bg-surface);
     color: var(--text);
     overflow: hidden;
+}
+.messages-page--mobile {
+    grid-template-columns: 1fr;
+    border: none;
+    border-radius: 0;
 }
 </style>

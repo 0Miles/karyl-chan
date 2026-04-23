@@ -70,6 +70,13 @@ function isCategoryCollapsed(id: string | null): boolean {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
+}
+@media (max-width: 768px) {
+    .sidebar {
+        border-right: none;
+        height: 100%;
+    }
 }
 .sidebar-header {
     display: flex;

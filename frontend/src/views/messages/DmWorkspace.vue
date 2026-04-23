@@ -4,10 +4,12 @@ import { useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
 import { DiscordConversation, useDiscordDm } from '../../modules/discord-chat';
 import type { GuildSummary } from '../../api/guilds';
+import { useAppShell } from '../../composables/use-app-shell';
 
 const props = defineProps<{
     guilds: GuildSummary[];
     mode: string;
+    isMobile?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -15,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const { closeOverlay } = useAppShell();
 
 const {
     channels,
@@ -33,6 +36,11 @@ const {
     onAuthError: () => router.replace({ name: 'auth' })
 });
 
+function handleSelect(id: string) {
+    selectedChannelId.value = id;
+    if (props.isMobile) closeOverlay();
+}
+
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
@@ -44,21 +52,23 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
 </script>
 
 <template>
-    <DmSidebar
-        :guilds="props.guilds"
-        :mode="props.mode"
-        :channels="channels"
-        :selected-id="selectedChannelId"
-        :loading="loadingChannels"
-        :show-start-form="showStart"
-        :new-recipient-id="newRecipientId"
-        empty-hint="No DMs yet. Send the bot a message in Discord, or start one above."
-        @mode-change="emit('mode-change', $event)"
-        @select="(id) => (selectedChannelId = id)"
-        @toggle-start="showStart = !showStart"
-        @submit-start="startNewDm"
-        @update:newRecipientId="(v) => (newRecipientId = v)"
-    />
+    <Teleport to="#mobile-nav-extras" :disabled="!props.isMobile">
+        <DmSidebar
+            :guilds="props.guilds"
+            :mode="props.mode"
+            :channels="channels"
+            :selected-id="selectedChannelId"
+            :loading="loadingChannels"
+            :show-start-form="showStart"
+            :new-recipient-id="newRecipientId"
+            empty-hint="No DMs yet. Send the bot a message in Discord, or start one above."
+            @mode-change="emit('mode-change', $event)"
+            @select="handleSelect"
+            @toggle-start="showStart = !showStart"
+            @submit-start="startNewDm"
+            @update:newRecipientId="(v) => (newRecipientId = v)"
+        />
+    </Teleport>
     <DiscordConversation
         ref="conversationRef"
         :channel-id="selectedChannelId"

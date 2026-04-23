@@ -4,11 +4,13 @@ import { useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../modules/discord-chat';
 import type { GuildSummary } from '../../api/guilds';
+import { useAppShell } from '../../composables/use-app-shell';
 
 const props = defineProps<{
     guilds: GuildSummary[];
     mode: string;
     guildId: string;
+    isMobile?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +19,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const guildIdRef = toRef(props, 'guildId');
+const { closeOverlay } = useAppShell();
 
 const {
     categories,
@@ -31,6 +34,11 @@ const {
 } = useDiscordGuildChannel(guildIdRef, {
     onAuthError: () => router.replace({ name: 'auth' })
 });
+
+function handleSelect(id: string) {
+    selectedChannelId.value = id;
+    if (props.isMobile) closeOverlay();
+}
 
 const selectedGuild = ref(props.guilds.find(g => g.id === props.guildId) ?? null);
 watch(() => props.guildId, id => {
@@ -48,15 +56,17 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
 </script>
 
 <template>
-    <GuildChannelSidebar
-        :guilds="props.guilds"
-        :mode="props.mode"
-        :categories="categories"
-        :selected-id="selectedChannelId"
-        :loading="loadingChannels"
-        @mode-change="emit('mode-change', $event)"
-        @select="(id) => (selectedChannelId = id)"
-    />
+    <Teleport to="#mobile-nav-extras" :disabled="!props.isMobile">
+        <GuildChannelSidebar
+            :guilds="props.guilds"
+            :mode="props.mode"
+            :categories="categories"
+            :selected-id="selectedChannelId"
+            :loading="loadingChannels"
+            @mode-change="emit('mode-change', $event)"
+            @select="handleSelect"
+        />
+    </Teleport>
     <DiscordConversation
         ref="conversationRef"
         :channel-id="selectedChannelId"
