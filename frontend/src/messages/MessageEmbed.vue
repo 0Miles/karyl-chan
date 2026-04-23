@@ -15,26 +15,29 @@ const descriptionAst = computed(() =>
     props.embed.description ? parseMessageContent(props.embed.description) : null
 );
 
+const standaloneImage = computed(() => props.embed.image ?? props.embed.thumbnail ?? null);
 const imageOnly = computed(() => Boolean(
-    props.embed.image
+    standaloneImage.value
     && !props.embed.title
     && !props.embed.description
     && !props.embed.author
     && !props.embed.footer
-    && !props.embed.thumbnail
     && !(props.embed.fields && props.embed.fields.length > 0)
 ));
+function preferProxy(image: { url: string; proxyUrl?: string }): string {
+    return image.proxyUrl || image.url;
+}
 </script>
 
 <template>
     <a
-        v-if="imageOnly"
-        :href="embed.url ?? embed.image?.url ?? '#'"
+        v-if="imageOnly && standaloneImage"
+        :href="embed.url ?? standaloneImage.url"
         target="_blank"
         rel="noopener noreferrer"
         class="image-only"
     >
-        <img :src="embed.image!.url" alt="" loading="lazy" />
+        <img :src="preferProxy(standaloneImage)" alt="" loading="lazy" referrerpolicy="no-referrer" />
     </a>
     <div v-else class="embed" :style="{ borderLeftColor: colorBar }">
         <div v-if="embed.author" class="author">
@@ -57,8 +60,8 @@ const imageOnly = computed(() => Boolean(
                 <div class="field-value">{{ field.value }}</div>
             </div>
         </div>
-        <img v-if="embed.image" :src="embed.image.url" alt="" class="image" loading="lazy" />
-        <img v-if="embed.thumbnail" :src="embed.thumbnail.url" alt="" class="thumbnail" loading="lazy" />
+        <img v-if="embed.image" :src="preferProxy(embed.image)" alt="" class="image" loading="lazy" referrerpolicy="no-referrer" />
+        <img v-if="embed.thumbnail" :src="preferProxy(embed.thumbnail)" alt="" class="thumbnail" loading="lazy" referrerpolicy="no-referrer" />
         <div v-if="embed.footer || embed.timestamp" class="footer">
             <img v-if="embed.footer?.iconUrl" :src="embed.footer.iconUrl" alt="" class="icon" />
             <span v-if="embed.footer?.text">{{ embed.footer.text }}</span>

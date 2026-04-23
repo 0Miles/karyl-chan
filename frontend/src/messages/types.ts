@@ -55,8 +55,8 @@ export interface MessageEmbed {
     description?: string | null;
     url?: string | null;
     color?: number | null;
-    image?: { url: string; width?: number; height?: number } | null;
-    thumbnail?: { url: string; width?: number; height?: number } | null;
+    image?: { url: string; proxyUrl?: string; width?: number; height?: number } | null;
+    thumbnail?: { url: string; proxyUrl?: string; width?: number; height?: number } | null;
     footer?: { text: string; iconUrl?: string } | null;
     author?: { name: string; url?: string; iconUrl?: string } | null;
     fields?: MessageEmbedField[];
