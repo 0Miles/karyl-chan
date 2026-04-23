@@ -217,7 +217,7 @@ describe('web server', () => {
         });
 
         it('accepts /api requests with a valid access token', async () => {
-            const { accessToken } = store.issueTokens(OWNER_ID);
+            const { accessToken } = await store.issueTokens(OWNER_ID);
             const response = await server.inject({
                 method: 'GET',
                 url: '/api/health',
@@ -257,7 +257,7 @@ describe('web server', () => {
         });
 
         it('rotates the refresh token and revokes the old one', async () => {
-            const initial = store.issueTokens(OWNER_ID);
+            const initial = await store.issueTokens(OWNER_ID);
             const refreshed = await server.inject({
                 method: 'POST',
                 url: '/api/auth/refresh',
@@ -276,7 +276,7 @@ describe('web server', () => {
         });
 
         it('logout revokes the refresh token', async () => {
-            const issued = store.issueTokens(OWNER_ID);
+            const issued = await store.issueTokens(OWNER_ID);
             const logoutResp = await server.inject({
                 method: 'POST',
                 url: '/api/auth/logout',

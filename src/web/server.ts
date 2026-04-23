@@ -72,7 +72,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             reply.code(401).send({ error: 'Invalid or expired token' });
             return;
         }
-        const issued = auth.issueTokens(ownerForToken);
+        const issued = await auth.issueTokens(ownerForToken);
         return issued;
     });
 
@@ -86,7 +86,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             reply.code(400).send({ error: 'refreshToken required' });
             return;
         }
-        const issued = auth.rotateRefresh(refreshToken);
+        const issued = await auth.rotateRefresh(refreshToken);
         if (!issued) {
             reply.code(401).send({ error: 'Invalid or expired refresh token' });
             return;
@@ -100,7 +100,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             return;
         }
         const refreshToken = typeof request.body?.refreshToken === 'string' ? request.body.refreshToken : null;
-        if (refreshToken) auth.revokeRefresh(refreshToken);
+        if (refreshToken) await auth.revokeRefresh(refreshToken);
         reply.code(204).send();
     });
 

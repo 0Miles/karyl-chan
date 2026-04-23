@@ -6,6 +6,8 @@ import { Events, IntentsBitField, Partials } from 'discord.js';
 import { Client } from 'discordx';
 import { sequelize } from './models/db.js';
 import { startWebServer } from './web/server.js';
+import { authStore } from './web/auth-store.service.js';
+import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
 
 export const bot = new Client({
     botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
@@ -102,6 +104,9 @@ async function run() {
     try {
         await importx(dirname(import.meta.url) + '/{events,commands}/**/*.{ts,js}');
         await sequelize.sync();
+
+        authStore.attach(sequelizeRefreshStore);
+        await authStore.init();
 
         const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
         await startWebServer({ port: webPort, bot });
