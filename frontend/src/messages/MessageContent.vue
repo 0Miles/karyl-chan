@@ -198,8 +198,8 @@ export default defineComponent({
 }
 .message-content :deep(.unicode-emoji),
 .message-content :deep(.custom-emoji) {
-    width: 2.4em;
-    height: 2.4em;
+    width: 2em;
+    height: 2em;
     vertical-align: middle;
     display: inline-block;
 }
