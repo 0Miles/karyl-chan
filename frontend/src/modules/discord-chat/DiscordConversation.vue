@@ -4,10 +4,12 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
+import MediaPickerDrawer from '../../libs/messages/picker/MediaPickerDrawer.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
 import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
+import { useBreakpoint } from '../../composables/use-breakpoint';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore } from './stores/messageCacheStore';
 
@@ -48,6 +50,7 @@ const plainListRef = ref<HTMLDivElement | null>(null);
 const messagesEnd = ref<HTMLDivElement | null>(null);
 const messagesContainer = ref<HTMLElement | null>(null);
 const shiftHeld = useShiftKey();
+const { isMobile } = useBreakpoint();
 const reactingMessageId = ref<string | null>(null);
 const reactingButton = ref<HTMLButtonElement | null>(null);
 const reactingButtons = new Map<string, HTMLButtonElement>();
@@ -342,9 +345,16 @@ const replyToProp = computed(() => props.replyTo);
             <div ref="messagesEnd" />
         </div>
         <MediaPickerPopover
+            v-if="!isMobile"
             :reference-el="reactingButton"
             :visible="reactingMessageId !== null"
             placement="top-end"
+            @update:visible="(v) => { if (!v) closeReactPicker(); }"
+            @select="onReactPicked"
+        />
+        <MediaPickerDrawer
+            v-else
+            :visible="reactingMessageId !== null"
             @update:visible="(v) => { if (!v) closeReactPicker(); }"
             @select="onReactPicked"
         />
