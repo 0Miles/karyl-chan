@@ -95,8 +95,14 @@ bot.on('raw', async (packet: { t?: string; d?: { id?: string; channel_id?: strin
     try {
         const channel = await bot.channels.fetch(channelId);
         if (!channel || !channel.isDMBased() || !channel.isTextBased()) return;
-        const message = (channel as DMChannel).messages._add(packet.d as never);
-        bot.emit(Events.MessageCreate, message);
+        // _add is private in the published typings but is discord.js's only
+        // supported path for hydrating a raw MESSAGE_CREATE payload into a
+        // Message instance; the event-bus expects a fully constructed Message.
+        const messagesMgr = (channel as DMChannel).messages as unknown as {
+            _add(data: unknown): Message;
+        };
+        const message = messagesMgr._add(packet.d);
+        (bot.emit as (event: string, ...args: unknown[]) => boolean)(Events.MessageCreate, message);
     } catch (err) {
         console.error('failed to dispatch DM messageCreate fallback:', err);
     }

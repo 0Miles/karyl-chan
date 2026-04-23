@@ -1,6 +1,6 @@
 import type { ArgsOf, Client } from 'discordx';
 import { Discord, On } from 'discordx';
-import { ChannelType, type DMChannel, type Message, type MessageReaction, type PartialMessage, type PartialMessageReaction, type PartialUser, type User } from 'discord.js';
+import { ChannelType, type DMChannel, type MessageReaction, type PartialMessageReaction, type PartialUser, type User } from 'discord.js';
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
 import { dmEventBus } from '../web/dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
@@ -58,8 +58,8 @@ export class DmInboxEvents {
         try {
             if (newMessage.channel.type !== ChannelType.DM) return;
             const fetched = newMessage.partial
-                ? await (newMessage as PartialMessage).fetch().catch(() => null)
-                : (newMessage as Message);
+                ? await newMessage.fetch().catch(() => null)
+                : newMessage;
             if (!fetched) return;
             dmEventBus.publish({
                 type: 'message-updated',
