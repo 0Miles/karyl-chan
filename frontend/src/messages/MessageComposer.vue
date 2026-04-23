@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
 import MediaPicker, { type MediaSelection } from './picker/MediaPicker.vue';
 import type { StickerRecent } from './picker/recents';
 import type { OutgoingMessage, MessageReference } from './types';
@@ -21,6 +21,26 @@ const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
 const textArea = ref<HTMLTextAreaElement | null>(null);
+const pickerWrap = ref<HTMLDivElement | null>(null);
+const pickerButton = ref<HTMLButtonElement | null>(null);
+
+function onDocumentMousedown(event: MouseEvent) {
+    if (!showPicker.value) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+    if (pickerWrap.value?.contains(target)) return;
+    if (pickerButton.value?.contains(target)) return;
+    showPicker.value = false;
+}
+
+watch(showPicker, (open) => {
+    if (open) document.addEventListener('mousedown', onDocumentMousedown);
+    else document.removeEventListener('mousedown', onDocumentMousedown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('mousedown', onDocumentMousedown);
+});
 
 const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 
@@ -167,10 +187,10 @@ function stickerPreview(id: string): string {
                 class="textarea"
                 @keydown="onKeydown"
             />
-            <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
+            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
         </div>
-        <div v-if="showPicker" class="picker-pop">
+        <div v-if="showPicker" ref="pickerWrap" class="picker-pop">
             <MediaPicker @select="onMediaSelect" />
         </div>
     </div>
