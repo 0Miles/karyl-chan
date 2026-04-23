@@ -6,16 +6,17 @@ import { dmEventBus } from '../web/dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
 
 async function publishReactionUpdate(reaction: MessageReaction | PartialMessageReaction): Promise<void> {
-    const resolved = reaction.partial ? await reaction.fetch().catch(() => null) : reaction;
-    if (!resolved) return;
-    if (resolved.message.channel.type !== ChannelType.DM) return;
-    const message = resolved.message.partial
-        ? await (resolved.message as PartialMessage).fetch().catch(() => null)
-        : (resolved.message as Message);
+    const channel = reaction.message.channel;
+    if (channel.type !== ChannelType.DM) return;
+    const channelId = reaction.message.channelId;
+    const messageId = reaction.message.id;
+    // Bypass discord.js's reaction cache (which can lag behind the actual
+    // server state for a moment after a remove) by hitting REST directly.
+    const message = await (channel as DMChannel).messages.fetch({ message: messageId, force: true }).catch(() => null);
     if (!message) return;
     dmEventBus.publish({
         type: 'message-updated',
-        channelId: message.channelId,
+        channelId,
         message: toApiMessage(message)
     });
 }
