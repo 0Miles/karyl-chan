@@ -2,10 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
-import MediaPicker, { type MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
+import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
+import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
 import { useFileDrop } from '../../composables/use-file-drop';
-import { useFloatingPicker } from '../../composables/use-floating-picker';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 
@@ -41,7 +41,13 @@ const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
 const messagesContainer = ref<HTMLDivElement | null>(null);
 const messagesEnd = ref<HTMLDivElement | null>(null);
 const shiftHeld = useShiftKey();
-const reactPicker = useFloatingPicker({ width: 420, height: 460 });
+const reactingMessageId = ref<string | null>(null);
+const reactingButton = ref<HTMLButtonElement | null>(null);
+const reactingButtons = new Map<string, HTMLButtonElement>();
+function setReactButton(id: string, el: HTMLButtonElement | null) {
+    if (el) reactingButtons.set(id, el);
+    else reactingButtons.delete(id);
+}
 
 const drop = useFileDrop((files) => {
     composerRef.value?.addFiles(files);
@@ -64,12 +70,15 @@ function onMessagesScroll() {
     const el = messagesContainer.value;
     if (!el) return;
     if (el.scrollTop < 80 && props.hasMore && !props.loadingOlder) emit('load-older');
-    if (reactPicker.openId.value) reactPicker.close();
+    if (reactingMessageId.value) closeReactPicker();
 }
 
-watch(() => props.channelId, () => {
-    reactPicker.close();
-});
+function closeReactPicker() {
+    reactingMessageId.value = null;
+    reactingButton.value = null;
+}
+
+watch(() => props.channelId, closeReactPicker);
 
 onMounted(() => {
     scrollToBottom();
@@ -83,14 +92,19 @@ defineExpose({
 });
 
 function onReactPicked(selection: MediaSelection) {
-    if (!reactPicker.openId.value) return;
-    const messageId = reactPicker.openId.value;
-    reactPicker.close();
+    if (!reactingMessageId.value) return;
+    const messageId = reactingMessageId.value;
+    closeReactPicker();
     emit('react', messageId, selection);
 }
 
-function startReact(messageId: string, event: MouseEvent) {
-    reactPicker.openAt(messageId, event);
+function startReact(messageId: string) {
+    if (reactingMessageId.value === messageId) {
+        closeReactPicker();
+        return;
+    }
+    reactingMessageId.value = messageId;
+    reactingButton.value = reactingButtons.get(messageId) ?? null;
 }
 
 const replyToProp = computed(() => props.replyTo);
@@ -133,7 +147,13 @@ const replyToProp = computed(() => props.replyTo);
                     @cancel-edit="emit('cancel-edit')"
                 />
                 <div class="message-actions">
-                    <button type="button" :class="['action', { active: reactPicker.openId.value === message.id }]" title="React" @click="startReact(message.id, $event)">😊</button>
+                    <button
+                        :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
+                        type="button"
+                        :class="['action', { active: reactingMessageId === message.id }]"
+                        title="React"
+                        @click="startReact(message.id)"
+                    >😊</button>
                     <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
                     <template v-if="isOwn(message)">
                         <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
@@ -148,16 +168,13 @@ const replyToProp = computed(() => props.replyTo);
             </div>
             <div ref="messagesEnd" />
         </div>
-        <Teleport to="body">
-            <div
-                v-if="reactPicker.openId.value && reactPicker.position.value"
-                data-floating-picker
-                class="react-pop-floating"
-                :style="{ top: reactPicker.position.value.top + 'px', left: reactPicker.position.value.left + 'px' }"
-            >
-                <MediaPicker @select="onReactPicked" />
-            </div>
-        </Teleport>
+        <MediaPickerPopover
+            :reference-el="reactingButton"
+            :visible="reactingMessageId !== null"
+            placement="top-end"
+            @update:visible="(v) => { if (!v) closeReactPicker(); }"
+            @select="onReactPicked"
+        />
         <footer v-if="channelId" class="composer-row">
             <MessageComposer
                 ref="composerRef"
@@ -169,13 +186,6 @@ const replyToProp = computed(() => props.replyTo);
         </footer>
     </div>
 </template>
-
-<style>
-.react-pop-floating {
-    position: fixed;
-    z-index: 1000;
-}
-</style>
 
 <style scoped>
 .conversation {

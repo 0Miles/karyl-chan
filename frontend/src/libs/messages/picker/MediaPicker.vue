@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useMessageContext } from '../context';
 import type { CustomEmoji, GuildBucket, GuildSticker } from '../types';
+import EmojiGrid, { type EmojiCell } from './EmojiGrid.vue';
+import StickerGrid, { type StickerCell } from './StickerGrid.vue';
 import {
     pushEmojiRecent,
     pushStickerRecent,
@@ -54,27 +56,38 @@ const TABS: { id: Tab; label: string }[] = [
     { id: 'sticker', label: 'Stickers' }
 ];
 
-const activeUnicodeContent = computed(() =>
-    unicodeCategories.value.find(c => c.id === activeUnicodeCategory.value) ?? null
-);
-const activeCustomBucket = computed(() =>
-    customGuilds.value.find(g => g.guildId === activeCustomGuild.value) ?? null
-);
-const activeStickerBucket = computed(() =>
-    stickerGuilds.value.find(g => g.guildId === activeStickerGuild.value) ?? null
-);
-
 const query = computed(() => search.value.trim().toLowerCase());
+const isSearching = computed(() => query.value.length > 0);
 
-function customEmojiUrl(id: string, animated: boolean, name?: string): string {
-    return ctx.mediaProvider?.customEmojiUrl({ id, animated, name }, 64) ?? '';
+function customEmojiUrl(emoji: { id: string; animated: boolean; name?: string }, size = 64): string {
+    return ctx.mediaProvider?.customEmojiUrl(emoji, size) ?? '';
 }
 
-function stickerPreview(sticker: { id: string; formatType: number }): string {
-    return ctx.mediaProvider?.stickerUrl(sticker, 80) ?? '';
+function stickerImageUrl(sticker: { id: string; formatType: number }, size = 80): string {
+    return ctx.mediaProvider?.stickerUrl(sticker, size) ?? '';
 }
 
-const filteredUnicode = computed<UnicodeEntry[]>(() => {
+function unicodeCells(entries: UnicodeEntry[]): EmojiCell[] {
+    return entries.map(e => ({ key: `u:${e.native}`, title: e.name, glyph: e.native }));
+}
+
+function customCells(emojis: CustomEmoji[], guildName?: string): EmojiCell[] {
+    return emojis.map(e => ({
+        key: `c:${e.id}`,
+        title: guildName ? `:${e.name}: — ${guildName}` : `:${e.name}:`,
+        imageUrl: customEmojiUrl(e)
+    }));
+}
+
+function stickerCells(stickers: { id: string; name: string; formatType: number }[], guildName?: string): StickerCell[] {
+    return stickers.map(s => ({
+        key: s.id,
+        title: guildName ? `${s.name} — ${guildName}` : s.name,
+        imageUrl: stickerImageUrl(s)
+    }));
+}
+
+const filteredUnicodeCells = computed(() => {
     if (!query.value) return [];
     const q = query.value;
     const out: UnicodeEntry[] = [];
@@ -84,62 +97,124 @@ const filteredUnicode = computed<UnicodeEntry[]>(() => {
             if (out.length >= 80) break;
         }
     }
-    return out;
+    return unicodeCells(out);
 });
 
-const filteredCustom = computed<{ guild: string; emoji: CustomEmoji }[]>(() => {
+const filteredCustomCells = computed(() => {
     if (!query.value) return [];
     const q = query.value;
-    const out: { guild: string; emoji: CustomEmoji }[] = [];
+    const out: EmojiCell[] = [];
     for (const bucket of customGuilds.value) {
         for (const e of bucket.items) {
-            if (e.name.toLowerCase().includes(q)) out.push({ guild: bucket.guildName, emoji: e });
-        }
-    }
-    return out;
-});
-
-const filteredStickers = computed<{ guild: string; sticker: GuildSticker }[]>(() => {
-    if (!query.value) return [];
-    const q = query.value;
-    const out: { guild: string; sticker: GuildSticker }[] = [];
-    for (const bucket of stickerGuilds.value) {
-        for (const s of bucket.items) {
-            const desc = (s.description ?? '').toLowerCase();
-            if (s.name.toLowerCase().includes(q) || desc.includes(q)) {
-                out.push({ guild: bucket.guildName, sticker: s });
+            if (e.name.toLowerCase().includes(q)) {
+                out.push({
+                    key: `c:${e.id}`,
+                    title: `:${e.name}: — ${bucket.guildName}`,
+                    imageUrl: customEmojiUrl(e)
+                });
             }
         }
     }
     return out;
 });
 
-const isSearching = computed(() => query.value.length > 0);
+const filteredStickerCells = computed(() => {
+    if (!query.value) return [];
+    const q = query.value;
+    const out: StickerCell[] = [];
+    for (const bucket of stickerGuilds.value) {
+        for (const s of bucket.items) {
+            const desc = (s.description ?? '').toLowerCase();
+            if (s.name.toLowerCase().includes(q) || desc.includes(q)) {
+                out.push({
+                    key: s.id,
+                    title: `${s.name} — ${bucket.guildName}`,
+                    imageUrl: stickerImageUrl(s)
+                });
+            }
+        }
+    }
+    return out;
+});
 
-function selectUnicode(value: string) {
-    pushEmojiRecent({ kind: 'unicode', value });
-    emit('select', { type: 'unicode', value });
+const recentEmojiCells = computed<EmojiCell[]>(() => emojiRecents.value.map(entry => {
+    if (entry.kind === 'unicode') {
+        return { key: `u:${entry.value}`, title: entry.value, glyph: entry.value };
+    }
+    return {
+        key: `c:${entry.id}`,
+        title: `:${entry.name}:`,
+        imageUrl: customEmojiUrl({ id: entry.id, animated: entry.animated, name: entry.name })
+    };
+}));
+
+const recentStickerCells = computed<StickerCell[]>(() =>
+    stickerRecents.value.map(s => ({
+        key: s.id,
+        title: s.name,
+        imageUrl: stickerImageUrl(s)
+    }))
+);
+
+const activeUnicodeCells = computed<EmojiCell[]>(() => {
+    const cat = unicodeCategories.value.find(c => c.id === activeUnicodeCategory.value);
+    return cat ? unicodeCells(cat.emojis) : [];
+});
+
+const activeCustomCells = computed<EmojiCell[]>(() => {
+    const bucket = customGuilds.value.find(g => g.guildId === activeCustomGuild.value);
+    return bucket ? customCells(bucket.items) : [];
+});
+
+const activeStickerCells = computed<StickerCell[]>(() => {
+    const bucket = stickerGuilds.value.find(g => g.guildId === activeStickerGuild.value);
+    return bucket ? stickerCells(bucket.items) : [];
+});
+
+function pickEmoji(key: string) {
+    if (key.startsWith('u:')) {
+        const value = key.slice(2);
+        pushEmojiRecent({ kind: 'unicode', value });
+        emit('select', { type: 'unicode', value });
+        return;
+    }
+    if (key.startsWith('c:')) {
+        const id = key.slice(2);
+        const found = findCustomEmoji(id);
+        if (!found) return;
+        pushEmojiRecent({ kind: 'custom', id: found.id, name: found.name, animated: found.animated });
+        emit('select', { type: 'custom', id: found.id, name: found.name, animated: found.animated });
+    }
 }
 
-function selectCustom(emoji: CustomEmoji) {
-    pushEmojiRecent({ kind: 'custom', id: emoji.id, name: emoji.name, animated: emoji.animated });
-    emit('select', { type: 'custom', id: emoji.id, name: emoji.name, animated: emoji.animated });
-}
-
-function selectSticker(s: GuildSticker | StickerRecent) {
-    const entry: StickerRecent = { id: s.id, name: s.name, formatType: s.formatType };
+function pickSticker(id: string) {
+    const found = findSticker(id);
+    if (!found) return;
+    const entry: StickerRecent = { id: found.id, name: found.name, formatType: found.formatType };
     pushStickerRecent(entry);
     emit('select', { type: 'sticker', ...entry });
 }
 
-function selectRecentEmoji(entry: EmojiRecent) {
-    if (entry.kind === 'unicode') return selectUnicode(entry.value);
-    return selectCustom({ id: entry.id, name: entry.name, animated: entry.animated });
+function findCustomEmoji(id: string): { id: string; name: string; animated: boolean } | null {
+    for (const bucket of customGuilds.value) {
+        const hit = bucket.items.find(e => e.id === id);
+        if (hit) return hit;
+    }
+    for (const recent of emojiRecents.value) {
+        if (recent.kind === 'custom' && recent.id === id) {
+            return { id: recent.id, name: recent.name, animated: recent.animated };
+        }
+    }
+    return null;
 }
 
-watch(() => isSearching.value, () => {
-    // When user clears the search, leave them on whatever tab they were on.
-});
+function findSticker(id: string): { id: string; name: string; formatType: number } | null {
+    for (const bucket of stickerGuilds.value) {
+        const hit = bucket.items.find(s => s.id === id);
+        if (hit) return hit;
+    }
+    return stickerRecents.value.find(s => s.id === id) ?? null;
+}
 
 onMounted(async () => {
     loadingMedia.value = true;
@@ -181,9 +256,6 @@ onMounted(async () => {
 function categoryLabel(id: string): string {
     return id.charAt(0).toUpperCase() + id.slice(1);
 }
-
-const recentEmojiEntries = computed(() => emojiRecents.value);
-const recentStickerEntries = computed(() => stickerRecents.value);
 </script>
 
 <template>
@@ -236,134 +308,45 @@ const recentStickerEntries = computed(() => stickerRecents.value);
             <p v-if="loadingMedia && customGuilds.length === 0" class="muted">Loading…</p>
 
             <template v-else-if="isSearching">
-                <section v-if="filteredCustom.length" class="section">
+                <section v-if="filteredCustomCells.length" class="section">
                     <h4>Custom emoji</h4>
-                    <div class="grid emoji-grid">
-                        <button
-                            v-for="entry in filteredCustom"
-                            :key="entry.emoji.id"
-                            type="button"
-                            class="cell"
-                            :title="`:${entry.emoji.name}: — ${entry.guild}`"
-                            @click="selectCustom(entry.emoji)"
-                        >
-                            <img :src="customEmojiUrl(entry.emoji.id, entry.emoji.animated)" :alt="entry.emoji.name" class="emoji" />
-                        </button>
-                    </div>
+                    <EmojiGrid :cells="filteredCustomCells" @pick="pickEmoji" />
                 </section>
-                <section v-if="filteredStickers.length" class="section">
+                <section v-if="filteredStickerCells.length" class="section">
                     <h4>Stickers</h4>
-                    <div class="grid sticker-grid">
-                        <button
-                            v-for="entry in filteredStickers"
-                            :key="entry.sticker.id"
-                            type="button"
-                            class="cell sticker-cell"
-                            :title="`${entry.sticker.name} — ${entry.guild}`"
-                            @click="selectSticker(entry.sticker)"
-                        >
-                            <img :src="stickerPreview(entry.sticker)" :alt="entry.sticker.name" class="sticker" />
-                        </button>
-                    </div>
+                    <StickerGrid :cells="filteredStickerCells" @pick="pickSticker" />
                 </section>
-                <section v-if="filteredUnicode.length" class="section">
+                <section v-if="filteredUnicodeCells.length" class="section">
                     <h4>Emoji</h4>
-                    <div class="grid emoji-grid">
-                        <button
-                            v-for="entry in filteredUnicode"
-                            :key="entry.id"
-                            type="button"
-                            class="cell"
-                            :title="`${entry.name}`"
-                            @click="selectUnicode(entry.native)"
-                        >
-                            <span class="unicode">{{ entry.native }}</span>
-                        </button>
-                    </div>
+                    <EmojiGrid :cells="filteredUnicodeCells" @pick="pickEmoji" />
                 </section>
-                <p v-if="!filteredCustom.length && !filteredStickers.length && !filteredUnicode.length" class="muted">No matches.</p>
+                <p v-if="!filteredCustomCells.length && !filteredStickerCells.length && !filteredUnicodeCells.length" class="muted">No matches.</p>
             </template>
 
             <template v-else-if="activeTab === 'recent'">
-                <section v-if="recentEmojiEntries.length" class="section">
+                <section v-if="recentEmojiCells.length" class="section">
                     <h4>Emoji</h4>
-                    <div class="grid emoji-grid">
-                        <button
-                            v-for="entry in recentEmojiEntries"
-                            :key="entry.kind === 'unicode' ? 'u:' + entry.value : 'c:' + entry.id"
-                            type="button"
-                            class="cell"
-                            :title="entry.kind === 'unicode' ? entry.value : `:${entry.name}:`"
-                            @click="selectRecentEmoji(entry)"
-                        >
-                            <img v-if="entry.kind === 'custom'" :src="customEmojiUrl(entry.id, entry.animated)" :alt="entry.name" class="emoji" />
-                            <span v-else class="unicode">{{ entry.value }}</span>
-                        </button>
-                    </div>
+                    <EmojiGrid :cells="recentEmojiCells" @pick="pickEmoji" />
                 </section>
-                <section v-if="recentStickerEntries.length" class="section">
+                <section v-if="recentStickerCells.length" class="section">
                     <h4>Stickers</h4>
-                    <div class="grid sticker-grid">
-                        <button
-                            v-for="sticker in recentStickerEntries"
-                            :key="sticker.id"
-                            type="button"
-                            class="cell sticker-cell"
-                            :title="sticker.name"
-                            @click="selectSticker(sticker)"
-                        >
-                            <img :src="stickerPreview(sticker)" :alt="sticker.name" class="sticker" />
-                        </button>
-                    </div>
+                    <StickerGrid :cells="recentStickerCells" @pick="pickSticker" />
                 </section>
-                <p v-if="!recentEmojiEntries.length && !recentStickerEntries.length" class="muted">Nothing recent yet.</p>
+                <p v-if="!recentEmojiCells.length && !recentStickerCells.length" class="muted">Nothing recent yet.</p>
             </template>
 
             <template v-else-if="activeTab === 'unicode'">
-                <div v-if="activeUnicodeContent" class="grid emoji-grid">
-                    <button
-                        v-for="emoji in activeUnicodeContent.emojis"
-                        :key="emoji.id"
-                        type="button"
-                        class="cell"
-                        :title="emoji.name"
-                        @click="selectUnicode(emoji.native)"
-                    >
-                        <span class="unicode">{{ emoji.native }}</span>
-                    </button>
-                </div>
+                <EmojiGrid :cells="activeUnicodeCells" @pick="pickEmoji" />
             </template>
 
             <template v-else-if="activeTab === 'custom'">
-                <div v-if="activeCustomBucket" class="grid emoji-grid">
-                    <button
-                        v-for="emoji in activeCustomBucket.items"
-                        :key="emoji.id"
-                        type="button"
-                        class="cell"
-                        :title="`:${emoji.name}:`"
-                        @click="selectCustom(emoji)"
-                    >
-                        <img :src="customEmojiUrl(emoji.id, emoji.animated)" :alt="emoji.name" class="emoji" />
-                    </button>
-                </div>
-                <p v-else-if="!customGuilds.length" class="muted">No custom emoji available.</p>
+                <EmojiGrid v-if="activeCustomCells.length" :cells="activeCustomCells" @pick="pickEmoji" />
+                <p v-else class="muted">No custom emoji available.</p>
             </template>
 
             <template v-else-if="activeTab === 'sticker'">
-                <div v-if="activeStickerBucket" class="grid sticker-grid">
-                    <button
-                        v-for="s in activeStickerBucket.items"
-                        :key="s.id"
-                        type="button"
-                        class="cell sticker-cell"
-                        :title="s.name"
-                        @click="selectSticker(s)"
-                    >
-                        <img :src="stickerPreview(s)" :alt="s.name" class="sticker" />
-                    </button>
-                </div>
-                <p v-else-if="!stickerGuilds.length" class="muted">No guild stickers available.</p>
+                <StickerGrid v-if="activeStickerCells.length" :cells="activeStickerCells" @pick="pickSticker" />
+                <p v-else class="muted">No guild stickers available.</p>
             </template>
         </div>
     </div>
@@ -395,9 +378,7 @@ const recentStickerEntries = computed(() => stickerRecents.value);
     color: var(--text);
     font: inherit;
 }
-.search:focus {
-    outline: 1px solid var(--accent);
-}
+.search:focus { outline: 1px solid var(--accent); }
 .tabs,
 .subtabs {
     display: flex;
@@ -448,59 +429,13 @@ const recentStickerEntries = computed(() => stickerRecents.value);
     overflow-y: auto;
     padding: 0.5rem;
 }
-.section + .section {
-    margin-top: 0.75rem;
-}
+.section + .section { margin-top: 0.75rem; }
 .section h4 {
     margin: 0 0 0.4rem;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
-}
-.capitalize {
-    text-transform: capitalize;
-}
-.grid {
-    display: grid;
-    gap: 0.3rem;
-}
-.emoji-grid {
-    grid-template-columns: repeat(8, 1fr);
-}
-.sticker-grid {
-    grid-template-columns: repeat(4, 1fr);
-}
-.cell {
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    aspect-ratio: 1 / 1;
-}
-.cell:hover {
-    background: var(--bg-surface-hover);
-}
-.sticker-cell:hover {
-    border-color: var(--border);
-}
-.emoji {
-    width: 28px;
-    height: 28px;
-    object-fit: contain;
-}
-.sticker {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-.unicode {
-    font-size: 1.5rem;
-    line-height: 1;
 }
 .muted {
     color: var(--text-muted);
