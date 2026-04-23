@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { DashboardLayout } from '../../layouts';
-import { ApiError } from '../../api/client';
+import { DashboardLayout } from '../../../layouts';
+import { ApiError } from '../../../api/client';
 import {
     listAdminCapabilities,
     listAdminRoles,
@@ -10,9 +10,9 @@ import {
     type AdminCapabilityDef,
     type AdminRole,
     type AdminUserList
-} from '../../api/admin';
-import AdminUsersPanel from './AdminUsersPanel.vue';
-import AdminRolesPanel from './AdminRolesPanel.vue';
+} from '../../../api/admin';
+import UsersPanel from './UsersPanel.vue';
+import RolesPanel from './RolesPanel.vue';
 
 const router = useRouter();
 
@@ -79,14 +79,14 @@ onMounted(refresh);
         <p v-if="loading" class="muted">{{ $t('common.loading') }}</p>
         <p v-else-if="error" class="error">{{ error }}</p>
         <template v-else>
-            <AdminUsersPanel
+            <UsersPanel
                 v-if="activeTab === 'users'"
                 :data="users"
                 :roles="roles"
                 @changed="refresh"
                 @error="setError"
             />
-            <AdminRolesPanel
+            <RolesPanel
                 v-else
                 :roles="roles"
                 :capabilities="capabilities"

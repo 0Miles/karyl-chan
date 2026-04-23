@@ -17,31 +17,31 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/admin',
         name: 'dashboard',
-        component: () => import('./views/dashboard/DashboardPage.vue'),
+        component: () => import('./views/admin/dashboard/DashboardPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/admin/messages',
         name: 'messages',
-        component: () => import('./views/messages/MessagesPage.vue'),
+        component: () => import('./views/admin/messages/MessagesPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/admin/guilds',
         name: 'guilds',
-        component: () => import('./views/guilds/GuildsPage.vue'),
+        component: () => import('./views/admin/guilds/GuildsPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/admin/users',
         name: 'admin-users',
-        component: () => import('./views/admin/AdminAccessPage.vue'),
+        component: () => import('./views/admin/users/UsersPage.vue'),
         meta: { requiresAuth: true }
     },
     {
         path: '/admin/auth',
         name: 'auth',
-        component: () => import('./views/auth/AuthPage.vue')
+        component: () => import('./views/admin/auth/AuthPage.vue')
     }
 ];
 

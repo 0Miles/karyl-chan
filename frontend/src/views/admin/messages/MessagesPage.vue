@@ -2,8 +2,8 @@
 import { onMounted, ref } from 'vue';
 import DmWorkspace from './DmWorkspace.vue';
 import GuildWorkspace from './GuildWorkspace.vue';
-import { listGuilds, type GuildSummary } from '../../api/guilds';
-import { useBreakpoint } from '../../composables/use-breakpoint';
+import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import { useBreakpoint } from '../../../composables/use-breakpoint';
 
 const mode = ref<string>('dm');
 const guilds = ref<GuildSummary[]>([]);

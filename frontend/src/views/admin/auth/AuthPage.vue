@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ApiError, exchangeOneTimeToken } from '../../api/client';
-import { setTokens } from '../../auth';
+import { ApiError, exchangeOneTimeToken } from '../../../api/client';
+import { setTokens } from '../../../auth';
 
 const route = useRoute();
 const router = useRouter();

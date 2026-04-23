@@ -8,8 +8,8 @@ import {
     type AdminRole,
     type AdminUserList,
     type AuthorizedUser
-} from '../../api/admin';
-import { ApiError } from '../../api/client';
+} from '../../../api/admin';
+import { ApiError } from '../../../api/client';
 
 const props = defineProps<{
     data: AdminUserList;

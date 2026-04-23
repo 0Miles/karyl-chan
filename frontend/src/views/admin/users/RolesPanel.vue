@@ -9,8 +9,8 @@ import {
     upsertAdminRole,
     type AdminCapabilityDef,
     type AdminRole
-} from '../../api/admin';
-import { ApiError } from '../../api/client';
+} from '../../../api/admin';
+import { ApiError } from '../../../api/client';
 
 const props = defineProps<{
     roles: AdminRole[];

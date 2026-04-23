@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue';
-import type { GuildSummary } from '../../api/guilds';
-import { useClickOutsideStack } from '../../composables/use-click-outside-stack';
-import { useEscapeStack } from '../../composables/use-escape-stack';
+import type { GuildSummary } from '../../../api/guilds';
+import { useClickOutsideStack } from '../../../composables/use-click-outside-stack';
+import { useEscapeStack } from '../../../composables/use-escape-stack';
 
 const props = defineProps<{
     mode: string;

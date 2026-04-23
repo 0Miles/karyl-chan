@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { animatedAvatarUrl, isAnimatedAvatar } from '../../modules/discord-chat';
-import type { DmChannelSummary } from '../../api/dm';
-import type { GuildSummary } from '../../api/guilds';
+import { animatedAvatarUrl, isAnimatedAvatar } from '../../../modules/discord-chat';
+import type { DmChannelSummary } from '../../../api/dm';
+import type { GuildSummary } from '../../../api/guilds';
 import ModeSelect from './ModeSelect.vue';
 import { Icon } from '@iconify/vue';
 

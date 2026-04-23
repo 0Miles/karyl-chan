@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ApiError } from '../../api/client';
-import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../api/guilds';
-import { SidebarLayout } from '../../layouts';
-import { useAppShell } from '../../composables/use-app-shell';
-import { useBreakpoint } from '../../composables/use-breakpoint';
+import { ApiError } from '../../../api/client';
+import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../../api/guilds';
+import { SidebarLayout } from '../../../layouts';
+import { useAppShell } from '../../../composables/use-app-shell';
+import { useBreakpoint } from '../../../composables/use-breakpoint';
 
 const router = useRouter();
 const { closeOverlay } = useAppShell();

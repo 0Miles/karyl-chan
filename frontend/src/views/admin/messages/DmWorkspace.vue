@@ -1,16 +1,15 @@
 <script setup lang="ts">
-import { ref, toRef, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import GuildChannelSidebar from './GuildChannelSidebar.vue';
-import { DiscordConversation, useDiscordGuildChannel } from '../../modules/discord-chat';
-import type { GuildSummary } from '../../api/guilds';
-import { useAppShell } from '../../composables/use-app-shell';
-import { SidebarLayout } from '../../layouts';
+import DmSidebar from './DmSidebar.vue';
+import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
+import type { GuildSummary } from '../../../api/guilds';
+import { useAppShell } from '../../../composables/use-app-shell';
+import { SidebarLayout } from '../../../layouts';
 
 const props = defineProps<{
     guilds: GuildSummary[];
     mode: string;
-    guildId: string;
     isMobile?: boolean;
 }>();
 
@@ -19,20 +18,22 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
 
 const {
-    categories,
+    channels,
     selectedChannelId,
     selectedChannel,
     loadingChannels,
     channelsError,
+    showStart,
+    newRecipientId,
     botUserId,
     chat,
     send,
-    reactWithSelection
-} = useDiscordGuildChannel(guildIdRef, {
+    reactWithSelection,
+    startNewDm
+} = useDiscordDm({
     onAuthError: () => router.replace({ name: 'auth' })
 });
 
@@ -40,11 +41,6 @@ function handleSelect(id: string) {
     selectedChannelId.value = id;
     if (props.isMobile) closeOverlay();
 }
-
-const selectedGuild = ref(props.guilds.find(g => g.id === props.guildId) ?? null);
-watch(() => props.guildId, id => {
-    selectedGuild.value = props.guilds.find(g => g.id === id) ?? null;
-});
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
@@ -59,21 +55,26 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
 <template>
     <SidebarLayout>
         <template #sidebar>
-            <GuildChannelSidebar
+            <DmSidebar
                 :guilds="props.guilds"
                 :mode="props.mode"
-                :categories="categories"
+                :channels="channels"
                 :selected-id="selectedChannelId"
                 :loading="loadingChannels"
+                :show-start-form="showStart"
+                :new-recipient-id="newRecipientId"
                 @mode-change="emit('mode-change', $event)"
                 @select="handleSelect"
+                @toggle-start="showStart = !showStart"
+                @submit-start="startNewDm"
+                @update:newRecipientId="(v) => (newRecipientId = v)"
             />
         </template>
         <DiscordConversation
             ref="conversationRef"
             :channel-id="selectedChannelId"
-            :header-title="selectedChannel ? `#${selectedChannel.name}` : null"
-            :header-subtitle="selectedGuild?.name ?? null"
+            :header-title="selectedChannel ? (selectedChannel.recipient.globalName ?? selectedChannel.recipient.username) : null"
+            :header-subtitle="selectedChannel?.recipient.id ?? null"
             :messages="chat.messages.value"
             :bot-user-id="botUserId"
             :has-more="chat.hasMore.value"

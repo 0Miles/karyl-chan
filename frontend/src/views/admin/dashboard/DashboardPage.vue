@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
-import { ApiError, api } from '../../api/client';
-import { listGuilds, type GuildSummary } from '../../api/guilds';
-import { getSystemEvents, getSystemStats } from '../../api/system';
-import type { BotStatus, HealthStatus, SystemEvent, SystemStats } from '../../api/types';
-import { DashboardLayout } from '../../layouts';
+import { ApiError, api } from '../../../api/client';
+import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import { getSystemEvents, getSystemStats } from '../../../api/system';
+import type { BotStatus, HealthStatus, SystemEvent, SystemStats } from '../../../api/types';
+import { DashboardLayout } from '../../../layouts';
 
 const router = useRouter();
 
