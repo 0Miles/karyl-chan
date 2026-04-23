@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 
 import { dirname, importx } from '@discordx/importer';
-import type { Interaction, Message } from 'discord.js';
-import { IntentsBitField, Partials } from 'discord.js';
+import type { DMChannel, Interaction, Message } from 'discord.js';
+import { Events, IntentsBitField, Partials } from 'discord.js';
 import { Client } from 'discordx';
 import { sequelize } from './models/db.js';
 import { startWebServer } from './web/server.js';
@@ -66,6 +66,27 @@ bot.on('messageCreate', async (message: Message) => {
         await bot.executeCommand(message);
     } catch (error) {
         console.error('executeCommand failed:', error);
+    }
+});
+
+// Re-emit messageCreate for DMs from users whose DM channel wasn't already
+// cached. discord.js's MessageCreateAction silently drops these because
+// createChannel can't infer the DM type from a message-shaped payload, so
+// the @On() handlers never see the first message from a new DM partner.
+// We fetch the channel (which populates cache) and dispatch the event.
+bot.on('raw', async (packet: { t?: string; d?: { id?: string; channel_id?: string; guild_id?: string | null } }) => {
+    if (packet.t !== 'MESSAGE_CREATE') return;
+    if (packet.d?.guild_id) return;
+    const channelId = packet.d?.channel_id;
+    if (!channelId) return;
+    if (bot.channels.cache.has(channelId)) return;
+    try {
+        const channel = await bot.channels.fetch(channelId);
+        if (!channel || !channel.isDMBased() || !channel.isTextBased()) return;
+        const message = (channel as DMChannel).messages._add(packet.d as never);
+        bot.emit(Events.MessageCreate, message);
+    } catch (err) {
+        console.error('failed to dispatch DM messageCreate fallback:', err);
     }
 });
 
