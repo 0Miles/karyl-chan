@@ -12,7 +12,8 @@ export type {
     OutgoingMessage,
     ComposerSuggestionItem,
     ComposerSuggestionTrigger,
-    ComposerSuggestionProvider
+    ComposerSuggestionProvider,
+    MediaProvider
 } from './types';
 
 export { default as ComposerSuggestions } from './ComposerSuggestions.vue';

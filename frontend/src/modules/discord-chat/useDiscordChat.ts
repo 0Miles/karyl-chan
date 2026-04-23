@@ -1,5 +1,6 @@
 import { nextTick, ref, watch, type Ref } from 'vue';
 import type { Message, MessageEmoji, MessageReference, OutgoingMessage } from '../../libs/messages';
+import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 
 export interface DiscordChatApi {
     listMessages(channelId: string, opts: { limit?: number; before?: string }): Promise<{ messages: Message[]; hasMore: boolean }>;
@@ -201,6 +202,15 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         }
     }
 
+    /** Accept a MediaPicker selection and dispatch it as a reaction. */
+    async function reactWithSelection(messageId: string, selection: MediaSelection) {
+        if (selection.type === 'sticker') return;
+        const emoji: MessageEmoji = selection.type === 'unicode'
+            ? { id: null, name: selection.value }
+            : { id: selection.id, name: selection.name, animated: selection.animated };
+        await reactAdd(messageId, emoji);
+    }
+
     function reply(message: Message) {
         replyTo.value = { messageId: message.id, channelId: message.channelId };
     }
@@ -263,6 +273,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         send,
         reactAdd,
         reactRemove,
+        reactWithSelection,
         reply,
         cancelReply,
         startEdit,
