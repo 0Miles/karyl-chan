@@ -334,7 +334,8 @@ function formatTimestamp(iso: string | null): string {
 .dm {
     display: grid;
     grid-template-columns: 280px 1fr;
-    height: calc(100vh - 4rem);
+    height: 100%;
+    min-height: 0;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--bg-surface);

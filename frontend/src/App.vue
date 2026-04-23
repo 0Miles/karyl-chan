@@ -31,7 +31,7 @@ async function signOut() {
 
 <style scoped>
 .app-shell {
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
 }
@@ -72,6 +72,8 @@ async function signOut() {
 }
 .app-main {
     flex: 1;
+    min-height: 0;
+    overflow: auto;
     padding: 1.5rem;
     background: var(--bg-page);
 }
