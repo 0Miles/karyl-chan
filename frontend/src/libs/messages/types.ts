@@ -144,4 +144,8 @@ export interface MediaProvider {
     customEmojiUrl(emoji: { id: string; animated: boolean; name?: string }, size?: number): string;
     /** When the avatar URL belongs to an animated avatar, return its hover/animated variant. Otherwise null. */
     avatarHoverUrl?(staticUrl: string): string | null;
+    /** Synchronous peek at cached emoji buckets. Returns null if nothing is cached yet. */
+    cachedEmojis?(): GuildBucket<CustomEmoji>[] | null;
+    /** Synchronous peek at cached sticker buckets. Returns null if nothing is cached yet. */
+    cachedStickers?(): GuildBucket<GuildSticker>[] | null;
 }

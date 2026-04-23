@@ -12,6 +12,12 @@ import {
     type EmojiRecent,
     type StickerRecent
 } from './recents';
+import {
+    getCachedUnicodeEmojiData,
+    loadUnicodeEmojiData,
+    type UnicodeCategory,
+    type UnicodeEntry
+} from './unicode-emoji-data';
 
 const ctx = useMessageContext();
 
@@ -35,32 +41,26 @@ function flushRecents() {
 onBeforeUnmount(flushRecents);
 defineExpose({ flushRecents });
 
-interface UnicodeEntry {
-    id: string;
-    native: string;
-    name: string;
-    keywords: string[];
-}
-interface UnicodeCategory {
-    id: string;
-    emojis: UnicodeEntry[];
-}
-
 type Tab = 'recent' | 'unicode' | 'custom' | 'sticker';
+
+// Preseed from caches so reopening the picker never flashes "Loading…".
+const cachedUnicode = getCachedUnicodeEmojiData();
+const cachedEmojis = ctx.mediaProvider?.cachedEmojis?.() ?? null;
+const cachedStickers = ctx.mediaProvider?.cachedStickers?.() ?? null;
 
 const search = ref('');
 const activeTab = ref<Tab>('recent');
-const unicodeCategories = ref<UnicodeCategory[]>([]);
-const allUnicodeEmojis = ref<UnicodeEntry[]>([]);
-const customGuilds = ref<GuildBucket<CustomEmoji>[]>([]);
-const stickerGuilds = ref<GuildBucket<GuildSticker>[]>([]);
-const loadingMedia = ref(false);
+const unicodeCategories = ref<UnicodeCategory[]>(cachedUnicode?.categories ?? []);
+const allUnicodeEmojis = ref<UnicodeEntry[]>(cachedUnicode?.all ?? []);
+const customGuilds = ref<GuildBucket<CustomEmoji>[]>(cachedEmojis ?? []);
+const stickerGuilds = ref<GuildBucket<GuildSticker>[]>(cachedStickers ?? []);
+const loadingMedia = ref(!cachedEmojis || !cachedStickers || !cachedUnicode);
 const emojiRecents = useEmojiRecents();
 const stickerRecents = useStickerRecents();
 
-const activeUnicodeCategory = ref<string>('');
-const activeCustomGuild = ref<string>('');
-const activeStickerGuild = ref<string>('');
+const activeUnicodeCategory = ref<string>(cachedUnicode?.categories[0]?.id ?? '');
+const activeCustomGuild = ref<string>(cachedEmojis?.[0]?.guildId ?? '');
+const activeStickerGuild = ref<string>(cachedStickers?.[0]?.guildId ?? '');
 
 const TABS: { id: Tab; label: string }[] = [
     { id: 'recent', label: 'Recent' },
@@ -230,37 +230,26 @@ function findSticker(id: string): { id: string; name: string; formatType: number
 }
 
 onMounted(async () => {
-    loadingMedia.value = true;
+    const provider = ctx.mediaProvider;
     try {
-        const provider = ctx.mediaProvider;
-        const [emojiResp, stickerResp, dataMod] = await Promise.all([
+        const [emojiResp, stickerResp, unicodeData] = await Promise.all([
             provider?.listEmojis().catch(() => [] as GuildBucket<CustomEmoji>[]) ?? Promise.resolve([] as GuildBucket<CustomEmoji>[]),
             provider?.listStickers().catch(() => [] as GuildBucket<GuildSticker>[]) ?? Promise.resolve([] as GuildBucket<GuildSticker>[]),
-            import('@emoji-mart/data').then(m => m.default as { categories: { id: string; emojis: string[] }[]; emojis: Record<string, { id: string; name: string; keywords: string[]; skins: { native: string }[] }> })
+            loadUnicodeEmojiData().catch(() => ({ categories: [], all: [] }))
         ]);
         customGuilds.value = emojiResp;
         stickerGuilds.value = stickerResp;
-        const all: UnicodeEntry[] = [];
-        unicodeCategories.value = dataMod.categories.map(cat => {
-            const emojis: UnicodeEntry[] = [];
-            for (const id of cat.emojis) {
-                const e = dataMod.emojis[id];
-                if (!e || !e.skins?.[0]?.native) continue;
-                const entry: UnicodeEntry = {
-                    id: e.id,
-                    native: e.skins[0].native,
-                    name: e.name,
-                    keywords: e.keywords ?? []
-                };
-                emojis.push(entry);
-                all.push(entry);
-            }
-            return { id: cat.id, emojis };
-        });
-        allUnicodeEmojis.value = all;
-        if (unicodeCategories.value.length > 0) activeUnicodeCategory.value = unicodeCategories.value[0].id;
-        if (customGuilds.value.length > 0) activeCustomGuild.value = customGuilds.value[0].guildId;
-        if (stickerGuilds.value.length > 0) activeStickerGuild.value = stickerGuilds.value[0].guildId;
+        unicodeCategories.value = unicodeData.categories;
+        allUnicodeEmojis.value = unicodeData.all;
+        if (!activeUnicodeCategory.value && unicodeCategories.value.length > 0) {
+            activeUnicodeCategory.value = unicodeCategories.value[0].id;
+        }
+        if (!activeCustomGuild.value && customGuilds.value.length > 0) {
+            activeCustomGuild.value = customGuilds.value[0].guildId;
+        }
+        if (!activeStickerGuild.value && stickerGuilds.value.length > 0) {
+            activeStickerGuild.value = stickerGuilds.value[0].guildId;
+        }
     } finally {
         loadingMedia.value = false;
     }
