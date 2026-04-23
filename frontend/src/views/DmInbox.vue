@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
     MessageView,
@@ -101,12 +101,23 @@ async function loadInitialMessages() {
         messages.value = result.messages;
         hasMore.value = result.hasMore;
         error.value = null;
-        requestAnimationFrame(scrollToBottom);
+        await nextTick();
+        scrollToBottom();
+        await fillIfNoScrollbar();
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to load messages';
     } finally {
         loadingMessages.value = false;
+    }
+}
+
+async function fillIfNoScrollbar() {
+    await nextTick();
+    const el = messagesContainer.value;
+    if (!el) return;
+    if (el.scrollHeight <= el.clientHeight && hasMore.value && !loadingOlder.value) {
+        await loadOlder();
     }
 }
 
@@ -150,16 +161,17 @@ async function loadOlder() {
         }
         messages.value = [...result.messages, ...messages.value];
         hasMore.value = result.hasMore;
-        requestAnimationFrame(() => {
-            if (!container) return;
+        await nextTick();
+        if (container) {
             container.scrollTop = scrollTopBefore + (container.scrollHeight - scrollHeightBefore);
-        });
+        }
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to load older messages';
     } finally {
         loadingOlder.value = false;
     }
+    await fillIfNoScrollbar();
 }
 
 function onMessagesScroll(event: Event) {
@@ -349,7 +361,7 @@ function formatTimestamp(iso: string | null): string {
                 <div
                     v-for="(message, idx) in messages"
                     :key="message.id"
-                    class="message-wrap"
+                    :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
                 >
                     <MessageView :message="message" :compact="isContinuation(messages[idx - 1], message)" />
                     <button type="button" class="reply-action" @click="onMessageReply(message)">Reply</button>
@@ -532,6 +544,9 @@ function formatTimestamp(iso: string | null): string {
 }
 .message-wrap {
     position: relative;
+}
+.message-wrap.group-start:not(:first-child) {
+    margin-top: 0.4rem;
 }
 .message-wrap:hover .reply-action {
     opacity: 1;
