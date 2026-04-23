@@ -158,6 +158,50 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         }
     });
 
+    server.patch<{ Params: { channelId: string; messageId: string }; Body: { content?: unknown } }>(
+        '/api/dm/channels/:channelId/messages/:messageId',
+        async (request, reply) => {
+            const channel = await fetchDmChannel(bot, request.params.channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+            const content = typeof request.body?.content === 'string' ? request.body.content : '';
+            if (!content.trim()) { reply.code(400).send({ error: 'content required' }); return; }
+            try {
+                const message = await channel.messages.fetch(request.params.messageId);
+                if (message.author.id !== bot.user?.id) {
+                    reply.code(403).send({ error: 'Can only edit messages sent by the bot' });
+                    return;
+                }
+                const edited = await message.edit({ content });
+                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(edited) });
+                return { message: toApiMessage(edited) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to edit message');
+                reply.code(502).send({ error: 'Failed to edit message' });
+            }
+        }
+    );
+
+    server.delete<{ Params: { channelId: string; messageId: string } }>(
+        '/api/dm/channels/:channelId/messages/:messageId',
+        async (request, reply) => {
+            const channel = await fetchDmChannel(bot, request.params.channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+            try {
+                const message = await channel.messages.fetch(request.params.messageId);
+                if (message.author.id !== bot.user?.id) {
+                    reply.code(403).send({ error: 'Can only delete messages sent by the bot' });
+                    return;
+                }
+                await message.delete();
+                events.publish({ type: 'message-deleted', channelId: channel.id, messageId: request.params.messageId });
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to delete message');
+                reply.code(502).send({ error: 'Failed to delete message' });
+            }
+        }
+    );
+
     server.post<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {

@@ -79,6 +79,29 @@ export async function sendMessage(
     return body.message;
 }
 
+export async function editMessage(channelId: string, messageId: string, content: string): Promise<Message> {
+    const response = await authedFetch(
+        `/api/dm/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
+        {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+        }
+    );
+    const body = await jsonOrThrow<{ message: Message }>(response);
+    return body.message;
+}
+
+export async function deleteMessage(channelId: string, messageId: string): Promise<void> {
+    const response = await authedFetch(
+        `/api/dm/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}`,
+        { method: 'DELETE' }
+    );
+    if (!response.ok && response.status !== 204) {
+        throw new ApiError(response.status, 'Failed to delete message');
+    }
+}
+
 export async function startChannel(recipientUserId: string): Promise<DmChannelSummary> {
     const response = await authedFetch('/api/dm/channels', {
         method: 'POST',

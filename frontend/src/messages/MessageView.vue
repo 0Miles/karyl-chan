@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import MessageContent from './MessageContent.vue';
 import MessageReplyHeader from './MessageReplyHeader.vue';
 import MessageAttachment from './MessageAttachment.vue';
@@ -13,6 +13,12 @@ import type { Message } from './types';
 const props = defineProps<{
     message: Message;
     compact?: boolean;
+    editing?: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: 'submit-edit', content: string): void;
+    (e: 'cancel-edit'): void;
 }>();
 
 const ast = computed(() => parseMessageContent(props.message.content));
@@ -29,6 +35,21 @@ const avatarSrc = computed(() => {
     if (hovered.value && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
     return url;
 });
+
+const editDraft = ref('');
+watch(() => props.editing, (val) => {
+    if (val) editDraft.value = props.message.content;
+});
+
+function onEditKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        emit('cancel-edit');
+    } else if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        emit('submit-edit', editDraft.value);
+    }
+}
 </script>
 
 <template>
@@ -50,15 +71,30 @@ const avatarSrc = computed(() => {
             </div>
         </header>
         <div class="body">
-            <MessageContent :nodes="ast" />
-            <MessageAttachment v-for="att in message.attachments ?? []" :key="att.id" :attachment="att" />
-            <MessageSticker v-for="sticker in message.stickers ?? []" :key="sticker.id" :sticker="sticker" />
-            <MessageEmbed v-for="(embed, idx) in message.embeds ?? []" :key="idx" :embed="embed" />
-            <MessageReactions
-                v-if="message.reactions?.length"
-                :message-id="message.id"
-                :reactions="message.reactions"
-            />
+            <div v-if="editing" class="editor">
+                <textarea
+                    v-model="editDraft"
+                    rows="2"
+                    class="edit-textarea"
+                    @keydown="onEditKeydown"
+                />
+                <div class="edit-actions">
+                    <span class="hint">esc to cancel · enter to save</span>
+                    <button type="button" @click="$emit('cancel-edit')">Cancel</button>
+                    <button type="button" class="primary" @click="$emit('submit-edit', editDraft)">Save</button>
+                </div>
+            </div>
+            <template v-else>
+                <MessageContent :nodes="ast" />
+                <MessageAttachment v-for="att in message.attachments ?? []" :key="att.id" :attachment="att" />
+                <MessageSticker v-for="sticker in message.stickers ?? []" :key="sticker.id" :sticker="sticker" />
+                <MessageEmbed v-for="(embed, idx) in message.embeds ?? []" :key="idx" :embed="embed" />
+                <MessageReactions
+                    v-if="message.reactions?.length"
+                    :message-id="message.id"
+                    :reactions="message.reactions"
+                />
+            </template>
         </div>
     </article>
 </template>
@@ -131,5 +167,43 @@ const avatarSrc = computed(() => {
 .compact .body {
     margin-left: 2.85rem;
     margin-top: 0;
+}
+.editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.edit-textarea {
+    width: 100%;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-surface-2);
+    color: var(--text);
+    font: inherit;
+    resize: vertical;
+}
+.edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+}
+.hint {
+    color: var(--text-muted);
+    margin-right: auto;
+}
+.edit-actions button {
+    padding: 0.2rem 0.7rem;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.edit-actions button.primary {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border-color: var(--accent);
 }
 </style>

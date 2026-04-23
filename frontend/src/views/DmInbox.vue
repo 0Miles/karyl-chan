@@ -14,8 +14,11 @@ import {
 import { ApiError } from '../api/client';
 import MessageComposerComponent from '../messages/MessageComposer.vue';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../messages/avatar';
+import MediaPicker, { type MediaSelection } from '../messages/picker/MediaPicker.vue';
 import {
     addReaction,
+    deleteMessage,
+    editMessage,
     getMessages,
     listChannels,
     removeReaction,
@@ -25,6 +28,7 @@ import {
     type DmChannelSummary,
     type DmEvent
 } from '../api/dm';
+import { api as botApi } from '../api/client';
 
 const router = useRouter();
 
@@ -49,6 +53,13 @@ const hoveredChannelId = ref<string | null>(null);
 const composerRef = ref<InstanceType<typeof MessageComposerComponent> | null>(null);
 const isDraggingFiles = ref(false);
 let dragCounter = 0;
+const botUserId = ref<string | null>(null);
+const editingMessageId = ref<string | null>(null);
+const reactingMessageId = ref<string | null>(null);
+
+function isOwnMessage(message: Message): boolean {
+    return botUserId.value !== null && message.author.id === botUserId.value;
+}
 
 function isFileDrag(event: DragEvent): boolean {
     const types = event.dataTransfer?.types;
@@ -289,6 +300,66 @@ async function onReactionRemove(messageId: string, emoji: MessageEmoji) {
     }
 }
 
+function startEdit(message: Message) {
+    if (!isOwnMessage(message)) return;
+    editingMessageId.value = message.id;
+}
+
+function cancelEdit() {
+    editingMessageId.value = null;
+}
+
+async function submitEdit(message: Message, content: string) {
+    if (!selectedChannelId.value) return;
+    const trimmed = content.trim();
+    if (!trimmed) {
+        editingMessageId.value = null;
+        return;
+    }
+    try {
+        await editMessage(selectedChannelId.value, message.id, trimmed);
+        editingMessageId.value = null;
+    } catch (err) {
+        if (bailOnAuthError(err)) return;
+        error.value = err instanceof Error ? err.message : 'Failed to edit';
+    }
+}
+
+async function confirmDelete(message: Message) {
+    if (!selectedChannelId.value || !isOwnMessage(message)) return;
+    if (!window.confirm('Delete this message?')) return;
+    try {
+        await deleteMessage(selectedChannelId.value, message.id);
+    } catch (err) {
+        if (bailOnAuthError(err)) return;
+        error.value = err instanceof Error ? err.message : 'Failed to delete';
+    }
+}
+
+function startReact(messageId: string) {
+    reactingMessageId.value = reactingMessageId.value === messageId ? null : messageId;
+}
+
+async function onReactPicked(selection: MediaSelection) {
+    if (!selectedChannelId.value || !reactingMessageId.value) return;
+    if (selection.type === 'sticker') return;
+    const emoji: MessageEmoji = selection.type === 'unicode'
+        ? { id: null, name: selection.value }
+        : { id: selection.id, name: selection.name, animated: selection.animated };
+    const targetId = reactingMessageId.value;
+    reactingMessageId.value = null;
+    try {
+        await addReaction(selectedChannelId.value, targetId, emoji);
+    } catch (err) {
+        if (bailOnAuthError(err)) return;
+        error.value = err instanceof Error ? err.message : 'Failed to react';
+    }
+}
+
+function closeReactPicker() {
+    reactingMessageId.value = null;
+}
+
 function onReplyClick(messageId: string) {
     const target = messages.value.find(m => m.id === messageId);
     if (!target) return;
@@ -320,12 +391,14 @@ async function startNewDm() {
 const ctx: MessageContext = {
     onReactionAdd,
     onReactionRemove,
-    onReplyClick
-};
+    onReplyClick,
+    get currentUserId() { return botUserId.value; }
+} as MessageContext;
 provide(MessageContextKey, ctx);
 
 onMounted(() => {
     refreshChannels();
+    botApi.getBotStatus().then(status => { botUserId.value = status.userId; }).catch(() => {});
     unsubscribeEvents = subscribeEvents({
         onEvent: applyEvent,
         onError: () => { /* EventSource auto-reconnects */ }
@@ -409,8 +482,24 @@ function formatTimestamp(iso: string | null): string {
                     :key="message.id"
                     :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
                 >
-                    <MessageView :message="message" :compact="isContinuation(messages[idx - 1], message)" />
-                    <button type="button" class="reply-action" @click="onMessageReply(message)">Reply</button>
+                    <MessageView
+                        :message="message"
+                        :compact="isContinuation(messages[idx - 1], message)"
+                        :editing="editingMessageId === message.id"
+                        @submit-edit="(content) => submitEdit(message, content)"
+                        @cancel-edit="cancelEdit"
+                    />
+                    <div class="message-actions">
+                        <button type="button" :class="['action', { active: reactingMessageId === message.id }]" title="React" @click="startReact(message.id)">😊</button>
+                        <button type="button" class="action" title="Reply" @click="onMessageReply(message)">↩</button>
+                        <template v-if="isOwnMessage(message)">
+                            <button type="button" class="action" title="Edit" @click="startEdit(message)">✏</button>
+                            <button type="button" class="action" title="Delete" @click="confirmDelete(message)">🗑</button>
+                        </template>
+                    </div>
+                    <div v-if="reactingMessageId === message.id" class="react-pop">
+                        <MediaPicker @select="onReactPicked" />
+                    </div>
                 </div>
                 <div ref="messagesEnd" />
             </div>
@@ -616,22 +705,46 @@ function formatTimestamp(iso: string | null): string {
 .message-wrap.group-start:not(:first-child) {
     margin-top: 0.4rem;
 }
-.message-wrap:hover .reply-action {
+.message-wrap:hover .message-actions,
+.message-actions:focus-within {
     opacity: 1;
 }
-.reply-action {
+.message-actions {
     position: absolute;
-    top: 6px;
+    top: 4px;
     right: 12px;
-    padding: 2px 6px;
+    display: flex;
+    gap: 0.2rem;
     background: var(--bg-surface);
-    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 4px;
-    font-size: 0.75rem;
-    cursor: pointer;
+    padding: 2px;
     opacity: 0;
     transition: opacity 0.15s;
+    z-index: 2;
+}
+.action {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--text);
+    font-size: 0.85rem;
+    line-height: 1;
+}
+.action:hover {
+    background: var(--bg-surface-hover);
+}
+.action.active {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
+}
+.react-pop {
+    position: absolute;
+    top: 32px;
+    right: 12px;
+    z-index: 5;
 }
 .composer-row {
     border-top: 1px solid var(--border);
