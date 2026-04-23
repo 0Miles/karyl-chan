@@ -129,6 +129,20 @@ const SpoilerSpan = defineComponent({
     }
 });
 
+function isOnlyEmoji(nodes: ASTNode[]): boolean {
+    let hasEmoji = false;
+    for (const node of nodes) {
+        if (node.type === 'emoji' || node.type === 'twemoji') {
+            hasEmoji = true;
+            continue;
+        }
+        if (node.type === 'text' && typeof node.content === 'string' && node.content.trim() === '') continue;
+        if (node.type === 'newline' || node.type === 'br') continue;
+        return false;
+    }
+    return hasEmoji;
+}
+
 export default defineComponent({
     name: 'MessageContent',
     props: {
@@ -136,7 +150,9 @@ export default defineComponent({
     },
     setup(props) {
         const ctx = useMessageContext();
-        return () => h('div', { class: 'message-content' }, props.nodes.map(n => renderNode(n, ctx)));
+        return () => h('div', {
+            class: ['message-content', { 'only-emoji': isOnlyEmoji(props.nodes) }]
+        }, props.nodes.map(n => renderNode(n, ctx)));
     }
 });
 </script>
@@ -182,10 +198,15 @@ export default defineComponent({
 }
 .message-content :deep(.unicode-emoji),
 .message-content :deep(.custom-emoji) {
-    width: 1.25em;
-    height: 1.25em;
-    vertical-align: -0.2em;
+    width: 2.4em;
+    height: 2.4em;
+    vertical-align: middle;
     display: inline-block;
+}
+.message-content.only-emoji :deep(.unicode-emoji),
+.message-content.only-emoji :deep(.custom-emoji) {
+    width: 3em;
+    height: 3em;
 }
 .message-content :deep(.spoiler) {
     background: var(--spoiler-bg);

@@ -68,7 +68,7 @@ const avatarSrc = computed(() => {
     display: flex;
     flex-direction: column;
     padding: 0.4rem 0.75rem;
-    gap: 0.15rem;
+    gap: 0.075rem;
 }
 .message:hover {
     background: var(--bg-surface-hover);
