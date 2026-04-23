@@ -86,28 +86,58 @@ export interface UsePopoverReturn {
     update: () => void
 }
 
-// Enter 動畫期間抑制子元素 CSS transition
+// Enter 動畫期間抑制子元素 CSS transition + 注入 placement keyframes / classes。
+// 於首次 createPopover 時注入到 document.head。
 let popoverStyleInjected = false
+
+const PLACEMENT_ANIM_CSS = `
+[data-popover-entering] *{transition:none!important}
+@keyframes popoverSlideDownAndFade{
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideUpAndFade{
+    from{opacity:0;transform:translateY(10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideLeftAndFade{
+    from{opacity:0;transform:translateX(10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideRightAndFade{
+    from{opacity:0;transform:translateX(-10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+.popover-anim-down-normal{animation:popoverSlideDownAndFade .2s ease 0s 1 normal both}
+.popover-anim-down-reverse{animation:popoverSlideDownAndFade .2s ease 0s 1 reverse both}
+.popover-anim-up-normal{animation:popoverSlideUpAndFade .2s ease 0s 1 normal both}
+.popover-anim-up-reverse{animation:popoverSlideUpAndFade .2s ease 0s 1 reverse both}
+.popover-anim-left-normal{animation:popoverSlideLeftAndFade .2s ease 0s 1 normal both}
+.popover-anim-left-reverse{animation:popoverSlideLeftAndFade .2s ease 0s 1 reverse both}
+.popover-anim-right-normal{animation:popoverSlideRightAndFade .2s ease 0s 1 normal both}
+.popover-anim-right-reverse{animation:popoverSlideRightAndFade .2s ease 0s 1 reverse both}
+`.trim()
+
 function ensurePopoverStyle() {
     if (popoverStyleInjected || typeof document === 'undefined') return
     popoverStyleInjected = true
     const s = document.createElement('style')
-    s.textContent = '[data-popover-entering] *{transition:none!important}'
+    s.textContent = PLACEMENT_ANIM_CSS
     document.head.appendChild(s)
 }
 
-const PLACEMENT_ANIM_MAP: Record<string, string> = {
-    top: 'slideUpAndFade',
-    bottom: 'slideDownAndFade',
-    left: 'slideLeftAndFade',
-    right: 'slideRightAndFade',
+const PLACEMENT_ANIM_DIR: Record<string, 'down' | 'up' | 'left' | 'right'> = {
+    top: 'up',
+    bottom: 'down',
+    left: 'left',
+    right: 'right',
 }
 
 function getPlacementAnimClass(placement: string, reverse: boolean): string {
     const dir = placement.split('-')[0]
-    const name = PLACEMENT_ANIM_MAP[dir] ?? PLACEMENT_ANIM_MAP.bottom
+    const cssDir = PLACEMENT_ANIM_DIR[dir] ?? 'down'
     const direction = reverse ? 'reverse' : 'normal'
-    return `@${name}|.2s|ease|0s|1|${direction}|both`
+    return `popover-anim-${cssDir}-${direction}`
 }
 
 export const PLACEMENTS: Placement[] = [
