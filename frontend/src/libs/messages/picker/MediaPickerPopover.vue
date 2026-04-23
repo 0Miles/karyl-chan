@@ -37,7 +37,7 @@ usePopover(referenceRef, contentEl, {
 </script>
 
 <template>
-    <div ref="contentEl" class="media-picker-popover">
+    <div ref="contentEl" class="media-picker-popover" style="display: none">
         <MediaPicker @select="(s) => emit('select', s)" />
     </div>
 </template>
