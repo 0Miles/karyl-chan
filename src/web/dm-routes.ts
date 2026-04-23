@@ -191,6 +191,25 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         }
     );
 
+    server.get<{ Params: { stickerId: string } }>(
+        '/api/dm/stickers/:stickerId',
+        async (request, reply) => {
+            const id = request.params.stickerId.replace(/[^0-9]/g, '');
+            if (!id) { reply.code(400).send({ error: 'invalid sticker id' }); return; }
+            try {
+                const upstream = await fetch(`https://cdn.discordapp.com/stickers/${id}.json`);
+                if (!upstream.ok) { reply.code(upstream.status).send({ error: 'upstream' }); return; }
+                const body = await upstream.text();
+                reply.header('content-type', 'application/json');
+                reply.header('cache-control', 'public, max-age=86400');
+                reply.send(body);
+            } catch (err) {
+                request.log.error({ err }, 'sticker proxy failed');
+                reply.code(502).send({ error: 'proxy failed' });
+            }
+        }
+    );
+
     server.get('/api/dm/events', async (request, reply) => {
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
