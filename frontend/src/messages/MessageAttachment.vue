@@ -56,9 +56,12 @@ function open() {
 .image {
     max-width: min(360px, 100%);
     max-height: 360px;
+    width: auto;
+    height: auto;
     border-radius: 6px;
     cursor: zoom-in;
     display: block;
+    object-fit: contain;
 }
 .video {
     max-width: min(420px, 100%);
