@@ -30,10 +30,20 @@ export async function listChannels(): Promise<DmChannelSummary[]> {
     return body.channels;
 }
 
-export async function getMessages(channelId: string, limit?: number): Promise<{ channel: DmChannelSummary; messages: Message[] }> {
-    const url = `/api/dm/channels/${encodeURIComponent(channelId)}/messages${limit ? `?limit=${limit}` : ''}`;
+export interface MessagesPage {
+    channel: DmChannelSummary;
+    messages: Message[];
+    hasMore: boolean;
+}
+
+export async function getMessages(channelId: string, opts: { limit?: number; before?: string } = {}): Promise<MessagesPage> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.before) params.set('before', opts.before);
+    const query = params.toString();
+    const url = `/api/dm/channels/${encodeURIComponent(channelId)}/messages${query ? `?${query}` : ''}`;
     const response = await authedFetch(url);
-    return jsonOrThrow<{ channel: DmChannelSummary; messages: Message[] }>(response);
+    return jsonOrThrow<MessagesPage>(response);
 }
 
 export async function sendMessage(channelId: string, content: string, replyToMessageId?: string): Promise<Message> {

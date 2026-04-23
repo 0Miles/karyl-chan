@@ -39,12 +39,16 @@ const messages = ref<Message[]>([]);
 const replyTo = ref<MessageReference | null>(null);
 const loadingChannels = ref(false);
 const loadingMessages = ref(false);
+const loadingOlder = ref(false);
+const hasMore = ref(false);
 const sending = ref(false);
 const error = ref<string | null>(null);
 const newRecipientId = ref('');
 const showStart = ref(false);
 const messagesEnd = ref<HTMLDivElement | null>(null);
+const messagesContainer = ref<HTMLDivElement | null>(null);
 
+const PAGE_SIZE = 10;
 const CHANNEL_REFRESH_MS = 10_000;
 const MESSAGE_REFRESH_MS = 5_000;
 let channelTimer: ReturnType<typeof setInterval> | null = null;
@@ -70,15 +74,15 @@ async function refreshChannels(autoSelect = true) {
     }
 }
 
-async function refreshMessages() {
+async function loadInitialMessages() {
     if (!selectedChannelId.value) return;
     loadingMessages.value = true;
     try {
-        const result = await getMessages(selectedChannelId.value);
-        const wasNearBottom = isNearBottom();
+        const result = await getMessages(selectedChannelId.value, { limit: PAGE_SIZE });
         messages.value = result.messages;
-        if (wasNearBottom) requestAnimationFrame(scrollToBottom);
+        hasMore.value = result.hasMore;
         error.value = null;
+        requestAnimationFrame(scrollToBottom);
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to load messages';
@@ -87,11 +91,64 @@ async function refreshMessages() {
     }
 }
 
+async function pollNewMessages() {
+    if (!selectedChannelId.value) return;
+    try {
+        const result = await getMessages(selectedChannelId.value, { limit: PAGE_SIZE });
+        const seen = new Set(messages.value.map(m => m.id));
+        const additions = result.messages.filter(m => !seen.has(m.id));
+        if (additions.length === 0) return;
+        const wasNearBottom = isNearBottom();
+        messages.value = [...messages.value, ...additions];
+        if (wasNearBottom) requestAnimationFrame(scrollToBottom);
+    } catch (err) {
+        if (bailOnAuthError(err)) return;
+        // Don't surface poll errors loudly — initial load already shows them.
+    }
+}
+
+async function loadOlder() {
+    if (!selectedChannelId.value || loadingOlder.value || !hasMore.value || messages.value.length === 0) return;
+    loadingOlder.value = true;
+    const container = messagesContainer.value;
+    const scrollHeightBefore = container?.scrollHeight ?? 0;
+    const scrollTopBefore = container?.scrollTop ?? 0;
+    try {
+        const result = await getMessages(selectedChannelId.value, {
+            limit: PAGE_SIZE,
+            before: messages.value[0].id
+        });
+        if (result.messages.length === 0) {
+            hasMore.value = false;
+            return;
+        }
+        messages.value = [...result.messages, ...messages.value];
+        hasMore.value = result.hasMore;
+        requestAnimationFrame(() => {
+            if (!container) return;
+            container.scrollTop = scrollTopBefore + (container.scrollHeight - scrollHeightBefore);
+        });
+    } catch (err) {
+        if (bailOnAuthError(err)) return;
+        error.value = err instanceof Error ? err.message : 'Failed to load older messages';
+    } finally {
+        loadingOlder.value = false;
+    }
+}
+
+function onMessagesScroll(event: Event) {
+    const el = event.target as HTMLDivElement;
+    if (el.scrollTop < 80 && hasMore.value && !loadingOlder.value) {
+        loadOlder();
+    }
+}
+
 function selectChannel(id: string) {
     selectedChannelId.value = id;
     replyTo.value = null;
     messages.value = [];
-    refreshMessages().then(scrollToBottom);
+    hasMore.value = false;
+    loadInitialMessages();
 }
 
 function isNearBottom(): boolean {
@@ -129,7 +186,7 @@ async function onReactionAdd(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
     try {
         await addReaction(selectedChannelId.value, messageId, emoji);
-        refreshMessages();
+        pollNewMessages();
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to react';
@@ -140,7 +197,7 @@ async function onReactionRemove(messageId: string, emoji: MessageEmoji) {
     if (!selectedChannelId.value) return;
     try {
         await removeReaction(selectedChannelId.value, messageId, emoji);
-        refreshMessages();
+        pollNewMessages();
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to remove reaction';
@@ -185,7 +242,7 @@ provide(MessageContextKey, ctx);
 watch(selectedChannelId, () => {
     if (messageTimer) clearInterval(messageTimer);
     if (selectedChannelId.value) {
-        messageTimer = setInterval(refreshMessages, MESSAGE_REFRESH_MS);
+        messageTimer = setInterval(pollNewMessages, MESSAGE_REFRESH_MS);
     }
 });
 
@@ -253,10 +310,12 @@ function formatTimestamp(iso: string | null): string {
                 <span class="user-id">{{ selectedChannel.recipient.id }}</span>
             </header>
             <p v-if="error" class="error">{{ error }}</p>
-            <div class="messages">
+            <div ref="messagesContainer" class="messages" @scroll.passive="onMessagesScroll">
                 <p v-if="!selectedChannel" class="muted center">Select a DM to view messages.</p>
                 <p v-else-if="loadingMessages && messages.length === 0" class="muted center">Loading…</p>
                 <p v-else-if="messages.length === 0" class="muted center">No messages yet.</p>
+                <p v-if="loadingOlder" class="muted center small">Loading older…</p>
+                <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
                 <div v-for="message in messages" :key="message.id" class="message-wrap">
                     <MessageView :message="message" />
                     <button type="button" class="reply-action" @click="onMessageReply(message)">Reply</button>
@@ -427,6 +486,10 @@ function formatTimestamp(iso: string | null): string {
 .center {
     text-align: center;
     margin: 2rem 0;
+}
+.small {
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
 }
 .message-wrap {
     position: relative;
