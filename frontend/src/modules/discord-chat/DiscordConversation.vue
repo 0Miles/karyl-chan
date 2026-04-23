@@ -8,10 +8,11 @@ import { useFileDrop } from '../../composables/use-file-drop';
 import { useFloatingPicker } from '../../composables/use-floating-picker';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
-import type { DmChannelSummary } from '../../api/dm';
 
 const props = defineProps<{
-    channel: DmChannelSummary | null;
+    channelId: string | null;
+    headerTitle?: string | null;
+    headerSubtitle?: string | null;
     messages: Message[];
     botUserId: string | null;
     hasMore: boolean;
@@ -66,7 +67,7 @@ function onMessagesScroll() {
     if (reactPicker.openId.value) reactPicker.close();
 }
 
-watch(() => props.channel?.id, () => {
+watch(() => props.channelId, () => {
     reactPicker.close();
 });
 
@@ -106,13 +107,15 @@ const replyToProp = computed(() => props.replyTo);
         <div v-if="drop.isDragging.value" class="drop-overlay">
             <div class="drop-banner">Drop files to attach</div>
         </div>
-        <header v-if="channel" class="conv-header">
-            <span class="title">{{ channel.recipient.globalName ?? channel.recipient.username }}</span>
-            <span class="user-id">{{ channel.recipient.id }}</span>
+        <header v-if="channelId" class="conv-header">
+            <slot name="header">
+                <span class="title">{{ headerTitle }}</span>
+                <span v-if="headerSubtitle" class="subtitle">{{ headerSubtitle }}</span>
+            </slot>
         </header>
         <p v-if="error" class="error">{{ error }}</p>
         <div ref="messagesContainer" class="messages" @scroll.passive="onMessagesScroll">
-            <p v-if="!channel" class="muted center">Select a chat to view messages.</p>
+            <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
             <p v-else-if="loadingMessages && messages.length === 0" class="muted center">Loading…</p>
             <p v-else-if="messages.length === 0" class="muted center">No messages yet.</p>
             <p v-if="loadingOlder" class="muted center small">Loading older…</p>
@@ -155,7 +158,7 @@ const replyToProp = computed(() => props.replyTo);
                 <MediaPicker @select="onReactPicked" />
             </div>
         </Teleport>
-        <footer v-if="channel" class="composer-row">
+        <footer v-if="channelId" class="composer-row">
             <MessageComposer
                 ref="composerRef"
                 :reply-to="replyToProp"
@@ -209,7 +212,7 @@ const replyToProp = computed(() => props.replyTo);
     gap: 0.5rem;
 }
 .title { font-weight: 600; color: var(--text-strong); }
-.user-id {
+.subtitle {
     color: var(--text-faint);
     font-size: 0.8rem;
     font-family: ui-monospace, SFMono-Regular, monospace;
