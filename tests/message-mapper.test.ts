@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Message as DjsMessage } from 'discord.js';
-import { toApiMessage } from '../src/web/message-mapper.js';
+import { avatarUrlFor, toApiMessage } from '../src/web/message-mapper.js';
+
+const USER_ID = '347738300909617152';
+const STATIC_HASH = '67ec57b40058e6c1ebce07277874edb5';
+const ANIMATED_HASH = 'a_3fa6164fb22aede0b396d414193465ea';
 
 function fakeMessage(overrides: Partial<Record<string, unknown>> = {}): DjsMessage {
     const base = {
@@ -11,11 +15,11 @@ function fakeMessage(overrides: Partial<Record<string, unknown>> = {}): DjsMessa
         createdAt: new Date('2026-04-23T10:00:00.000Z'),
         editedAt: null,
         author: {
-            id: 'u1',
+            id: USER_ID,
             username: 'alice',
             globalName: 'Alice',
             bot: false,
-            displayAvatarURL: () => 'https://example.test/avatar.png'
+            avatar: STATIC_HASH
         },
         attachments: new Map(),
         reactions: { cache: new Map() },
@@ -42,10 +46,10 @@ describe('toApiMessage', () => {
             createdAt: '2026-04-23T10:00:00.000Z',
             editedAt: null,
             author: {
-                id: 'u1',
+                id: USER_ID,
                 username: 'alice',
                 globalName: 'Alice',
-                avatarUrl: 'https://example.test/avatar.png',
+                avatarUrl: `https://cdn.discordapp.com/avatars/${USER_ID}/${STATIC_HASH}.webp?size=128`,
                 bot: false
             }
         });
@@ -103,5 +107,22 @@ describe('toApiMessage', () => {
             reference: { messageId: 'unknown', channelId: 'c1', guildId: null }
         }));
         expect(api.referencedMessage).toBeNull();
+    });
+});
+
+describe('avatarUrlFor', () => {
+    it('returns animated webp for hashes that start with a_', () => {
+        const url = avatarUrlFor(USER_ID, ANIMATED_HASH);
+        expect(url).toBe(`https://cdn.discordapp.com/avatars/${USER_ID}/${ANIMATED_HASH}.webp?size=128&animated=true`);
+    });
+
+    it('returns static webp for non-animated hashes', () => {
+        const url = avatarUrlFor(USER_ID, STATIC_HASH);
+        expect(url).toBe(`https://cdn.discordapp.com/avatars/${USER_ID}/${STATIC_HASH}.webp?size=128`);
+    });
+
+    it('falls back to embed defaultAvatar when no avatar hash is present', () => {
+        const url = avatarUrlFor(USER_ID, null);
+        expect(url).toMatch(/^https:\/\/cdn\.discordapp\.com\/embed\/avatars\/[0-5]\.png$/);
     });
 });

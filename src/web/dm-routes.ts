@@ -4,7 +4,7 @@ import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from
 import { ChannelType } from 'discord.js';
 import { dmInboxService, type DmInboxStore } from './dm-inbox.service.js';
 import { dmEventBus, type DmEventBus } from './dm-event-bus.js';
-import { toApiMessage } from './message-mapper.js';
+import { avatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 
 export interface DmRoutesOptions {
@@ -138,7 +138,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 id: user.id,
                 username: user.username,
                 globalName: user.globalName ?? null,
-                avatarUrl: user.displayAvatarURL({ size: 128 })
+                avatarUrl: avatarUrlFor(user.id, user.avatar)
             });
             events.publish({ type: 'channel-touched', channel: summary });
             return { channel: summary };

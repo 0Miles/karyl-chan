@@ -3,7 +3,7 @@ import { Discord, On } from 'discordx';
 import { ChannelType, type DMChannel, type Message, type PartialMessage } from 'discord.js';
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
 import { dmEventBus } from '../web/dm-event-bus.js';
-import { toApiMessage } from '../web/message-mapper.js';
+import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
 
 function recipientFor(channel: DMChannel): DmRecipient | null {
     const user = channel.recipient;
@@ -12,7 +12,7 @@ function recipientFor(channel: DMChannel): DmRecipient | null {
         id: user.id,
         username: user.username,
         globalName: user.globalName ?? null,
-        avatarUrl: user.displayAvatarURL({ size: 128 })
+        avatarUrl: avatarUrlFor(user.id, user.avatar)
     };
 }
 

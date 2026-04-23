@@ -9,13 +9,27 @@ import type {
     MessageAuthor
 } from './message-types.js';
 
-export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot'> & { displayAvatarURL: (options?: { size?: number }) => string }): MessageAuthor {
+// Discord no longer serves the .gif endpoint for many animated avatars (returns
+// HTTP 415), but discord.js's displayAvatarURL still forces .gif whenever the
+// hash starts with `a_`. Build the URL ourselves and request animated webp
+// instead, which Discord serves reliably for both static and animated avatars.
+export function avatarUrlFor(userId: string, avatarHash: string | null, size = 128): string {
+    if (!avatarHash) {
+        const idx = Number((BigInt(userId) >> 22n) % 6n);
+        return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+    }
+    const animated = avatarHash.startsWith('a_');
+    const params = new URLSearchParams({ size: String(size) });
+    if (animated) params.set('animated', 'true');
+    return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.webp?${params.toString()}`;
+}
+
+export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot' | 'avatar'>): MessageAuthor {
     return {
         id: user.id,
         username: user.username,
         globalName: user.globalName ?? null,
-        // Discord CDN refuses animated avatar URLs (a_*.gif) without a ?size param.
-        avatarUrl: user.displayAvatarURL({ size: 128 }),
+        avatarUrl: avatarUrlFor(user.id, user.avatar),
         bot: !!user.bot
     };
 }

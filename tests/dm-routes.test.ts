@@ -22,11 +22,11 @@ function fakeDmMessage(overrides: Record<string, unknown> = {}) {
         createdTimestamp: new Date('2026-04-23T12:00:00.000Z').getTime(),
         editedAt: null,
         author: {
-            id: 'bot1',
+            id: '111111111111111111',
             username: 'karyl',
             globalName: 'Karyl',
             bot: true,
-            displayAvatarURL: () => 'https://example.test/bot.png'
+            avatar: null
         },
         attachments: new Map(),
         reactions: { cache: new Map() },
@@ -169,10 +169,10 @@ describe('DM routes', () => {
 
     it('POST /api/dm/channels starts a new DM and emits channel-touched', async () => {
         const userFetch = vi.fn(async () => ({
-            id: 'u-new',
+            id: '222222222222222222',
             username: 'bob',
             globalName: 'Bob',
-            displayAvatarURL: () => 'https://example.test/u-new.png',
+            avatar: null,
             createDM: async () => ({ id: 'c-new' })
         }));
         const bot = fakeBot({}, { userFetch });
@@ -237,10 +237,10 @@ describe('DM routes', () => {
     describe('DmEventBus integration', () => {
         it('publishes channel-touched when a new DM is started through the route', async () => {
             const userFetch = vi.fn(async () => ({
-                id: 'u-x',
+                id: '333333333333333333',
                 username: 'x',
                 globalName: null,
-                displayAvatarURL: () => 'https://example.test/x.png',
+                avatar: null,
                 createDM: async () => ({ id: 'c-x' })
             }));
             const bot = fakeBot({}, { userFetch });
