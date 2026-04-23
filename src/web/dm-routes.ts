@@ -214,7 +214,8 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             try {
                 const message = await channel.messages.fetch(request.params.messageId);
                 await message.react(resolvable);
-                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(message) });
+                const fresh = await channel.messages.fetch({ message: request.params.messageId, force: true });
+                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(fresh) });
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to add reaction');
@@ -236,7 +237,8 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 const message = await channel.messages.fetch(request.params.messageId);
                 const reaction = message.reactions.cache.get(key);
                 if (reaction && bot.user) await reaction.users.remove(bot.user.id);
-                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(message) });
+                const fresh = await channel.messages.fetch({ message: request.params.messageId, force: true });
+                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(fresh) });
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to remove reaction');

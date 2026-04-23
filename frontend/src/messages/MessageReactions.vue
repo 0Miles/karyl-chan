@@ -47,20 +47,21 @@ function toggle(r: MessageReaction) {
 .reactions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.25rem;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
 }
 .reaction {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 1px 6px;
+    gap: 0.35rem;
+    padding: 3px 8px;
     border: 1px solid transparent;
     background: var(--pill-bg);
     color: var(--text);
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
+    line-height: 1;
 }
 .reaction:hover {
     border-color: var(--accent);
@@ -71,15 +72,20 @@ function toggle(r: MessageReaction) {
     color: var(--accent-text-strong);
 }
 .emoji {
-    width: 16px;
-    height: 16px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
 }
 .emoji-fallback {
-    font-size: 1rem;
+    font-size: 1.2rem;
     line-height: 1;
 }
 .count {
     font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.reaction.mine .count {
+    color: var(--accent-text-strong);
 }
 </style>
