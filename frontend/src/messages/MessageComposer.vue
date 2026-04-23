@@ -27,6 +27,17 @@ const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 function onMediaSelect(selection: MediaSelection) {
     if (selection.type === 'sticker') {
         if (stickerLimitReached.value) return;
+        // If the operator hasn't typed or attached anything yet, send the
+        // sticker on its own immediately (Discord's behaviour).
+        if (!content.value.trim() && attachments.value.length === 0 && pendingStickers.value.length === 0) {
+            emit('send', {
+                content: '',
+                stickerIds: [selection.id],
+                reference: props.replyTo ?? null
+            });
+            showPicker.value = false;
+            return;
+        }
         pendingStickers.value = [...pendingStickers.value, {
             id: selection.id,
             name: selection.name,
