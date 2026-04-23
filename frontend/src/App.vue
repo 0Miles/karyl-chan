@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { isAuthenticated } from './auth';
+import { logout } from './api/client';
+
+const router = useRouter();
+
+async function signOut() {
+    await logout();
+    router.replace({ name: 'auth' });
+}
 </script>
 
 <template>
@@ -7,7 +16,10 @@ import { RouterLink, RouterView } from 'vue-router';
         <header class="app-header">
             <div class="brand">Karyl Chan</div>
             <nav>
-                <RouterLink to="/">Dashboard</RouterLink>
+                <template v-if="isAuthenticated">
+                    <RouterLink to="/">Dashboard</RouterLink>
+                    <button type="button" class="link-button" @click="signOut">Sign out</button>
+                </template>
             </nav>
         </header>
         <main class="app-main">
@@ -45,6 +57,17 @@ import { RouterLink, RouterView } from 'vue-router';
 .app-header nav a.router-link-active {
     color: #fff;
     font-weight: 500;
+}
+.link-button {
+    background: none;
+    border: none;
+    color: #cbd5f5;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+}
+.link-button:hover {
+    color: #fff;
 }
 .app-main {
     flex: 1;

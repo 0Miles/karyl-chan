@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { ApiError, api } from '../api/client';
 import type { BotStatus, HealthStatus } from '../api/types';
+
+const router = useRouter();
 
 const health = ref<HealthStatus | null>(null);
 const bot = ref<BotStatus | null>(null);
@@ -38,6 +41,10 @@ async function refresh() {
         error.value = null;
         lastUpdated.value = new Date();
     } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+            router.replace({ name: 'auth' });
+            return;
+        }
         error.value = err instanceof Error ? err.message : 'Unknown error';
     } finally {
         loading.value = false;
