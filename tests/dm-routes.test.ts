@@ -131,7 +131,7 @@ describe('DM routes', () => {
             payload: { content: 'pong' }
         });
         expect(response.statusCode).toBe(200);
-        expect(send).toHaveBeenCalledWith({ content: 'pong', files: undefined, reply: undefined });
+        expect(send).toHaveBeenCalledWith({ content: 'pong', files: undefined, stickers: undefined, reply: undefined });
     });
 
     it('POST refuses an empty body with no attachments', async () => {
@@ -163,7 +163,27 @@ describe('DM routes', () => {
         expect(send).toHaveBeenCalledWith({
             content: 'reply',
             files: undefined,
+            stickers: undefined,
             reply: { messageReference: 'm-prev', failIfNotExists: false }
+        });
+    });
+
+    it('POST forwards stickerIds and caps at three', async () => {
+        const send = vi.fn(async () => fakeDmMessage());
+        const channel = { id: 'c1', type: 1, send };
+        const bot = fakeBot(channel);
+        server = await createWebServer({ staticRoot: undefined, bot, dmInbox: inbox });
+        await server.ready();
+        await server.inject({
+            method: 'POST',
+            url: '/api/dm/channels/c1/messages',
+            payload: { content: '', stickerIds: ['s1', 's2', 's3', 's4'] }
+        });
+        expect(send).toHaveBeenCalledWith({
+            content: undefined,
+            files: undefined,
+            stickers: ['s1', 's2', 's3'],
+            reply: undefined
         });
     });
 

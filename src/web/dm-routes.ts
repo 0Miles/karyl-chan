@@ -85,6 +85,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
 
             let content = '';
             let replyToMessageId: string | undefined;
+            let stickerIds: string[] = [];
             const files: Array<{ attachment: Buffer; name: string }> = [];
 
             if (request.isMultipart()) {
@@ -97,18 +98,26 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                     } else if (part.fieldname === 'replyToMessageId') {
                         const value = String(part.value ?? '').trim();
                         if (value) replyToMessageId = value;
+                    } else if (part.fieldname === 'stickerIds' || part.fieldname === 'stickerIds[]') {
+                        const value = String(part.value ?? '').trim();
+                        if (value) stickerIds.push(value);
                     }
                 }
             } else {
-                const body = (request.body ?? {}) as { content?: unknown; replyToMessageId?: unknown };
+                const body = (request.body ?? {}) as { content?: unknown; replyToMessageId?: unknown; stickerIds?: unknown };
                 content = typeof body.content === 'string' ? body.content : '';
                 if (typeof body.replyToMessageId === 'string' && body.replyToMessageId.length > 0) {
                     replyToMessageId = body.replyToMessageId;
                 }
+                if (Array.isArray(body.stickerIds)) {
+                    stickerIds = body.stickerIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+                }
             }
 
-            if (!content.trim() && files.length === 0) {
-                reply.code(400).send({ error: 'content or attachment required' });
+            stickerIds = stickerIds.slice(0, 3);
+
+            if (!content.trim() && files.length === 0 && stickerIds.length === 0) {
+                reply.code(400).send({ error: 'content, attachment, or sticker required' });
                 return;
             }
 
@@ -116,6 +125,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 const sent: DjsMessage = await channel.send({
                     content: content || undefined,
                     files: files.length > 0 ? files : undefined,
+                    stickers: stickerIds.length > 0 ? stickerIds : undefined,
                     reply: replyToMessageId
                         ? { messageReference: replyToMessageId, failIfNotExists: false }
                         : undefined
