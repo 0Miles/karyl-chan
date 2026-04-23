@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue';
+import { Teleport, computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
     MessageView,
@@ -229,6 +229,7 @@ function onMessagesScroll(event: Event) {
     if (el.scrollTop < 80 && hasMore.value && !loadingOlder.value) {
         loadOlder();
     }
+    if (reactingMessageId.value) closeReactPicker();
 }
 
 function selectChannel(id: string) {
@@ -364,9 +365,45 @@ async function confirmDelete(message: Message, event?: MouseEvent) {
     }
 }
 
-function startReact(messageId: string) {
-    reactingMessageId.value = reactingMessageId.value === messageId ? null : messageId;
+const reactPickerPosition = ref<{ top: number; left: number } | null>(null);
+
+function startReact(messageId: string, event: MouseEvent) {
+    if (reactingMessageId.value === messageId) {
+        closeReactPicker();
+        return;
+    }
+    const target = event.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    if (!rect) {
+        reactingMessageId.value = messageId;
+        return;
+    }
+    const PICKER_W = 420;
+    const PICKER_H = 460;
+    let top = rect.bottom + 4;
+    if (top + PICKER_H > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - PICKER_H - 4);
+    }
+    let left = rect.right - PICKER_W;
+    if (left < 8) left = 8;
+    if (left + PICKER_W > window.innerWidth - 8) left = window.innerWidth - PICKER_W - 8;
+    reactPickerPosition.value = { top, left };
+    reactingMessageId.value = messageId;
 }
+
+function onPickerOutsideClick(event: MouseEvent) {
+    if (!reactingMessageId.value) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+    const popup = document.querySelector('.react-pop-floating');
+    if (popup?.contains(target)) return;
+    closeReactPicker();
+}
+
+watch(reactingMessageId, (open) => {
+    if (open) document.addEventListener('mousedown', onPickerOutsideClick);
+    else document.removeEventListener('mousedown', onPickerOutsideClick);
+});
 
 async function onReactPicked(selection: MediaSelection) {
     if (!selectedChannelId.value || !reactingMessageId.value) return;
@@ -388,6 +425,7 @@ async function onReactPicked(selection: MediaSelection) {
 
 function closeReactPicker() {
     reactingMessageId.value = null;
+    reactPickerPosition.value = null;
 }
 
 function onReplyClick(messageId: string) {
@@ -526,7 +564,7 @@ function formatTimestamp(iso: string | null): string {
                         @cancel-edit="cancelEdit"
                     />
                     <div class="message-actions">
-                        <button type="button" :class="['action', { active: reactingMessageId === message.id }]" title="React" @click="startReact(message.id)">😊</button>
+                        <button type="button" :class="['action', { active: reactingMessageId === message.id }]" title="React" @click="startReact(message.id, $event)">😊</button>
                         <button type="button" class="action" title="Reply" @click="onMessageReply(message)">↩</button>
                         <template v-if="isOwnMessage(message)">
                             <button type="button" class="action" title="Edit" @click="startEdit(message)">✏</button>
@@ -538,12 +576,18 @@ function formatTimestamp(iso: string | null): string {
                             >🗑</button>
                         </template>
                     </div>
-                    <div v-if="reactingMessageId === message.id" class="react-pop">
-                        <MediaPicker @select="onReactPicked" />
-                    </div>
                 </div>
                 <div ref="messagesEnd" />
             </div>
+            <Teleport to="body">
+                <div
+                    v-if="reactingMessageId && reactPickerPosition"
+                    class="react-pop-floating"
+                    :style="{ top: reactPickerPosition.top + 'px', left: reactPickerPosition.left + 'px' }"
+                >
+                    <MediaPicker @select="onReactPicked" />
+                </div>
+            </Teleport>
             <footer v-if="selectedChannel" class="composer-row">
                 <MessageComposer
                     ref="composerRef"
@@ -557,6 +601,12 @@ function formatTimestamp(iso: string | null): string {
     </section>
 </template>
 
+<style>
+.react-pop-floating {
+    position: fixed;
+    z-index: 1000;
+}
+</style>
 <style scoped>
 .dm {
     display: grid;
@@ -784,12 +834,6 @@ function formatTimestamp(iso: string | null): string {
 .action.danger {
     background: rgba(239, 68, 68, 0.18);
     color: var(--danger);
-}
-.react-pop {
-    position: absolute;
-    top: 32px;
-    right: 12px;
-    z-index: 5;
 }
 .composer-row {
     border-top: 1px solid var(--border);
