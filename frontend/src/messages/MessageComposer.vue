@@ -102,18 +102,31 @@ function onKeydown(event: KeyboardEvent) {
     }
 }
 
+function namedClipboardFile(file: File): File {
+    const ext = (file.type.split('/')[1] || 'png').toLowerCase();
+    const looksGeneric = !file.name || file.name === 'image.png' || file.name === 'image';
+    if (!looksGeneric) return file;
+    return new File([file], `pasted-${Date.now()}.${ext}`, { type: file.type });
+}
+
 function onPaste(event: ClipboardEvent) {
-    const items = event.clipboardData?.items;
-    if (!items) return;
+    const cd = event.clipboardData;
+    if (!cd) return;
     const pasted: File[] = [];
-    for (const item of items) {
-        if (item.kind !== 'file') continue;
-        const blob = item.getAsFile();
-        if (!blob || !blob.type.startsWith('image/')) continue;
-        const ext = blob.type.split('/')[1] || 'png';
-        const fallback = `pasted-${Date.now()}.${ext}`;
-        const filename = blob.name && blob.name !== 'image.png' ? blob.name : fallback;
-        pasted.push(new File([blob], filename, { type: blob.type }));
+    if (cd.files && cd.files.length > 0) {
+        for (let i = 0; i < cd.files.length; i++) {
+            const file = cd.files.item(i);
+            if (file && file.type.startsWith('image/')) pasted.push(namedClipboardFile(file));
+        }
+    }
+    if (pasted.length === 0 && cd.items) {
+        for (let i = 0; i < cd.items.length; i++) {
+            const item = cd.items[i];
+            if (item.kind !== 'file') continue;
+            const blob = item.getAsFile();
+            if (!blob || !blob.type.startsWith('image/')) continue;
+            pasted.push(namedClipboardFile(blob));
+        }
     }
     if (pasted.length === 0) return;
     event.preventDefault();
@@ -126,7 +139,7 @@ function stickerPreview(id: string): string {
 </script>
 
 <template>
-    <div class="composer">
+    <div class="composer" @paste="onPaste">
         <div v-if="replyTo" class="reply-banner">
             <span>Replying</span>
             <button type="button" class="link" @click="$emit('cancel-reply')">Cancel</button>
