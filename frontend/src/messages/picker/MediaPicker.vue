@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { listEmojis, listStickers, type CustomEmoji, type GuildBucket, type GuildSticker } from '../../api/discord';
+import { stickerImageUrl } from '../sticker-url';
 import {
     pushEmojiRecent,
     pushStickerRecent,
@@ -67,8 +68,8 @@ function customEmojiUrl(id: string, animated: boolean): string {
     return `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'webp'}?size=64&quality=lossless`;
 }
 
-function stickerPreview(id: string): string {
-    return `https://cdn.discordapp.com/stickers/${id}.png`;
+function stickerPreview(sticker: { id: string; formatType: number }): string {
+    return stickerImageUrl(sticker.id, sticker.formatType, 80);
 }
 
 const filteredUnicode = computed<UnicodeEntry[]>(() => {
@@ -258,7 +259,7 @@ const recentStickerEntries = computed(() => stickerRecents.value);
                             :title="`${entry.sticker.name} — ${entry.guild}`"
                             @click="selectSticker(entry.sticker)"
                         >
-                            <img :src="stickerPreview(entry.sticker.id)" :alt="entry.sticker.name" class="sticker" />
+                            <img :src="stickerPreview(entry.sticker)" :alt="entry.sticker.name" class="sticker" />
                         </button>
                     </div>
                 </section>
@@ -308,7 +309,7 @@ const recentStickerEntries = computed(() => stickerRecents.value);
                             :title="sticker.name"
                             @click="selectSticker(sticker)"
                         >
-                            <img :src="stickerPreview(sticker.id)" :alt="sticker.name" class="sticker" />
+                            <img :src="stickerPreview(sticker)" :alt="sticker.name" class="sticker" />
                         </button>
                     </div>
                 </section>
@@ -356,7 +357,7 @@ const recentStickerEntries = computed(() => stickerRecents.value);
                         :title="s.name"
                         @click="selectSticker(s)"
                     >
-                        <img :src="stickerPreview(s.id)" :alt="s.name" class="sticker" />
+                        <img :src="stickerPreview(s)" :alt="s.name" class="sticker" />
                     </button>
                 </div>
                 <p v-else-if="!stickerGuilds.length" class="muted">No guild stickers available.</p>

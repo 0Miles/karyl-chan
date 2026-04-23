@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { authedFetch } from '../api/client';
+import { stickerImageUrl } from './sticker-url';
 import type { MessageSticker } from './types';
 
 const props = defineProps<{ sticker: MessageSticker }>();
@@ -9,8 +10,7 @@ const containerRef = ref<HTMLDivElement | null>(null);
 let lottieAnim: { destroy: () => void } | null = null;
 
 function imageUrl(): string {
-    const ext = props.sticker.formatType === 4 ? 'gif' : 'png';
-    return `https://cdn.discordapp.com/stickers/${props.sticker.id}.${ext}`;
+    return stickerImageUrl(props.sticker.id, props.sticker.formatType);
 }
 
 async function loadLottie() {

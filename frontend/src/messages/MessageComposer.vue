@@ -153,8 +153,10 @@ function onPaste(event: ClipboardEvent) {
     attachments.value = [...attachments.value, ...pasted];
 }
 
-function stickerPreview(id: string): string {
-    return `https://cdn.discordapp.com/stickers/${id}.png`;
+import { stickerImageUrl } from './sticker-url';
+
+function stickerPreview(sticker: StickerRecent): string {
+    return stickerImageUrl(sticker.id, sticker.formatType, 60);
 }
 </script>
 
@@ -170,7 +172,7 @@ function stickerPreview(id: string): string {
                 <button type="button" @click="removeAttachment(idx)">×</button>
             </div>
             <div v-for="(sticker, idx) in pendingStickers" :key="'s' + sticker.id" class="chip sticker-chip">
-                <img :src="stickerPreview(sticker.id)" :alt="sticker.name" class="sticker-thumb" />
+                <img :src="stickerPreview(sticker)" :alt="sticker.name" class="sticker-thumb" />
                 <span>{{ sticker.name }}</span>
                 <button type="button" @click="removeSticker(idx)">×</button>
             </div>
