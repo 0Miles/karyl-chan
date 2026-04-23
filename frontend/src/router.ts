@@ -8,7 +8,11 @@ const routes: RouteRecordRaw[] = [
     {
         path: '/',
         name: 'home',
-        component: () => import('./views/home/HomePage.vue')
+        component: () => import('./views/home/HomePage.vue'),
+        // Public, standalone page: the app shell (nav / mobile drawer / FAB)
+        // is suppressed for routes with `publicPage: true`. Future no-login
+        // surfaces should live on their own paths with the same meta flag.
+        meta: { publicPage: true }
     },
     {
         path: '/admin',

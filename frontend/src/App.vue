@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { isAuthenticated } from './auth';
 import { logout } from './api/client';
@@ -10,10 +10,14 @@ import { useDrawer } from './composables/use-drawer';
 import Draggable from './components/Draggable.vue';
 
 const router = useRouter();
+const route = useRoute();
 const { overlayOpen, openOverlay, closeOverlay, flushMain, hasExtras, overlayView, toggleOverlayView } = provideAppShell();
 const { isMobile } = useBreakpoint();
 
-const drawerOpen = computed(() => isMobile.value && overlayOpen.value);
+// Public routes (meta.publicPage) render standalone — no brand header, no
+// mobile nav drawer, no FAB. Admin routes render the full shell.
+const showShell = computed(() => !route.meta.publicPage);
+const drawerOpen = computed(() => showShell.value && isMobile.value && overlayOpen.value);
 const { placement, backdropClass, panelClass, backdropTransition, panelTransition } = useDrawer({
     visible: drawerOpen,
     placement: 'left',
@@ -37,8 +41,8 @@ function navigate() {
 </script>
 
 <template>
-    <div class="app-shell">
-        <header class="app-header">
+    <div class="app-shell" :class="{ 'app-shell--public': !showShell }">
+        <header v-if="showShell" class="app-header">
             <div class="brand">{{ $t('app.brand') }}</div>
             <nav class="desktop-nav">
                 <template v-if="isAuthenticated">
@@ -55,7 +59,7 @@ function navigate() {
         </main>
 
         <Draggable
-            v-show="isAuthenticated && isMobile && !overlayOpen"
+            v-show="showShell && isAuthenticated && isMobile && !overlayOpen"
             :bounds="dragBounds"
             :boundary-padding="8"
             class="mobile-fab-wrap"

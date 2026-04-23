@@ -27,8 +27,7 @@
     },
     "home": {
         "title": "Karyl Chan",
-        "lead": "未來將在此提供公開功能。",
-        "adminLink": "進入後台"
+        "lead": "未來將在此提供公開功能。"
     },
     "auth": {
         "title": "登入",

@@ -27,8 +27,7 @@
     },
     "home": {
         "title": "Karyl Chan",
-        "lead": "Public surfaces will live here in the future.",
-        "adminLink": "Open the admin panel"
+        "lead": "Public surfaces will live here in the future."
     },
     "auth": {
         "title": "Sign in",
