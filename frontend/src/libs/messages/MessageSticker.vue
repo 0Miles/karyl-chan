@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { authedFetch } from '../api/client';
+import { useMessageContext } from './context';
 import { stickerImageUrl } from './sticker-url';
 import type { MessageSticker } from './types';
 
 const props = defineProps<{ sticker: MessageSticker }>();
+const ctx = useMessageContext();
 
 const containerRef = ref<HTMLDivElement | null>(null);
 let lottieAnim: { destroy: () => void } | null = null;
@@ -15,12 +16,11 @@ function imageUrl(): string {
 
 async function loadLottie() {
     if (!containerRef.value) return;
-    // cdn.discordapp.com doesn't send CORS headers for Lottie JSON, so go
-    // through our backend proxy at /api/dm/stickers/:id and hand the parsed
-    // animationData to lottie.loadAnimation.
-    const response = await authedFetch(`/api/dm/stickers/${encodeURIComponent(props.sticker.id)}`);
-    if (!response.ok) return;
-    const animationData = await response.json();
+    // Lottie JSON has to go through whatever fetcher the host app supplies
+    // (Discord's CDN doesn't send CORS headers, so the consumer typically
+    // proxies it server-side). Skip Lottie when no provider is wired.
+    const animationData = await ctx.mediaProvider?.loadLottieSticker(props.sticker.id);
+    if (!animationData || !containerRef.value) return;
     const lottie = (await import('lottie-web')).default;
     lottieAnim?.destroy();
     if (!containerRef.value) return;

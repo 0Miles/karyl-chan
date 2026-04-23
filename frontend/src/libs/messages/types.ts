@@ -88,3 +88,28 @@ export interface OutgoingMessage {
     stickerIds?: string[];
     reference?: MessageReference | null;
 }
+
+export interface CustomEmoji {
+    id: string;
+    name: string;
+    animated: boolean;
+}
+
+export interface GuildSticker {
+    id: string;
+    name: string;
+    formatType: number;
+    description: string | null;
+}
+
+export interface GuildBucket<T> {
+    guildId: string;
+    guildName: string;
+    items: T[];
+}
+
+export interface MediaProvider {
+    listEmojis(): Promise<GuildBucket<CustomEmoji>[]>;
+    listStickers(): Promise<GuildBucket<GuildSticker>[]>;
+    loadLottieSticker(stickerId: string): Promise<unknown | null>;
+}

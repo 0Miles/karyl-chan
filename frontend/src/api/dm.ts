@@ -1,6 +1,6 @@
 import { ApiError, authedFetch } from './client';
 import { getAccessToken } from '../auth';
-import type { Message, MessageEmoji } from '../messages';
+import type { Message, MessageEmoji } from '../libs/messages';
 
 export interface DmRecipient {
     id: string;

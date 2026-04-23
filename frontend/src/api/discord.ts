@@ -1,23 +1,7 @@
 import { ApiError, authedFetch } from './client';
+import type { CustomEmoji, GuildBucket, GuildSticker } from '../libs/messages/types';
 
-export interface CustomEmoji {
-    id: string;
-    name: string;
-    animated: boolean;
-}
-
-export interface GuildSticker {
-    id: string;
-    name: string;
-    formatType: number;
-    description: string | null;
-}
-
-export interface GuildBucket<T> {
-    guildId: string;
-    guildName: string;
-    items: T[];
-}
+export type { CustomEmoji, GuildBucket, GuildSticker };
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -36,4 +20,10 @@ export async function listStickers(): Promise<GuildBucket<GuildSticker>[]> {
     const response = await authedFetch('/api/discord/stickers');
     const body = await jsonOrThrow<{ guilds: GuildBucket<GuildSticker>[] }>(response);
     return body.guilds;
+}
+
+export async function loadStickerLottie(stickerId: string): Promise<unknown | null> {
+    const response = await authedFetch(`/api/dm/stickers/${encodeURIComponent(stickerId)}`);
+    if (!response.ok) return null;
+    return await response.json();
 }

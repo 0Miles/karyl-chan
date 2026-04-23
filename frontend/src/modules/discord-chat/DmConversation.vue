@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import MessageView from '../messages/MessageView.vue';
-import MessageComposer from '../messages/MessageComposer.vue';
-import MediaPicker, { type MediaSelection } from '../messages/picker/MediaPicker.vue';
-import { isContinuation } from '../messages/grouping';
-import { useFileDrop } from '../composables/use-file-drop';
-import { useFloatingPicker } from '../composables/use-floating-picker';
-import { useShiftKey } from '../composables/use-shift-key';
-import type { Message, MessageReference, OutgoingMessage } from '../messages/types';
-import type { DmChannelSummary } from '../api/dm';
+import MessageView from '../../libs/messages/MessageView.vue';
+import MessageComposer from '../../libs/messages/MessageComposer.vue';
+import MediaPicker, { type MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
+import { isContinuation } from '../../libs/messages/grouping';
+import { useFileDrop } from '../../composables/use-file-drop';
+import { useFloatingPicker } from '../../composables/use-floating-picker';
+import { useShiftKey } from '../../composables/use-shift-key';
+import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
+import type { DmChannelSummary } from '../../api/dm';
 
 const props = defineProps<{
     channel: DmChannelSummary | null;

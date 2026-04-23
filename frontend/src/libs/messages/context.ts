@@ -1,5 +1,5 @@
 import { inject, type InjectionKey } from 'vue';
-import type { MessageEmoji } from './types';
+import type { MediaProvider, MessageEmoji } from './types';
 
 export interface ResolvedUser {
     name: string;
@@ -32,6 +32,7 @@ export interface MessageContext {
     onReactionRemove?: (messageId: string, emoji: MessageEmoji) => void;
     onReplyClick?: (messageId: string) => void;
     onAttachmentOpen?: (attachmentId: string) => void;
+    mediaProvider?: MediaProvider;
 }
 
 export const MessageContextKey: InjectionKey<MessageContext> = Symbol('MessageContext');

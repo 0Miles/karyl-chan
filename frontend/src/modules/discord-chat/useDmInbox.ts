@@ -12,8 +12,9 @@ import {
     subscribeEvents,
     type DmChannelSummary,
     type DmEvent
-} from '../api/dm';
-import { ApiError, api as botApi } from '../api/client';
+} from '../../api/dm';
+import { ApiError, api as botApi } from '../../api/client';
+import { listEmojis, listStickers, loadStickerLottie } from '../../api/discord';
 import {
     MessageContextKey,
     type Message,
@@ -21,8 +22,8 @@ import {
     type MessageEmoji,
     type MessageReference,
     type OutgoingMessage
-} from '../messages';
-import type { MediaSelection } from '../messages/picker/MediaPicker.vue';
+} from '../../libs/messages';
+import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 
 const PAGE_SIZE = 10;
 
@@ -334,7 +335,12 @@ export function useDmInbox() {
         onReactionAdd: reactionAdd,
         onReactionRemove: reactionRemove,
         onReplyClick,
-        get currentUserId() { return botUserId.value; }
+        get currentUserId() { return botUserId.value; },
+        mediaProvider: {
+            listEmojis,
+            listStickers,
+            loadLottieSticker: loadStickerLottie
+        }
     } as MessageContext;
     provide(MessageContextKey, ctx);
 

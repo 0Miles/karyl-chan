@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { listEmojis, listStickers, type CustomEmoji, type GuildBucket, type GuildSticker } from '../../api/discord';
+import { useMessageContext } from '../context';
+import type { CustomEmoji, GuildBucket, GuildSticker } from '../types';
 import { stickerImageUrl } from '../sticker-url';
 import {
     pushEmojiRecent,
@@ -10,6 +11,8 @@ import {
     type EmojiRecent,
     type StickerRecent
 } from './recents';
+
+const ctx = useMessageContext();
 
 export type MediaSelection =
     | { type: 'unicode'; value: string }
@@ -142,9 +145,10 @@ watch(() => isSearching.value, () => {
 onMounted(async () => {
     loadingMedia.value = true;
     try {
+        const provider = ctx.mediaProvider;
         const [emojiResp, stickerResp, dataMod] = await Promise.all([
-            listEmojis().catch(() => [] as GuildBucket<CustomEmoji>[]),
-            listStickers().catch(() => [] as GuildBucket<GuildSticker>[]),
+            provider?.listEmojis().catch(() => [] as GuildBucket<CustomEmoji>[]) ?? Promise.resolve([] as GuildBucket<CustomEmoji>[]),
+            provider?.listStickers().catch(() => [] as GuildBucket<GuildSticker>[]) ?? Promise.resolve([] as GuildBucket<GuildSticker>[]),
             import('@emoji-mart/data').then(m => m.default as { categories: { id: string; emojis: string[] }[]; emojis: Record<string, { id: string; name: string; keywords: string[]; skins: { native: string }[] }> })
         ]);
         customGuilds.value = emojiResp;
