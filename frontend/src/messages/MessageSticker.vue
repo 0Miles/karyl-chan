@@ -9,7 +9,7 @@ let lottieAnim: { destroy: () => void } | null = null;
 
 function imageUrl(): string {
     const ext = props.sticker.formatType === 4 ? 'gif' : 'png';
-    return `https://media.discordapp.net/stickers/${props.sticker.id}.${ext}?size=160`;
+    return `https://cdn.discordapp.com/stickers/${props.sticker.id}.${ext}`;
 }
 
 async function loadLottie() {
@@ -21,7 +21,7 @@ async function loadLottie() {
         renderer: 'svg',
         loop: true,
         autoplay: true,
-        path: `https://discord.com/stickers/${props.sticker.id}.json`
+        path: `https://cdn.discordapp.com/stickers/${props.sticker.id}.json`
     });
 }
 
