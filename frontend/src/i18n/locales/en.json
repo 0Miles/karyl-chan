@@ -6,7 +6,9 @@
             "messages": "Messages",
             "guilds": "Guilds",
             "admin": "Admin access",
-            "signOut": "Sign out"
+            "profile": "Profile",
+            "signOut": "Sign out",
+            "accountMenu": "Account menu"
         },
         "mobile": {
             "openMenu": "Open menu",
@@ -28,6 +30,16 @@
     "home": {
         "title": "Karyl Chan",
         "lead": "Public surfaces will live here in the future."
+    },
+    "profile": {
+        "title": "Profile",
+        "userId": "User id",
+        "username": "Username",
+        "role": "Role",
+        "capabilities": "Capabilities",
+        "note": "Note",
+        "unavailable": "Profile is not available.",
+        "hint": "DM the bot with \"login\" again to refresh your session."
     },
     "auth": {
         "title": "Sign in",

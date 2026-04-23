@@ -108,6 +108,11 @@ export async function listAuthorizedUsers(): Promise<AuthorizedUserRecord[]> {
     return rows.map(toUserRecord);
 }
 
+export async function findAuthorizedUser(userId: string): Promise<AuthorizedUserRecord | null> {
+    const row = await AuthorizedUser.findByPk(userId);
+    return row ? toUserRecord(row) : null;
+}
+
 export async function addAuthorizedUser(userId: string, role: string, note: string | null = null): Promise<AuthorizedUserRecord> {
     // Caller is expected to pre-validate that the role exists; we don't
     // enforce a FK so listing a user against an undefined role leaves them

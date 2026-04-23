@@ -6,6 +6,7 @@ import {
     addAuthorizedUser,
     createAdminRole,
     deleteAdminRole,
+    findAuthorizedUser,
     grantRoleCapability,
     isAdminCapability,
     listAdminRoles,
@@ -73,6 +74,32 @@ export async function registerAdminManagementRoutes(
     options: AdminManagementRoutesOptions = {}
 ): Promise<void> {
     const { bot } = options;
+    // Current session's identity + computed capability set. Used by the
+    // frontend to render the avatar button, the profile page, and to gate
+    // capability-aware UI elements without re-walking authorized_users on
+    // every call.
+    server.get('/api/admin/me', async (request, reply) => {
+        // This route is authenticated by the onRequest hook; if we're here
+        // the caller already has at least one capability. authUserId is set
+        // by that hook.
+        if (!request.authUserId) {
+            reply.code(401).send({ error: 'Unauthorized' });
+            return;
+        }
+        const ownerId = readOwnerId();
+        const isOwner = ownerId !== null && request.authUserId === ownerId;
+        const row = isOwner ? null : await findAuthorizedUser(request.authUserId);
+        const profile = await fetchProfile(bot, request.authUserId);
+        return {
+            userId: request.authUserId,
+            isOwner,
+            role: isOwner ? 'owner' : (row?.role ?? null),
+            note: row?.note ?? null,
+            profile,
+            capabilities: [...(request.authCapabilities ?? new Set())]
+        };
+    });
+
     // Catalog of capability tokens the app understands. Clients pull this
     // to render the "grant capability" dropdown so adding a new token in
     // code immediately surfaces in the UI.

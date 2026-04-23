@@ -6,7 +6,9 @@
             "messages": "消息",
             "guilds": "服务器",
             "admin": "后台权限",
-            "signOut": "退出登录"
+            "profile": "个人资料",
+            "signOut": "退出登录",
+            "accountMenu": "账号菜单"
         },
         "mobile": {
             "openMenu": "打开菜单",
@@ -28,6 +30,16 @@
     "home": {
         "title": "Karyl Chan",
         "lead": "未来将在此提供公开功能。"
+    },
+    "profile": {
+        "title": "个人资料",
+        "userId": "用户 ID",
+        "username": "用户名",
+        "role": "身份组",
+        "capabilities": "权限词条",
+        "note": "备注",
+        "unavailable": "无法获取个人资料。",
+        "hint": "再次私信机器人「login」可刷新登录状态。"
     },
     "auth": {
         "title": "登录",

@@ -1,18 +1,50 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
 import { isAuthenticated } from './auth';
 import { logout } from './api/client';
 import { provideAppShell } from './composables/use-app-shell';
 import { useBreakpoint } from './composables/use-breakpoint';
 import { useDrawer } from './composables/use-drawer';
+import { useCurrentUserStore } from './stores/currentUserStore';
 import Draggable from './components/Draggable.vue';
+import AppMenu from './components/AppMenu.vue';
+import AppMenuItem from './components/AppMenuItem.vue';
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 const { overlayOpen, openOverlay, closeOverlay, flushMain, hasExtras, overlayView, toggleOverlayView } = provideAppShell();
 const { isMobile } = useBreakpoint();
+const currentUser = useCurrentUserStore();
+
+// Keep the nav avatar in sync with the session: reload on login, clear on
+// logout, refresh once on cold mount if we already hold tokens.
+watch(() => isAuthenticated.value, (authed) => {
+    if (authed) void currentUser.refresh();
+    else currentUser.clear();
+});
+
+const displayName = computed(() =>
+    currentUser.user?.profile?.globalName
+    ?? currentUser.user?.profile?.username
+    ?? t('admin.users.unknownProfile')
+);
+const avatarUrl = computed(() => currentUser.user?.profile?.avatarUrl ?? null);
+const avatarInitial = computed(() => {
+    const name = currentUser.user?.profile?.globalName
+        ?? currentUser.user?.profile?.username
+        ?? currentUser.user?.userId
+        ?? '';
+    return name.trim().charAt(0).toUpperCase() || '?';
+});
+
+async function goProfile() {
+    await router.push({ name: 'profile' });
+    closeOverlay();
+}
 
 // Public routes (meta.publicPage) render standalone — no brand header, no
 // mobile nav drawer, no FAB. Admin routes render the full shell.
@@ -27,6 +59,7 @@ const { placement, backdropClass, panelClass, backdropTransition, panelTransitio
 const dragBounds = ref<HTMLElement | null>(null);
 onMounted(() => {
     dragBounds.value = document.documentElement;
+    if (isAuthenticated.value && !currentUser.user) void currentUser.refresh();
 });
 
 async function signOut() {
@@ -50,7 +83,27 @@ function navigate() {
                     <RouterLink to="/admin/messages">{{ $t('app.nav.messages') }}</RouterLink>
                     <RouterLink to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
                     <RouterLink to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
-                    <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
+                    <AppMenu placement="bottom-end" :offset="[0, 10]">
+                        <template #trigger>
+                            <button
+                                type="button"
+                                class="avatar-button"
+                                :aria-label="$t('app.nav.accountMenu')"
+                                :title="displayName"
+                            >
+                                <img v-if="avatarUrl" :src="avatarUrl" alt="" class="avatar-img" />
+                                <span v-else class="avatar-img avatar-fallback">{{ avatarInitial }}</span>
+                            </button>
+                        </template>
+                        <AppMenuItem @click="goProfile">
+                            <Icon icon="material-symbols:person-rounded" width="18" height="18" />
+                            {{ $t('app.nav.profile') }}
+                        </AppMenuItem>
+                        <AppMenuItem danger @click="signOut">
+                            <Icon icon="material-symbols:logout-rounded" width="18" height="18" />
+                            {{ $t('app.nav.signOut') }}
+                        </AppMenuItem>
+                    </AppMenu>
                 </template>
             </nav>
         </header>
@@ -115,6 +168,7 @@ function navigate() {
                         <RouterLink to="/admin/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
                         <RouterLink to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
                         <RouterLink to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
+                        <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                     </template>
                 </nav>
@@ -169,6 +223,41 @@ function navigate() {
 }
 .link-button:hover {
     color: var(--text-on-header);
+}
+.avatar-button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid transparent;
+    background: none;
+    cursor: pointer;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.avatar-button:hover { border-color: var(--text-on-header); }
+.avatar-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+.avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+}
+.avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    font-size: 0.85rem;
 }
 .app-main {
     flex: 1;

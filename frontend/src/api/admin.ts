@@ -25,6 +25,15 @@ export interface AuthorizedUser {
     profile: AdminUserProfile | null;
 }
 
+export interface CurrentUser {
+    userId: string;
+    isOwner: boolean;
+    role: string | null;
+    note: string | null;
+    profile: AdminUserProfile | null;
+    capabilities: string[];
+}
+
 export interface AdminUserList {
     ownerId: string | null;
     users: AuthorizedUser[];
@@ -42,6 +51,11 @@ async function json<T>(response: Response): Promise<T> {
         throw new ApiError(response.status, message);
     }
     return response.json() as Promise<T>;
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+    const response = await authedFetch('/api/admin/me');
+    return json<CurrentUser>(response);
 }
 
 export async function listAdminCapabilities(): Promise<AdminCapabilityDef[]> {
