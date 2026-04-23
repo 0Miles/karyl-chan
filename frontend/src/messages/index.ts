@@ -26,3 +26,8 @@ export { twemojiUrl } from './twemoji';
 
 export { default as MessageView } from './MessageView.vue';
 export { default as MessageComposer } from './MessageComposer.vue';
+export { default as ChatSidebar, type ChatChannelRecipient, type ChatChannelSummary } from './ChatSidebar.vue';
+export { default as ChatConversation } from './ChatConversation.vue';
+
+export { isContinuation } from './grouping';
+export { useShiftKey, useFileDrop, useFloatingPicker, useAutoFill } from './composables';
