@@ -12,6 +12,7 @@ import {
     type MessageReference
 } from '../messages';
 import { ApiError } from '../api/client';
+import MessageComposerComponent from '../messages/MessageComposer.vue';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../messages/avatar';
 import {
     addReaction,
@@ -45,6 +46,41 @@ const messagesContainer = ref<HTMLDivElement | null>(null);
 const PAGE_SIZE = 10;
 let unsubscribeEvents: (() => void) | null = null;
 const hoveredChannelId = ref<string | null>(null);
+const composerRef = ref<InstanceType<typeof MessageComposerComponent> | null>(null);
+const isDraggingFiles = ref(false);
+let dragCounter = 0;
+
+function isFileDrag(event: DragEvent): boolean {
+    const types = event.dataTransfer?.types;
+    if (!types) return false;
+    for (let i = 0; i < types.length; i++) {
+        if (types[i] === 'Files') return true;
+    }
+    return false;
+}
+
+function onDragEnter(event: DragEvent) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    dragCounter++;
+    isDraggingFiles.value = true;
+}
+function onDragOver(event: DragEvent) {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+}
+function onDragLeave() {
+    dragCounter = Math.max(0, dragCounter - 1);
+    if (dragCounter === 0) isDraggingFiles.value = false;
+}
+function onDrop(event: DragEvent) {
+    event.preventDefault();
+    dragCounter = 0;
+    isDraggingFiles.value = false;
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    composerRef.value?.addFiles(Array.from(files));
+}
 
 function rowAvatarSrc(channel: DmChannelSummary): string | null {
     const url = channel.recipient.avatarUrl;
@@ -347,7 +383,16 @@ function formatTimestamp(iso: string | null): string {
                 </li>
             </ul>
         </aside>
-        <div class="conversation">
+        <div
+            class="conversation"
+            @dragenter="onDragEnter"
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
+            @drop="onDrop"
+        >
+            <div v-if="isDraggingFiles" class="drop-overlay">
+                <div class="drop-banner">Drop files to attach</div>
+            </div>
             <header v-if="selectedChannel" class="conv-header">
                 <span class="title">{{ selectedChannel.recipient.globalName ?? selectedChannel.recipient.username }}</span>
                 <span class="user-id">{{ selectedChannel.recipient.id }}</span>
@@ -371,6 +416,7 @@ function formatTimestamp(iso: string | null): string {
             </div>
             <footer v-if="selectedChannel" class="composer-row">
                 <MessageComposer
+                    ref="composerRef"
                     :reply-to="replyTo"
                     :disabled="sending"
                     @send="onSend"
@@ -509,6 +555,27 @@ function formatTimestamp(iso: string | null): string {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+}
+.drop-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(88, 101, 242, 0.18);
+    border: 2px dashed var(--accent);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    pointer-events: none;
+}
+.drop-banner {
+    background: var(--bg-surface);
+    color: var(--text-strong);
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 .conv-header {
     padding: 0.6rem 1rem;

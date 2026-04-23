@@ -97,9 +97,35 @@ function onAttach(event: Event) {
     target.value = '';
 }
 
+const previewUrls = new WeakMap<File, string>();
+function attachmentPreview(file: File): string | null {
+    if (!file.type.startsWith('image/')) return null;
+    let url = previewUrls.get(file);
+    if (!url) {
+        url = URL.createObjectURL(file);
+        previewUrls.set(file, url);
+    }
+    return url;
+}
+
+function revokePreview(file: File) {
+    const url = previewUrls.get(file);
+    if (url) URL.revokeObjectURL(url);
+    previewUrls.delete(file);
+}
+
 function removeAttachment(idx: number) {
+    const file = attachments.value[idx];
+    if (file) revokePreview(file);
     attachments.value = attachments.value.filter((_, i) => i !== idx);
 }
+
+function addFiles(files: File[]) {
+    if (files.length === 0) return;
+    attachments.value = [...attachments.value, ...files];
+}
+
+defineExpose({ addFiles });
 
 function send() {
     const text = content.value.trim();
@@ -111,6 +137,7 @@ function send() {
         reference: props.replyTo ?? null
     });
     content.value = '';
+    for (const file of attachments.value) revokePreview(file);
     attachments.value = [];
     pendingStickers.value = [];
 }
@@ -167,8 +194,9 @@ function stickerPreview(sticker: StickerRecent): string {
             <button type="button" class="link" @click="$emit('cancel-reply')">Cancel</button>
         </div>
         <div v-if="attachments.length || pendingStickers.length" class="attachments">
-            <div v-for="(file, idx) in attachments" :key="'f' + idx" class="chip">
-                <span>{{ file.name }}</span>
+            <div v-for="(file, idx) in attachments" :key="'f' + idx" :class="['chip', { 'image-chip': attachmentPreview(file) }]">
+                <img v-if="attachmentPreview(file)" :src="attachmentPreview(file) ?? ''" :alt="file.name" class="chip-thumb" />
+                <span class="chip-name">{{ file.name }}</span>
                 <button type="button" @click="removeAttachment(idx)">×</button>
             </div>
             <div v-for="(sticker, idx) in pendingStickers" :key="'s' + sticker.id" class="chip sticker-chip">
@@ -243,6 +271,21 @@ function stickerPreview(sticker: StickerRecent): string {
     width: 20px;
     height: 20px;
     object-fit: contain;
+}
+.chip-thumb {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 3px;
+}
+.image-chip {
+    padding: 3px 6px 3px 3px;
+}
+.chip-name {
+    max-width: 14ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .chip button {
     background: none;
