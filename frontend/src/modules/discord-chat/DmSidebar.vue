@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { animatedAvatarUrl, isAnimatedAvatar } from '../../libs/messages/avatar';
+import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 import type { DmChannelSummary } from '../../api/dm';
 
 defineProps<{

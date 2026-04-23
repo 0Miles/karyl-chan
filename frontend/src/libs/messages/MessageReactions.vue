@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useMessageContext, defaultContext } from './context';
+import { useMessageContext } from './context';
 import { twemojiUrl } from './twemoji';
 import type { MessageReaction } from './types';
 
@@ -14,10 +14,20 @@ const ctx = useMessageContext();
 const items = computed(() =>
     props.reactions.map(r => {
         const isCustom = r.emoji.id !== null;
-        const meta = isCustom
-            ? (ctx.resolveCustomEmoji ?? defaultContext.resolveCustomEmoji)(r.emoji.id!, !!r.emoji.animated, r.emoji.name)
-            : { url: twemojiUrl(r.emoji.name) ?? '', alt: r.emoji.name };
-        return { reaction: r, url: meta.url, alt: meta.alt };
+        let url = '';
+        let alt = r.emoji.name;
+        if (isCustom) {
+            if (ctx.resolveCustomEmoji) {
+                const meta = ctx.resolveCustomEmoji(r.emoji.id!, !!r.emoji.animated, r.emoji.name);
+                url = meta.url; alt = meta.alt;
+            } else if (ctx.mediaProvider?.customEmojiUrl) {
+                url = ctx.mediaProvider.customEmojiUrl({ id: r.emoji.id!, animated: !!r.emoji.animated, name: r.emoji.name });
+                alt = `:${r.emoji.name}:`;
+            }
+        } else {
+            url = twemojiUrl(r.emoji.name) ?? '';
+        }
+        return { reaction: r, url, alt };
     })
 );
 

@@ -20,7 +20,7 @@ export type {
     ResolvedCustomEmoji
 } from './context';
 
-export { MessageContextKey, defaultContext, useMessageContext } from './context';
+export { MessageContextKey, useMessageContext } from './context';
 export { parseMessageContent, type ASTNode } from './markdown';
 export { twemojiUrl } from './twemoji';
 

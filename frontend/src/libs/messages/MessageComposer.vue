@@ -180,10 +180,11 @@ function onPaste(event: ClipboardEvent) {
     attachments.value = [...attachments.value, ...pasted];
 }
 
-import { stickerImageUrl } from './sticker-url';
+import { useMessageContext } from './context';
+const composerCtx = useMessageContext();
 
 function stickerPreview(sticker: StickerRecent): string {
-    return stickerImageUrl(sticker.id, sticker.formatType, 60);
+    return composerCtx.mediaProvider?.stickerUrl({ id: sticker.id, formatType: sticker.formatType }, 60) ?? '';
 }
 </script>
 

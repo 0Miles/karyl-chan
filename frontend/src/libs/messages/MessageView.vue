@@ -7,8 +7,10 @@ import MessageSticker from './MessageSticker.vue';
 import MessageReactions from './MessageReactions.vue';
 import MessageEmbed from './MessageEmbed.vue';
 import { parseMessageContent } from './markdown';
-import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
+import { useMessageContext } from './context';
 import type { Message } from './types';
+
+const ctx = useMessageContext();
 
 const props = defineProps<{
     message: Message;
@@ -32,7 +34,9 @@ const hovered = ref(false);
 const avatarSrc = computed(() => {
     const url = props.message.author.avatarUrl;
     if (!url) return null;
-    if (hovered.value && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
+    if (hovered.value && ctx.mediaProvider?.avatarHoverUrl) {
+        return ctx.mediaProvider.avatarHoverUrl(url) ?? url;
+    }
     return url;
 });
 

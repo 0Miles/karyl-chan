@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useMessageContext } from './context';
-import { stickerImageUrl } from './sticker-url';
 import type { MessageSticker } from './types';
 
 const props = defineProps<{ sticker: MessageSticker }>();
@@ -11,7 +10,7 @@ const containerRef = ref<HTMLDivElement | null>(null);
 let lottieAnim: { destroy: () => void } | null = null;
 
 function imageUrl(): string {
-    return stickerImageUrl(props.sticker.id, props.sticker.formatType);
+    return ctx.mediaProvider?.stickerUrl({ id: props.sticker.id, formatType: props.sticker.formatType }) ?? '';
 }
 
 async function loadLottie() {

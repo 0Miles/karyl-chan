@@ -112,4 +112,10 @@ export interface MediaProvider {
     listEmojis(): Promise<GuildBucket<CustomEmoji>[]>;
     listStickers(): Promise<GuildBucket<GuildSticker>[]>;
     loadLottieSticker(stickerId: string): Promise<unknown | null>;
+    /** URL to render a sticker as a static image (size hint optional). */
+    stickerUrl(sticker: { id: string; formatType: number }, size?: number): string;
+    /** URL to render a custom emoji at the given size. */
+    customEmojiUrl(emoji: { id: string; animated: boolean; name?: string }, size?: number): string;
+    /** When the avatar URL belongs to an animated avatar, return its hover/animated variant. Otherwise null. */
+    avatarHoverUrl?(staticUrl: string): string | null;
 }

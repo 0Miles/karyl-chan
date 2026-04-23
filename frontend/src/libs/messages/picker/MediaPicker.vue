@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useMessageContext } from '../context';
 import type { CustomEmoji, GuildBucket, GuildSticker } from '../types';
-import { stickerImageUrl } from '../sticker-url';
 import {
     pushEmojiRecent,
     pushStickerRecent,
@@ -67,12 +66,12 @@ const activeStickerBucket = computed(() =>
 
 const query = computed(() => search.value.trim().toLowerCase());
 
-function customEmojiUrl(id: string, animated: boolean): string {
-    return `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'webp'}?size=64&quality=lossless`;
+function customEmojiUrl(id: string, animated: boolean, name?: string): string {
+    return ctx.mediaProvider?.customEmojiUrl({ id, animated, name }, 64) ?? '';
 }
 
 function stickerPreview(sticker: { id: string; formatType: number }): string {
-    return stickerImageUrl(sticker.id, sticker.formatType, 80);
+    return ctx.mediaProvider?.stickerUrl(sticker, 80) ?? '';
 }
 
 const filteredUnicode = computed<UnicodeEntry[]>(() => {

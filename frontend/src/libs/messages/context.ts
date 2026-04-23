@@ -37,13 +37,6 @@ export interface MessageContext {
 
 export const MessageContextKey: InjectionKey<MessageContext> = Symbol('MessageContext');
 
-export const defaultContext: Required<Pick<MessageContext, 'resolveCustomEmoji'>> = {
-    resolveCustomEmoji: (id, animated, name) => ({
-        url: `https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'webp'}?size=44&quality=lossless`,
-        alt: name ? `:${name}:` : ''
-    })
-};
-
 export function useMessageContext(): MessageContext {
     return inject(MessageContextKey, {});
 }

@@ -15,6 +15,8 @@ import {
 } from '../../api/dm';
 import { ApiError, api as botApi } from '../../api/client';
 import { listEmojis, listStickers, loadStickerLottie } from '../../api/discord';
+import { stickerImageUrl } from './sticker-url';
+import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 import {
     MessageContextKey,
     type Message,
@@ -339,7 +341,11 @@ export function useDmInbox() {
         mediaProvider: {
             listEmojis,
             listStickers,
-            loadLottieSticker: loadStickerLottie
+            loadLottieSticker: loadStickerLottie,
+            stickerUrl: (sticker, size) => stickerImageUrl(sticker.id, sticker.formatType, size),
+            customEmojiUrl: (emoji, size = 64) =>
+                `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'webp'}?size=${size}&quality=lossless`,
+            avatarHoverUrl: (url) => isAnimatedAvatar(url) ? animatedAvatarUrl(url) : null
         }
     } as MessageContext;
     provide(MessageContextKey, ctx);

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import MentionChip from './MentionChip.vue';
-import { defaultContext, useMessageContext, type MessageContext } from './context';
+import { useMessageContext, type MessageContext } from './context';
 import { twemojiUrl } from './twemoji';
 import type { ASTNode } from './markdown';
 
@@ -102,9 +102,19 @@ function renderNode(node: ASTNode, ctx: MessageContext): Renderable {
         case 'timestamp':
             return renderTimestamp(String(node.timestamp ?? ''), node.format ? String(node.format) : undefined);
         case 'emoji': {
-            const resolver = ctx.resolveCustomEmoji ?? defaultContext.resolveCustomEmoji;
-            const meta = resolver(String(node.id), !!node.animated, String(node.name ?? ''));
-            return h('img', { src: meta.url, alt: meta.alt, class: 'custom-emoji', loading: 'lazy' });
+            const id = String(node.id);
+            const name = String(node.name ?? '');
+            const animated = !!node.animated;
+            let url = '';
+            let alt = `:${name}:`;
+            if (ctx.resolveCustomEmoji) {
+                const meta = ctx.resolveCustomEmoji(id, animated, name);
+                url = meta.url; alt = meta.alt;
+            } else if (ctx.mediaProvider?.customEmojiUrl) {
+                url = ctx.mediaProvider.customEmojiUrl({ id, animated, name }, 44);
+            }
+            if (!url) return alt;
+            return h('img', { src: url, alt, class: 'custom-emoji', loading: 'lazy' });
         }
         case 'twemoji': {
             const url = twemojiUrl(String(node.name ?? ''));
