@@ -16,7 +16,8 @@ export const bot = new Client({
         IntentsBitField.Flags.GuildMessages,
         IntentsBitField.Flags.GuildMessageReactions,
         IntentsBitField.Flags.GuildVoiceStates,
-        IntentsBitField.Flags.MessageContent
+        IntentsBitField.Flags.MessageContent,
+        IntentsBitField.Flags.DirectMessages
     ],
     partials: [
         Partials.Message,
@@ -30,6 +31,20 @@ export const bot = new Client({
 bot.once('ready', async () => {
     await bot.guilds.fetch();
     await bot.initApplicationCommands();
+
+    // Pre-cache the owner's DM channel. discord.js silently drops
+    // MESSAGE_CREATE events for DM channels that aren't already cached
+    // (createChannel can't infer DM type from a message-shaped payload),
+    // so without this the owner-login-dm handler never fires.
+    const ownerId = process.env.BOT_OWNER_ID?.trim();
+    if (ownerId) {
+        try {
+            const owner = await bot.users.fetch(ownerId);
+            await owner.createDM();
+        } catch (err) {
+            console.error('Failed to cache owner DM channel:', err);
+        }
+    }
 
     console.log('Bot started');
 });
