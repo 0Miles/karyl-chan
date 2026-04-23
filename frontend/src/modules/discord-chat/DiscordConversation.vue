@@ -487,7 +487,6 @@ const replyToProp = computed(() => props.replyTo);
     color: var(--danger);
 }
 .composer-row {
-    border-top: 1px solid var(--border);
     padding: 0.5rem 0.75rem;
 }
 .muted { color: var(--text-muted); font-size: 0.9rem; }

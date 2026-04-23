@@ -353,7 +353,12 @@ onMounted(() => {
                 @blur="cancelSuggestions"
             />
             <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
-            <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
+            <button type="button" class="icon-button" :disabled="disabled" @click="send" title="Send" aria-label="Send">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+            </button>
         </div>
         <MediaPickerPopover
             v-if="!isMobile"
@@ -376,10 +381,9 @@ onMounted(() => {
 .composer {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.4rem 0.5rem;
-    background: var(--bg-surface);
+    background: var(--bg-surface-2);
     color: var(--text);
     position: relative;
 }
@@ -446,16 +450,17 @@ onMounted(() => {
 }
 .icon-button {
     background: none;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 4px;
     width: 32px;
     height: 32px;
     cursor: pointer;
     flex-shrink: 0;
     color: var(--text);
+    transition: background-color 0.2s;
 }
 .icon-button:hover:not(:disabled) {
-    background: var(--bg-surface-2);
+    background: var(--bg-surface-hover);
 }
 .editor {
     flex: 1;
@@ -463,9 +468,9 @@ onMounted(() => {
     max-height: 160px;
     overflow-y: auto;
     padding: 0.4rem 0.5rem;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 4px;
-    background: var(--bg-surface);
+    background: transparent;
     color: var(--text);
     font: inherit;
     line-height: 1.4;
@@ -502,17 +507,6 @@ onMounted(() => {
     width: auto;
     vertical-align: -0.25em;
 }
-.send {
-    padding: 0 0.9rem;
-    height: 32px;
-    border: 1px solid var(--accent);
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border-radius: 4px;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.send:disabled,
 .icon-button:disabled {
     opacity: 0.5;
     cursor: default;
