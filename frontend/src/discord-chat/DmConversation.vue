@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import MessageView from './MessageView.vue';
-import MessageComposer from './MessageComposer.vue';
-import MediaPicker, { type MediaSelection } from './picker/MediaPicker.vue';
-import { isContinuation } from './grouping';
-import { useFileDrop, useFloatingPicker, useShiftKey } from './composables';
-import type { Message, MessageReference, OutgoingMessage } from './types';
-import type { ChatChannelSummary } from './ChatSidebar.vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import MessageView from '../messages/MessageView.vue';
+import MessageComposer from '../messages/MessageComposer.vue';
+import MediaPicker, { type MediaSelection } from '../messages/picker/MediaPicker.vue';
+import { isContinuation } from '../messages/grouping';
+import { useFileDrop } from '../composables/use-file-drop';
+import { useFloatingPicker } from '../composables/use-floating-picker';
+import { useShiftKey } from '../composables/use-shift-key';
+import type { Message, MessageReference, OutgoingMessage } from '../messages/types';
+import type { DmChannelSummary } from '../api/dm';
 
 const props = defineProps<{
-    channel: ChatChannelSummary | null;
+    channel: DmChannelSummary | null;
     messages: Message[];
     botUserId: string | null;
     hasMore: boolean;
@@ -32,7 +34,6 @@ const emit = defineEmits<{
     (e: 'load-older'): void;
     (e: 'react', messageId: string, selection: MediaSelection): void;
     (e: 'add-files', files: File[]): void;
-    (e: 'scroll-rendered'): void;
 }>();
 
 const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
@@ -65,8 +66,6 @@ function onMessagesScroll() {
     if (reactPicker.openId.value) reactPicker.close();
 }
 
-const groupedMessages = computed(() => props.messages);
-
 watch(() => props.channel?.id, () => {
     reactPicker.close();
 });
@@ -75,7 +74,12 @@ onMounted(() => {
     scrollToBottom();
 });
 
-defineExpose({ scrollToBottom, isNearBottom, addFiles: (files: File[]) => composerRef.value?.addFiles(files), messagesContainer });
+defineExpose({
+    scrollToBottom,
+    isNearBottom,
+    addFiles: (files: File[]) => composerRef.value?.addFiles(files),
+    messagesContainer
+});
 
 function onReactPicked(selection: MediaSelection) {
     if (!reactPicker.openId.value) return;
@@ -89,11 +93,6 @@ function startReact(messageId: string, event: MouseEvent) {
 }
 
 const replyToProp = computed(() => props.replyTo);
-
-async function maintainScrollAfterPaging(action: () => Promise<void> | void) {
-    void action;
-}
-void maintainScrollAfterPaging;
 </script>
 
 <template>
@@ -119,7 +118,7 @@ void maintainScrollAfterPaging;
             <p v-if="loadingOlder" class="muted center small">Loading older…</p>
             <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
             <div
-                v-for="(message, idx) in groupedMessages"
+                v-for="(message, idx) in messages"
                 :key="message.id"
                 :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
             >
@@ -215,15 +214,8 @@ void maintainScrollAfterPaging;
     font-size: 0.8rem;
     font-family: ui-monospace, SFMono-Regular, monospace;
 }
-.error {
-    color: var(--danger);
-    margin: 0.5rem 1rem;
-}
-.messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.5rem 0;
-}
+.error { color: var(--danger); margin: 0.5rem 1rem; }
+.messages { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
 .center { text-align: center; margin: 2rem 0; }
 .small { font-size: 0.8rem; margin: 0.5rem 0; }
 .message-wrap { position: relative; }

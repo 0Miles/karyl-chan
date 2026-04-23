@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import ChatSidebar from '../messages/ChatSidebar.vue';
-import ChatConversation from '../messages/ChatConversation.vue';
+import DmSidebar from './DmSidebar.vue';
+import DmConversation from './DmConversation.vue';
 import { useDmInbox } from './useDmInbox';
 
 const inbox = useDmInbox();
-const conversationRef = ref<InstanceType<typeof ChatConversation> | null>(null);
+const conversationRef = ref<InstanceType<typeof DmConversation> | null>(null);
 
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
@@ -18,7 +18,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
 
 <template>
     <section class="dm-page">
-        <ChatSidebar
+        <DmSidebar
             title="DMs"
             :channels="inbox.channels.value"
             :selected-id="inbox.selectedChannelId.value"
@@ -31,7 +31,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @submit-start="inbox.startNewDm"
             @update:newRecipientId="(v: string) => (inbox.newRecipientId.value = v)"
         />
-        <ChatConversation
+        <DmConversation
             ref="conversationRef"
             :channel="inbox.selectedChannel.value"
             :messages="inbox.messages.value"

@@ -1,24 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
-
-export interface ChatChannelRecipient {
-    id: string;
-    username: string;
-    globalName: string | null;
-    avatarUrl: string | null;
-}
-
-export interface ChatChannelSummary {
-    id: string;
-    recipient: ChatChannelRecipient;
-    lastMessageAt: string | null;
-    lastMessagePreview: string | null;
-}
+import { animatedAvatarUrl, isAnimatedAvatar } from '../messages/avatar';
+import type { DmChannelSummary } from '../api/dm';
 
 defineProps<{
     title?: string;
-    channels: ChatChannelSummary[];
+    channels: DmChannelSummary[];
     selectedId: string | null;
     loading?: boolean;
     showStartForm?: boolean;
@@ -35,7 +22,7 @@ const emit = defineEmits<{
 
 const hoveredChannelId = ref<string | null>(null);
 
-function rowAvatarSrc(channel: ChatChannelSummary): string | null {
+function rowAvatarSrc(channel: DmChannelSummary): string | null {
     const url = channel.recipient.avatarUrl;
     if (!url) return null;
     if (hoveredChannelId.value === channel.id && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
@@ -57,7 +44,7 @@ function formatTimestamp(iso: string | null): string {
 <template>
     <aside class="sidebar">
         <header class="sidebar-header">
-            <h2>{{ title ?? 'Chats' }}</h2>
+            <h2>{{ title ?? 'DMs' }}</h2>
             <button type="button" class="ghost" @click="emit('toggle-start')">+</button>
         </header>
         <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
@@ -69,7 +56,7 @@ function formatTimestamp(iso: string | null): string {
             <button type="submit" :disabled="!newRecipientId?.trim()">Start</button>
         </form>
         <p v-if="loading && channels.length === 0" class="muted">Loading…</p>
-        <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? 'No chats yet.' }}</p>
+        <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? 'No DMs yet.' }}</p>
         <ul class="channel-list">
             <li
                 v-for="channel in channels"
@@ -120,9 +107,7 @@ function formatTimestamp(iso: string | null): string {
     cursor: pointer;
     color: var(--text);
 }
-.ghost:hover {
-    background: var(--bg-surface-2);
-}
+.ghost:hover { background: var(--bg-surface-2); }
 .start-form {
     display: flex;
     gap: 0.25rem;
