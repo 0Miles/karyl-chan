@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useMessageContext } from '../context';
 import type { CustomEmoji, GuildBucket, GuildSticker } from '../types';
 import EmojiGrid, { type EmojiCell } from './EmojiGrid.vue';
@@ -20,7 +20,20 @@ export type MediaSelection =
     | { type: 'custom'; id: string; name: string; animated: boolean }
     | { type: 'sticker'; id: string; name: string; formatType: number };
 
-const emit = defineEmits<{ (e: 'select', selection: MediaSelection): void }>();
+const emit = defineEmits<{
+    (e: 'select', selection: MediaSelection): void;
+    (e: 'close'): void;
+}>();
+
+const pendingRecents: Array<() => void> = [];
+
+function flushRecents() {
+    for (const fn of pendingRecents) fn();
+    pendingRecents.length = 0;
+}
+
+onBeforeUnmount(flushRecents);
+defineExpose({ flushRecents });
 
 interface UnicodeEntry {
     id: string;
@@ -171,28 +184,28 @@ const activeStickerCells = computed<StickerCell[]>(() => {
     return bucket ? stickerCells(bucket.items) : [];
 });
 
-function pickEmoji(key: string) {
+function pickEmoji(key: string, event?: MouseEvent) {
     if (key.startsWith('u:')) {
         const value = key.slice(2);
-        pushEmojiRecent({ kind: 'unicode', value });
+        pendingRecents.push(() => pushEmojiRecent({ kind: 'unicode', value }));
         emit('select', { type: 'unicode', value });
-        return;
-    }
-    if (key.startsWith('c:')) {
+    } else if (key.startsWith('c:')) {
         const id = key.slice(2);
         const found = findCustomEmoji(id);
         if (!found) return;
-        pushEmojiRecent({ kind: 'custom', id: found.id, name: found.name, animated: found.animated });
+        pendingRecents.push(() => pushEmojiRecent({ kind: 'custom', id: found.id, name: found.name, animated: found.animated }));
         emit('select', { type: 'custom', id: found.id, name: found.name, animated: found.animated });
-    }
+    } else { return; }
+    if (!event?.shiftKey) emit('close');
 }
 
-function pickSticker(id: string) {
+function pickSticker(id: string, event?: MouseEvent) {
     const found = findSticker(id);
     if (!found) return;
     const entry: StickerRecent = { id: found.id, name: found.name, formatType: found.formatType };
-    pushStickerRecent(entry);
+    pendingRecents.push(() => pushStickerRecent(entry));
     emit('select', { type: 'sticker', ...entry });
+    if (!event?.shiftKey) emit('close');
 }
 
 function findCustomEmoji(id: string): { id: string; name: string; animated: boolean } | null {

@@ -12,7 +12,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'pick', key: string): void;
+    (e: 'pick', key: string, event: MouseEvent): void;
 }>();
 </script>
 
@@ -24,7 +24,7 @@ const emit = defineEmits<{
             type="button"
             class="cell"
             :title="cell.title"
-            @click="emit('pick', cell.key)"
+            @click="emit('pick', cell.key, $event)"
         >
             <img v-if="cell.imageUrl" :src="cell.imageUrl" :alt="cell.title" class="emoji" />
             <span v-else class="unicode">{{ cell.glyph }}</span>

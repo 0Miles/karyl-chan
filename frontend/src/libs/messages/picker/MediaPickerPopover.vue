@@ -4,6 +4,8 @@ import { usePopover, type Placement } from '../../../composables/use-popover';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import MediaPicker, { type MediaSelection } from './MediaPicker.vue';
 
+type MediaPickerInstance = InstanceType<typeof MediaPicker>;
+
 const props = defineProps<{
     /** The element the popover anchors to (typically a `<button>` ref). */
     referenceEl: HTMLElement | null;
@@ -23,16 +25,25 @@ const { isMobile } = useBreakpoint();
 
 const contentEl = ref<HTMLElement | null>(null);
 const referenceRef = computed(() => props.referenceEl);
+const desktopPickerRef = ref<MediaPickerInstance | null>(null);
+const mobilePickerRef = ref<MediaPickerInstance | null>(null);
 
 // Desktop popover visibility: on mobile we suppress it so usePopover never
 // positions the element, and the drawer takes over instead.
 const popoverVisible = ref(false);
 watch(() => props.visible, (v) => { popoverVisible.value = isMobile.value ? false : v; });
 watch(isMobile, (mobile) => { if (mobile) popoverVisible.value = false; });
-watch(popoverVisible, (v) => { if (v !== props.visible) emit('update:visible', v); });
+watch(popoverVisible, (v) => {
+    if (!v) desktopPickerRef.value?.flushRecents();
+    if (v !== props.visible) emit('update:visible', v);
+});
 
 // Mobile drawer visibility.
 const drawerVisible = computed(() => isMobile.value && props.visible);
+
+function handlePickerClose() {
+    emit('update:visible', false);
+}
 
 usePopover(referenceRef, contentEl, {
     placement: props.placement ?? 'top-end',
@@ -48,7 +59,12 @@ usePopover(referenceRef, contentEl, {
 <template>
     <!-- Desktop: standard popover managed by usePopover. -->
     <div ref="contentEl" class="media-picker-popover" style="display: none">
-        <MediaPicker v-if="!isMobile" @select="(s) => emit('select', s)" />
+        <MediaPicker
+            v-if="!isMobile"
+            ref="desktopPickerRef"
+            @select="(s) => emit('select', s)"
+            @close="handlePickerClose"
+        />
     </div>
 
     <!-- Mobile: full-width bottom drawer. Teleported to body so it never
@@ -68,8 +84,11 @@ usePopover(referenceRef, contentEl, {
                 role="dialog"
                 aria-modal="true"
             >
-                <div class="drawer-handle" aria-hidden="true" />
-                <MediaPicker @select="(s) => emit('select', s)" />
+                <MediaPicker
+                    ref="mobilePickerRef"
+                    @select="(s) => emit('select', s)"
+                    @close="handlePickerClose"
+                />
             </div>
         </Transition>
     </Teleport>
@@ -99,15 +118,6 @@ usePopover(referenceRef, contentEl, {
     flex-direction: column;
     overflow: hidden;
 }
-.drawer-handle {
-    width: 36px;
-    height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    margin: 10px auto 4px;
-    flex-shrink: 0;
-}
-
 /* Backdrop fade */
 .picker-fade-enter-active,
 .picker-fade-leave-active { transition: opacity 0.2s; }
