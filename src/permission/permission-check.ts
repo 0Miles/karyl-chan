@@ -1,6 +1,6 @@
 import { CommandInteraction, GuildMember } from 'discord.js';
 import { FAILED_COLOR } from '../utils/constant.js';
-import { Capability } from './capabilities.js';
+import type { Capability } from './capabilities.js';
 import { hasCapability } from './permission.service.js';
 
 export async function requireCapability(command: CommandInteraction, capability: Capability): Promise<boolean> {

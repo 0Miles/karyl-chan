@@ -1,5 +1,5 @@
 import { Message, TextChannel } from 'discord.js';
-import { RconConnection, RconConnectionService } from './rcon-connection.service.js';
+import { RconConnectionService, type RconConnection } from './rcon-connection.service.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
 import { FAILED_COLOR } from '../utils/constant.js';
 

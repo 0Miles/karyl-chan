@@ -1,7 +1,7 @@
 import { ApplicationCommandOptionType, CommandInteraction, GuildMember, Role } from 'discord.js';
 import { Discord, Slash, SlashChoice, SlashGroup, SlashOption } from 'discordx';
 import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
-import { CAPABILITIES, CAPABILITY_KEYS, Capability, EVERYONE_DEFAULTS } from '../permission/capabilities.js';
+import { CAPABILITIES, CAPABILITY_KEYS, EVERYONE_DEFAULTS, type Capability } from '../permission/capabilities.js';
 import { grantCapability, isOwnerOrAdmin, listGrants, revokeCapability } from '../permission/permission.service.js';
 
 const CAPABILITY_CHOICES = CAPABILITY_KEYS.map(name => ({ name, value: name }));

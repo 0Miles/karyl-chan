@@ -1,6 +1,6 @@
 import { Guild, GuildMember, PermissionsBitField } from 'discord.js';
 import { CapabilityGrant } from '../models/capability-grant.model.js';
-import { Capability, EVERYONE_DEFAULTS } from './capabilities.js';
+import { EVERYONE_DEFAULTS, type Capability } from './capabilities.js';
 
 export function isOwnerOrAdmin(guild: Guild, member: GuildMember): boolean {
     if (member.id === guild.ownerId) return true;
