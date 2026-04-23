@@ -1,4 +1,5 @@
 import { inject, type InjectionKey } from 'vue';
+import type { ComposerTokenCodec } from './composer-editor';
 import type { ComposerSuggestionProvider, MediaProvider, MessageEmoji } from './types';
 
 export interface ResolvedUser {
@@ -35,6 +36,8 @@ export interface MessageContext {
     mediaProvider?: MediaProvider;
     /** Providers consulted by the MessageComposer when the user types a trigger char. */
     suggestionProviders?: ComposerSuggestionProvider[];
+    /** Platform-specific codec that translates between canonical text and chip elements. */
+    composerTokenCodec?: ComposerTokenCodec;
 }
 
 export const MessageContextKey: InjectionKey<MessageContext> = Symbol('MessageContext');

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
 import {
     DiscordConversation,
+    createDiscordComposerTokenCodec,
     createDiscordMediaProvider,
     useDiscordChat,
     type ChannelMessageEvent
@@ -142,6 +143,7 @@ const ctx: MessageContext = {
         }
     ]
 } as MessageContext;
+ctx.composerTokenCodec = createDiscordComposerTokenCodec(ctx);
 provide(MessageContextKey, ctx);
 
 async function refreshChannels(autoSelect = true) {

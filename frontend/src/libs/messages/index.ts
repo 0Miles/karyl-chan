@@ -27,6 +27,7 @@ export type {
 } from './context';
 
 export { MessageContextKey, useMessageContext } from './context';
+export type { ComposerTokenCodec } from './composer-editor';
 export { parseMessageContent, type ASTNode } from './markdown';
 export { twemojiUrl } from './twemoji';
 

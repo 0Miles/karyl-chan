@@ -1,12 +1,33 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef } from 'vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
 import type { StickerRecent } from './picker/recents';
 import ComposerSuggestions from './ComposerSuggestions.vue';
 import { findActiveTrigger } from './composer-suggestions';
 import { useMessageContext } from './context';
+import {
+    buildEditorFragment,
+    clearEditor,
+    deleteBackwardChars,
+    focusEditorEnd,
+    getTextBeforeCursor,
+    insertFragmentAtCursor,
+    readEditorText,
+    type ComposerTokenCodec
+} from './composer-editor';
 import type { ComposerSuggestionItem, OutgoingMessage, MessageReference } from './types';
+
+const NOOP_TOKEN_CODEC: ComposerTokenCodec = {
+    tokenRe: /(?!)/g,
+    elementFromMatch: () => document.createElement('span'),
+    textFromElement: () => null,
+    elementForCustomEmoji: (sel) => {
+        const span = document.createElement('span');
+        span.textContent = `:${sel.name}:`;
+        return span;
+    }
+};
 
 const props = defineProps<{
     placeholder?: string;
@@ -24,10 +45,11 @@ const attachments = shallowRef<File[]>([]);
 const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
-const textArea = ref<HTMLTextAreaElement | null>(null);
+const editorRef = ref<HTMLDivElement | null>(null);
 const pickerButton = ref<HTMLButtonElement | null>(null);
 
 const ctx = useMessageContext();
+const codec = ctx.composerTokenCodec ?? NOOP_TOKEN_CODEC;
 
 const triggerChars = computed(() => {
     const set = new Set<string>();
@@ -37,27 +59,37 @@ const triggerChars = computed(() => {
 
 const suggestions = ref<ComposerSuggestionItem[]>([]);
 const activeSuggestionIndex = ref(0);
-const activeTriggerRange = ref<[number, number] | null>(null);
+const activeTrigger = ref<{ char: string; query: string } | null>(null);
 let suggestionRequestId = 0;
 
+function syncContentFromEditor() {
+    const root = editorRef.value;
+    content.value = root ? readEditorText(root, codec) : '';
+}
+
 async function refreshSuggestions() {
-    const ta = textArea.value;
-    if (!ta || triggerChars.value.length === 0) {
+    const root = editorRef.value;
+    if (!root || triggerChars.value.length === 0) {
         suggestions.value = [];
-        activeTriggerRange.value = null;
+        activeTrigger.value = null;
         return;
     }
-    const cursor = ta.selectionStart ?? content.value.length;
-    const trigger = findActiveTrigger(content.value, cursor, triggerChars.value);
+    const slice = getTextBeforeCursor(root);
+    if (!slice) {
+        suggestions.value = [];
+        activeTrigger.value = null;
+        return;
+    }
+    const trigger = findActiveTrigger(slice.text, slice.cursor, triggerChars.value);
     if (!trigger) {
         suggestions.value = [];
-        activeTriggerRange.value = null;
+        activeTrigger.value = null;
         return;
     }
     const provider = ctx.suggestionProviders?.find(p => p.triggers.includes(trigger.char));
     if (!provider) {
         suggestions.value = [];
-        activeTriggerRange.value = null;
+        activeTrigger.value = null;
         return;
     }
     const id = ++suggestionRequestId;
@@ -65,41 +97,35 @@ async function refreshSuggestions() {
     if (id !== suggestionRequestId) return;
     suggestions.value = result;
     activeSuggestionIndex.value = 0;
-    activeTriggerRange.value = result.length > 0 ? trigger.range : null;
+    activeTrigger.value = result.length > 0 ? { char: trigger.char, query: trigger.query } : null;
 }
 
 function applySuggestion(key: string) {
-    const range = activeTriggerRange.value;
-    if (!range) return;
+    const root = editorRef.value;
+    const trigger = activeTrigger.value;
+    if (!root || !trigger) return;
     const item = suggestions.value.find(s => s.key === key);
     if (!item) return;
-    const before = content.value.slice(0, range[0]);
-    const after = content.value.slice(range[1]);
-    const inserted = item.insert + ' ';
-    content.value = before + inserted + after;
+    deleteBackwardChars(trigger.query.length + 1);
+    const frag = buildEditorFragment(item.insert, codec);
+    frag.appendChild(document.createTextNode(' '));
+    insertFragmentAtCursor(root, frag);
     suggestions.value = [];
-    activeTriggerRange.value = null;
-    requestAnimationFrame(() => {
-        const ta = textArea.value;
-        if (!ta) return;
-        const pos = before.length + inserted.length;
-        ta.selectionStart = ta.selectionEnd = pos;
-        ta.focus();
-    });
+    activeTrigger.value = null;
+    syncContentFromEditor();
 }
 
 function cancelSuggestions() {
     suggestions.value = [];
-    activeTriggerRange.value = null;
+    activeTrigger.value = null;
 }
 
 const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 
 function onMediaSelect(selection: MediaSelection) {
+    const root = editorRef.value;
     if (selection.type === 'sticker') {
         if (stickerLimitReached.value) return;
-        // If the operator hasn't typed or attached anything yet, send the
-        // sticker on its own immediately (Discord's behaviour).
         if (!content.value.trim() && attachments.value.length === 0 && pendingStickers.value.length === 0) {
             emit('send', {
                 content: '',
@@ -116,29 +142,24 @@ function onMediaSelect(selection: MediaSelection) {
         }];
         return;
     }
-    const text = selection.type === 'unicode'
-        ? selection.value
-        : `<${selection.animated ? 'a' : ''}:${selection.name}:${selection.id}>`;
-    insertAtCursor(text);
-    textArea.value?.focus();
+    if (!root) return;
+    if (!root.contains(window.getSelection()?.anchorNode ?? null)) {
+        focusEditorEnd(root);
+    } else {
+        root.focus();
+    }
+    const frag = document.createDocumentFragment();
+    if (selection.type === 'unicode') {
+        frag.appendChild(document.createTextNode(selection.value));
+    } else {
+        frag.appendChild(codec.elementForCustomEmoji(selection));
+    }
+    insertFragmentAtCursor(root, frag);
+    syncContentFromEditor();
 }
 
 function removeSticker(idx: number) {
     pendingStickers.value = pendingStickers.value.filter((_, i) => i !== idx);
-}
-
-function insertAtCursor(text: string) {
-    const ta = textArea.value;
-    if (!ta) {
-        content.value += text;
-        return;
-    }
-    const start = ta.selectionStart ?? content.value.length;
-    const end = ta.selectionEnd ?? content.value.length;
-    content.value = content.value.slice(0, start) + text + content.value.slice(end);
-    requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + text.length;
-    });
 }
 
 function onAttach(event: Event) {
@@ -187,7 +208,9 @@ function send() {
         stickerIds: pendingStickers.value.length ? pendingStickers.value.map(s => s.id) : undefined,
         reference: props.replyTo ?? null
     });
+    if (editorRef.value) clearEditor(editorRef.value);
     content.value = '';
+    cancelSuggestions();
     for (const file of attachments.value) revokePreview(file);
     attachments.value = [];
     pendingStickers.value = [];
@@ -221,6 +244,8 @@ function onKeydown(event: KeyboardEvent) {
         event.preventDefault();
         send();
     }
+    // Shift+Enter falls through to the browser default, which inserts a <br>
+    // that readEditorText already converts back to '\n'.
 }
 
 function namedClipboardFile(file: File): File {
@@ -249,14 +274,36 @@ function onPaste(event: ClipboardEvent) {
             pasted.push(namedClipboardFile(blob));
         }
     }
-    if (pasted.length === 0) return;
+    if (pasted.length > 0) {
+        event.preventDefault();
+        attachments.value = [...attachments.value, ...pasted];
+        return;
+    }
+    // Plain text paste — strip formatting and let buildEditorFragment turn any
+    // raw `<@id>`/`<:name:id>` tokens into chips.
+    const text = cd.getData('text/plain');
+    if (!text) return;
     event.preventDefault();
-    attachments.value = [...attachments.value, ...pasted];
+    const root = editorRef.value;
+    if (!root) return;
+    insertFragmentAtCursor(root, buildEditorFragment(text, codec));
+    syncContentFromEditor();
+    refreshSuggestions();
 }
 
 function stickerPreview(sticker: StickerRecent): string {
     return ctx.mediaProvider?.stickerUrl({ id: sticker.id, formatType: sticker.formatType }, 60) ?? '';
 }
+
+function onEditorInput() {
+    syncContentFromEditor();
+    refreshSuggestions();
+}
+
+onMounted(() => {
+    // Ensure the editor stays a single block; no initial content needed.
+    syncContentFromEditor();
+});
 </script>
 
 <template>
@@ -288,15 +335,16 @@ function stickerPreview(sticker: StickerRecent): string {
         <div class="input-row">
             <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">+</button>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
-            <textarea
-                ref="textArea"
-                v-model="content"
-                :placeholder="placeholder ?? 'Message…'"
-                :disabled="disabled"
-                rows="1"
-                class="textarea"
+            <div
+                ref="editorRef"
+                :class="['editor', { disabled }]"
+                contenteditable="true"
+                role="textbox"
+                aria-multiline="true"
+                :data-placeholder="placeholder ?? 'Message…'"
+                :aria-disabled="disabled || undefined"
                 @keydown="onKeydown"
-                @input="refreshSuggestions"
+                @input="onEditorInput"
                 @click="refreshSuggestions"
                 @keyup="refreshSuggestions"
                 @blur="cancelSuggestions"
@@ -399,17 +447,50 @@ function stickerPreview(sticker: StickerRecent): string {
 .icon-button:hover:not(:disabled) {
     background: var(--bg-surface-2);
 }
-.textarea {
+.editor {
     flex: 1;
-    resize: vertical;
     min-height: 32px;
     max-height: 160px;
+    overflow-y: auto;
     padding: 0.4rem 0.5rem;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    outline: none;
+    cursor: text;
+}
+.editor.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+.editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.editor :deep(.composer-token) {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: baseline;
+    user-select: all;
+    -webkit-user-select: all;
+}
+.editor :deep(.composer-mention) {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
+    padding: 0 4px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+.editor :deep(.composer-emoji img) {
+    height: 1.4em;
+    width: auto;
+    vertical-align: -0.25em;
 }
 .send {
     padding: 0 0.9rem;
