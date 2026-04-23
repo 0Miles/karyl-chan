@@ -22,11 +22,7 @@ export class OwnerLoginDmEvents {
 
             const ownerId = process.env.BOT_OWNER_ID?.trim();
             if (!ownerId) return;
-            if (message.author.id !== ownerId) {
-                await message.reply('Only the bot owner can request a login link.');
-                return;
-            }
-
+            if (message.author.id !== ownerId) return;
             if (!LOGIN_KEYWORD.test(message.content.trim())) return;
 
             const { token, expiresAt } = authStore.createOneTimeToken(ownerId);
