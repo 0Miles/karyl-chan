@@ -102,6 +102,24 @@ function onKeydown(event: KeyboardEvent) {
     }
 }
 
+function onPaste(event: ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    const pasted: File[] = [];
+    for (const item of items) {
+        if (item.kind !== 'file') continue;
+        const blob = item.getAsFile();
+        if (!blob || !blob.type.startsWith('image/')) continue;
+        const ext = blob.type.split('/')[1] || 'png';
+        const fallback = `pasted-${Date.now()}.${ext}`;
+        const filename = blob.name && blob.name !== 'image.png' ? blob.name : fallback;
+        pasted.push(new File([blob], filename, { type: blob.type }));
+    }
+    if (pasted.length === 0) return;
+    event.preventDefault();
+    attachments.value = [...attachments.value, ...pasted];
+}
+
 function stickerPreview(id: string): string {
     return `https://cdn.discordapp.com/stickers/${id}.png`;
 }
@@ -135,6 +153,7 @@ function stickerPreview(id: string): string {
                 rows="1"
                 class="textarea"
                 @keydown="onKeydown"
+                @paste="onPaste"
             />
             <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
