@@ -5,8 +5,9 @@ import { existsSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
+import fastifyMultipart from '@fastify/multipart';
 import { registerDmRoutes } from './dm-routes.js';
-import type { DmInboxService } from './dm-inbox.service.js';
+import type { DmInboxStore } from './dm-inbox.service.js';
 
 export interface WebServerOptions {
     port: number;
@@ -18,7 +19,7 @@ export interface CreateWebServerOptions {
     staticRoot?: string;
     bot?: Client;
     authStore?: AuthStore;
-    dmInbox?: DmInboxService;
+    dmInbox?: DmInboxStore;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,10 +52,22 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         if (request.url.startsWith('/api/auth/')) return;
         if (!authEnabled) return;
         const header = request.headers.authorization;
-        const presented = header?.startsWith('Bearer ') ? header.slice(7) : null;
+        let presented: string | null = header?.startsWith('Bearer ') ? header.slice(7) : null;
+        if (!presented) {
+            // EventSource can't set Authorization headers, so /api/dm/events
+            // accepts the access token as a query string fallback.
+            const query = request.query as { access_token?: string } | undefined;
+            if (typeof query?.access_token === 'string' && query.access_token.length > 0) {
+                presented = query.access_token;
+            }
+        }
         if (!presented || !auth.verifyAccessToken(presented)) {
             reply.code(401).send({ error: 'Unauthorized' });
         }
+    });
+
+    await server.register(fastifyMultipart, {
+        limits: { fileSize: 25 * 1024 * 1024, files: 10 }
     });
 
     server.post<{ Body: { token?: unknown } }>('/api/auth/exchange', async (request, reply) => {

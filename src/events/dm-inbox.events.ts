@@ -2,6 +2,7 @@ import type { ArgsOf } from 'discordx';
 import { Discord, On } from 'discordx';
 import { ChannelType, type DMChannel, type Message, type PartialMessage } from 'discord.js';
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
+import { dmEventBus } from '../web/dm-event-bus.js';
 import { toApiMessage } from '../web/message-mapper.js';
 
 function recipientFor(channel: DMChannel): DmRecipient | null {
@@ -24,7 +25,10 @@ export class DmInboxEvents {
             const channel = message.channel as DMChannel;
             const recipient = recipientFor(channel);
             if (!recipient) return;
-            await dmInboxService.recordMessage(channel.id, recipient, toApiMessage(message));
+            const apiMessage = toApiMessage(message);
+            const summary = await dmInboxService.recordActivity(channel.id, recipient, apiMessage);
+            dmEventBus.publish({ type: 'channel-touched', channel: summary });
+            dmEventBus.publish({ type: 'message-created', channelId: channel.id, message: apiMessage });
         } catch (err) {
             console.error('dm-inbox messageCreate failed:', err);
         }
@@ -34,9 +38,15 @@ export class DmInboxEvents {
     async messageUpdate([_oldMessage, newMessage]: ArgsOf<'messageUpdate'>): Promise<void> {
         try {
             if (newMessage.channel.type !== ChannelType.DM) return;
-            const fetched = newMessage.partial ? await (newMessage as PartialMessage).fetch().catch(() => null) : (newMessage as Message);
+            const fetched = newMessage.partial
+                ? await (newMessage as PartialMessage).fetch().catch(() => null)
+                : (newMessage as Message);
             if (!fetched) return;
-            await dmInboxService.updateMessage(fetched.channelId, toApiMessage(fetched));
+            dmEventBus.publish({
+                type: 'message-updated',
+                channelId: fetched.channelId,
+                message: toApiMessage(fetched)
+            });
         } catch (err) {
             console.error('dm-inbox messageUpdate failed:', err);
         }
@@ -46,7 +56,11 @@ export class DmInboxEvents {
     async messageDelete([message]: ArgsOf<'messageDelete'>): Promise<void> {
         try {
             if (message.channel.type !== ChannelType.DM) return;
-            await dmInboxService.removeMessage(message.channelId, message.id);
+            dmEventBus.publish({
+                type: 'message-deleted',
+                channelId: message.channelId,
+                messageId: message.id
+            });
         } catch (err) {
             console.error('dm-inbox messageDelete failed:', err);
         }

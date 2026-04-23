@@ -3,21 +3,18 @@ import type { Client } from 'discordx';
 import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { dmInboxService, type DmInboxStore } from './dm-inbox.service.js';
+import { dmEventBus, type DmEventBus } from './dm-event-bus.js';
 import { toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 
 export interface DmRoutesOptions {
     bot: Client;
     inbox?: DmInboxStore;
+    eventBus?: DmEventBus;
 }
 
 interface ReactionBody {
     emoji?: { id?: string | null; name?: string; animated?: boolean };
-}
-
-interface SendBody {
-    content?: string;
-    replyToMessageId?: string;
 }
 
 interface StartBody {
@@ -44,6 +41,7 @@ async function fetchDmChannel(bot: Client, channelId: string): Promise<DMChannel
 export async function registerDmRoutes(server: FastifyInstance, options: DmRoutesOptions): Promise<void> {
     const { bot } = options;
     const inbox = options.inbox ?? dmInboxService;
+    const events = options.eventBus ?? dmEventBus;
 
     server.get('/api/dm/channels', async () => {
         return { channels: await inbox.listChannels() };
@@ -53,40 +51,73 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
             const { channelId } = request.params;
-            const limit = request.query.limit ? Number(request.query.limit) : undefined;
+            const limit = Math.min(Math.max(Number(request.query.limit ?? 10) || 10, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
+
             const summary = await inbox.getChannel(channelId);
-            if (!summary) {
-                reply.code(404).send({ error: 'Unknown channel' });
-                return;
+            if (!summary) { reply.code(404).send({ error: 'Unknown channel' }); return; }
+
+            const channel = await fetchDmChannel(bot, channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+
+            try {
+                const fetched = await channel.messages.fetch({ limit, before });
+                const messages = [...fetched.values()]
+                    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+                    .map(toApiMessage);
+                return {
+                    channel: summary,
+                    messages,
+                    hasMore: messages.length === limit
+                };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch DM messages');
+                reply.code(502).send({ error: 'Failed to fetch messages' });
             }
-            const messages = await inbox.getMessages(channelId, { limit, before });
-            return {
-                channel: summary,
-                messages,
-                hasMore: messages.length === (limit ?? 10)
-            };
         }
     );
 
-    server.post<{ Params: { channelId: string }; Body: SendBody }>(
+    server.post<{ Params: { channelId: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
             const channel = await fetchDmChannel(bot, request.params.channelId);
-            if (!channel) {
-                reply.code(404).send({ error: 'Unknown DM channel' });
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+
+            let content = '';
+            let replyToMessageId: string | undefined;
+            const files: Array<{ attachment: Buffer; name: string }> = [];
+
+            if (request.isMultipart()) {
+                for await (const part of request.parts()) {
+                    if (part.type === 'file') {
+                        const buffer = await part.toBuffer();
+                        files.push({ attachment: buffer, name: part.filename });
+                    } else if (part.fieldname === 'content') {
+                        content = String(part.value ?? '');
+                    } else if (part.fieldname === 'replyToMessageId') {
+                        const value = String(part.value ?? '').trim();
+                        if (value) replyToMessageId = value;
+                    }
+                }
+            } else {
+                const body = (request.body ?? {}) as { content?: unknown; replyToMessageId?: unknown };
+                content = typeof body.content === 'string' ? body.content : '';
+                if (typeof body.replyToMessageId === 'string' && body.replyToMessageId.length > 0) {
+                    replyToMessageId = body.replyToMessageId;
+                }
+            }
+
+            if (!content.trim() && files.length === 0) {
+                reply.code(400).send({ error: 'content or attachment required' });
                 return;
             }
-            const content = typeof request.body?.content === 'string' ? request.body.content : '';
-            if (!content.trim()) {
-                reply.code(400).send({ error: 'content required' });
-                return;
-            }
+
             try {
                 const sent: DjsMessage = await channel.send({
-                    content,
-                    reply: request.body?.replyToMessageId
-                        ? { messageReference: request.body.replyToMessageId, failIfNotExists: false }
+                    content: content || undefined,
+                    files: files.length > 0 ? files : undefined,
+                    reply: replyToMessageId
+                        ? { messageReference: replyToMessageId, failIfNotExists: false }
                         : undefined
                 });
                 return { message: toApiMessage(sent) };
@@ -99,10 +130,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
 
     server.post<{ Body: StartBody }>('/api/dm/channels', async (request, reply) => {
         const recipientUserId = typeof request.body?.recipientUserId === 'string' ? request.body.recipientUserId : '';
-        if (!recipientUserId) {
-            reply.code(400).send({ error: 'recipientUserId required' });
-            return;
-        }
+        if (!recipientUserId) { reply.code(400).send({ error: 'recipientUserId required' }); return; }
         try {
             const user = await bot.users.fetch(recipientUserId);
             const channel = await user.createDM();
@@ -112,6 +140,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 globalName: user.globalName ?? null,
                 avatarUrl: user.displayAvatarURL({ size: 128 })
             });
+            events.publish({ type: 'channel-touched', channel: summary });
             return { channel: summary };
         } catch (err) {
             request.log.error({ err }, 'failed to start DM');
@@ -131,7 +160,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             try {
                 const message = await channel.messages.fetch(request.params.messageId);
                 await message.react(resolvable);
-                await inbox.updateMessage(channel.id, toApiMessage(message));
+                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(message) });
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to add reaction');
@@ -153,7 +182,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 const message = await channel.messages.fetch(request.params.messageId);
                 const reaction = message.reactions.cache.get(key);
                 if (reaction && bot.user) await reaction.users.remove(bot.user.id);
-                await inbox.updateMessage(channel.id, toApiMessage(message));
+                events.publish({ type: 'message-updated', channelId: channel.id, message: toApiMessage(message) });
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to remove reaction');
@@ -161,4 +190,33 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             }
         }
     );
+
+    server.get('/api/dm/events', async (request, reply) => {
+        reply.raw.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        });
+        reply.raw.write(': connected\n\n');
+
+        const heartbeat = setInterval(() => {
+            try { reply.raw.write(': ping\n\n'); } catch { /* ignore */ }
+        }, 25_000);
+        heartbeat.unref();
+
+        const unsubscribe = events.subscribe(event => {
+            try {
+                reply.raw.write(`event: ${event.type}\n`);
+                reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+            } catch (err) {
+                request.log.error({ err }, 'failed to write SSE event');
+            }
+        });
+
+        request.raw.on('close', () => {
+            clearInterval(heartbeat);
+            unsubscribe();
+        });
+    });
 }
