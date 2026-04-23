@@ -10,6 +10,12 @@ export { createAuthErrorBail, type AuthErrorBailOptions } from './useAuthErrorBa
 export { stickerImageUrl } from './sticker-url';
 export { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 
+// Pinia stores.
+export { useBotStore } from './stores/botStore';
+export { useMessageCacheStore } from './stores/messageCacheStore';
+export { useDmStore } from './stores/dmStore';
+export { useGuildChannelStore } from './stores/guildChannelStore';
+
 // Workspace composables — one per Discord chat surface.
 export { useDiscordDm, type UseDiscordDmOptions } from './useDiscordDm';
 export { useDiscordGuildChannel, type UseDiscordGuildChannelOptions } from './useDiscordGuildChannel';

@@ -1,63 +1,48 @@
-import { computed, onMounted, onUnmounted, provide, ref, watch, type Ref } from 'vue';
+import { computed, onMounted, provide, ref, watch, type Ref } from 'vue';
 import { MessageContextKey } from '../../libs/messages';
-import {
-    addGuildReaction,
-    deleteGuildMessage,
-    editGuildMessage,
-    getGuildMessages,
-    listGuildTextChannels,
-    removeGuildReaction,
-    sendGuildMessage,
-    subscribeGuildEvents,
-    type GuildChannelCategory,
-    type GuildChannelEvent,
-} from '../../api/guilds';
 import { createDiscordMessageContext } from './createMessageContext';
 import { createAuthErrorBail } from './useAuthErrorBail';
-import { useBotIdentity } from './useBotIdentity';
-import { useDiscordChat, type ChannelMessageEvent } from './useDiscordChat';
+import { useDiscordChat } from './useDiscordChat';
+import { useBotStore } from './stores/botStore';
+import { useGuildChannelStore } from './stores/guildChannelStore';
 
 export interface UseDiscordGuildChannelOptions {
     onAuthError?: () => void;
 }
 
 export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDiscordGuildChannelOptions = {}) {
-    const categories = ref<GuildChannelCategory[]>([]);
+    const guildStore = useGuildChannelStore();
+    const botStore = useBotStore();
+
     const selectedChannelId = ref<string | null>(null);
-    const channelsError = ref<string | null>(null);
-    const loadingChannels = ref(false);
 
-    let unsubscribeEvents: (() => void) | null = null;
+    const bailOnAuthError = createAuthErrorBail({ onAuthError: opts.onAuthError });
 
-    const { botUserId, displayName: botDisplayName } = useBotIdentity();
+    const botUserId = computed(() => botStore.userId);
+    const botDisplayName = () => botStore.displayName();
 
-    const bailOnAuthError = createAuthErrorBail({
-        onAuthError: opts.onAuthError,
-        onBail: () => {
-            unsubscribeEvents?.();
-            unsubscribeEvents = null;
-        }
-    });
-
+    const categories = computed(() =>
+        guildId.value ? guildStore.getCategories(guildId.value) : []
+    );
     const channels = computed(() => categories.value.flatMap(c => c.channels));
 
     const chat = useDiscordChat({
         channelId: selectedChannelId,
         botUserId,
         api: {
-            listMessages: (channelId, o) => getGuildMessages(guildId.value!, channelId, o),
+            listMessages: (channelId, o) => guildStore.listMessages(guildId.value!, channelId, o),
             sendMessage: (channelId, content, files, stickerIds, replyToMessageId) =>
-                sendGuildMessage(guildId.value!, channelId, content, files, stickerIds, replyToMessageId),
+                guildStore.sendMessage(guildId.value!, channelId, content, files, stickerIds, replyToMessageId),
             editMessage: (channelId, messageId, content) =>
-                editGuildMessage(guildId.value!, channelId, messageId, content),
+                guildStore.editMessage(guildId.value!, channelId, messageId, content),
             deleteMessage: (channelId, messageId) =>
-                deleteGuildMessage(guildId.value!, channelId, messageId),
+                guildStore.deleteMessage(guildId.value!, channelId, messageId),
             addReaction: (channelId, messageId, emoji) =>
-                addGuildReaction(guildId.value!, channelId, messageId, emoji),
+                guildStore.addReaction(guildId.value!, channelId, messageId, emoji),
             removeReaction: (channelId, messageId, emoji) =>
-                removeGuildReaction(guildId.value!, channelId, messageId, emoji)
+                guildStore.removeReaction(guildId.value!, channelId, messageId, emoji),
         },
-        onError: bailOnAuthError
+        onError: bailOnAuthError,
     });
 
     const selectedChannel = computed(() =>
@@ -84,50 +69,26 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     });
     provide(MessageContextKey, messageContext);
 
-    async function refreshChannels(autoSelect = true) {
-        const id = guildId.value;
-        if (!id) return;
-        loadingChannels.value = true;
+    async function loadGuild(id: string, autoSelect = true) {
         try {
-            categories.value = await listGuildTextChannels(id);
+            await guildStore.ensureChannels(id);
             if (autoSelect && !selectedChannelId.value && channels.value.length > 0) {
                 selectedChannelId.value = channels.value[0].id;
             }
-            channelsError.value = null;
         } catch (err) {
-            if (bailOnAuthError(err)) return;
-            channelsError.value = err instanceof Error ? err.message : 'Failed to load channels';
-        } finally {
-            loadingChannels.value = false;
+            bailOnAuthError(err);
         }
     }
 
-    function applyGuildEvent(event: GuildChannelEvent) {
-        if (event.guildId !== guildId.value) return;
-        if (event.type === 'guild-message-deleted') {
-            chat.applyEvent({ type: 'message-deleted', channelId: event.channelId, messageId: event.messageId } satisfies ChannelMessageEvent);
-            return;
-        }
-        chat.applyEvent({ type: event.type.replace('guild-', '') as ChannelMessageEvent['type'], channelId: event.channelId, message: event.message } as ChannelMessageEvent);
-    }
-
-    watch(guildId, (id) => {
+    watch(guildId, async (id) => {
         selectedChannelId.value = null;
-        categories.value = [];
-        if (id) refreshChannels();
+        if (id) await loadGuild(id);
     });
 
-    onMounted(() => {
-        if (guildId.value) refreshChannels();
-        unsubscribeEvents = subscribeGuildEvents({
-            onEvent: applyGuildEvent,
-            onError: () => { /* EventSource auto-reconnects */ }
-        });
-    });
-
-    onUnmounted(() => {
-        unsubscribeEvents?.();
-        unsubscribeEvents = null;
+    onMounted(async () => {
+        botStore.init();
+        guildStore.startSSE();
+        if (guildId.value) await loadGuild(guildId.value);
     });
 
     return {
@@ -135,12 +96,12 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         channels,
         selectedChannelId,
         selectedChannel,
-        loadingChannels,
-        channelsError,
+        loadingChannels: computed(() => guildId.value ? guildStore.isLoading(guildId.value) : false),
+        channelsError: computed(() => guildId.value ? guildStore.getError(guildId.value) : null),
         botUserId,
         chat,
         send: chat.send,
         reactWithSelection: chat.reactWithSelection,
-        refreshChannels
+        refreshChannels: () => guildId.value ? guildStore.loadChannels(guildId.value) : Promise.resolve(),
     };
 }

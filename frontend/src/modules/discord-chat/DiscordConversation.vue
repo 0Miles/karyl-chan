@@ -38,8 +38,12 @@ const emit = defineEmits<{
     (e: 'add-files', files: File[]): void;
 }>();
 
+const VIRTUAL_THRESHOLD = 64;
+const useVirtual = computed(() => props.messages.length > VIRTUAL_THRESHOLD);
+
 const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
 const scrollerRef = ref<ComponentPublicInstance | null>(null);
+const plainListRef = ref<HTMLDivElement | null>(null);
 const messagesEnd = ref<HTMLDivElement | null>(null);
 const messagesContainer = ref<HTMLElement | null>(null);
 const shiftHeld = useShiftKey();
@@ -59,7 +63,8 @@ const drop = useFileDrop((files) => {
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
 
 function scrollToBottom() {
-    messagesEnd.value?.scrollIntoView({ block: 'end' });
+    const el = messagesContainer.value;
+    if (el) el.scrollTop = el.scrollHeight;
 }
 
 function isNearBottom(): boolean {
@@ -82,8 +87,8 @@ function closeReactPicker() {
 
 watch(() => props.channelId, closeReactPicker);
 
-watch(scrollerRef, (instance, _prev, onCleanup) => {
-    const el = (instance?.$el ?? null) as HTMLElement | null;
+watch([scrollerRef, plainListRef], ([scroller, plain], _prev, onCleanup) => {
+    const el = (scroller ? (scroller.$el as HTMLElement) : plain) ?? null;
     messagesContainer.value = el;
     if (!el) return;
     el.addEventListener('scroll', onMessagesScroll, { passive: true });
@@ -144,6 +149,7 @@ const replyToProp = computed(() => props.replyTo);
         </header>
         <p v-if="error" class="error">{{ error }}</p>
         <DynamicScroller
+            v-if="useVirtual"
             ref="scrollerRef"
             :key="channelId ?? 'empty'"
             class="messages"
@@ -211,6 +217,50 @@ const replyToProp = computed(() => props.replyTo);
                 <p v-else class="muted center">No messages yet.</p>
             </template>
         </DynamicScroller>
+        <div v-else ref="plainListRef" class="messages">
+            <p v-if="loadingOlder" class="muted center small">Loading older…</p>
+            <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
+            <template v-if="messages.length > 0">
+                <div
+                    v-for="(message, idx) in messages"
+                    :key="message.id"
+                    :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
+                >
+                    <MessageView
+                        :message="message"
+                        :compact="isContinuation(messages[idx - 1], message)"
+                        :editing="editingMessageId === message.id"
+                        @submit-edit="(content: string) => emit('submit-edit', message, content)"
+                        @cancel-edit="emit('cancel-edit')"
+                    />
+                    <div class="message-actions">
+                        <button
+                            :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
+                            type="button"
+                            :class="['action', { active: reactingMessageId === message.id }]"
+                            title="React"
+                            @click="startReact(message.id)"
+                        >😊</button>
+                        <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
+                        <template v-if="isOwn(message)">
+                            <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
+                            <button
+                                type="button"
+                                :class="['action', { danger: shiftHeld }]"
+                                :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
+                                @click="emit('delete', message, $event)"
+                            >🗑</button>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <template v-else>
+                <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
+                <p v-else-if="loadingMessages" class="muted center">Loading…</p>
+                <p v-else class="muted center">No messages yet.</p>
+            </template>
+            <div ref="messagesEnd" />
+        </div>
         <MediaPickerPopover
             :reference-el="reactingButton"
             :visible="reactingMessageId !== null"
