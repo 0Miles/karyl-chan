@@ -22,7 +22,7 @@ onMounted(async () => {
         const tokens = await exchangeOneTimeToken(token);
         setTokens(tokens);
         state.value = 'success';
-        router.replace('/');
+        router.replace({ name: 'dashboard' });
     } catch (err) {
         state.value = 'error';
         errorMessage.value = err instanceof ApiError

@@ -25,6 +25,11 @@
         "updated": "Updated {time}",
         "failedToLoad": "Failed to load: {error}"
     },
+    "home": {
+        "title": "Karyl Chan",
+        "lead": "Public surfaces will live here in the future.",
+        "adminLink": "Open the admin panel"
+    },
     "auth": {
         "title": "Sign in",
         "exchanging": "Exchanging login token…",

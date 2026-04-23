@@ -220,7 +220,7 @@ onUnmounted(() => {
                 <h2>{{ $t('dashboard.guilds') }} <span class="count-pill">{{ guilds.length }}</span></h2>
                 <ul class="guild-list">
                     <li v-for="g in guilds" :key="g.id">
-                        <RouterLink :to="`/guilds`" class="guild-row" @click="$event.preventDefault?.()">
+                        <RouterLink :to="`/admin/guilds`" class="guild-row" @click="$event.preventDefault?.()">
                             <img v-if="g.iconUrl" :src="g.iconUrl" :alt="g.name" class="icon" />
                             <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
                             <div class="meta">
@@ -230,7 +230,7 @@ onUnmounted(() => {
                         </RouterLink>
                     </li>
                 </ul>
-                <RouterLink to="/guilds" class="see-all">{{ $t('dashboard.manageGuilds') }}</RouterLink>
+                <RouterLink to="/admin/guilds" class="see-all">{{ $t('dashboard.manageGuilds') }}</RouterLink>
             </article>
 
             <!-- System event log -->

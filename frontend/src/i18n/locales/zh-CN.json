@@ -25,6 +25,11 @@
         "updated": "已于 {time} 更新",
         "failedToLoad": "加载失败:{error}"
     },
+    "home": {
+        "title": "Karyl Chan",
+        "lead": "未来将在此提供公开功能。",
+        "adminLink": "进入后台"
+    },
     "auth": {
         "title": "登录",
         "exchanging": "正在交换登录令牌…",

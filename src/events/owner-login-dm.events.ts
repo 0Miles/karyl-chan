@@ -30,7 +30,7 @@ export class LoginDmEvents {
             if (!role) return;
 
             const { token, expiresAt } = authStore.createOneTimeToken(message.author.id);
-            const url = `${buildBaseUrl()}/auth?token=${encodeURIComponent(token)}`;
+            const url = `${buildBaseUrl()}/admin/auth?token=${encodeURIComponent(token)}`;
             const minutes = Math.max(1, Math.round((expiresAt - Date.now()) / 60_000));
             await message.reply(
                 `Login link (role: ${role}, single-use, expires in ~${minutes} min):\n${url}`

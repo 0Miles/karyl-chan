@@ -42,9 +42,9 @@ function navigate() {
             <div class="brand">{{ $t('app.brand') }}</div>
             <nav class="desktop-nav">
                 <template v-if="isAuthenticated">
-                    <RouterLink to="/">{{ $t('app.nav.dashboard') }}</RouterLink>
-                    <RouterLink to="/messages">{{ $t('app.nav.messages') }}</RouterLink>
-                    <RouterLink to="/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
+                    <RouterLink to="/admin">{{ $t('app.nav.dashboard') }}</RouterLink>
+                    <RouterLink to="/admin/messages">{{ $t('app.nav.messages') }}</RouterLink>
+                    <RouterLink to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
                     <RouterLink to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                 </template>
@@ -107,9 +107,9 @@ function navigate() {
                 </header>
                 <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
                     <template v-if="isAuthenticated">
-                        <RouterLink to="/" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
-                        <RouterLink to="/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
-                        <RouterLink to="/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
+                        <RouterLink to="/admin" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
+                        <RouterLink to="/admin/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
+                        <RouterLink to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
                         <RouterLink to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                     </template>
