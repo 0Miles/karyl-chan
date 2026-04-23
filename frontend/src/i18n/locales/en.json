@@ -1,0 +1,117 @@
+{
+    "app": {
+        "brand": "Karyl Chan",
+        "nav": {
+            "dashboard": "Dashboard",
+            "messages": "Messages",
+            "guilds": "Guilds",
+            "signOut": "Sign out"
+        },
+        "mobile": {
+            "openMenu": "Open menu",
+            "closeMenu": "Close menu",
+            "back": "Back",
+            "showFeatures": "Show page features",
+            "showNav": "Show navigation"
+        }
+    },
+    "common": {
+        "loading": "Loading…",
+        "none": "None.",
+        "cancel": "Cancel",
+        "start": "Start",
+        "refresh": "Refresh",
+        "updated": "Updated {time}",
+        "failedToLoad": "Failed to load: {error}"
+    },
+    "auth": {
+        "title": "Sign in",
+        "exchanging": "Exchanging login token…",
+        "success": "Signed in. Redirecting…",
+        "noTokenLead": "To sign in, send a direct message to the bot:",
+        "noTokenHint": "The bot will reply with a single-use login link. Open the link in this browser.",
+        "errorHint": "Request a new link by sending {login} to the bot."
+    },
+    "dashboard": {
+        "title": "Dashboard",
+        "webServer": "Web server",
+        "status": "Status",
+        "uptime": "Uptime",
+        "serverTime": "Server time",
+        "discordBot": "Discord bot",
+        "state": "State",
+        "ready": "ready",
+        "connecting": "connecting",
+        "identity": "Identity",
+        "guildsCount": "Guilds",
+        "botStatusUnavailable": "Bot status endpoint not available on this server.",
+        "system": "System",
+        "database": "Database",
+        "connected": "connected",
+        "disconnected": "disconnected",
+        "heapMemory": "Heap memory",
+        "rss": "RSS",
+        "dmChannels": "DM channels",
+        "dmActivity": "DM activity",
+        "past7Days": "past 7 days",
+        "guilds": "Guilds",
+        "manageGuilds": "Manage guilds →",
+        "systemEvents": "System events"
+    },
+    "guilds": {
+        "title": "Guilds",
+        "empty": "Bot isn't in any guild.",
+        "selectGuild": "Select a guild.",
+        "members": "{count} members",
+        "joined": "joined {date}",
+        "idLabel": "id",
+        "todoChannels": "Todo channels",
+        "pictureOnly": "Picture-only channels",
+        "rconForward": "Rcon forward",
+        "rconTarget": "→ {host}:{port} (cmd {cmd}, trigger {trigger})",
+        "roleEmoji": "Role emoji",
+        "roleReactions": "Role reaction messages",
+        "roleReactionMessage": "· message {id}",
+        "capabilityGrants": "Capability grants"
+    },
+    "messages": {
+        "modeDm": "Direct messages",
+        "selectChat": "Select a chat to view messages.",
+        "noMessages": "No messages yet.",
+        "loadingOlder": "Loading older…",
+        "beginningOfConversation": "Beginning of conversation",
+        "reply": "Reply",
+        "react": "React",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteNoConfirm": "Delete (no confirm)",
+        "deleteShiftConfirm": "Delete (shift to skip confirm)",
+        "replying": "Replying",
+        "dropFiles": "Drop files to attach",
+        "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",
+        "noTextChannels": "No text channels.",
+        "recipientId": "Recipient user id"
+    },
+    "composer": {
+        "placeholder": "Message…",
+        "attach": "Attach files",
+        "picker": "Emoji & stickers",
+        "send": "Send"
+    },
+    "picker": {
+        "searchPlaceholder": "Search emoji & stickers…",
+        "tabs": {
+            "recent": "Recent",
+            "emoji": "Emoji",
+            "custom": "Custom",
+            "stickers": "Stickers"
+        },
+        "customEmoji": "Custom emoji",
+        "stickers": "Stickers",
+        "emoji": "Emoji",
+        "noMatches": "No matches.",
+        "nothingRecent": "Nothing recent yet.",
+        "noCustomEmoji": "No custom emoji available.",
+        "noGuildStickers": "No guild stickers available."
+    }
+}

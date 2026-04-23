@@ -34,17 +34,19 @@ onMounted(async () => {
 
 <template>
     <section class="auth">
-        <h1>Sign in</h1>
-        <p v-if="state === 'exchanging'" class="muted">Exchanging login token…</p>
-        <p v-else-if="state === 'success'" class="muted">Signed in. Redirecting…</p>
+        <h1>{{ $t('auth.title') }}</h1>
+        <p v-if="state === 'exchanging'" class="muted">{{ $t('auth.exchanging') }}</p>
+        <p v-else-if="state === 'success'" class="muted">{{ $t('auth.success') }}</p>
         <div v-else-if="state === 'no-token'">
-            <p>To sign in, send a direct message to the bot:</p>
+            <p>{{ $t('auth.noTokenLead') }}</p>
             <pre><code>login</code></pre>
-            <p class="muted">The bot will reply with a single-use login link. Open the link in this browser.</p>
+            <p class="muted">{{ $t('auth.noTokenHint') }}</p>
         </div>
         <div v-else-if="state === 'error'">
             <p class="error">{{ errorMessage }}</p>
-            <p class="muted">Request a new link by sending <code>login</code> to the bot.</p>
+            <i18n-t keypath="auth.errorHint" tag="p" class="muted">
+                <template #login><code>login</code></template>
+            </i18n-t>
         </div>
     </section>
 </template>

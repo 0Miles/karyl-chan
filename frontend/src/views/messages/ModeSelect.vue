@@ -80,7 +80,7 @@ onUnmounted(() => {
                 {{ selectedGuild.name.charAt(0).toUpperCase() }}
             </span>
             <span v-else class="icon icon-dm">💬</span>
-            <span class="label">{{ selectedGuild?.name ?? '私人訊息' }}</span>
+            <span class="label">{{ selectedGuild?.name ?? $t('messages.modeDm') }}</span>
             <span class="chevron" :class="{ open: isOpen }">›</span>
         </button>
 
@@ -88,7 +88,7 @@ onUnmounted(() => {
             <ul v-if="isOpen" class="mode-dropdown" :style="dropdownStyle">
                 <li :class="{ active: mode === 'dm' }" @click="select('dm')">
                     <span class="icon icon-dm">💬</span>
-                    <span class="label">私人訊息</span>
+                    <span class="label">{{ $t('messages.modeDm') }}</span>
                 </li>
                 <li
                     v-for="g in guilds"

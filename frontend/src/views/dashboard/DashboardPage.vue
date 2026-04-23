@@ -120,65 +120,65 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <DashboardLayout title="Dashboard">
+    <DashboardLayout :title="$t('dashboard.title')">
         <template #actions>
             <span v-if="lastUpdated" class="muted">
-                Updated {{ lastUpdated.toLocaleTimeString() }}
+                {{ $t('common.updated', { time: lastUpdated.toLocaleTimeString() }) }}
             </span>
-            <button type="button" :disabled="loading" @click="refresh">Refresh</button>
+            <button type="button" :disabled="loading" @click="refresh">{{ $t('common.refresh') }}</button>
         </template>
 
-        <p v-if="loading && !health" class="muted">Loading…</p>
-        <p v-else-if="error" class="error">Failed to load: {{ error }}</p>
+        <p v-if="loading && !health" class="muted">{{ $t('common.loading') }}</p>
+        <p v-else-if="error" class="error">{{ $t('common.failedToLoad', { error }) }}</p>
 
         <div v-if="health || bot" class="grid">
             <!-- Web server status -->
             <article v-if="health" class="card">
-                <h2>Web server</h2>
+                <h2>{{ $t('dashboard.webServer') }}</h2>
                 <dl>
-                    <dt>Status</dt>
+                    <dt>{{ $t('dashboard.status') }}</dt>
                     <dd><span class="pill pill-ok">{{ health.status }}</span></dd>
-                    <dt>Uptime</dt>
+                    <dt>{{ $t('dashboard.uptime') }}</dt>
                     <dd>{{ formatDuration(health.uptime) }}</dd>
-                    <dt>Server time</dt>
+                    <dt>{{ $t('dashboard.serverTime') }}</dt>
                     <dd>{{ new Date(health.timestamp).toLocaleString() }}</dd>
                 </dl>
             </article>
 
             <!-- Discord bot identity -->
             <article v-if="bot" class="card">
-                <h2>Discord bot</h2>
+                <h2>{{ $t('dashboard.discordBot') }}</h2>
                 <dl>
-                    <dt>State</dt>
+                    <dt>{{ $t('dashboard.state') }}</dt>
                     <dd>
                         <span :class="['pill', bot.ready ? 'pill-ok' : 'pill-warn']">
-                            {{ bot.ready ? 'ready' : 'connecting' }}
+                            {{ bot.ready ? $t('dashboard.ready') : $t('dashboard.connecting') }}
                         </span>
                     </dd>
-                    <dt>Identity</dt>
+                    <dt>{{ $t('dashboard.identity') }}</dt>
                     <dd>{{ bot.userTag ?? '—' }}</dd>
-                    <dt>Guilds</dt>
+                    <dt>{{ $t('dashboard.guildsCount') }}</dt>
                     <dd>{{ bot.guildCount }}</dd>
-                    <dt>Uptime</dt>
+                    <dt>{{ $t('dashboard.uptime') }}</dt>
                     <dd>{{ formatDuration(bot.uptimeMs / 1000) }}</dd>
                 </dl>
             </article>
             <article v-else-if="!loading && !error" class="card card-muted">
-                <h2>Discord bot</h2>
-                <p class="muted">Bot status endpoint not available on this server.</p>
+                <h2>{{ $t('dashboard.discordBot') }}</h2>
+                <p class="muted">{{ $t('dashboard.botStatusUnavailable') }}</p>
             </article>
 
             <!-- System monitoring -->
             <article v-if="systemStats" class="card">
-                <h2>System</h2>
+                <h2>{{ $t('dashboard.system') }}</h2>
                 <dl>
-                    <dt>Database</dt>
+                    <dt>{{ $t('dashboard.database') }}</dt>
                     <dd>
                         <span :class="['pill', systemStats.dbConnected ? 'pill-ok' : 'pill-danger']">
-                            {{ systemStats.dbConnected ? 'connected' : 'disconnected' }}
+                            {{ systemStats.dbConnected ? $t('dashboard.connected') : $t('dashboard.disconnected') }}
                         </span>
                     </dd>
-                    <dt>Heap memory</dt>
+                    <dt>{{ $t('dashboard.heapMemory') }}</dt>
                     <dd>
                         <div class="mem-row">
                             <span>{{ systemStats.memory.heapUsedMb }} / {{ systemStats.memory.heapTotalMb }} MB</span>
@@ -187,16 +187,16 @@ onUnmounted(() => {
                             </div>
                         </div>
                     </dd>
-                    <dt>RSS</dt>
+                    <dt>{{ $t('dashboard.rss') }}</dt>
                     <dd>{{ systemStats.memory.rssMb }} MB</dd>
-                    <dt>DM channels</dt>
+                    <dt>{{ $t('dashboard.dmChannels') }}</dt>
                     <dd>{{ systemStats.dmChannelCount }}</dd>
                 </dl>
             </article>
 
             <!-- DM activity chart -->
             <article v-if="systemStats?.dmActivity.length" class="card chart-card">
-                <h2>DM activity <span class="muted subtitle">past 7 days</span></h2>
+                <h2>{{ $t('dashboard.dmActivity') }} <span class="muted subtitle">{{ $t('dashboard.past7Days') }}</span></h2>
                 <div class="chart">
                     <div
                         v-for="day in systemStats.dmActivity"
@@ -217,7 +217,7 @@ onUnmounted(() => {
 
             <!-- Guilds list -->
             <article v-if="guilds.length" class="card guilds-card">
-                <h2>Guilds <span class="count-pill">{{ guilds.length }}</span></h2>
+                <h2>{{ $t('dashboard.guilds') }} <span class="count-pill">{{ guilds.length }}</span></h2>
                 <ul class="guild-list">
                     <li v-for="g in guilds" :key="g.id">
                         <RouterLink :to="`/guilds`" class="guild-row" @click="$event.preventDefault?.()">
@@ -225,17 +225,17 @@ onUnmounted(() => {
                             <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
                             <div class="meta">
                                 <div class="name">{{ g.name }}</div>
-                                <div class="sub">{{ g.memberCount }} members</div>
+                                <div class="sub">{{ $t('guilds.members', { count: g.memberCount }) }}</div>
                             </div>
                         </RouterLink>
                     </li>
                 </ul>
-                <RouterLink to="/guilds" class="see-all">Manage guilds →</RouterLink>
+                <RouterLink to="/guilds" class="see-all">{{ $t('dashboard.manageGuilds') }}</RouterLink>
             </article>
 
             <!-- System event log -->
             <article v-if="systemEvents.length" class="card events-card">
-                <h2>System events</h2>
+                <h2>{{ $t('dashboard.systemEvents') }}</h2>
                 <ul class="event-list">
                     <li v-for="evt in systemEvents.slice(0, 20)" :key="evt.id" class="event-row">
                         <span class="event-icon">{{ eventIcon[evt.type] ?? '•' }}</span>

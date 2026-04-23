@@ -1,0 +1,117 @@
+{
+    "app": {
+        "brand": "Karyl Chan",
+        "nav": {
+            "dashboard": "仪表板",
+            "messages": "消息",
+            "guilds": "服务器",
+            "signOut": "退出登录"
+        },
+        "mobile": {
+            "openMenu": "打开菜单",
+            "closeMenu": "关闭菜单",
+            "back": "返回",
+            "showFeatures": "显示页面功能",
+            "showNav": "显示导航"
+        }
+    },
+    "common": {
+        "loading": "加载中…",
+        "none": "无。",
+        "cancel": "取消",
+        "start": "开始",
+        "refresh": "刷新",
+        "updated": "已于 {time} 更新",
+        "failedToLoad": "加载失败:{error}"
+    },
+    "auth": {
+        "title": "登录",
+        "exchanging": "正在交换登录令牌…",
+        "success": "已登录,正在跳转…",
+        "noTokenLead": "如需登录,请向机器人发送私信:",
+        "noTokenHint": "机器人会回复一次性登录链接,请在此浏览器打开。",
+        "errorHint": "再次向机器人发送 {login} 以获取新链接。"
+    },
+    "dashboard": {
+        "title": "仪表板",
+        "webServer": "Web 服务器",
+        "status": "状态",
+        "uptime": "运行时长",
+        "serverTime": "服务器时间",
+        "discordBot": "Discord 机器人",
+        "state": "状态",
+        "ready": "就绪",
+        "connecting": "连接中",
+        "identity": "身份",
+        "guildsCount": "服务器",
+        "botStatusUnavailable": "此服务器未提供机器人状态端点。",
+        "system": "系统",
+        "database": "数据库",
+        "connected": "已连接",
+        "disconnected": "未连接",
+        "heapMemory": "Heap 内存",
+        "rss": "RSS",
+        "dmChannels": "私信频道",
+        "dmActivity": "私信活动",
+        "past7Days": "过去 7 天",
+        "guilds": "服务器",
+        "manageGuilds": "管理服务器 →",
+        "systemEvents": "系统事件"
+    },
+    "guilds": {
+        "title": "服务器",
+        "empty": "机器人尚未加入任何服务器。",
+        "selectGuild": "请选择一个服务器。",
+        "members": "{count} 位成员",
+        "joined": "加入于 {date}",
+        "idLabel": "ID",
+        "todoChannels": "待办频道",
+        "pictureOnly": "仅图片频道",
+        "rconForward": "Rcon 转发",
+        "rconTarget": "→ {host}:{port}(指令 {cmd},触发 {trigger})",
+        "roleEmoji": "身份组表情",
+        "roleReactions": "身份组反应消息",
+        "roleReactionMessage": "· 消息 {id}",
+        "capabilityGrants": "权限授予"
+    },
+    "messages": {
+        "modeDm": "私信",
+        "selectChat": "请选择一个对话以查看消息。",
+        "noMessages": "暂无消息。",
+        "loadingOlder": "加载更早的消息…",
+        "beginningOfConversation": "对话起点",
+        "reply": "回复",
+        "react": "反应",
+        "edit": "编辑",
+        "delete": "删除",
+        "deleteNoConfirm": "删除(不确认)",
+        "deleteShiftConfirm": "删除(按住 Shift 可跳过确认)",
+        "replying": "回复中",
+        "dropFiles": "拖放文件即可附加",
+        "noDms": "还没有私信。在 Discord 向机器人发消息,或从上方发起一条。",
+        "noTextChannels": "没有文字频道。",
+        "recipientId": "接收者用户 ID"
+    },
+    "composer": {
+        "placeholder": "消息…",
+        "attach": "附加文件",
+        "picker": "表情与贴纸",
+        "send": "发送"
+    },
+    "picker": {
+        "searchPlaceholder": "搜索表情与贴纸…",
+        "tabs": {
+            "recent": "最近",
+            "emoji": "表情",
+            "custom": "自定义",
+            "stickers": "贴纸"
+        },
+        "customEmoji": "自定义表情",
+        "stickers": "贴纸",
+        "emoji": "表情",
+        "noMatches": "没有匹配项。",
+        "nothingRecent": "尚未使用过任何项目。",
+        "noCustomEmoji": "没有可用的自定义表情。",
+        "noGuildStickers": "没有可用的服务器贴纸。"
+    }
+}

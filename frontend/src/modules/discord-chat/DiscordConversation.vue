@@ -254,7 +254,7 @@ const replyToProp = computed(() => props.replyTo);
         @drop="drop.onDrop"
     >
         <div v-if="drop.isDragging.value" class="drop-overlay">
-            <div class="drop-banner">Drop files to attach</div>
+            <div class="drop-banner">{{ $t('messages.dropFiles') }}</div>
         </div>
         <header v-if="channelId" class="conv-header">
             <slot name="header">
@@ -273,8 +273,8 @@ const replyToProp = computed(() => props.replyTo);
             :min-item-size="44"
         >
             <template #before>
-                <p v-if="loadingOlder" class="muted center small">Loading older…</p>
-                <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
+                <p v-if="loadingOlder" class="muted center small">{{ $t('messages.loadingOlder') }}</p>
+                <p v-else-if="!hasMore && messages.length > 0" class="muted center small">{{ $t('messages.beginningOfConversation') }}</p>
             </template>
             <template #default="{ item: message, index: idx, active }">
                 <DynamicScrollerItem
@@ -309,22 +309,22 @@ const replyToProp = computed(() => props.replyTo);
                                 :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
                                 type="button"
                                 :class="['action', { active: reactingMessageId === message.id }]"
-                                title="React"
+                                :title="$t('messages.react')"
                                 @click="startReact(message.id)"
                             >
                                 <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
                             </button>
-                            <button type="button" class="action" title="Reply" @click="emit('reply', message)">
+                            <button type="button" class="action" :title="$t('messages.reply')" @click="emit('reply', message)">
                                 <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
                             </button>
                             <template v-if="isOwn(message)">
-                                <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">
+                                <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
                                     <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
                                 </button>
                                 <button
                                     type="button"
                                     :class="['action', { danger: shiftHeld }]"
-                                    :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
+                                    :title="shiftHeld ? $t('messages.deleteNoConfirm') : $t('messages.deleteShiftConfirm')"
                                     @click="emit('delete', message, $event)"
                                 >
                                     <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
@@ -338,14 +338,14 @@ const replyToProp = computed(() => props.replyTo);
                 <div ref="messagesEnd" />
             </template>
             <template #empty>
-                <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
-                <p v-else-if="loadingMessages" class="muted center">Loading…</p>
-                <p v-else class="muted center">No messages yet.</p>
+                <p v-if="!channelId" class="muted center">{{ $t('messages.selectChat') }}</p>
+                <p v-else-if="loadingMessages" class="muted center">{{ $t('common.loading') }}</p>
+                <p v-else class="muted center">{{ $t('messages.noMessages') }}</p>
             </template>
         </DynamicScroller>
         <div v-else ref="plainListRef" class="messages">
-            <p v-if="loadingOlder" class="muted center small">Loading older…</p>
-            <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
+            <p v-if="loadingOlder" class="muted center small">{{ $t('messages.loadingOlder') }}</p>
+            <p v-else-if="!hasMore && messages.length > 0" class="muted center small">{{ $t('messages.beginningOfConversation') }}</p>
             <template v-if="messages.length > 0">
                 <div
                     v-for="(message, idx) in messages"
@@ -365,22 +365,22 @@ const replyToProp = computed(() => props.replyTo);
                             :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
                             type="button"
                             :class="['action', { active: reactingMessageId === message.id }]"
-                            title="React"
+                            :title="$t('messages.react')"
                             @click="startReact(message.id)"
                         >
                             <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
                         </button>
-                        <button type="button" class="action" title="Reply" @click="emit('reply', message)">
+                        <button type="button" class="action" :title="$t('messages.reply')" @click="emit('reply', message)">
                             <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
                         </button>
                         <template v-if="isOwn(message)">
-                            <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">
+                            <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
                                 <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
                             </button>
                             <button
                                 type="button"
                                 :class="['action', { danger: shiftHeld }]"
-                                :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
+                                :title="shiftHeld ? $t('messages.deleteNoConfirm') : $t('messages.deleteShiftConfirm')"
                                 @click="emit('delete', message, $event)"
                             >
                                 <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
@@ -390,9 +390,9 @@ const replyToProp = computed(() => props.replyTo);
                 </div>
             </template>
             <template v-else>
-                <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
-                <p v-else-if="loadingMessages" class="muted center">Loading…</p>
-                <p v-else class="muted center">No messages yet.</p>
+                <p v-if="!channelId" class="muted center">{{ $t('messages.selectChat') }}</p>
+                <p v-else-if="loadingMessages" class="muted center">{{ $t('common.loading') }}</p>
+                <p v-else class="muted center">{{ $t('messages.noMessages') }}</p>
             </template>
             <div ref="messagesEnd" />
         </div>

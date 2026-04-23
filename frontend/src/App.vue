@@ -39,13 +39,13 @@ function navigate() {
 <template>
     <div class="app-shell">
         <header class="app-header">
-            <div class="brand">Karyl Chan</div>
+            <div class="brand">{{ $t('app.brand') }}</div>
             <nav class="desktop-nav">
                 <template v-if="isAuthenticated">
-                    <RouterLink to="/">Dashboard</RouterLink>
-                    <RouterLink to="/messages">Messages</RouterLink>
-                    <RouterLink to="/guilds">Guilds</RouterLink>
-                    <button type="button" class="link-button" @click="signOut">Sign out</button>
+                    <RouterLink to="/">{{ $t('app.nav.dashboard') }}</RouterLink>
+                    <RouterLink to="/messages">{{ $t('app.nav.messages') }}</RouterLink>
+                    <RouterLink to="/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
+                    <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                 </template>
             </nav>
         </header>
@@ -62,7 +62,7 @@ function navigate() {
             <button
                 type="button"
                 class="mobile-fab"
-                aria-label="Open menu"
+                :aria-label="$t('app.mobile.openMenu')"
                 @click="openOverlay"
             >
                 <Icon icon="material-symbols:menu-rounded" width="24" height="24" />
@@ -86,15 +86,15 @@ function navigate() {
                 aria-modal="true"
             >
                 <header class="mobile-overlay-header">
-                    <button type="button" class="overlay-back" @click="closeOverlay" aria-label="Close menu">
+                    <button type="button" class="overlay-back" @click="closeOverlay" :aria-label="$t('app.mobile.closeMenu')">
                         <Icon icon="material-symbols:chevron-left-rounded" width="20" height="20" />
-                        <span>Back</span>
+                        <span>{{ $t('app.mobile.back') }}</span>
                     </button>
                     <button
                         v-if="hasExtras"
                         type="button"
                         class="overlay-toggle"
-                        :aria-label="overlayView === 'nav' ? 'Show page features' : 'Show navigation'"
+                        :aria-label="overlayView === 'nav' ? $t('app.mobile.showFeatures') : $t('app.mobile.showNav')"
                         @click="toggleOverlayView"
                     >
                         <Icon
@@ -106,10 +106,10 @@ function navigate() {
                 </header>
                 <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
                     <template v-if="isAuthenticated">
-                        <RouterLink to="/" @click="navigate">Dashboard</RouterLink>
-                        <RouterLink to="/messages" @click="navigate">Messages</RouterLink>
-                        <RouterLink to="/guilds" @click="navigate">Guilds</RouterLink>
-                        <button type="button" class="link-button" @click="signOut">Sign out</button>
+                        <RouterLink to="/" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
+                        <RouterLink to="/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
+                        <RouterLink to="/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
+                        <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                     </template>
                 </nav>
                 <div

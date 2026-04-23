@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useMessageContext } from '../context';
 import type { CustomEmoji, GuildBucket, GuildSticker } from '../types';
 import EmojiGrid, { type EmojiCell } from './EmojiGrid.vue';
@@ -20,6 +21,7 @@ import {
 } from './unicode-emoji-data';
 
 const ctx = useMessageContext();
+const { t } = useI18n();
 
 export type MediaSelection =
     | { type: 'unicode'; value: string }
@@ -62,12 +64,12 @@ const activeUnicodeCategory = ref<string>(cachedUnicode?.categories[0]?.id ?? ''
 const activeCustomGuild = ref<string>(cachedEmojis?.[0]?.guildId ?? '');
 const activeStickerGuild = ref<string>(cachedStickers?.[0]?.guildId ?? '');
 
-const TABS: { id: Tab; label: string }[] = [
-    { id: 'recent', label: 'Recent' },
-    { id: 'unicode', label: 'Emoji' },
-    { id: 'custom', label: 'Custom' },
-    { id: 'sticker', label: 'Stickers' }
-];
+const TABS = computed<{ id: Tab; label: string }[]>(() => [
+    { id: 'recent', label: t('picker.tabs.recent') },
+    { id: 'unicode', label: t('picker.tabs.emoji') },
+    { id: 'custom', label: t('picker.tabs.custom') },
+    { id: 'sticker', label: t('picker.tabs.stickers') }
+]);
 
 const query = computed(() => search.value.trim().toLowerCase());
 const isSearching = computed(() => query.value.length > 0);
@@ -266,7 +268,7 @@ function categoryLabel(id: string): string {
             <input
                 v-model="search"
                 type="search"
-                placeholder="Search emoji & stickers…"
+                :placeholder="$t('picker.searchPlaceholder')"
                 class="search"
             />
         </div>
@@ -307,34 +309,34 @@ function categoryLabel(id: string): string {
             >{{ bucket.guildName }}</button>
         </nav>
         <div class="body">
-            <p v-if="loadingMedia && customGuilds.length === 0" class="muted">Loading…</p>
+            <p v-if="loadingMedia && customGuilds.length === 0" class="muted">{{ $t('common.loading') }}</p>
 
             <template v-else-if="isSearching">
                 <section v-if="filteredCustomCells.length" class="section">
-                    <h4>Custom emoji</h4>
+                    <h4>{{ $t('picker.customEmoji') }}</h4>
                     <EmojiGrid :cells="filteredCustomCells" @pick="pickEmoji" />
                 </section>
                 <section v-if="filteredStickerCells.length" class="section">
-                    <h4>Stickers</h4>
+                    <h4>{{ $t('picker.stickers') }}</h4>
                     <StickerGrid :cells="filteredStickerCells" @pick="pickSticker" />
                 </section>
                 <section v-if="filteredUnicodeCells.length" class="section">
-                    <h4>Emoji</h4>
+                    <h4>{{ $t('picker.emoji') }}</h4>
                     <EmojiGrid :cells="filteredUnicodeCells" @pick="pickEmoji" />
                 </section>
-                <p v-if="!filteredCustomCells.length && !filteredStickerCells.length && !filteredUnicodeCells.length" class="muted">No matches.</p>
+                <p v-if="!filteredCustomCells.length && !filteredStickerCells.length && !filteredUnicodeCells.length" class="muted">{{ $t('picker.noMatches') }}</p>
             </template>
 
             <template v-else-if="activeTab === 'recent'">
                 <section v-if="recentEmojiCells.length" class="section">
-                    <h4>Emoji</h4>
+                    <h4>{{ $t('picker.emoji') }}</h4>
                     <EmojiGrid :cells="recentEmojiCells" @pick="pickEmoji" />
                 </section>
                 <section v-if="recentStickerCells.length" class="section">
-                    <h4>Stickers</h4>
+                    <h4>{{ $t('picker.stickers') }}</h4>
                     <StickerGrid :cells="recentStickerCells" @pick="pickSticker" />
                 </section>
-                <p v-if="!recentEmojiCells.length && !recentStickerCells.length" class="muted">Nothing recent yet.</p>
+                <p v-if="!recentEmojiCells.length && !recentStickerCells.length" class="muted">{{ $t('picker.nothingRecent') }}</p>
             </template>
 
             <template v-else-if="activeTab === 'unicode'">
@@ -343,12 +345,12 @@ function categoryLabel(id: string): string {
 
             <template v-else-if="activeTab === 'custom'">
                 <EmojiGrid v-if="activeCustomCells.length" :cells="activeCustomCells" @pick="pickEmoji" />
-                <p v-else class="muted">No custom emoji available.</p>
+                <p v-else class="muted">{{ $t('picker.noCustomEmoji') }}</p>
             </template>
 
             <template v-else-if="activeTab === 'sticker'">
                 <StickerGrid v-if="activeStickerCells.length" :cells="activeStickerCells" @pick="pickSticker" />
-                <p v-else class="muted">No guild stickers available.</p>
+                <p v-else class="muted">{{ $t('picker.noGuildStickers') }}</p>
             </template>
         </div>
     </div>

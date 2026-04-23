@@ -35,8 +35,8 @@ function isCategoryCollapsed(id: string | null): boolean {
         <header class="sidebar-header">
             <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
         </header>
-        <div v-if="loading && categories.length === 0" class="loading muted">Loading…</div>
-        <p v-else-if="categories.length === 0" class="muted empty">No text channels.</p>
+        <div v-if="loading && categories.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
+        <p v-else-if="categories.length === 0" class="muted empty">{{ $t('messages.noTextChannels') }}</p>
         <div class="channel-tree">
             <div v-for="cat in categories" :key="cat.id ?? '__none__'" class="category">
                 <button

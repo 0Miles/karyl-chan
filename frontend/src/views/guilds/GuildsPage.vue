@@ -81,11 +81,11 @@ function customEmojiUrl(id: string, char: string): string {
     <SidebarLayout>
         <template #sidebar>
             <header class="sidebar-header">
-                <h2>Guilds</h2>
+                <h2>{{ $t('guilds.title') }}</h2>
                 <span class="count">{{ guilds.length }}</span>
             </header>
-            <p v-if="loadingList && guilds.length === 0" class="muted">Loading…</p>
-            <p v-else-if="guilds.length === 0" class="muted empty">Bot isn't in any guild.</p>
+            <p v-if="loadingList && guilds.length === 0" class="muted">{{ $t('common.loading') }}</p>
+            <p v-else-if="guilds.length === 0" class="muted empty">{{ $t('guilds.empty') }}</p>
             <ul class="guild-list">
                 <li
                     v-for="g in guilds"
@@ -97,7 +97,7 @@ function customEmojiUrl(id: string, char: string): string {
                     <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
                     <div class="meta">
                         <div class="name">{{ g.name }}</div>
-                        <div class="sub">{{ g.memberCount }} members</div>
+                        <div class="sub">{{ $t('guilds.members', { count: g.memberCount }) }}</div>
                     </div>
                 </li>
             </ul>
@@ -105,8 +105,8 @@ function customEmojiUrl(id: string, char: string): string {
 
         <div class="detail">
             <p v-if="error" class="error">{{ error }}</p>
-            <p v-if="!selectedId" class="muted center">Select a guild.</p>
-            <p v-else-if="loadingDetail && !detail" class="muted center">Loading…</p>
+            <p v-if="!selectedId" class="muted center">{{ $t('guilds.selectGuild') }}</p>
+            <p v-else-if="loadingDetail && !detail" class="muted center">{{ $t('common.loading') }}</p>
             <article v-else-if="detail" class="detail-body">
                 <header class="detail-header">
                     <img v-if="detail.guild.iconUrl" :src="detail.guild.iconUrl" alt="" class="big-icon" />
@@ -114,47 +114,47 @@ function customEmojiUrl(id: string, char: string): string {
                     <div>
                         <h2>{{ detail.guild.name }}</h2>
                         <p class="meta">
-                            <span>{{ detail.guild.memberCount }} members</span>
-                            <span>· joined {{ formatDate(detail.guild.joinedAt) }}</span>
-                            <span>· id <code>{{ detail.guild.id }}</code></span>
+                            <span>{{ $t('guilds.members', { count: detail.guild.memberCount }) }}</span>
+                            <span>· {{ $t('guilds.joined', { date: formatDate(detail.guild.joinedAt) }) }}</span>
+                            <span>· {{ $t('guilds.idLabel') }} <code>{{ detail.guild.id }}</code></span>
                         </p>
                         <p v-if="detail.guild.description" class="description">{{ detail.guild.description }}</p>
                     </div>
                 </header>
 
                 <section class="card">
-                    <h3>Todo channels <span class="count-pill">{{ detail.todoChannels.length }}</span></h3>
+                    <h3>{{ $t('guilds.todoChannels') }} <span class="count-pill">{{ detail.todoChannels.length }}</span></h3>
                     <ul v-if="detail.todoChannels.length" class="bare">
                         <li v-for="c in detail.todoChannels" :key="c.channelId">
                             <span class="channel">#{{ c.channelName ?? c.channelId }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
                 <section class="card">
-                    <h3>Picture-only channels <span class="count-pill">{{ detail.pictureOnlyChannels.length }}</span></h3>
+                    <h3>{{ $t('guilds.pictureOnly') }} <span class="count-pill">{{ detail.pictureOnlyChannels.length }}</span></h3>
                     <ul v-if="detail.pictureOnlyChannels.length" class="bare">
                         <li v-for="c in detail.pictureOnlyChannels" :key="c.channelId">
                             <span class="channel">#{{ c.channelName ?? c.channelId }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
                 <section class="card">
-                    <h3>Rcon forward <span class="count-pill">{{ detail.rconForwardChannels.length }}</span></h3>
+                    <h3>{{ $t('guilds.rconForward') }} <span class="count-pill">{{ detail.rconForwardChannels.length }}</span></h3>
                     <ul v-if="detail.rconForwardChannels.length" class="bare">
                         <li v-for="c in detail.rconForwardChannels" :key="c.channelId">
                             <span class="channel">#{{ c.channelName ?? c.channelId }}</span>
-                            <span class="muted small"> → {{ c.host ?? '—' }}:{{ c.port ?? '—' }} (cmd <code>{{ c.commandPrefix }}</code>, trigger <code>{{ c.triggerPrefix }}</code>)</span>
+                            <span class="muted small"> {{ $t('guilds.rconTarget', { host: c.host ?? '—', port: c.port ?? '—', cmd: c.commandPrefix, trigger: c.triggerPrefix }) }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
                 <section class="card">
-                    <h3>Role emoji <span class="count-pill">{{ detail.roleEmojis.length }}</span></h3>
+                    <h3>{{ $t('guilds.roleEmoji') }} <span class="count-pill">{{ detail.roleEmojis.length }}</span></h3>
                     <ul v-if="detail.roleEmojis.length" class="bare">
                         <li v-for="(r, idx) in detail.roleEmojis" :key="idx" class="row">
                             <img v-if="r.emojiId" :src="customEmojiUrl(r.emojiId, r.emojiChar)" :alt="r.emojiName" class="emoji" />
@@ -162,22 +162,22 @@ function customEmojiUrl(id: string, char: string): string {
                             <span> → @{{ r.roleName ?? r.roleId }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
                 <section class="card">
-                    <h3>Role reaction messages <span class="count-pill">{{ detail.roleReceiveMessages.length }}</span></h3>
+                    <h3>{{ $t('guilds.roleReactions') }} <span class="count-pill">{{ detail.roleReceiveMessages.length }}</span></h3>
                     <ul v-if="detail.roleReceiveMessages.length" class="bare">
                         <li v-for="(m, idx) in detail.roleReceiveMessages" :key="idx">
                             <span class="channel">#{{ m.channelName ?? m.channelId }}</span>
-                            <span class="muted small"> · message {{ m.messageId }}</span>
+                            <span class="muted small"> {{ $t('guilds.roleReactionMessage', { id: m.messageId }) }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
                 <section class="card">
-                    <h3>Capability grants <span class="count-pill">{{ detail.capabilityGrants.length }}</span></h3>
+                    <h3>{{ $t('guilds.capabilityGrants') }} <span class="count-pill">{{ detail.capabilityGrants.length }}</span></h3>
                     <ul v-if="detail.capabilityGrants.length" class="bare">
                         <li v-for="(g, idx) in detail.capabilityGrants" :key="idx" class="row">
                             <span class="capability">{{ g.capability }}</span>
@@ -185,7 +185,7 @@ function customEmojiUrl(id: string, char: string): string {
                             <span :style="g.roleColor ? { color: g.roleColor } : undefined">@{{ g.roleName ?? g.roleId }}</span>
                         </li>
                     </ul>
-                    <p v-else class="muted">None.</p>
+                    <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
             </article>
         </div>

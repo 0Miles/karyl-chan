@@ -57,13 +57,13 @@ function formatTimestamp(iso: string | null): string {
         <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
             <input
                 :value="newRecipientId"
-                placeholder="Recipient user id"
+                :placeholder="$t('messages.recipientId')"
                 @input="emit('update:newRecipientId', ($event.target as HTMLInputElement).value)"
             />
-            <button type="submit" :disabled="!newRecipientId?.trim()">Start</button>
+            <button type="submit" :disabled="!newRecipientId?.trim()">{{ $t('common.start') }}</button>
         </form>
-        <div v-if="loading && channels.length === 0" class="loading muted">Loading…</div>
-        <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? 'No DMs yet.' }}</p>
+        <div v-if="loading && channels.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
+        <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? $t('messages.noDms') }}</p>
         <ul class="channel-list">
             <li
                 v-for="channel in channels"

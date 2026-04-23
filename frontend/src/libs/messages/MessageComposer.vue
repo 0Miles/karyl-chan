@@ -313,8 +313,8 @@ onMounted(() => {
 <template>
     <div class="composer" @paste="onPaste">
         <div v-if="replyTo" class="reply-banner">
-            <span>Replying</span>
-            <button type="button" class="link" @click="$emit('cancel-reply')">Cancel</button>
+            <span>{{ $t('messages.replying') }}</span>
+            <button type="button" class="link" @click="$emit('cancel-reply')">{{ $t('common.cancel') }}</button>
         </div>
         <div v-if="attachments.length || pendingStickers.length" class="attachments">
             <div v-for="(file, idx) in attachments" :key="'f' + idx" :class="['chip', { 'image-chip': attachmentPreview(file) }]">
@@ -337,7 +337,7 @@ onMounted(() => {
             />
         </div>
         <div class="input-row">
-            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">
+            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" :title="$t('composer.attach')" :aria-label="$t('composer.attach')">
                 <Icon icon="material-symbols:add-2-rounded" width="20" height="20" />
             </button>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
@@ -347,7 +347,7 @@ onMounted(() => {
                 contenteditable="true"
                 role="textbox"
                 aria-multiline="true"
-                :data-placeholder="placeholder ?? 'Message…'"
+                :data-placeholder="placeholder ?? $t('composer.placeholder')"
                 :aria-disabled="disabled || undefined"
                 @keydown="onKeydown"
                 @input="onEditorInput"
@@ -355,10 +355,10 @@ onMounted(() => {
                 @keyup="refreshSuggestions"
                 @blur="cancelSuggestions"
             />
-            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">
+            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" :title="$t('composer.picker')" :aria-label="$t('composer.picker')">
                 <Icon icon="ic:round-emoji-emotions" width="20" height="20" />
             </button>
-            <button type="button" class="icon-button" :disabled="disabled" @click="send" title="Send" aria-label="Send">
+            <button type="button" class="icon-button" :disabled="disabled" @click="send" :title="$t('composer.send')" :aria-label="$t('composer.send')">
                 <Icon icon="material-symbols:send-rounded" width="20" height="20" />
             </button>
         </div>

@@ -1,0 +1,117 @@
+{
+    "app": {
+        "brand": "Karyl Chan",
+        "nav": {
+            "dashboard": "儀表板",
+            "messages": "訊息",
+            "guilds": "伺服器",
+            "signOut": "登出"
+        },
+        "mobile": {
+            "openMenu": "開啟選單",
+            "closeMenu": "關閉選單",
+            "back": "返回",
+            "showFeatures": "顯示頁面功能",
+            "showNav": "顯示導覽"
+        }
+    },
+    "common": {
+        "loading": "載入中…",
+        "none": "無。",
+        "cancel": "取消",
+        "start": "開始",
+        "refresh": "重新整理",
+        "updated": "已於 {time} 更新",
+        "failedToLoad": "載入失敗:{error}"
+    },
+    "auth": {
+        "title": "登入",
+        "exchanging": "正在交換登入權杖…",
+        "success": "已登入,正在轉導…",
+        "noTokenLead": "如要登入,請傳私訊給機器人:",
+        "noTokenHint": "機器人會回覆一次性登入連結,請在此瀏覽器開啟。",
+        "errorHint": "請再次傳 {login} 給機器人以取得新連結。"
+    },
+    "dashboard": {
+        "title": "儀表板",
+        "webServer": "網頁伺服器",
+        "status": "狀態",
+        "uptime": "運行時間",
+        "serverTime": "伺服器時間",
+        "discordBot": "Discord 機器人",
+        "state": "狀態",
+        "ready": "就緒",
+        "connecting": "連線中",
+        "identity": "身分",
+        "guildsCount": "伺服器",
+        "botStatusUnavailable": "此伺服器未提供機器人狀態端點。",
+        "system": "系統",
+        "database": "資料庫",
+        "connected": "已連線",
+        "disconnected": "未連線",
+        "heapMemory": "Heap 記憶體",
+        "rss": "RSS",
+        "dmChannels": "私訊頻道",
+        "dmActivity": "私訊活動",
+        "past7Days": "過去 7 天",
+        "guilds": "伺服器",
+        "manageGuilds": "管理伺服器 →",
+        "systemEvents": "系統事件"
+    },
+    "guilds": {
+        "title": "伺服器",
+        "empty": "機器人尚未加入任何伺服器。",
+        "selectGuild": "請選擇一個伺服器。",
+        "members": "{count} 位成員",
+        "joined": "加入於 {date}",
+        "idLabel": "ID",
+        "todoChannels": "待辦頻道",
+        "pictureOnly": "純圖片頻道",
+        "rconForward": "Rcon 轉發",
+        "rconTarget": "→ {host}:{port} (指令 {cmd},觸發 {trigger})",
+        "roleEmoji": "身分組表情",
+        "roleReactions": "身分組反應訊息",
+        "roleReactionMessage": "· 訊息 {id}",
+        "capabilityGrants": "權限授予"
+    },
+    "messages": {
+        "modeDm": "私人訊息",
+        "selectChat": "請選擇一個對話以查看訊息。",
+        "noMessages": "目前沒有訊息。",
+        "loadingOlder": "載入較舊訊息…",
+        "beginningOfConversation": "對話起點",
+        "reply": "回覆",
+        "react": "反應",
+        "edit": "編輯",
+        "delete": "刪除",
+        "deleteNoConfirm": "刪除(不確認)",
+        "deleteShiftConfirm": "刪除(按 Shift 可跳過確認)",
+        "replying": "回覆中",
+        "dropFiles": "拖放檔案即可附加",
+        "noDms": "尚無私訊。在 Discord 傳訊給機器人,或從上方開始一則。",
+        "noTextChannels": "沒有文字頻道。",
+        "recipientId": "收件人使用者 ID"
+    },
+    "composer": {
+        "placeholder": "訊息…",
+        "attach": "附加檔案",
+        "picker": "表情與貼圖",
+        "send": "傳送"
+    },
+    "picker": {
+        "searchPlaceholder": "搜尋表情與貼圖…",
+        "tabs": {
+            "recent": "最近",
+            "emoji": "表情",
+            "custom": "自訂",
+            "stickers": "貼圖"
+        },
+        "customEmoji": "自訂表情",
+        "stickers": "貼圖",
+        "emoji": "表情",
+        "noMatches": "沒有符合項目。",
+        "nothingRecent": "尚未使用過任何項目。",
+        "noCustomEmoji": "沒有可用的自訂表情。",
+        "noGuildStickers": "沒有可用的伺服器貼圖。"
+    }
+}

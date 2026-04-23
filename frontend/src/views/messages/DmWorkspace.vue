@@ -63,7 +63,6 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
                 :loading="loadingChannels"
                 :show-start-form="showStart"
                 :new-recipient-id="newRecipientId"
-                empty-hint="No DMs yet. Send the bot a message in Discord, or start one above."
                 @mode-change="emit('mode-change', $event)"
                 @select="handleSelect"
                 @toggle-start="showStart = !showStart"
