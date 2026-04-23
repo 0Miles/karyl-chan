@@ -107,7 +107,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 id: user.id,
                 username: user.username,
                 globalName: user.globalName ?? null,
-                avatarUrl: user.displayAvatarURL()
+                avatarUrl: user.displayAvatarURL({ size: 128 })
             });
             return { channel: summary };
         } catch (err) {

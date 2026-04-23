@@ -9,12 +9,13 @@ import type {
     MessageAuthor
 } from './message-types.js';
 
-export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot'> & { displayAvatarURL: () => string }): MessageAuthor {
+export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot'> & { displayAvatarURL: (options?: { size?: number }) => string }): MessageAuthor {
     return {
         id: user.id,
         username: user.username,
         globalName: user.globalName ?? null,
-        avatarUrl: user.displayAvatarURL(),
+        // Discord CDN refuses animated avatar URLs (a_*.gif) without a ?size param.
+        avatarUrl: user.displayAvatarURL({ size: 128 }),
         bot: !!user.bot
     };
 }

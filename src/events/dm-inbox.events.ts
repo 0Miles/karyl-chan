@@ -11,7 +11,7 @@ function recipientFor(channel: DMChannel): DmRecipient | null {
         id: user.id,
         username: user.username,
         globalName: user.globalName ?? null,
-        avatarUrl: user.displayAvatarURL()
+        avatarUrl: user.displayAvatarURL({ size: 128 })
     };
 }
 
