@@ -5,6 +5,7 @@ import DmSidebar from './DmSidebar.vue';
 import { DiscordConversation, useDiscordDm } from '../../modules/discord-chat';
 import type { GuildSummary } from '../../api/guilds';
 import { useAppShell } from '../../composables/use-app-shell';
+import { SidebarLayout } from '../../layouts';
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -52,45 +53,47 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
 </script>
 
 <template>
-    <Teleport to="#mobile-nav-extras" :disabled="!props.isMobile">
-        <DmSidebar
-            :guilds="props.guilds"
-            :mode="props.mode"
-            :channels="channels"
-            :selected-id="selectedChannelId"
-            :loading="loadingChannels"
-            :show-start-form="showStart"
-            :new-recipient-id="newRecipientId"
-            empty-hint="No DMs yet. Send the bot a message in Discord, or start one above."
-            @mode-change="emit('mode-change', $event)"
-            @select="handleSelect"
-            @toggle-start="showStart = !showStart"
-            @submit-start="startNewDm"
-            @update:newRecipientId="(v) => (newRecipientId = v)"
+    <SidebarLayout>
+        <template #sidebar>
+            <DmSidebar
+                :guilds="props.guilds"
+                :mode="props.mode"
+                :channels="channels"
+                :selected-id="selectedChannelId"
+                :loading="loadingChannels"
+                :show-start-form="showStart"
+                :new-recipient-id="newRecipientId"
+                empty-hint="No DMs yet. Send the bot a message in Discord, or start one above."
+                @mode-change="emit('mode-change', $event)"
+                @select="handleSelect"
+                @toggle-start="showStart = !showStart"
+                @submit-start="startNewDm"
+                @update:newRecipientId="(v) => (newRecipientId = v)"
+            />
+        </template>
+        <DiscordConversation
+            ref="conversationRef"
+            :channel-id="selectedChannelId"
+            :header-title="selectedChannel ? (selectedChannel.recipient.globalName ?? selectedChannel.recipient.username) : null"
+            :header-subtitle="selectedChannel?.recipient.id ?? null"
+            :messages="chat.messages.value"
+            :bot-user-id="botUserId"
+            :has-more="chat.hasMore.value"
+            :loading-messages="chat.loadingMessages.value"
+            :loading-older="chat.loadingOlder.value"
+            :sending="chat.sending.value"
+            :error="chat.error.value ?? channelsError"
+            :editing-message-id="chat.editingMessageId.value"
+            :reply-to="chat.replyTo.value"
+            @send="send"
+            @reply="chat.reply"
+            @cancel-reply="chat.cancelReply"
+            @request-edit="chat.startEdit"
+            @submit-edit="chat.submitEdit"
+            @cancel-edit="chat.cancelEdit"
+            @delete="chat.confirmDelete"
+            @load-older="chat.loadOlder"
+            @react="reactWithSelection"
         />
-    </Teleport>
-    <DiscordConversation
-        ref="conversationRef"
-        :channel-id="selectedChannelId"
-        :header-title="selectedChannel ? (selectedChannel.recipient.globalName ?? selectedChannel.recipient.username) : null"
-        :header-subtitle="selectedChannel?.recipient.id ?? null"
-        :messages="chat.messages.value"
-        :bot-user-id="botUserId"
-        :has-more="chat.hasMore.value"
-        :loading-messages="chat.loadingMessages.value"
-        :loading-older="chat.loadingOlder.value"
-        :sending="chat.sending.value"
-        :error="chat.error.value ?? channelsError"
-        :editing-message-id="chat.editingMessageId.value"
-        :reply-to="chat.replyTo.value"
-        @send="send"
-        @reply="chat.reply"
-        @cancel-reply="chat.cancelReply"
-        @request-edit="chat.startEdit"
-        @submit-edit="chat.submitEdit"
-        @cancel-edit="chat.cancelEdit"
-        @delete="chat.confirmDelete"
-        @load-older="chat.loadOlder"
-        @react="reactWithSelection"
-    />
+    </SidebarLayout>
 </template>

@@ -3,8 +3,13 @@ import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ApiError } from '../../api/client';
 import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../api/guilds';
+import { SidebarLayout } from '../../layouts';
+import { useAppShell } from '../../composables/use-app-shell';
+import { useBreakpoint } from '../../composables/use-breakpoint';
 
 const router = useRouter();
+const { closeOverlay } = useAppShell();
+const { isMobile } = useBreakpoint();
 
 const guilds = ref<GuildSummary[]>([]);
 const selectedId = ref<string | null>(null);
@@ -53,6 +58,11 @@ async function loadDetail(id: string) {
 
 watch(selectedId, (id) => { if (id) loadDetail(id); });
 
+function handleSelect(id: string) {
+    selectedId.value = id;
+    if (isMobile.value) closeOverlay();
+}
+
 onMounted(refresh);
 
 function formatDate(iso: string | null): string {
@@ -68,8 +78,8 @@ function customEmojiUrl(id: string, char: string): string {
 </script>
 
 <template>
-    <section class="guilds">
-        <aside class="sidebar">
+    <SidebarLayout>
+        <template #sidebar>
             <header class="sidebar-header">
                 <h2>Guilds</h2>
                 <span class="count">{{ guilds.length }}</span>
@@ -81,7 +91,7 @@ function customEmojiUrl(id: string, char: string): string {
                     v-for="g in guilds"
                     :key="g.id"
                     :class="{ active: g.id === selectedId }"
-                    @click="selectedId = g.id"
+                    @click="handleSelect(g.id)"
                 >
                     <img v-if="g.iconUrl" :src="g.iconUrl" alt="" class="icon" />
                     <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
@@ -91,7 +101,8 @@ function customEmojiUrl(id: string, char: string): string {
                     </div>
                 </li>
             </ul>
-        </aside>
+        </template>
+
         <div class="detail">
             <p v-if="error" class="error">{{ error }}</p>
             <p v-if="!selectedId" class="muted center">Select a guild.</p>
@@ -178,25 +189,10 @@ function customEmojiUrl(id: string, char: string): string {
                 </section>
             </article>
         </div>
-    </section>
+    </SidebarLayout>
 </template>
 
 <style scoped>
-.guilds {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    height: 100%;
-    min-height: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-surface);
-    color: var(--text);
-    overflow: hidden;
-}
-.sidebar {
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-}
 .sidebar-header {
     display: flex;
     align-items: center;
@@ -265,6 +261,7 @@ function customEmojiUrl(id: string, char: string): string {
     font-size: 0.8rem;
 }
 .detail {
+    flex: 1;
     overflow-y: auto;
     padding: 1rem 1.25rem;
 }

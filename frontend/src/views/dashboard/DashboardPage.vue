@@ -5,6 +5,7 @@ import { ApiError, api } from '../../api/client';
 import { listGuilds, type GuildSummary } from '../../api/guilds';
 import { getSystemEvents, getSystemStats } from '../../api/system';
 import type { BotStatus, HealthStatus, SystemEvent, SystemStats } from '../../api/types';
+import { DashboardLayout } from '../../layouts';
 
 const router = useRouter();
 
@@ -119,16 +120,13 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <section>
-        <header class="page-header">
-            <h1>Dashboard</h1>
-            <div class="meta">
-                <span v-if="lastUpdated" class="muted">
-                    Updated {{ lastUpdated.toLocaleTimeString() }}
-                </span>
-                <button type="button" :disabled="loading" @click="refresh">Refresh</button>
-            </div>
-        </header>
+    <DashboardLayout title="Dashboard">
+        <template #actions>
+            <span v-if="lastUpdated" class="muted">
+                Updated {{ lastUpdated.toLocaleTimeString() }}
+            </span>
+            <button type="button" :disabled="loading" @click="refresh">Refresh</button>
+        </template>
 
         <p v-if="loading && !health" class="muted">Loading…</p>
         <p v-else-if="error" class="error">Failed to load: {{ error }}</p>
@@ -249,25 +247,10 @@ onUnmounted(() => {
                 </ul>
             </article>
         </div>
-    </section>
+    </DashboardLayout>
 </template>
 
 <style scoped>
-.page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-.page-header h1 {
-    margin: 0;
-}
-.meta {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
 .muted {
     color: var(--text-muted);
     font-size: 0.9rem;
