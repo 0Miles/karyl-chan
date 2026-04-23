@@ -376,9 +376,11 @@ async function onReactPicked(selection: MediaSelection) {
         : { id: selection.id, name: selection.name, animated: selection.animated };
     const targetId = reactingMessageId.value;
     reactingMessageId.value = null;
+    applyReactionDelta(targetId, emoji, 1);
     try {
         await addReaction(selectedChannelId.value, targetId, emoji);
     } catch (err) {
+        applyReactionDelta(targetId, emoji, -1);
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to react';
     }
