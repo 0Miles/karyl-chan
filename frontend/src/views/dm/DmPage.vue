@@ -28,7 +28,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
     chat.bindContainers({
         messagesContainer: container,
-        messagesEnd: container.querySelector(':scope > div:last-of-type') as HTMLElement | null
+        messagesEnd: conversationRef.value?.messagesEnd ?? null
     });
 });
 </script>

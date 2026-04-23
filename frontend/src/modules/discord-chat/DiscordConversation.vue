@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
@@ -38,8 +39,9 @@ const emit = defineEmits<{
 }>();
 
 const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
-const messagesContainer = ref<HTMLDivElement | null>(null);
+const scrollerRef = ref<ComponentPublicInstance | null>(null);
 const messagesEnd = ref<HTMLDivElement | null>(null);
+const messagesContainer = ref<HTMLElement | null>(null);
 const shiftHeld = useShiftKey();
 const reactingMessageId = ref<string | null>(null);
 const reactingButton = ref<HTMLButtonElement | null>(null);
@@ -61,7 +63,7 @@ function scrollToBottom() {
 }
 
 function isNearBottom(): boolean {
-    const el = messagesEnd.value?.parentElement;
+    const el = messagesContainer.value;
     if (!el) return true;
     return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 }
@@ -80,15 +82,28 @@ function closeReactPicker() {
 
 watch(() => props.channelId, closeReactPicker);
 
+watch(scrollerRef, (instance, _prev, onCleanup) => {
+    const el = (instance?.$el ?? null) as HTMLElement | null;
+    messagesContainer.value = el;
+    if (!el) return;
+    el.addEventListener('scroll', onMessagesScroll, { passive: true });
+    onCleanup(() => el.removeEventListener('scroll', onMessagesScroll));
+}, { immediate: true });
+
 onMounted(() => {
     scrollToBottom();
+});
+
+onBeforeUnmount(() => {
+    reactingButtons.clear();
 });
 
 defineExpose({
     scrollToBottom,
     isNearBottom,
     addFiles: (files: File[]) => composerRef.value?.addFiles(files),
-    messagesContainer
+    messagesContainer,
+    messagesEnd
 });
 
 function onReactPicked(selection: MediaSelection) {
@@ -128,46 +143,74 @@ const replyToProp = computed(() => props.replyTo);
             </slot>
         </header>
         <p v-if="error" class="error">{{ error }}</p>
-        <div ref="messagesContainer" class="messages" @scroll.passive="onMessagesScroll">
-            <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
-            <p v-else-if="loadingMessages && messages.length === 0" class="muted center">Loading…</p>
-            <p v-else-if="messages.length === 0" class="muted center">No messages yet.</p>
-            <p v-if="loadingOlder" class="muted center small">Loading older…</p>
-            <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
-            <div
-                v-for="(message, idx) in messages"
-                :key="message.id"
-                :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
-            >
-                <MessageView
-                    :message="message"
-                    :compact="isContinuation(messages[idx - 1], message)"
-                    :editing="editingMessageId === message.id"
-                    @submit-edit="(content: string) => emit('submit-edit', message, content)"
-                    @cancel-edit="emit('cancel-edit')"
-                />
-                <div class="message-actions">
-                    <button
-                        :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
-                        type="button"
-                        :class="['action', { active: reactingMessageId === message.id }]"
-                        title="React"
-                        @click="startReact(message.id)"
-                    >😊</button>
-                    <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
-                    <template v-if="isOwn(message)">
-                        <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
-                        <button
-                            type="button"
-                            :class="['action', { danger: shiftHeld }]"
-                            :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
-                            @click="emit('delete', message, $event)"
-                        >🗑</button>
-                    </template>
-                </div>
-            </div>
-            <div ref="messagesEnd" />
-        </div>
+        <DynamicScroller
+            ref="scrollerRef"
+            :key="channelId ?? 'empty'"
+            class="messages"
+            :items="messages"
+            key-field="id"
+            :min-item-size="44"
+        >
+            <template #before>
+                <p v-if="loadingOlder" class="muted center small">Loading older…</p>
+                <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
+            </template>
+            <template #default="{ item: message, index: idx, active }">
+                <DynamicScrollerItem
+                    :item="message"
+                    :active="active"
+                    :size-dependencies="[
+                        message.content,
+                        message.editedAt,
+                        message.attachments?.length ?? 0,
+                        message.embeds?.length ?? 0,
+                        message.reactions?.length ?? 0,
+                        message.stickers?.length ?? 0,
+                        !!message.referencedMessage,
+                        editingMessageId === message.id,
+                        isContinuation(messages[idx - 1], message)
+                    ]"
+                    :data-index="idx"
+                >
+                    <div :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]">
+                        <MessageView
+                            :message="message"
+                            :compact="isContinuation(messages[idx - 1], message)"
+                            :editing="editingMessageId === message.id"
+                            @submit-edit="(content: string) => emit('submit-edit', message, content)"
+                            @cancel-edit="emit('cancel-edit')"
+                        />
+                        <div class="message-actions">
+                            <button
+                                :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
+                                type="button"
+                                :class="['action', { active: reactingMessageId === message.id }]"
+                                title="React"
+                                @click="startReact(message.id)"
+                            >😊</button>
+                            <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
+                            <template v-if="isOwn(message)">
+                                <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
+                                <button
+                                    type="button"
+                                    :class="['action', { danger: shiftHeld }]"
+                                    :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
+                                    @click="emit('delete', message, $event)"
+                                >🗑</button>
+                            </template>
+                        </div>
+                    </div>
+                </DynamicScrollerItem>
+            </template>
+            <template #after>
+                <div ref="messagesEnd" />
+            </template>
+            <template #empty>
+                <p v-if="!channelId" class="muted center">Select a chat to view messages.</p>
+                <p v-else-if="loadingMessages" class="muted center">Loading…</p>
+                <p v-else class="muted center">No messages yet.</p>
+            </template>
+        </DynamicScroller>
         <MediaPickerPopover
             :reference-el="reactingButton"
             :visible="reactingMessageId !== null"
