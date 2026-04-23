@@ -166,7 +166,6 @@ function stickerPreview(id: string): string {
                 rows="1"
                 class="textarea"
                 @keydown="onKeydown"
-                @paste="onPaste"
             />
             <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
