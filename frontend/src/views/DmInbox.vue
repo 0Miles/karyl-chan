@@ -339,13 +339,14 @@ function formatTimestamp(iso: string | null): string {
     display: grid;
     grid-template-columns: 280px 1fr;
     height: calc(100vh - 4rem);
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg-surface);
+    color: var(--text);
     overflow: hidden;
 }
 .sidebar {
-    border-right: 1px solid #e5e7eb;
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -355,7 +356,7 @@ function formatTimestamp(iso: string | null): string {
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border);
 }
 .sidebar-header h2 {
     margin: 0;
@@ -363,32 +364,35 @@ function formatTimestamp(iso: string | null): string {
 }
 .ghost {
     background: none;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 4px;
     width: 28px;
     height: 28px;
     cursor: pointer;
+    color: var(--text);
 }
 .ghost:hover {
-    background: #f3f4f6;
+    background: var(--bg-surface-2);
 }
 .start-form {
     display: flex;
     gap: 0.25rem;
     padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border);
 }
 .start-form input {
     flex: 1;
     padding: 0.3rem 0.5rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text);
     font: inherit;
 }
 .start-form button {
     padding: 0.3rem 0.6rem;
-    background: #1f2937;
-    color: #fff;
+    background: var(--accent);
+    color: var(--text-on-accent);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -406,13 +410,13 @@ function formatTimestamp(iso: string | null): string {
     gap: 0.6rem;
     padding: 0.5rem 0.75rem;
     cursor: pointer;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid var(--border);
 }
 .channel-list li:hover {
-    background: #f9fafb;
+    background: var(--bg-surface-hover);
 }
 .channel-list li.active {
-    background: #eef2ff;
+    background: var(--bg-surface-active);
 }
 .avatar {
     width: 36px;
@@ -422,8 +426,8 @@ function formatTimestamp(iso: string | null): string {
     object-fit: cover;
 }
 .avatar-fallback {
-    background: #5865f2;
-    color: #fff;
+    background: var(--accent);
+    color: var(--text-on-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -440,15 +444,15 @@ function formatTimestamp(iso: string | null): string {
 }
 .name {
     font-weight: 500;
-    color: #111827;
+    color: var(--text-strong);
 }
 .timestamp {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 .preview {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -460,22 +464,22 @@ function formatTimestamp(iso: string | null): string {
 }
 .conv-header {
     padding: 0.6rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
 }
 .title {
     font-weight: 600;
-    color: #111827;
+    color: var(--text-strong);
 }
 .user-id {
-    color: #9ca3af;
+    color: var(--text-faint);
     font-size: 0.8rem;
     font-family: ui-monospace, SFMono-Regular, monospace;
 }
 .error {
-    color: #b91c1c;
+    color: var(--danger);
     margin: 0.5rem 1rem;
 }
 .messages {
@@ -502,8 +506,9 @@ function formatTimestamp(iso: string | null): string {
     top: 6px;
     right: 12px;
     padding: 2px 6px;
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 4px;
     font-size: 0.75rem;
     cursor: pointer;
@@ -511,11 +516,11 @@ function formatTimestamp(iso: string | null): string {
     transition: opacity 0.15s;
 }
 .composer-row {
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border);
     padding: 0.5rem 0.75rem;
 }
 .muted {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.9rem;
 }
 .empty {

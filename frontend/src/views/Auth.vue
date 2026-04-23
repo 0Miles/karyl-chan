@@ -53,8 +53,8 @@ onMounted(async () => {
 .auth {
     max-width: 420px;
     margin: 4rem auto;
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 1.5rem 1.75rem;
 }
@@ -63,22 +63,22 @@ onMounted(async () => {
     font-size: 1.2rem;
 }
 .muted {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.9rem;
 }
 .error {
-    color: #b91c1c;
+    color: var(--danger);
     margin: 0 0 0.5rem;
 }
 pre {
-    background: #f3f4f6;
+    background: var(--code-bg);
     padding: 0.6rem 0.8rem;
     border-radius: 4px;
     font-size: 0.95rem;
     margin: 0.5rem 0;
 }
 code {
-    background: #f3f4f6;
+    background: var(--code-bg);
     padding: 0 0.3rem;
     border-radius: 3px;
 }

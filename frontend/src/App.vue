@@ -40,8 +40,8 @@ async function signOut() {
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 1.25rem;
-    background: #1f2937;
-    color: #f9fafb;
+    background: var(--bg-header);
+    color: var(--text-on-header);
 }
 .brand {
     font-weight: 600;
@@ -52,27 +52,27 @@ async function signOut() {
     gap: 1rem;
 }
 .app-header nav a {
-    color: #cbd5f5;
+    color: var(--text-on-header-muted);
     text-decoration: none;
 }
 .app-header nav a.router-link-active {
-    color: #fff;
+    color: var(--text-on-header);
     font-weight: 500;
 }
 .link-button {
     background: none;
     border: none;
-    color: #cbd5f5;
+    color: var(--text-on-header-muted);
     cursor: pointer;
     font: inherit;
     padding: 0;
 }
 .link-button:hover {
-    color: #fff;
+    color: var(--text-on-header);
 }
 .app-main {
     flex: 1;
     padding: 1.5rem;
-    background: #f9fafb;
+    background: var(--bg-page);
 }
 </style>

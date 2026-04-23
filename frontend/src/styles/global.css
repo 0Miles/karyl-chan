@@ -1,3 +1,94 @@
+:root {
+    color-scheme: light dark;
+
+    --bg-page: #f9fafb;
+    --bg-surface: #ffffff;
+    --bg-surface-2: #f3f4f6;
+    --bg-surface-hover: rgba(0, 0, 0, 0.025);
+    --bg-surface-active: #eef2ff;
+    --bg-header: #1f2937;
+    --bg-overlay: rgba(0, 0, 0, 0.5);
+
+    --text: #111827;
+    --text-muted: #6b7280;
+    --text-strong: #111827;
+    --text-faint: #9ca3af;
+    --text-on-accent: #ffffff;
+    --text-on-header: #f9fafb;
+    --text-on-header-muted: #cbd5f5;
+
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+
+    --accent: #5865f2;
+    --accent-bg: rgba(88, 101, 242, 0.15);
+    --accent-text: #5865f2;
+    --accent-text-strong: #4338ca;
+
+    --link: #2563eb;
+    --link-mask: #1d4ed8;
+
+    --danger: #b91c1c;
+
+    --success-bg: #d1fae5;
+    --success-text: #065f46;
+    --warn-bg: #fef3c7;
+    --warn-text: #92400e;
+
+    --code-bg: #f3f4f6;
+    --quote-border: #d1d5db;
+    --quote-text: #4b5563;
+
+    --spoiler-bg: #1f2937;
+    --spoiler-revealed-bg: #e5e7eb;
+
+    --pill-bg: #f3f4f6;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-page: #1e1f22;
+        --bg-surface: #2b2d31;
+        --bg-surface-2: #1e1f22;
+        --bg-surface-hover: rgba(255, 255, 255, 0.04);
+        --bg-surface-active: #3a3c44;
+        --bg-header: #18191c;
+
+        --text: #dbdee1;
+        --text-muted: #a3a6aa;
+        --text-strong: #f2f3f5;
+        --text-faint: #80848e;
+        --text-on-header: #f2f3f5;
+        --text-on-header-muted: #b5bac1;
+
+        --border: #3f4248;
+        --border-strong: #4e5058;
+
+        --accent-bg: rgba(88, 101, 242, 0.25);
+        --accent-text: #a5b4fc;
+        --accent-text-strong: #c7d2fe;
+
+        --link: #93c5fd;
+        --link-mask: #bfdbfe;
+
+        --danger: #f87171;
+
+        --success-bg: #064e3b;
+        --success-text: #a7f3d0;
+        --warn-bg: #78350f;
+        --warn-text: #fef3c7;
+
+        --code-bg: #1e1f22;
+        --quote-border: #4e5058;
+        --quote-text: #b5bac1;
+
+        --spoiler-bg: #404249;
+        --spoiler-revealed-bg: #313338;
+
+        --pill-bg: #313338;
+    }
+}
+
 *,
 *::before,
 *::after {
@@ -14,16 +105,17 @@ body,
 
 body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
-    color: #111827;
-    background: #f9fafb;
+    color: var(--text);
+    background: var(--bg-page);
     font-size: 15px;
     line-height: 1.5;
 }
 
 h1, h2, h3, h4 {
     margin-top: 0;
+    color: var(--text-strong);
 }
 
 a {
-    color: #2563eb;
+    color: var(--link);
 }

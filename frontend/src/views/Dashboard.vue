@@ -146,17 +146,18 @@ onUnmounted(() => {
     gap: 0.75rem;
 }
 .muted {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.9rem;
 }
 .error {
-    color: #b91c1c;
+    color: var(--danger);
 }
 button {
     padding: 0.4rem 0.8rem;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-strong);
     border-radius: 4px;
-    background: #fff;
+    background: var(--bg-surface);
+    color: var(--text);
     cursor: pointer;
     font-size: 0.9rem;
 }
@@ -170,18 +171,18 @@ button:disabled {
     gap: 1rem;
 }
 .card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 1rem 1.25rem;
 }
 .card h2 {
     margin: 0 0 0.75rem;
     font-size: 1rem;
-    color: #374151;
+    color: var(--text);
 }
 .card-muted {
-    background: #f3f4f6;
+    background: var(--bg-surface-2);
 }
 dl {
     display: grid;
@@ -190,7 +191,7 @@ dl {
     margin: 0;
 }
 dt {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.85rem;
 }
 dd {
@@ -206,11 +207,11 @@ dd {
     text-transform: lowercase;
 }
 .pill-ok {
-    background: #d1fae5;
-    color: #065f46;
+    background: var(--success-bg);
+    color: var(--success-text);
 }
 .pill-warn {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--warn-bg);
+    color: var(--warn-text);
 }
 </style>

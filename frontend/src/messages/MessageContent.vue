@@ -147,14 +147,14 @@ export default defineComponent({
     word-break: break-word;
 }
 .message-content :deep(.inline-code) {
-    background: #f3f4f6;
+    background: var(--code-bg);
     padding: 1px 4px;
     border-radius: 3px;
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 0.9em;
 }
 .message-content :deep(.code-block) {
-    background: #f3f4f6;
+    background: var(--code-bg);
     padding: 0.6rem 0.8rem;
     border-radius: 4px;
     font-family: ui-monospace, SFMono-Regular, monospace;
@@ -163,21 +163,21 @@ export default defineComponent({
     margin: 0.4rem 0;
 }
 .message-content :deep(.block-quote) {
-    border-left: 3px solid #d1d5db;
+    border-left: 3px solid var(--quote-border);
     padding-left: 0.75rem;
     margin: 0.2rem 0;
-    color: #4b5563;
+    color: var(--quote-text);
 }
 .message-content :deep(.heading) {
     font-weight: 600;
     margin: 0.4rem 0 0.2rem;
 }
 .message-content :deep(.subtext) {
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.85em;
 }
 .message-content :deep(.link) {
-    color: #1d4ed8;
+    color: var(--link-mask);
     text-decoration: underline;
 }
 .message-content :deep(.unicode-emoji),
@@ -188,7 +188,7 @@ export default defineComponent({
     display: inline-block;
 }
 .message-content :deep(.spoiler) {
-    background: #1f2937;
+    background: var(--spoiler-bg);
     color: transparent;
     border-radius: 3px;
     padding: 0 2px;
@@ -196,17 +196,17 @@ export default defineComponent({
     transition: background 0.15s ease;
 }
 .message-content :deep(.spoiler.revealed) {
-    background: #e5e7eb;
+    background: var(--spoiler-revealed-bg);
     color: inherit;
     cursor: default;
 }
 .message-content :deep(.timestamp) {
-    background: #f3f4f6;
+    background: var(--code-bg);
     border-radius: 3px;
     padding: 0 4px;
 }
 .message-content :deep(.guild-navigation) {
-    color: #5865f2;
+    color: var(--accent-text);
     font-weight: 500;
 }
 </style>

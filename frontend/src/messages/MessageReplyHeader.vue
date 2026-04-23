@@ -29,14 +29,14 @@ function jump() {
     background: none;
     border: none;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--text-muted);
     font-size: 0.85rem;
     margin-bottom: 0.2rem;
     max-width: 100%;
     overflow: hidden;
 }
 .arrow {
-    color: #9ca3af;
+    color: var(--text-faint);
 }
 .avatar {
     width: 16px;
@@ -45,7 +45,7 @@ function jump() {
 }
 .author {
     font-weight: 500;
-    color: #4b5563;
+    color: var(--quote-text);
 }
 .preview {
     overflow: hidden;
@@ -54,6 +54,6 @@ function jump() {
     max-width: 28ch;
 }
 .reply:hover .preview {
-    color: #1f2937;
+    color: var(--text-strong);
 }
 </style>

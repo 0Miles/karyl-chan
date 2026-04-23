@@ -73,17 +73,17 @@ function open() {
     display: inline-flex;
     flex-direction: column;
     padding: 0.5rem 0.75rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 6px;
     text-decoration: none;
-    color: #111827;
-    background: #fff;
+    color: var(--text);
+    background: var(--bg-surface-2);
 }
 .filename {
     font-weight: 500;
 }
 .size {
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 </style>

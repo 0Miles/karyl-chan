@@ -57,7 +57,7 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
     gap: 0.15rem;
 }
 .message:hover {
-    background: rgba(0, 0, 0, 0.025);
+    background: var(--bg-surface-hover);
 }
 .message.compact {
     padding-top: 0.1rem;
@@ -76,8 +76,8 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
     flex-shrink: 0;
 }
 .avatar-fallback {
-    background: #5865f2;
-    color: #fff;
+    background: var(--accent);
+    color: var(--text-on-accent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -91,11 +91,11 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
 }
 .name {
     font-weight: 600;
-    color: #111827;
+    color: var(--text-strong);
 }
 .bot-tag {
-    background: #5865f2;
-    color: #fff;
+    background: var(--accent);
+    color: var(--text-on-accent);
     font-size: 0.65rem;
     font-weight: 700;
     padding: 1px 4px;
@@ -104,11 +104,11 @@ const displayName = computed(() => props.message.author.globalName ?? props.mess
 }
 .time {
     font-size: 0.75rem;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 .edited {
     font-size: 0.75rem;
-    color: #9ca3af;
+    color: var(--text-faint);
 }
 .body {
     margin-left: 2.85rem;

@@ -111,23 +111,24 @@ function onKeydown(event: KeyboardEvent) {
 .composer {
     display: flex;
     flex-direction: column;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.4rem 0.5rem;
-    background: #fff;
+    background: var(--bg-surface);
+    color: var(--text);
     position: relative;
 }
 .reply-banner {
     display: flex;
     justify-content: space-between;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-muted);
     margin-bottom: 0.25rem;
 }
 .link {
     background: none;
     border: none;
-    color: #1d4ed8;
+    color: var(--link-mask);
     cursor: pointer;
     padding: 0;
     font: inherit;
@@ -142,7 +143,7 @@ function onKeydown(event: KeyboardEvent) {
     display: inline-flex;
     gap: 0.25rem;
     align-items: center;
-    background: #f3f4f6;
+    background: var(--bg-surface-2);
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 0.8rem;
@@ -151,7 +152,7 @@ function onKeydown(event: KeyboardEvent) {
     background: none;
     border: none;
     cursor: pointer;
-    color: #6b7280;
+    color: var(--text-muted);
 }
 .input-row {
     display: flex;
@@ -160,15 +161,16 @@ function onKeydown(event: KeyboardEvent) {
 }
 .icon-button {
     background: none;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 4px;
     width: 32px;
     height: 32px;
     cursor: pointer;
     flex-shrink: 0;
+    color: var(--text);
 }
 .icon-button:hover:not(:disabled) {
-    background: #f3f4f6;
+    background: var(--bg-surface-2);
 }
 .textarea {
     flex: 1;
@@ -176,16 +178,18 @@ function onKeydown(event: KeyboardEvent) {
     min-height: 32px;
     max-height: 160px;
     padding: 0.4rem 0.5rem;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border);
     border-radius: 4px;
+    background: var(--bg-surface);
+    color: var(--text);
     font: inherit;
 }
 .send {
     padding: 0 0.9rem;
     height: 32px;
-    border: 1px solid #1f2937;
-    background: #1f2937;
-    color: #fff;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--text-on-accent);
     border-radius: 4px;
     cursor: pointer;
     flex-shrink: 0;

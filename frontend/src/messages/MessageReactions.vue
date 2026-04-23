@@ -56,18 +56,19 @@ function toggle(r: MessageReaction) {
     gap: 0.25rem;
     padding: 1px 6px;
     border: 1px solid transparent;
-    background: #f3f4f6;
+    background: var(--pill-bg);
+    color: var(--text);
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.85rem;
 }
 .reaction:hover {
-    border-color: #cbd5f5;
+    border-color: var(--accent);
 }
 .reaction.mine {
-    background: #e0e7ff;
-    border-color: #5865f2;
-    color: #4338ca;
+    background: var(--accent-bg);
+    border-color: var(--accent);
+    color: var(--accent-text-strong);
 }
 .emoji {
     width: 16px;

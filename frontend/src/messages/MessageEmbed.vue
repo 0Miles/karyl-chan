@@ -53,17 +53,18 @@ const descriptionAst = computed(() =>
 .embed {
     margin-top: 0.4rem;
     padding: 0.5rem 0.75rem;
-    background: #f9fafb;
-    border-left: 4px solid #5865f2;
+    background: var(--bg-surface-2);
+    border-left: 4px solid var(--accent);
     border-radius: 4px;
     max-width: 480px;
+    color: var(--text);
 }
 .author {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     font-size: 0.85rem;
-    color: #4b5563;
+    color: var(--quote-text);
     margin-bottom: 0.25rem;
 }
 .author .icon {
@@ -76,10 +77,10 @@ const descriptionAst = computed(() =>
     font-size: 1rem;
 }
 .title a {
-    color: #1d4ed8;
+    color: var(--link-mask);
 }
 .description {
-    color: #1f2937;
+    color: var(--text);
 }
 .fields {
     margin-top: 0.5rem;
@@ -100,7 +101,7 @@ const descriptionAst = computed(() =>
 }
 .field-value {
     font-size: 0.9rem;
-    color: #1f2937;
+    color: var(--text);
     white-space: pre-wrap;
 }
 .image {
@@ -117,7 +118,7 @@ const descriptionAst = computed(() =>
 .footer {
     margin-top: 0.5rem;
     font-size: 0.8rem;
-    color: #6b7280;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
     gap: 0.25rem;

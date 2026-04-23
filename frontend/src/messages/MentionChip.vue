@@ -41,8 +41,8 @@ const display = computed(() => {
 <style scoped>
 .mention {
     display: inline;
-    background: rgba(88, 101, 242, 0.15);
-    color: #5865f2;
+    background: var(--accent-bg);
+    color: var(--accent-text);
     padding: 0 2px;
     border-radius: 3px;
     font-weight: 500;
