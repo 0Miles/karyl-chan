@@ -9,6 +9,8 @@ import { startWebServer } from './web/server.js';
 import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
 
+let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
+
 export const bot = new Client({
     botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
 
@@ -110,7 +112,7 @@ async function run() {
         await authStore.init();
 
         const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
-        await startWebServer({ port: webPort, bot });
+        webServer = await startWebServer({ port: webPort, bot });
         console.log(`Web server listening on :${webPort}`);
 
         await bot.login(process.env.BOT_TOKEN ?? '');
@@ -122,6 +124,10 @@ async function run() {
 
 async function resetBot() {
     bot.destroy();
+    if (webServer) {
+        await webServer.close();
+        webServer = null;
+    }
     await new Promise<void>(resolve => {
         setTimeout(() => {
             resolve();
