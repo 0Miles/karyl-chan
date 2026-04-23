@@ -337,7 +337,9 @@ onMounted(() => {
             />
         </div>
         <div class="input-row">
-            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">+</button>
+            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">
+                <Icon icon="material-symbols:add-2-rounded" width="20" height="20" />
+            </button>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
             <div
                 ref="editorRef"
@@ -353,7 +355,9 @@ onMounted(() => {
                 @keyup="refreshSuggestions"
                 @blur="cancelSuggestions"
             />
-            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
+            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">
+                <Icon icon="ic:round-emoji-emotions" width="20" height="20" />
+            </button>
             <button type="button" class="icon-button" :disabled="disabled" @click="send" title="Send" aria-label="Send">
                 <Icon icon="material-symbols:send-rounded" width="20" height="20" />
             </button>
@@ -456,6 +460,9 @@ onMounted(() => {
     flex-shrink: 0;
     color: var(--text);
     transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .icon-button:hover:not(:disabled) {
     background: var(--bg-surface-hover);

@@ -12,6 +12,7 @@ import { useShiftKey } from '../../composables/use-shift-key';
 import { useBreakpoint } from '../../composables/use-breakpoint';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
+import { Icon } from '@iconify/vue';
 
 const props = defineProps<{
     channelId: string | null;
@@ -310,16 +311,24 @@ const replyToProp = computed(() => props.replyTo);
                                 :class="['action', { active: reactingMessageId === message.id }]"
                                 title="React"
                                 @click="startReact(message.id)"
-                            >😊</button>
-                            <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
+                            >
+                                <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
+                            </button>
+                            <button type="button" class="action" title="Reply" @click="emit('reply', message)">
+                                <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
+                            </button>
                             <template v-if="isOwn(message)">
-                                <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
+                                <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">
+                                    <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
+                                </button>
                                 <button
                                     type="button"
                                     :class="['action', { danger: shiftHeld }]"
                                     :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
                                     @click="emit('delete', message, $event)"
-                                >🗑</button>
+                                >
+                                    <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
+                                </button>
                             </template>
                         </div>
                     </div>
@@ -358,16 +367,24 @@ const replyToProp = computed(() => props.replyTo);
                             :class="['action', { active: reactingMessageId === message.id }]"
                             title="React"
                             @click="startReact(message.id)"
-                        >😊</button>
-                        <button type="button" class="action" title="Reply" @click="emit('reply', message)">↩</button>
+                        >
+                            <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
+                        </button>
+                        <button type="button" class="action" title="Reply" @click="emit('reply', message)">
+                            <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
+                        </button>
                         <template v-if="isOwn(message)">
-                            <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">✏</button>
+                            <button type="button" class="action" title="Edit" @click="emit('request-edit', message)">
+                                <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
+                            </button>
                             <button
                                 type="button"
                                 :class="['action', { danger: shiftHeld }]"
                                 :title="shiftHeld ? 'Delete (no confirm)' : 'Delete (shift to skip confirm)'"
                                 @click="emit('delete', message, $event)"
-                            >🗑</button>
+                            >
+                                <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
+                            </button>
                         </template>
                     </div>
                 </div>
@@ -411,6 +428,7 @@ const replyToProp = computed(() => props.replyTo);
     flex-direction: column;
     overflow: hidden;
     position: relative;
+    flex: 1;
 }
 .drop-overlay {
     position: absolute;
@@ -471,11 +489,13 @@ const replyToProp = computed(() => props.replyTo);
     background: none;
     border: none;
     cursor: pointer;
-    padding: 2px 6px;
+    padding: 4px;
     border-radius: 3px;
     color: var(--text);
-    font-size: 0.85rem;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .action:hover { background: var(--bg-surface-hover); }
 .action.active {

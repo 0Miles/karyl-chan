@@ -273,7 +273,7 @@ button:disabled {
 }
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 1rem;
 }
 .card {
@@ -398,7 +398,6 @@ dd {
 
 /* guilds */
 .guilds-card {
-    grid-column: 1 / -1;
 }
 .guilds-card h2 {
     display: flex;
@@ -464,7 +463,6 @@ dd {
 
 /* event log */
 .events-card {
-    grid-column: 1 / -1;
 }
 .event-list {
     list-style: none;

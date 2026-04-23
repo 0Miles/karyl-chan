@@ -4,6 +4,7 @@ import { animatedAvatarUrl, isAnimatedAvatar } from '../../modules/discord-chat'
 import type { DmChannelSummary } from '../../api/dm';
 import type { GuildSummary } from '../../api/guilds';
 import ModeSelect from './ModeSelect.vue';
+import { Icon } from '@iconify/vue';
 
 defineProps<{
     guilds: GuildSummary[];
@@ -49,7 +50,9 @@ function formatTimestamp(iso: string | null): string {
     <aside class="sidebar">
         <header class="sidebar-header">
             <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
-            <button type="button" class="ghost" @click="emit('toggle-start')">+</button>
+            <button type="button" class="ghost" @click="emit('toggle-start')">
+                <Icon icon="material-symbols:add-rounded" width="20" height="20" />
+            </button>
         </header>
         <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
             <input
@@ -110,13 +113,16 @@ function formatTimestamp(iso: string | null): string {
     flex-shrink: 0;
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
-    width: 28px;
-    height: 28px;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
     cursor: pointer;
     color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
-.ghost:hover { background: var(--bg-surface-2); }
+.ghost:hover { background: var(--bg-surface-hover); }
 .start-form {
     display: flex;
     gap: 0.25rem;
