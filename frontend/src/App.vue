@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
 import { isAuthenticated } from './auth';
 import { logout } from './api/client';
 import { provideAppShell } from './composables/use-app-shell';
@@ -64,11 +65,7 @@ function navigate() {
                 aria-label="Open menu"
                 @click="openOverlay"
             >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <line x1="4" y1="7" x2="20" y2="7" />
-                    <line x1="4" y1="12" x2="20" y2="12" />
-                    <line x1="4" y1="17" x2="20" y2="17" />
-                </svg>
+                <Icon icon="material-symbols:menu-rounded" width="24" height="24" />
             </button>
         </Draggable>
 
@@ -90,9 +87,7 @@ function navigate() {
             >
                 <header class="mobile-overlay-header">
                     <button type="button" class="overlay-back" @click="closeOverlay" aria-label="Close menu">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="15 18 9 12 15 6" />
-                        </svg>
+                        <Icon icon="material-symbols:chevron-left-rounded" width="20" height="20" />
                         <span>Back</span>
                     </button>
                     <button
@@ -102,15 +97,11 @@ function navigate() {
                         :aria-label="overlayView === 'nav' ? 'Show page features' : 'Show navigation'"
                         @click="toggleOverlayView"
                     >
-                        <svg v-if="overlayView === 'nav'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" />
-                            <line x1="9" y1="3" x2="9" y2="21" />
-                        </svg>
-                        <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                            <line x1="4" y1="7" x2="20" y2="7" />
-                            <line x1="4" y1="12" x2="20" y2="12" />
-                            <line x1="4" y1="17" x2="20" y2="17" />
-                        </svg>
+                        <Icon
+                            :icon="overlayView === 'nav' ? 'material-symbols:view-sidebar-rounded' : 'material-symbols:menu-rounded'"
+                            width="20"
+                            height="20"
+                        />
                     </button>
                 </header>
                 <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">

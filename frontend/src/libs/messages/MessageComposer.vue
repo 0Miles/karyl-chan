@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue';
+import { Icon } from '@iconify/vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
 import MediaPickerDrawer from './picker/MediaPickerDrawer.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
@@ -354,10 +355,7 @@ onMounted(() => {
             />
             <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="icon-button" :disabled="disabled" @click="send" title="Send" aria-label="Send">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                <Icon icon="material-symbols:send-rounded" width="20" height="20" />
             </button>
         </div>
         <MediaPickerPopover
