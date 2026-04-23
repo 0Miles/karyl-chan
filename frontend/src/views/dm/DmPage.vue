@@ -31,10 +31,17 @@ const router = useRouter();
 const channels = ref<DmChannelSummary[]>([]);
 const selectedChannelId = ref<string | null>(null);
 const botUserId = ref<string | null>(null);
+const botUserTag = ref<string | null>(null);
 const newRecipientId = ref('');
 const showStart = ref(false);
 const channelsError = ref<string | null>(null);
 const loadingChannels = ref(false);
+
+function botDisplayName(): string | null {
+    const tag = botUserTag.value;
+    if (!tag) return null;
+    return tag.includes('#') ? tag.split('#')[0] : tag;
+}
 
 let unsubscribeEvents: (() => void) | null = null;
 
@@ -87,6 +94,25 @@ const ctx: MessageContext = {
     onReplyClick: (id) => document.querySelector(`[data-message-id="${id}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
     get currentUserId() { return botUserId.value; },
+    resolveUser(id) {
+        const channel = selectedChannel.value;
+        if (channel?.recipient.id === id) {
+            return { name: channel.recipient.globalName ?? channel.recipient.username };
+        }
+        if (botUserId.value === id) {
+            const name = botDisplayName();
+            return name ? { name } : null;
+        }
+        // Fall back to whatever the message itself carries — DMs sometimes
+        // surface mentions of users we don't have profile data for, but the
+        // referencedMessage / message.author shape may have it.
+        for (const message of chat.messages.value) {
+            if (message.author.id === id) {
+                return { name: message.author.globalName ?? message.author.username };
+            }
+        }
+        return null;
+    },
     mediaProvider: createDiscordMediaProvider({
         listEmojis,
         listStickers,
@@ -186,7 +212,10 @@ async function startNewDm() {
 
 onMounted(() => {
     refreshChannels();
-    botApi.getBotStatus().then(status => { botUserId.value = status.userId; }).catch(() => {});
+    botApi.getBotStatus().then(status => {
+        botUserId.value = status.userId;
+        botUserTag.value = status.userTag;
+    }).catch(() => {});
     unsubscribeEvents = subscribeEvents({
         onEvent: applyDmEvent,
         onError: () => { /* EventSource auto-reconnects */ }
