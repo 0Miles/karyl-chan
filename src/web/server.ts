@@ -5,6 +5,8 @@ import { existsSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
+import { registerDmRoutes } from './dm-routes.js';
+import type { DmInboxService } from './dm-inbox.service.js';
 
 export interface WebServerOptions {
     port: number;
@@ -16,6 +18,7 @@ export interface CreateWebServerOptions {
     staticRoot?: string;
     bot?: Client;
     authStore?: AuthStore;
+    dmInbox?: DmInboxService;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -121,6 +124,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
                 uptimeMs: bot.uptime ?? 0
             };
         });
+        await registerDmRoutes(server, { bot, inbox: options.dmInbox });
     }
 
     const staticRoot = options.staticRoot ?? defaultStaticRoot();
