@@ -83,9 +83,10 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
     });
 });
 
-function matchesMentionQuery(name: string, query: string): boolean {
+function mentionMatches(query: string, ...candidates: (string | null | undefined)[]): boolean {
     if (!query) return true;
-    return name.toLowerCase().includes(query.toLowerCase());
+    const q = query.toLowerCase();
+    return candidates.some(c => !!c && c.toLowerCase().includes(q));
 }
 
 const ctx: MessageContext = {
@@ -127,7 +128,7 @@ const ctx: MessageContext = {
                 const items = [];
                 const recipient = channel.recipient;
                 const recipientName = recipient.globalName ?? recipient.username;
-                if (matchesMentionQuery(recipientName, query)) {
+                if (mentionMatches(query, recipientName, recipient.username, recipient.id)) {
                     items.push({
                         key: recipient.id,
                         label: recipientName,
