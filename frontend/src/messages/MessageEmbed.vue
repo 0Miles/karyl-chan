@@ -14,10 +14,29 @@ const colorBar = computed(() => {
 const descriptionAst = computed(() =>
     props.embed.description ? parseMessageContent(props.embed.description) : null
 );
+
+const imageOnly = computed(() => Boolean(
+    props.embed.image
+    && !props.embed.title
+    && !props.embed.description
+    && !props.embed.author
+    && !props.embed.footer
+    && !props.embed.thumbnail
+    && !(props.embed.fields && props.embed.fields.length > 0)
+));
 </script>
 
 <template>
-    <div class="embed" :style="{ borderLeftColor: colorBar }">
+    <a
+        v-if="imageOnly"
+        :href="embed.url ?? embed.image?.url ?? '#'"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="image-only"
+    >
+        <img :src="embed.image!.url" alt="" loading="lazy" />
+    </a>
+    <div v-else class="embed" :style="{ borderLeftColor: colorBar }">
         <div v-if="embed.author" class="author">
             <img v-if="embed.author.iconUrl" :src="embed.author.iconUrl" alt="" class="icon" />
             <a v-if="embed.author.url" :href="embed.author.url" target="_blank" rel="noopener noreferrer">{{ embed.author.name }}</a>
@@ -127,5 +146,16 @@ const descriptionAst = computed(() =>
     width: 14px;
     height: 14px;
     border-radius: 50%;
+}
+.image-only {
+    display: inline-block;
+    margin-top: 0.4rem;
+    max-width: min(360px, 100%);
+}
+.image-only img {
+    display: block;
+    max-width: 100%;
+    max-height: 360px;
+    border-radius: 6px;
 }
 </style>
