@@ -53,6 +53,16 @@ function rowAvatarSrc(channel: DmChannelSummary): string | null {
     return url;
 }
 
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function isContinuation(prev: Message | undefined, curr: Message): boolean {
+    if (!prev) return false;
+    if (prev.author.id !== curr.author.id) return false;
+    if (curr.referencedMessage) return false;
+    const diff = new Date(curr.createdAt).getTime() - new Date(prev.createdAt).getTime();
+    return diff >= 0 && diff <= GROUP_WINDOW_MS;
+}
+
 function bailOnAuthError(err: unknown): boolean {
     if (err instanceof ApiError && err.status === 401) {
         unsubscribeEvents?.();
@@ -336,8 +346,12 @@ function formatTimestamp(iso: string | null): string {
                 <p v-else-if="messages.length === 0" class="muted center">No messages yet.</p>
                 <p v-if="loadingOlder" class="muted center small">Loading older…</p>
                 <p v-else-if="!hasMore && messages.length > 0" class="muted center small">Beginning of conversation</p>
-                <div v-for="message in messages" :key="message.id" class="message-wrap">
-                    <MessageView :message="message" />
+                <div
+                    v-for="(message, idx) in messages"
+                    :key="message.id"
+                    class="message-wrap"
+                >
+                    <MessageView :message="message" :compact="isContinuation(messages[idx - 1], message)" />
                     <button type="button" class="reply-action" @click="onMessageReply(message)">Reply</button>
                 </div>
                 <div ref="messagesEnd" />

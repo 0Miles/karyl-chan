@@ -130,5 +130,6 @@ const avatarSrc = computed(() => {
 }
 .compact .body {
     margin-left: 2.85rem;
+    margin-top: 0;
 }
 </style>
