@@ -3,7 +3,10 @@ import { computed, ref, shallowRef } from 'vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
 import type { StickerRecent } from './picker/recents';
-import type { OutgoingMessage, MessageReference } from './types';
+import ComposerSuggestions from './ComposerSuggestions.vue';
+import { findActiveTrigger } from './composer-suggestions';
+import { useMessageContext } from './context';
+import type { ComposerSuggestionItem, OutgoingMessage, MessageReference } from './types';
 
 const props = defineProps<{
     placeholder?: string;
@@ -23,6 +26,72 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
 const textArea = ref<HTMLTextAreaElement | null>(null);
 const pickerButton = ref<HTMLButtonElement | null>(null);
+
+const ctx = useMessageContext();
+
+const triggerChars = computed(() => {
+    const set = new Set<string>();
+    for (const p of ctx.suggestionProviders ?? []) for (const t of p.triggers) set.add(t);
+    return [...set];
+});
+
+const suggestions = ref<ComposerSuggestionItem[]>([]);
+const activeSuggestionIndex = ref(0);
+const activeTriggerRange = ref<[number, number] | null>(null);
+let suggestionRequestId = 0;
+
+async function refreshSuggestions() {
+    const ta = textArea.value;
+    if (!ta || triggerChars.value.length === 0) {
+        suggestions.value = [];
+        activeTriggerRange.value = null;
+        return;
+    }
+    const cursor = ta.selectionStart ?? content.value.length;
+    const trigger = findActiveTrigger(content.value, cursor, triggerChars.value);
+    if (!trigger) {
+        suggestions.value = [];
+        activeTriggerRange.value = null;
+        return;
+    }
+    const provider = ctx.suggestionProviders?.find(p => p.triggers.includes(trigger.char));
+    if (!provider) {
+        suggestions.value = [];
+        activeTriggerRange.value = null;
+        return;
+    }
+    const id = ++suggestionRequestId;
+    const result = await provider.suggest(trigger);
+    if (id !== suggestionRequestId) return;
+    suggestions.value = result;
+    activeSuggestionIndex.value = 0;
+    activeTriggerRange.value = result.length > 0 ? trigger.range : null;
+}
+
+function applySuggestion(key: string) {
+    const range = activeTriggerRange.value;
+    if (!range) return;
+    const item = suggestions.value.find(s => s.key === key);
+    if (!item) return;
+    const before = content.value.slice(0, range[0]);
+    const after = content.value.slice(range[1]);
+    const inserted = item.insert + ' ';
+    content.value = before + inserted + after;
+    suggestions.value = [];
+    activeTriggerRange.value = null;
+    requestAnimationFrame(() => {
+        const ta = textArea.value;
+        if (!ta) return;
+        const pos = before.length + inserted.length;
+        ta.selectionStart = ta.selectionEnd = pos;
+        ta.focus();
+    });
+}
+
+function cancelSuggestions() {
+    suggestions.value = [];
+    activeTriggerRange.value = null;
+}
 
 const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 
@@ -125,6 +194,29 @@ function send() {
 }
 
 function onKeydown(event: KeyboardEvent) {
+    if (suggestions.value.length > 0) {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            activeSuggestionIndex.value = (activeSuggestionIndex.value + 1) % suggestions.value.length;
+            return;
+        }
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeSuggestionIndex.value = (activeSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+            return;
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            const item = suggestions.value[activeSuggestionIndex.value];
+            if (item) applySuggestion(item.key);
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelSuggestions();
+            return;
+        }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         send();
@@ -162,11 +254,8 @@ function onPaste(event: ClipboardEvent) {
     attachments.value = [...attachments.value, ...pasted];
 }
 
-import { useMessageContext } from './context';
-const composerCtx = useMessageContext();
-
 function stickerPreview(sticker: StickerRecent): string {
-    return composerCtx.mediaProvider?.stickerUrl({ id: sticker.id, formatType: sticker.formatType }, 60) ?? '';
+    return ctx.mediaProvider?.stickerUrl({ id: sticker.id, formatType: sticker.formatType }, 60) ?? '';
 }
 </script>
 
@@ -188,6 +277,14 @@ function stickerPreview(sticker: StickerRecent): string {
                 <button type="button" @click="removeSticker(idx)">×</button>
             </div>
         </div>
+        <div v-if="suggestions.length" class="suggestions-pop">
+            <ComposerSuggestions
+                :items="suggestions"
+                :active-index="activeSuggestionIndex"
+                @select="applySuggestion"
+                @hover="(idx) => (activeSuggestionIndex = idx)"
+            />
+        </div>
         <div class="input-row">
             <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">+</button>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
@@ -199,6 +296,10 @@ function stickerPreview(sticker: StickerRecent): string {
                 rows="1"
                 class="textarea"
                 @keydown="onKeydown"
+                @input="refreshSuggestions"
+                @click="refreshSuggestions"
+                @keyup="refreshSuggestions"
+                @blur="cancelSuggestions"
             />
             <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji & stickers">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
@@ -324,6 +425,14 @@ function stickerPreview(sticker: StickerRecent): string {
 .icon-button:disabled {
     opacity: 0.5;
     cursor: default;
+}
+.suggestions-pop {
+    position: absolute;
+    bottom: 100%;
+    left: 0.5rem;
+    right: 0.5rem;
+    margin-bottom: 0.4rem;
+    z-index: 5;
 }
 .hidden {
     display: none;

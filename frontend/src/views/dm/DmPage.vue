@@ -76,6 +76,11 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
     });
 });
 
+function matchesMentionQuery(name: string, query: string): boolean {
+    if (!query) return true;
+    return name.toLowerCase().includes(query.toLowerCase());
+}
+
 const ctx: MessageContext = {
     onReactionAdd: chat.reactAdd,
     onReactionRemove: chat.reactRemove,
@@ -86,7 +91,29 @@ const ctx: MessageContext = {
         listEmojis,
         listStickers,
         loadLottieSticker: loadStickerLottie
-    })
+    }),
+    suggestionProviders: [
+        {
+            triggers: ['@'],
+            suggest({ query }) {
+                const channel = selectedChannel.value;
+                if (!channel) return [];
+                const items = [];
+                const recipient = channel.recipient;
+                const recipientName = recipient.globalName ?? recipient.username;
+                if (matchesMentionQuery(recipientName, query)) {
+                    items.push({
+                        key: recipient.id,
+                        label: recipientName,
+                        secondary: recipient.username !== recipientName ? `@${recipient.username}` : null,
+                        iconUrl: recipient.avatarUrl,
+                        insert: `<@${recipient.id}>`
+                    });
+                }
+                return items;
+            }
+        }
+    ]
 } as MessageContext;
 provide(MessageContextKey, ctx);
 

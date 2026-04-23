@@ -108,6 +108,32 @@ export interface GuildBucket<T> {
     items: T[];
 }
 
+export interface ComposerSuggestionItem {
+    /** Stable id used as v-for key and the value emitted on select. */
+    key: string;
+    label: string;
+    secondary?: string | null;
+    iconUrl?: string | null;
+    /** Text inserted in place of the trigger range when the user picks this item. */
+    insert: string;
+}
+
+export interface ComposerSuggestionTrigger {
+    /** The trigger character (e.g. '@', '#', ':', '/'). */
+    char: string;
+    /** Text the user has typed after the trigger char, up to the cursor. */
+    query: string;
+    /** [start, end] in the input. start = position of the trigger char; end = current cursor. */
+    range: [number, number];
+}
+
+export interface ComposerSuggestionProvider {
+    /** Trigger characters this provider responds to. */
+    triggers: string[];
+    /** Return matching items for the active trigger; an empty list hides the menu. */
+    suggest(trigger: ComposerSuggestionTrigger): ComposerSuggestionItem[] | Promise<ComposerSuggestionItem[]>;
+}
+
 export interface MediaProvider {
     listEmojis(): Promise<GuildBucket<CustomEmoji>[]>;
     listStickers(): Promise<GuildBucket<GuildSticker>[]>;

@@ -1,5 +1,5 @@
 import { inject, type InjectionKey } from 'vue';
-import type { MediaProvider, MessageEmoji } from './types';
+import type { ComposerSuggestionProvider, MediaProvider, MessageEmoji } from './types';
 
 export interface ResolvedUser {
     name: string;
@@ -33,6 +33,8 @@ export interface MessageContext {
     onReplyClick?: (messageId: string) => void;
     onAttachmentOpen?: (attachmentId: string) => void;
     mediaProvider?: MediaProvider;
+    /** Providers consulted by the MessageComposer when the user types a trigger char. */
+    suggestionProviders?: ComposerSuggestionProvider[];
 }
 
 export const MessageContextKey: InjectionKey<MessageContext> = Symbol('MessageContext');

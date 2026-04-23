@@ -9,8 +9,14 @@ export type {
     MessageReference,
     MessageEmbed,
     MessageEmbedField,
-    OutgoingMessage
+    OutgoingMessage,
+    ComposerSuggestionItem,
+    ComposerSuggestionTrigger,
+    ComposerSuggestionProvider
 } from './types';
+
+export { default as ComposerSuggestions } from './ComposerSuggestions.vue';
+export { findActiveTrigger } from './composer-suggestions';
 
 export type {
     MessageContext,
