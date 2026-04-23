@@ -37,7 +37,7 @@ function emojiMatches(a: MessageEmoji, b: MessageEmoji): boolean {
  * subscribes once and feeds applyEvent for every channel-scoped event.
  */
 export function useDiscordChat(opts: UseDiscordChatOptions) {
-    const PAGE_SIZE = opts.pageSize ?? 10;
+    const PAGE_SIZE = opts.pageSize ?? 16;
 
     const messages = ref<Message[]>([]);
     const replyTo = ref<MessageReference | null>(null);
