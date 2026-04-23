@@ -11,7 +11,7 @@ import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
 import { useBreakpoint } from '../../composables/use-breakpoint';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
-import { useMessageCacheStore } from './stores/messageCacheStore';
+import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
 
 const props = defineProps<{
     channelId: string | null;
@@ -89,81 +89,96 @@ function closeReactPicker() {
     reactingButton.value = null;
 }
 
-// ── Scroll anchor memory ────────────────────────────────────────────────────
-// Stored in messageCacheStore so anchors survive component remounts.
+// ── Scroll position memory ──────────────────────────────────────────────────
+// On channel switch we capture the topmost visible message + its pixel offset
+// from the container top, stash it in the cache store, and replay on return.
+// A `null` captured position means "the user was at/near the bottom" — the
+// absence of a stored position is our sentinel so restoration defaults to
+// bottom for fresh channels too.
 const messageCache = useMessageCacheStore();
 
-type PendingRestore =
-    | { channelId: string; type: 'anchor'; messageId: string }
-    | { channelId: string; type: 'bottom' };
+interface PendingRestore {
+    channelId: string;
+    position: ScrollPosition | null;
+}
 let pendingRestore: PendingRestore | null = null;
 
-function getTopAnchor(): string | null {
-    const container = messagesContainer.value;
-    if (!container) return null;
-    const rect = container.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    // Scan top-to-bottom in 16 px increments to find first message element.
-    for (let dy = 0; dy < container.clientHeight; dy += 16) {
-        let el = document.elementFromPoint(x, rect.top + dy) as HTMLElement | null;
-        while (el && el !== container) {
-            if (el.dataset.messageId) return el.dataset.messageId;
-            el = el.parentElement;
+function capturePosition(): ScrollPosition | null {
+    const el = messagesContainer.value;
+    if (!el) return null;
+    // Near-bottom → return null so restore defaults to bottom (keep following).
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) return null;
+    const containerTop = el.getBoundingClientRect().top;
+    // Walk every rendered message; the first whose bottom is below the
+    // container top is our topmost visible anchor. `querySelectorAll` returns
+    // them in document order, which matches visual top-to-bottom.
+    const items = el.querySelectorAll<HTMLElement>('[data-message-id]');
+    for (const item of items) {
+        const rect = item.getBoundingClientRect();
+        if (rect.bottom > containerTop) {
+            return {
+                messageId: item.dataset.messageId as string,
+                offset: rect.top - containerTop
+            };
         }
     }
     return null;
 }
 
-function applyAnchor(messageId: string) {
-    if (useVirtual.value) {
-        const idx = props.messages.findIndex(m => m.id === messageId);
-        if (idx >= 0) (scrollerRef.value as any)?.scrollToItem(idx);
-    } else {
-        const container = plainListRef.value;
-        const msgEl = container?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`);
-        if (container && msgEl) {
-            container.scrollTop += msgEl.getBoundingClientRect().top - container.getBoundingClientRect().top;
+/**
+ * Apply a saved position. Plain list: find the element and align. Virtual
+ * scroller: use `scrollToItem` to bring the anchor into the rendered window
+ * first, then re-align once the browser has painted — item heights are only
+ * measured after mount, so a single pass lands too early.
+ */
+function applyRestore(restore: PendingRestore, attempt = 0): void {
+    if (restore.channelId !== props.channelId) return;
+    const el = messagesContainer.value;
+    if (!el) return;
+    const { position } = restore;
+    if (!position) {
+        el.scrollTop = el.scrollHeight;
+        return;
+    }
+    const msgEl = el.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(position.messageId)}"]`);
+    if (msgEl) {
+        const rect = msgEl.getBoundingClientRect();
+        const containerRect = el.getBoundingClientRect();
+        el.scrollTop += (rect.top - containerRect.top) - position.offset;
+        // Virtual scroller re-measures after paint — one follow-up lands precisely.
+        if (useVirtual.value && attempt < 2) {
+            requestAnimationFrame(() => applyRestore(restore, attempt + 1));
         }
+        return;
+    }
+    // Anchor not rendered yet (virtual scroller window). Nudge it in and retry.
+    if (useVirtual.value && scrollerRef.value) {
+        const idx = props.messages.findIndex(m => m.id === position.messageId);
+        if (idx >= 0) {
+            (scrollerRef.value as unknown as { scrollToItem?: (i: number) => void }).scrollToItem?.(idx);
+        }
+        if (attempt < 10) requestAnimationFrame(() => applyRestore(restore, attempt + 1));
     }
 }
 
+// flush: 'sync' ensures we read the old DOM before Vue swaps it for the new
+// channel's render. Default 'pre' would also work but sync is defensive.
 watch(() => props.channelId, (newId, oldId) => {
-    // Save topmost visible message for the channel we're leaving.
-    if (oldId) {
-        const anchor = isNearBottom() ? null : getTopAnchor();
-        messageCache.setScrollAnchor(oldId, anchor);
-    }
+    if (oldId) messageCache.saveScrollPosition(oldId, capturePosition());
     closeReactPicker();
-    // Queue restore action for the incoming channel.
-    if (newId) {
-        const saved = messageCache.getScrollAnchor(newId);
-        pendingRestore = saved
-            ? { channelId: newId, type: 'anchor', messageId: saved }
-            : { channelId: newId, type: 'bottom' };
-    } else {
-        pendingRestore = null;
-    }
-});
+    pendingRestore = newId
+        ? { channelId: newId, position: messageCache.getScrollPosition(newId) }
+        : null;
+}, { flush: 'sync' });
 
-// Apply pendingRestore once when the new channel's messages arrive.
+// Apply the queued restore once the new channel's messages land in the DOM.
+// Fires both on channel switch (reference change) and on new-message arrival;
+// the `pendingRestore` guard ensures we only replay the first time.
 watch(() => props.messages, () => {
     const restore = pendingRestore;
     if (!restore || restore.channelId !== props.channelId || props.messages.length === 0) return;
     pendingRestore = null;
-    if (restore.type === 'anchor') {
-        const id = restore.messageId;
-        // First pass: instant scroll before virtual scroller measures heights.
-        // Second pass (RAF): after paint, heights are stable — scroll again to land precisely.
-        nextTick().then(() => {
-            applyAnchor(id);
-            if (useVirtual.value) requestAnimationFrame(() => applyAnchor(id));
-        });
-    } else {
-        nextTick().then(() => {
-            scrollToBottom();
-            requestAnimationFrame(scrollToBottom);
-        });
-    }
+    nextTick().then(() => applyRestore(restore));
 });
 
 watch([scrollerRef, plainListRef], ([scroller, plain], _prev, onCleanup) => {
@@ -175,10 +190,30 @@ watch([scrollerRef, plainListRef], ([scroller, plain], _prev, onCleanup) => {
 }, { immediate: true });
 
 onMounted(() => {
-    scrollToBottom();
+    // Initial mount: seed a pendingRestore for the current channel so either
+    // the messages watcher (async arrival) or a direct applyRestore here
+    // (messages already cached) puts the user back where they left off.
+    if (!props.channelId) {
+        scrollToBottom();
+        return;
+    }
+    pendingRestore = {
+        channelId: props.channelId,
+        position: messageCache.getScrollPosition(props.channelId)
+    };
+    if (props.messages.length > 0) {
+        const restore = pendingRestore;
+        pendingRestore = null;
+        nextTick().then(() => applyRestore(restore));
+    }
 });
 
 onBeforeUnmount(() => {
+    // Component tear-down (e.g., navigating away) — capture one last time so
+    // returning to this route finds the user where they left off.
+    if (props.channelId) {
+        messageCache.saveScrollPosition(props.channelId, capturePosition());
+    }
     reactingButtons.clear();
 });
 

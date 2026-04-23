@@ -23,6 +23,13 @@ export interface ChannelEntry {
     loadingOlder: boolean;
 }
 
+export interface ScrollPosition {
+    /** Topmost-visible message id when the user left the channel. */
+    messageId: string;
+    /** Pixel offset from the container top to the anchor's top edge. */
+    offset: number;
+}
+
 function emojiMatches(a: MessageEmoji, b: MessageEmoji): boolean {
     if (a.id || b.id) return a.id === b.id;
     return a.name === b.name;
@@ -33,23 +40,26 @@ const MAX_SCROLL_ANCHORS = 100;
 export const useMessageCacheStore = defineStore('discord-message-cache', () => {
     const entries = reactive<Record<string, ChannelEntry>>({});
 
-    // Per-channel scroll anchor: messageId of the topmost visible message when
-    // the user left the channel. Absent means "scroll to bottom" on return.
-    const scrollAnchors = reactive<Record<string, string>>({});
+    /**
+     * Per-channel scroll position. Records the topmost visible message and
+     * its pixel offset from the container top so returning to the channel
+     * can restore the exact view. Absence means "scroll to bottom" on return.
+     */
+    const scrollPositions = reactive<Record<string, ScrollPosition>>({});
 
-    function setScrollAnchor(channelId: string, messageId: string | null): void {
-        if (messageId === null) {
-            delete scrollAnchors[channelId];
+    function saveScrollPosition(channelId: string, pos: ScrollPosition | null): void {
+        if (pos === null) {
+            delete scrollPositions[channelId];
             return;
         }
-        if (!(channelId in scrollAnchors) && Object.keys(scrollAnchors).length >= MAX_SCROLL_ANCHORS) {
-            delete scrollAnchors[Object.keys(scrollAnchors)[0]];
+        if (!(channelId in scrollPositions) && Object.keys(scrollPositions).length >= MAX_SCROLL_ANCHORS) {
+            delete scrollPositions[Object.keys(scrollPositions)[0]];
         }
-        scrollAnchors[channelId] = messageId;
+        scrollPositions[channelId] = pos;
     }
 
-    function getScrollAnchor(channelId: string): string | null {
-        return scrollAnchors[channelId] ?? null;
+    function getScrollPosition(channelId: string): ScrollPosition | null {
+        return scrollPositions[channelId] ?? null;
     }
 
     function getOrCreate(channelId: string): ChannelEntry {
@@ -142,7 +152,7 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         loadOlder,
         applyEvent,
         applyReactionDelta,
-        setScrollAnchor,
-        getScrollAnchor
+        saveScrollPosition,
+        getScrollPosition
     };
 });
