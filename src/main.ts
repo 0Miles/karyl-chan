@@ -8,6 +8,7 @@ import { sequelize } from './models/db.js';
 import { startWebServer } from './web/server.js';
 import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
+import { seedDefaultRoles } from './web/authorized-user.service.js';
 import { systemEventLog } from './web/system-event-log.js';
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
@@ -120,6 +121,7 @@ async function run() {
     try {
         await importx(dirname(import.meta.url) + '/{events,commands}/**/*.{ts,js}');
         await sequelize.sync();
+        await seedDefaultRoles();
 
         authStore.attach(sequelizeRefreshStore);
         await authStore.init();

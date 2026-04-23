@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
+import { resolveUserCapabilities, type AdminCapability } from './authorized-user.service.js';
 import fastifyMultipart from '@fastify/multipart';
 import { registerDmRoutes } from './dm-routes.js';
 import { registerDiscordRoutes } from './discord-routes.js';
@@ -12,6 +13,13 @@ import { registerGuildsRoutes } from './guilds-routes.js';
 import { registerGuildChannelRoutes } from './guild-channel-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { registerSystemRoutes } from './system-routes.js';
+
+declare module 'fastify' {
+    interface FastifyRequest {
+        authUserId?: string;
+        authCapabilities?: Set<AdminCapability>;
+    }
+}
 
 export interface WebServerOptions {
     port: number;
@@ -65,9 +73,23 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
                 presented = query.access_token;
             }
         }
-        if (!presented || !auth.verifyAccessToken(presented)) {
+        const userId = presented ? auth.verifyAccessToken(presented) : null;
+        if (!userId) {
             reply.code(401).send({ error: 'Unauthorized' });
+            return;
         }
+        // Capability resolution runs per-request so de-authorizing a user (or
+        // stripping capabilities from their role) takes effect on their next
+        // call — even if they still hold an un-expired access token. Owner
+        // always resolves to every capability; other users resolve via the
+        // authorized_users → admin_role_capabilities join.
+        const capabilities = await resolveUserCapabilities(userId, ownerId);
+        if (capabilities.size === 0) {
+            reply.code(403).send({ error: 'Forbidden' });
+            return;
+        }
+        request.authUserId = userId;
+        request.authCapabilities = capabilities;
     });
 
     await server.register(fastifyMultipart, {
