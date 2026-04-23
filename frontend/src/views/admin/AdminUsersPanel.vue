@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
 import {
     deleteAdminUser,
     upsertAdminUser,
@@ -20,6 +21,8 @@ const emit = defineEmits<{
     (e: 'error', message: string): void;
 }>();
 
+const { t } = useI18n();
+
 const formUserId = ref('');
 const formRole = ref('');
 const formNote = ref('');
@@ -30,6 +33,20 @@ function resetForm() {
     formRole.value = props.roles[0]?.name ?? '';
     formNote.value = '';
 }
+
+function displayNameFor(user: AuthorizedUser): string {
+    return user.profile?.globalName
+        ?? user.profile?.username
+        ?? t('admin.users.unknownProfile');
+}
+
+function initialFor(user: AuthorizedUser): string {
+    const name = user.profile?.globalName ?? user.profile?.username;
+    return (name ?? user.userId).trim().charAt(0).toUpperCase() || '?';
+}
+
+const manageableUsers = computed(() => props.data.users.filter(u => !u.isOwner));
+const ownerEntry = computed(() => props.data.users.find(u => u.isOwner) ?? null);
 
 async function onAdd() {
     const userId = formUserId.value.trim();
@@ -58,7 +75,7 @@ async function onChangeRole(user: AuthorizedUser, role: string) {
 }
 
 async function onRemove(user: AuthorizedUser) {
-    if (!window.confirm(`Remove ${user.userId}?`)) return;
+    if (!window.confirm(t('admin.users.removeConfirm', { user: displayNameFor(user) }))) return;
     try {
         await deleteAdminUser(user.userId);
         emit('changed');
@@ -70,12 +87,6 @@ async function onRemove(user: AuthorizedUser) {
 
 <template>
     <div class="panel">
-        <p class="muted owner-note">
-            <Icon icon="material-symbols:key-rounded" width="16" height="16" />
-            {{ $t('admin.users.ownerNote') }}
-            <span v-if="data.ownerId" class="owner-id"><code>{{ data.ownerId }}</code></span>
-        </p>
-
         <form class="add-form" @submit.prevent="onAdd">
             <h3>{{ $t('admin.users.add') }}</h3>
             <div class="fields">
@@ -100,31 +111,56 @@ async function onRemove(user: AuthorizedUser) {
         </form>
 
         <h3 class="list-heading">{{ $t('admin.users.title') }}</h3>
-        <p v-if="data.users.length === 0" class="muted empty">{{ $t('admin.users.empty') }}</p>
-        <ul v-else class="user-list">
-            <li v-for="user in data.users" :key="user.userId" class="user-row">
-                <div class="user-main">
+
+        <div class="card-grid">
+            <!-- Owner card is always pinned first, never editable. -->
+            <article v-if="ownerEntry" class="user-card owner-card">
+                <img v-if="ownerEntry.profile?.avatarUrl" :src="ownerEntry.profile.avatarUrl" alt="" class="avatar" />
+                <div v-else class="avatar avatar-fallback">{{ initialFor(ownerEntry) }}</div>
+                <div class="card-body">
+                    <div class="display-name">
+                        {{ displayNameFor(ownerEntry) }}
+                        <span class="owner-pill">{{ $t('admin.users.ownerBadge') }}</span>
+                    </div>
+                    <code class="user-id">{{ ownerEntry.userId }}</code>
+                </div>
+            </article>
+
+            <article
+                v-for="user in manageableUsers"
+                :key="user.userId"
+                class="user-card"
+            >
+                <img v-if="user.profile?.avatarUrl" :src="user.profile.avatarUrl" alt="" class="avatar" />
+                <div v-else class="avatar avatar-fallback">{{ initialFor(user) }}</div>
+                <div class="card-body">
+                    <div class="display-name">{{ displayNameFor(user) }}</div>
                     <code class="user-id">{{ user.userId }}</code>
-                    <span v-if="user.note" class="user-note">{{ user.note }}</span>
+                    <p v-if="user.note" class="user-note">{{ user.note }}</p>
+                    <div class="card-controls">
+                        <label class="role-wrap">
+                            <span class="role-caption">{{ $t('admin.users.roleLabel') }}</span>
+                            <select
+                                class="role-select"
+                                :value="user.role"
+                                :title="$t('admin.users.changeRole')"
+                                @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
+                            >
+                                <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
+                                <option v-if="!roles.some(r => r.name === user.role)" :value="user.role">
+                                    {{ user.role }} (unknown)
+                                </option>
+                            </select>
+                        </label>
+                        <button type="button" class="danger" :title="$t('admin.users.remove')" @click="onRemove(user)">
+                            <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
+                        </button>
+                    </div>
                 </div>
-                <div class="user-controls">
-                    <select
-                        class="role-select"
-                        :value="user.role"
-                        :title="$t('admin.users.changeRole')"
-                        @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
-                    >
-                        <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-                        <option v-if="!roles.some(r => r.name === user.role)" :value="user.role">
-                            {{ user.role }} (unknown)
-                        </option>
-                    </select>
-                    <button type="button" class="danger" :title="$t('admin.users.remove')" @click="onRemove(user)">
-                        <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
-                    </button>
-                </div>
-            </li>
-        </ul>
+            </article>
+        </div>
+
+        <p v-if="manageableUsers.length === 0 && !ownerEntry" class="muted empty">{{ $t('admin.users.empty') }}</p>
     </div>
 </template>
 
@@ -134,19 +170,6 @@ async function onRemove(user: AuthorizedUser) {
     flex-direction: column;
     gap: 1rem;
 }
-.owner-note {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    padding: 0.6rem 0.75rem;
-    background: var(--bg-surface-2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    margin: 0;
-}
-.owner-id code { font-size: 0.8rem; }
 .add-form {
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -180,9 +203,7 @@ async function onRemove(user: AuthorizedUser) {
     font-size: 0.9rem;
 }
 .note-field { grid-column: span 2; }
-@media (max-width: 520px) {
-    .note-field { grid-column: span 1; }
-}
+@media (max-width: 520px) { .note-field { grid-column: span 1; } }
 .primary {
     align-self: flex-start;
     padding: 0.4rem 0.9rem;
@@ -191,49 +212,98 @@ async function onRemove(user: AuthorizedUser) {
     border: 1px solid var(--accent);
     border-radius: 4px;
     cursor: pointer;
+    font: inherit;
 }
 .primary:disabled { opacity: 0.5; cursor: default; }
 .list-heading { margin: 0; font-size: 0.95rem; }
-.user-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.7rem;
 }
-.user-row {
+.user-card {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    align-items: flex-start;
+}
+.owner-card {
+    background: var(--accent-bg);
+    border-color: var(--accent);
+}
+.avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    object-fit: cover;
+    background: var(--bg-surface-2);
+}
+.avatar-fallback {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.55rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-surface);
+    justify-content: center;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    font-size: 1.1rem;
 }
-.user-main {
+.card-body {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.3rem;
+}
+.display-name {
+    font-weight: 600;
+    color: var(--text-strong);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+.owner-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.05rem 0.5rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
 }
 .user-id {
-    font-size: 0.85rem;
-    color: var(--text-strong);
-}
-.user-note {
     font-size: 0.78rem;
     color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    word-break: break-all;
 }
-.user-controls {
+.user-note {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.card-controls {
+    margin-top: auto;
+    padding-top: 0.3rem;
     display: flex;
     gap: 0.4rem;
-    align-items: center;
+    align-items: flex-end;
 }
+.role-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.role-caption { font-size: 0.7rem; }
 .role-select {
     padding: 0.3rem 0.45rem;
     border: 1px solid var(--border);
@@ -242,18 +312,20 @@ async function onRemove(user: AuthorizedUser) {
     color: var(--text);
     font: inherit;
     font-size: 0.85rem;
+    width: 100%;
 }
 .danger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg-surface);
     color: var(--danger);
     cursor: pointer;
+    flex-shrink: 0;
 }
 .danger:hover { background: rgba(239, 68, 68, 0.15); }
 .muted { color: var(--text-muted); font-size: 0.9rem; }

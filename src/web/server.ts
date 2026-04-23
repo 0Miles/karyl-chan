@@ -152,9 +152,9 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         };
     });
 
-    await registerAdminManagementRoutes(server);
-
     const bot = options.bot;
+    await registerAdminManagementRoutes(server, { bot });
+
     if (bot) {
         server.get('/api/bot/status', async () => {
             const ready = bot.isReady();

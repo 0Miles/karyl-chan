@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { Client } from 'discordx';
 import {
     ADMIN_CAPABILITIES,
     ADMIN_CAPABILITY_KEYS,
@@ -11,8 +12,40 @@ import {
     listAuthorizedUsers,
     removeAuthorizedUser,
     revokeRoleCapability,
+    type AuthorizedUserRecord,
     type AdminCapability
 } from './authorized-user.service.js';
+import { avatarUrlFor } from './message-mapper.js';
+
+export interface AdminManagementRoutesOptions {
+    bot?: Client;
+}
+
+interface UserProfile {
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
+interface AdminUserView extends AuthorizedUserRecord {
+    isOwner: boolean;
+    profile: UserProfile | null;
+}
+
+async function fetchProfile(bot: Client | undefined, userId: string): Promise<UserProfile | null> {
+    if (!bot) return null;
+    try {
+        const user = await bot.users.fetch(userId);
+        return {
+            username: user.username,
+            globalName: user.globalName ?? null,
+            avatarUrl: avatarUrlFor(user.id, user.avatar)
+        };
+    } catch {
+        // Unknown / deleted / not cacheable — let the client render a fallback.
+        return null;
+    }
+}
 
 function requireAdmin(request: FastifyRequest, reply: FastifyReply): boolean {
     if (request.authCapabilities?.has('admin')) return true;
@@ -35,7 +68,11 @@ function readOwnerId(): string | null {
  * capability so only a user whose role carries it (or the bot owner)
  * can reach them.
  */
-export async function registerAdminManagementRoutes(server: FastifyInstance): Promise<void> {
+export async function registerAdminManagementRoutes(
+    server: FastifyInstance,
+    options: AdminManagementRoutesOptions = {}
+): Promise<void> {
+    const { bot } = options;
     // Catalog of capability tokens the app understands. Clients pull this
     // to render the "grant capability" dropdown so adding a new token in
     // code immediately surfaces in the UI.
@@ -50,13 +87,41 @@ export async function registerAdminManagementRoutes(server: FastifyInstance): Pr
     });
 
     // ── Users ────────────────────────────────────────────────────────────
+    //
+    // Returns the bot owner as a pinned, synthetic entry (role: 'owner',
+    // isOwner: true) followed by the actual authorized_users rows in the
+    // order the service produced them. Every entry is hydrated with the
+    // Discord profile (avatar + display name) when the client is available;
+    // profile is null if the fetch failed or the bot client is absent.
     server.get('/api/admin/users', async (request, reply) => {
         if (!requireAdmin(request, reply)) return;
-        const users = await listAuthorizedUsers();
-        return {
-            ownerId: readOwnerId(),
-            users
-        };
+        const rows = await listAuthorizedUsers();
+        const ownerId = readOwnerId();
+
+        const hydrated: AdminUserView[] = [];
+        if (ownerId) {
+            hydrated.push({
+                userId: ownerId,
+                role: 'owner',
+                note: null,
+                isOwner: true,
+                profile: await fetchProfile(bot, ownerId)
+            });
+        }
+        // Parallelize profile fetches — usually just a handful of users.
+        const others = await Promise.all(rows.map(async (row) => {
+            // Defensive: if an owner somehow lives in authorized_users, fold
+            // it into the owner entry rather than surfacing a duplicate.
+            if (ownerId && row.userId === ownerId) return null;
+            return {
+                ...row,
+                isOwner: false,
+                profile: await fetchProfile(bot, row.userId)
+            } satisfies AdminUserView;
+        }));
+        for (const entry of others) if (entry) hydrated.push(entry);
+
+        return { ownerId, users: hydrated };
     });
 
     server.post<{ Body: { userId?: unknown; role?: unknown; note?: unknown } }>(

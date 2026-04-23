@@ -11,10 +11,18 @@ export interface AdminRole {
     capabilities: string[];
 }
 
+export interface AdminUserProfile {
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
 export interface AuthorizedUser {
     userId: string;
     role: string;
     note: string | null;
+    isOwner: boolean;
+    profile: AdminUserProfile | null;
 }
 
 export interface AdminUserList {
