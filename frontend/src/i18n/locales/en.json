@@ -5,6 +5,7 @@
             "dashboard": "Dashboard",
             "messages": "Messages",
             "guilds": "Guilds",
+            "admin": "Admin access",
             "signOut": "Sign out"
         },
         "mobile": {
@@ -97,6 +98,48 @@
         "attach": "Attach files",
         "picker": "Emoji & stickers",
         "send": "Send"
+    },
+    "admin": {
+        "title": "Admin access",
+        "tabs": {
+            "users": "Users",
+            "roles": "Roles"
+        },
+        "users": {
+            "title": "Authorized users",
+            "empty": "Only the bot owner is authorized.",
+            "ownerNote": "The bot owner is always authorized with every capability — no entry needed.",
+            "ownerBadge": "Owner",
+            "userIdLabel": "Discord user id",
+            "roleLabel": "Role",
+            "noteLabel": "Note (optional)",
+            "notePlaceholder": "What is this access for?",
+            "add": "Add user",
+            "addSubmit": "Authorize",
+            "remove": "Remove",
+            "removeConfirm": "Remove {user} from the allow list?",
+            "changeRole": "Change role"
+        },
+        "roles": {
+            "title": "Roles",
+            "empty": "No roles defined.",
+            "nameLabel": "Role name",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "Short label describing the role",
+            "capabilities": "Capabilities",
+            "noCapabilities": "No capabilities — users with this role will be unauthorized.",
+            "grantCapability": "Grant capability",
+            "selectCapability": "Pick a capability…",
+            "grant": "Grant",
+            "revoke": "Revoke",
+            "add": "Add role",
+            "addSubmit": "Create",
+            "remove": "Delete role",
+            "removeConfirm": "Delete role {name}?",
+            "saveDescription": "Save",
+            "ownerOnlyCapability": "admin"
+        },
+        "capabilitiesCatalog": "Known capability tokens"
     },
     "picker": {
         "searchPlaceholder": "Search emoji & stickers…",

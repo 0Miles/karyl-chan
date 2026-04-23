@@ -5,6 +5,7 @@
             "dashboard": "仪表板",
             "messages": "消息",
             "guilds": "服务器",
+            "admin": "后台权限",
             "signOut": "退出登录"
         },
         "mobile": {
@@ -97,6 +98,48 @@
         "attach": "附加文件",
         "picker": "表情与贴纸",
         "send": "发送"
+    },
+    "admin": {
+        "title": "后台权限",
+        "tabs": {
+            "users": "用户",
+            "roles": "身份组"
+        },
+        "users": {
+            "title": "已授权用户",
+            "empty": "仅 bot owner 可访问。",
+            "ownerNote": "Bot owner 始终拥有所有权限,无需另外添加。",
+            "ownerBadge": "Owner",
+            "userIdLabel": "Discord 用户 ID",
+            "roleLabel": "身份组",
+            "noteLabel": "备注(可选)",
+            "notePlaceholder": "此授权的用途?",
+            "add": "添加用户",
+            "addSubmit": "授权",
+            "remove": "移除",
+            "removeConfirm": "要将 {user} 从允许列表中移除吗?",
+            "changeRole": "更改身份组"
+        },
+        "roles": {
+            "title": "身份组",
+            "empty": "尚未定义任何身份组。",
+            "nameLabel": "身份组名称",
+            "descriptionLabel": "说明",
+            "descriptionPlaceholder": "简短描述此身份组",
+            "capabilities": "权限词条",
+            "noCapabilities": "没有任何权限词条,此身份组的用户将无法访问系统。",
+            "grantCapability": "添加权限词条",
+            "selectCapability": "选择权限词条…",
+            "grant": "添加",
+            "revoke": "移除",
+            "add": "添加身份组",
+            "addSubmit": "创建",
+            "remove": "删除身份组",
+            "removeConfirm": "要删除身份组 {name} 吗?",
+            "saveDescription": "保存",
+            "ownerOnlyCapability": "admin"
+        },
+        "capabilitiesCatalog": "可用权限词条"
     },
     "picker": {
         "searchPlaceholder": "搜索表情与贴纸…",

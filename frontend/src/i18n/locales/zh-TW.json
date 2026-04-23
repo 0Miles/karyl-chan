@@ -5,6 +5,7 @@
             "dashboard": "儀表板",
             "messages": "訊息",
             "guilds": "伺服器",
+            "admin": "後台權限",
             "signOut": "登出"
         },
         "mobile": {
@@ -97,6 +98,48 @@
         "attach": "附加檔案",
         "picker": "表情與貼圖",
         "send": "傳送"
+    },
+    "admin": {
+        "title": "後台權限",
+        "tabs": {
+            "users": "使用者",
+            "roles": "身分組"
+        },
+        "users": {
+            "title": "已授權使用者",
+            "empty": "僅 bot owner 可存取。",
+            "ownerNote": "Bot owner 永遠具備所有權限,無需另外新增。",
+            "ownerBadge": "Owner",
+            "userIdLabel": "Discord 使用者 ID",
+            "roleLabel": "身分組",
+            "noteLabel": "備註 (選填)",
+            "notePlaceholder": "此授權的用途?",
+            "add": "新增使用者",
+            "addSubmit": "授權",
+            "remove": "移除",
+            "removeConfirm": "要將 {user} 從允許清單中移除嗎?",
+            "changeRole": "變更身分組"
+        },
+        "roles": {
+            "title": "身分組",
+            "empty": "尚未定義任何身分組。",
+            "nameLabel": "身分組名稱",
+            "descriptionLabel": "說明",
+            "descriptionPlaceholder": "簡短描述此身分組",
+            "capabilities": "權限詞條",
+            "noCapabilities": "沒有任何權限詞條,此身分組的使用者將無法存取系統。",
+            "grantCapability": "新增權限詞條",
+            "selectCapability": "選擇權限詞條…",
+            "grant": "新增",
+            "revoke": "移除",
+            "add": "新增身分組",
+            "addSubmit": "建立",
+            "remove": "刪除身分組",
+            "removeConfirm": "要刪除身分組 {name} 嗎?",
+            "saveDescription": "儲存",
+            "ownerOnlyCapability": "admin"
+        },
+        "capabilitiesCatalog": "可用權限詞條"
     },
     "picker": {
         "searchPlaceholder": "搜尋表情與貼圖…",
