@@ -211,6 +211,10 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     );
 
     server.get('/api/dm/events', async (request, reply) => {
+        // Hand the socket to us — without this fastify auto-sends a body once
+        // the async handler returns, which races with our SSE writes and the
+        // browser sees the connection close immediately.
+        reply.hijack();
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache, no-transform',

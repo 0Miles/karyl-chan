@@ -172,14 +172,27 @@ async function onSend(payload: OutgoingMessage) {
     if (!selectedChannelId.value) return;
     sending.value = true;
     try {
-        await sendMessage(
+        const sent = await sendMessage(
             selectedChannelId.value,
             payload.content,
             payload.attachments ?? [],
             payload.reference?.messageId ?? undefined
         );
         replyTo.value = null;
-        // SSE will deliver the message-created event for our own send.
+        // Optimistic update so the operator sees their own send immediately.
+        // The matching SSE message-created event is de-duped by id below.
+        applyEvent({ type: 'message-created', channelId: sent.channelId, message: sent });
+        const summary = channels.value.find(c => c.id === sent.channelId);
+        if (summary) {
+            applyEvent({
+                type: 'channel-touched',
+                channel: {
+                    ...summary,
+                    lastMessageAt: sent.createdAt,
+                    lastMessagePreview: sent.content || (sent.attachments?.length ? `📎 ${sent.attachments[0].filename}` : '')
+                }
+            });
+        }
     } catch (err) {
         if (bailOnAuthError(err)) return;
         error.value = err instanceof Error ? err.message : 'Failed to send';
