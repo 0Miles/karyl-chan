@@ -9,6 +9,7 @@ import { isContinuation } from '../../libs/messages/grouping';
 import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
+import { useMessageCacheStore } from './stores/messageCacheStore';
 
 const props = defineProps<{
     channelId: string | null;
@@ -86,10 +87,8 @@ function closeReactPicker() {
 }
 
 // ── Scroll anchor memory ────────────────────────────────────────────────────
-// Keyed by channelId → messageId of the topmost fully-visible message when the
-// user left. Missing entry means "scroll to bottom" on return.
-const savedAnchors = new Map<string, string>();
-const MAX_SAVED_ANCHORS = 100;
+// Stored in messageCacheStore so anchors survive component remounts.
+const messageCache = useMessageCacheStore();
 
 type PendingRestore =
     | { channelId: string; type: 'anchor'; messageId: string }
@@ -128,24 +127,13 @@ function applyAnchor(messageId: string) {
 watch(() => props.channelId, (newId, oldId) => {
     // Save topmost visible message for the channel we're leaving.
     if (oldId) {
-        if (isNearBottom()) {
-            savedAnchors.delete(oldId);
-        } else {
-            const anchor = getTopAnchor();
-            if (anchor) {
-                if (savedAnchors.size >= MAX_SAVED_ANCHORS) {
-                    savedAnchors.delete(savedAnchors.keys().next().value!);
-                }
-                savedAnchors.set(oldId, anchor);
-            } else {
-                savedAnchors.delete(oldId);
-            }
-        }
+        const anchor = isNearBottom() ? null : getTopAnchor();
+        messageCache.setScrollAnchor(oldId, anchor);
     }
     closeReactPicker();
     // Queue restore action for the incoming channel.
     if (newId) {
-        const saved = savedAnchors.get(newId);
+        const saved = messageCache.getScrollAnchor(newId);
         pendingRestore = saved
             ? { channelId: newId, type: 'anchor', messageId: saved }
             : { channelId: newId, type: 'bottom' };

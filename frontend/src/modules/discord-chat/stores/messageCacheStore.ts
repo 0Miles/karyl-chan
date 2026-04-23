@@ -28,8 +28,29 @@ function emojiMatches(a: MessageEmoji, b: MessageEmoji): boolean {
     return a.name === b.name;
 }
 
+const MAX_SCROLL_ANCHORS = 100;
+
 export const useMessageCacheStore = defineStore('discord-message-cache', () => {
     const entries = reactive<Record<string, ChannelEntry>>({});
+
+    // Per-channel scroll anchor: messageId of the topmost visible message when
+    // the user left the channel. Absent means "scroll to bottom" on return.
+    const scrollAnchors = reactive<Record<string, string>>({});
+
+    function setScrollAnchor(channelId: string, messageId: string | null): void {
+        if (messageId === null) {
+            delete scrollAnchors[channelId];
+            return;
+        }
+        if (!(channelId in scrollAnchors) && Object.keys(scrollAnchors).length >= MAX_SCROLL_ANCHORS) {
+            delete scrollAnchors[Object.keys(scrollAnchors)[0]];
+        }
+        scrollAnchors[channelId] = messageId;
+    }
+
+    function getScrollAnchor(channelId: string): string | null {
+        return scrollAnchors[channelId] ?? null;
+    }
 
     function getOrCreate(channelId: string): ChannelEntry {
         if (!entries[channelId]) {
@@ -120,6 +141,8 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         ensureLoaded,
         loadOlder,
         applyEvent,
-        applyReactionDelta
+        applyReactionDelta,
+        setScrollAnchor,
+        getScrollAnchor
     };
 });
