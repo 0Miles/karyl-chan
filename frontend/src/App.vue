@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 import { isAuthenticated } from './auth';
 import { logout } from './api/client';
 import { provideAppShell } from './composables/use-app-shell';
 import { useBreakpoint } from './composables/use-breakpoint';
+import { useDrawer } from './composables/use-drawer';
 import Draggable from './components/Draggable.vue';
 
 const router = useRouter();
 const { overlayOpen, openOverlay, closeOverlay, flushMain, hasExtras, overlayView, toggleOverlayView } = provideAppShell();
 const { isMobile } = useBreakpoint();
+
+const drawerOpen = computed(() => isMobile.value && overlayOpen.value);
+const { placement, backdropClass, panelClass, backdropTransition, panelTransition } = useDrawer({
+    visible: drawerOpen,
+    placement: 'left',
+    onClose: closeOverlay
+});
 
 const dragBounds = ref<HTMLElement | null>(null);
 onMounted(() => {
@@ -64,53 +72,62 @@ function navigate() {
             </button>
         </Draggable>
 
-        <div
-            v-show="isMobile && overlayOpen"
-            class="mobile-overlay"
-            role="dialog"
-            aria-modal="true"
-        >
-            <header class="mobile-overlay-header">
-                <button type="button" class="overlay-back" @click="closeOverlay" aria-label="Close menu">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="15 18 9 12 15 6" />
-                    </svg>
-                    <span>Back</span>
-                </button>
-                <button
-                    v-if="hasExtras"
-                    type="button"
-                    class="overlay-toggle"
-                    :aria-label="overlayView === 'nav' ? 'Show page features' : 'Show navigation'"
-                    @click="toggleOverlayView"
-                >
-                    <!-- nav view → show "features" icon to indicate switching to extras -->
-                    <svg v-if="overlayView === 'nav'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <line x1="9" y1="3" x2="9" y2="21" />
-                    </svg>
-                    <!-- extras view → show "menu" icon to indicate switching to nav -->
-                    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                        <line x1="4" y1="7" x2="20" y2="7" />
-                        <line x1="4" y1="12" x2="20" y2="12" />
-                        <line x1="4" y1="17" x2="20" y2="17" />
-                    </svg>
-                </button>
-            </header>
-            <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
-                <template v-if="isAuthenticated">
-                    <RouterLink to="/" @click="navigate">Dashboard</RouterLink>
-                    <RouterLink to="/messages" @click="navigate">Messages</RouterLink>
-                    <RouterLink to="/guilds" @click="navigate">Guilds</RouterLink>
-                    <button type="button" class="link-button" @click="signOut">Sign out</button>
-                </template>
-            </nav>
+        <Transition :name="backdropTransition">
             <div
-                id="mobile-nav-extras"
-                class="mobile-overlay-extras"
-                :style="{ display: overlayView === 'extras' ? 'flex' : 'none' }"
-            ></div>
-        </div>
+                v-if="drawerOpen"
+                :class="backdropClass"
+                @click="closeOverlay"
+            />
+        </Transition>
+        <!-- Panel uses v-show so #mobile-nav-extras stays mounted as a teleport target. -->
+        <Transition :name="panelTransition">
+            <div
+                v-show="drawerOpen"
+                :class="[panelClass, 'mobile-overlay']"
+                :data-placement="placement"
+                role="dialog"
+                aria-modal="true"
+            >
+                <header class="mobile-overlay-header">
+                    <button type="button" class="overlay-back" @click="closeOverlay" aria-label="Close menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                        <span>Back</span>
+                    </button>
+                    <button
+                        v-if="hasExtras"
+                        type="button"
+                        class="overlay-toggle"
+                        :aria-label="overlayView === 'nav' ? 'Show page features' : 'Show navigation'"
+                        @click="toggleOverlayView"
+                    >
+                        <svg v-if="overlayView === 'nav'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <line x1="9" y1="3" x2="9" y2="21" />
+                        </svg>
+                        <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <line x1="4" y1="7" x2="20" y2="7" />
+                            <line x1="4" y1="12" x2="20" y2="12" />
+                            <line x1="4" y1="17" x2="20" y2="17" />
+                        </svg>
+                    </button>
+                </header>
+                <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
+                    <template v-if="isAuthenticated">
+                        <RouterLink to="/" @click="navigate">Dashboard</RouterLink>
+                        <RouterLink to="/messages" @click="navigate">Messages</RouterLink>
+                        <RouterLink to="/guilds" @click="navigate">Guilds</RouterLink>
+                        <button type="button" class="link-button" @click="signOut">Sign out</button>
+                    </template>
+                </nav>
+                <div
+                    id="mobile-nav-extras"
+                    class="mobile-overlay-extras"
+                    :style="{ display: overlayView === 'extras' ? 'flex' : 'none' }"
+                ></div>
+            </div>
+        </Transition>
     </div>
 </template>
 
@@ -166,7 +183,7 @@ function navigate() {
 
 .mobile-fab-wrap {
     position: fixed;
-    right: 1rem;
+    left: 1rem;
     top: 1rem;
     z-index: 40;
     display: none;
@@ -187,14 +204,11 @@ function navigate() {
 }
 .mobile-fab:active { transform: scale(0.96); }
 
+/* Drawer base styles come from useDrawer; mobile-overlay adds size/chrome. */
 .mobile-overlay {
-    position: fixed;
-    inset: 0;
     background: var(--bg-page);
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    width: min(85vw, 360px);
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.18);
 }
 .mobile-overlay-header {
     display: flex;
