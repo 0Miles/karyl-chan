@@ -8,6 +8,7 @@ import { sequelize } from './models/db.js';
 import { startWebServer } from './web/server.js';
 import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
+import { systemEventLog } from './web/system-event-log.js';
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -34,6 +35,7 @@ export const bot = new Client({
 });
 
 bot.once('ready', async () => {
+    systemEventLog.record('bot-ready', `Logged in as ${bot.user?.tag ?? 'unknown'}`);
     await bot.guilds.fetch();
     await bot.initApplicationCommands();
 
@@ -54,8 +56,13 @@ bot.once('ready', async () => {
     console.log('Bot started');
 });
 
-bot.on('guildCreate', async () => {
+bot.on('guildCreate', async (guild) => {
+    systemEventLog.record('guild-join', `Joined guild: ${guild.name}`);
     await bot.initApplicationCommands();
+});
+
+bot.on('guildDelete', (guild) => {
+    systemEventLog.record('guild-leave', `Left guild: ${guild.name}`);
 });
 
 bot.on('interactionCreate', async (interaction: Interaction) => {
@@ -113,6 +120,7 @@ async function run() {
 
         const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
         webServer = await startWebServer({ port: webPort, bot });
+        systemEventLog.record('server-start', `Web server started on :${webPort}`);
         console.log(`Web server listening on :${webPort}`);
 
         await bot.login(process.env.BOT_TOKEN ?? '');

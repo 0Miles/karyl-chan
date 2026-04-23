@@ -11,6 +11,7 @@ import { registerDiscordRoutes } from './discord-routes.js';
 import { registerGuildsRoutes } from './guilds-routes.js';
 import { registerGuildChannelRoutes } from './guild-channel-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
+import { registerSystemRoutes } from './system-routes.js';
 
 export interface WebServerOptions {
     port: number;
@@ -144,6 +145,9 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         await registerDiscordRoutes(server, { bot });
         await registerGuildsRoutes(server, { bot });
         await registerGuildChannelRoutes(server, { bot });
+        await registerSystemRoutes(server, { bot, dmInbox: options.dmInbox });
+    } else {
+        await registerSystemRoutes(server, { dmInbox: options.dmInbox });
     }
 
     const staticRoot = options.staticRoot ?? defaultStaticRoot();
