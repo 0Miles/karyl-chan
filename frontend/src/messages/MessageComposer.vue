@@ -1,0 +1,208 @@
+<script setup lang="ts">
+import { ref, shallowRef } from 'vue';
+import EmojiPicker from 'vue3-emoji-picker';
+import 'vue3-emoji-picker/css';
+import type { OutgoingMessage, MessageReference } from './types';
+
+const props = defineProps<{
+    placeholder?: string;
+    replyTo?: MessageReference | null;
+    disabled?: boolean;
+}>();
+
+const emit = defineEmits<{
+    (e: 'send', payload: OutgoingMessage): void;
+    (e: 'cancel-reply'): void;
+}>();
+
+const content = ref('');
+const attachments = shallowRef<File[]>([]);
+const fileInput = ref<HTMLInputElement | null>(null);
+const showPicker = ref(false);
+const textArea = ref<HTMLTextAreaElement | null>(null);
+
+function onPick(emoji: { i?: string; n?: string[]; r?: string }) {
+    const value = emoji.i ?? (Array.isArray(emoji.n) ? emoji.n[0] : '') ?? emoji.r ?? '';
+    if (!value) return;
+    insertAtCursor(value);
+    showPicker.value = false;
+    textArea.value?.focus();
+}
+
+function insertAtCursor(text: string) {
+    const ta = textArea.value;
+    if (!ta) {
+        content.value += text;
+        return;
+    }
+    const start = ta.selectionStart ?? content.value.length;
+    const end = ta.selectionEnd ?? content.value.length;
+    content.value = content.value.slice(0, start) + text + content.value.slice(end);
+    requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + text.length;
+    });
+}
+
+function onAttach(event: Event) {
+    const target = event.target as HTMLInputElement;
+    if (!target.files) return;
+    attachments.value = [...attachments.value, ...Array.from(target.files)];
+    target.value = '';
+}
+
+function removeAttachment(idx: number) {
+    attachments.value = attachments.value.filter((_, i) => i !== idx);
+}
+
+function send() {
+    const text = content.value.trim();
+    if (!text && attachments.value.length === 0) return;
+    emit('send', {
+        content: text,
+        attachments: attachments.value.length ? attachments.value : undefined,
+        reference: props.replyTo ?? null
+    });
+    content.value = '';
+    attachments.value = [];
+}
+
+function onKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        send();
+    }
+}
+</script>
+
+<template>
+    <div class="composer">
+        <div v-if="replyTo" class="reply-banner">
+            <span>Replying</span>
+            <button type="button" class="link" @click="$emit('cancel-reply')">Cancel</button>
+        </div>
+        <div v-if="attachments.length" class="attachments">
+            <div v-for="(file, idx) in attachments" :key="idx" class="chip">
+                <span>{{ file.name }}</span>
+                <button type="button" @click="removeAttachment(idx)">×</button>
+            </div>
+        </div>
+        <div class="input-row">
+            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" title="Attach files">+</button>
+            <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
+            <textarea
+                ref="textArea"
+                v-model="content"
+                :placeholder="placeholder ?? 'Message…'"
+                :disabled="disabled"
+                rows="1"
+                class="textarea"
+                @keydown="onKeydown"
+            />
+            <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji">😊</button>
+            <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
+        </div>
+        <div v-if="showPicker" class="picker">
+            <EmojiPicker :native="true" @select="onPick" />
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.composer {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
+    background: #fff;
+    position: relative;
+}
+.reply-banner {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+}
+.link {
+    background: none;
+    border: none;
+    color: #1d4ed8;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+}
+.attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.4rem;
+}
+.chip {
+    display: inline-flex;
+    gap: 0.25rem;
+    align-items: center;
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+}
+.chip button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6b7280;
+}
+.input-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.4rem;
+}
+.icon-button {
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.icon-button:hover:not(:disabled) {
+    background: #f3f4f6;
+}
+.textarea {
+    flex: 1;
+    resize: vertical;
+    min-height: 32px;
+    max-height: 160px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font: inherit;
+}
+.send {
+    padding: 0 0.9rem;
+    height: 32px;
+    border: 1px solid #1f2937;
+    background: #1f2937;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.send:disabled,
+.icon-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+.picker {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.25rem;
+    z-index: 10;
+}
+.hidden {
+    display: none;
+}
+</style>
