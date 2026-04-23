@@ -121,6 +121,7 @@ function onEditKeydown(event: KeyboardEvent) {
     display: flex;
     align-items: flex-start;
     gap: 0.6rem;
+    margin-top: 0.4rem
 }
 .avatar {
     width: 36px;

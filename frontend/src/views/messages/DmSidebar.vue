@@ -59,7 +59,7 @@ function formatTimestamp(iso: string | null): string {
             />
             <button type="submit" :disabled="!newRecipientId?.trim()">Start</button>
         </form>
-        <p v-if="loading && channels.length === 0" class="muted">Loading…</p>
+        <div v-if="loading && channels.length === 0" class="loading muted">Loading…</div>
         <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? 'No DMs yet.' }}</p>
         <ul class="channel-list">
             <li
@@ -177,4 +177,8 @@ function formatTimestamp(iso: string | null): string {
 }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }
+.loading {
+    padding: 1rem;
+    text-align: center;
+}
 </style>

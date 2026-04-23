@@ -35,7 +35,7 @@ function isCategoryCollapsed(id: string | null): boolean {
         <header class="sidebar-header">
             <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
         </header>
-        <p v-if="loading && categories.length === 0" class="muted">Loading…</p>
+        <div v-if="loading && categories.length === 0" class="loading muted">Loading…</div>
         <p v-else-if="categories.length === 0" class="muted empty">No text channels.</p>
         <div class="channel-tree">
             <div v-for="cat in categories" :key="cat.id ?? '__none__'" class="category">
@@ -108,7 +108,7 @@ function isCategoryCollapsed(id: string | null): boolean {
 .channel-list {
     list-style: none;
     margin: 0;
-    padding: 0 0 0.25rem;
+    padding: .7rem .2rem;
 }
 .channel-list li {
     display: flex;
@@ -133,4 +133,5 @@ function isCategoryCollapsed(id: string | null): boolean {
 .channel-list li:hover .name { color: var(--text); }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }
+.loading { padding: 1rem; text-align: center; }
 </style>
