@@ -56,6 +56,7 @@ export async function sendMessage(
     channelId: string,
     content: string,
     files: File[] = [],
+    stickerIds: string[] = [],
     replyToMessageId?: string
 ): Promise<Message> {
     let response: Response;
@@ -64,13 +65,14 @@ export async function sendMessage(
         const form = new FormData();
         if (content) form.set('content', content);
         if (replyToMessageId) form.set('replyToMessageId', replyToMessageId);
+        stickerIds.forEach(id => form.append('stickerIds', id));
         files.forEach(file => form.append('files', file, file.name));
         response = await authedFetch(url, { method: 'POST', body: form });
     } else {
         response = await authedFetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, replyToMessageId })
+            body: JSON.stringify({ content, replyToMessageId, stickerIds: stickerIds.length ? stickerIds : undefined })
         });
     }
     const body = await jsonOrThrow<{ message: Message }>(response);

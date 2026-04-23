@@ -207,6 +207,7 @@ async function onSend(payload: OutgoingMessage) {
             selectedChannelId.value,
             payload.content,
             payload.attachments ?? [],
+            payload.stickerIds ?? [],
             payload.reference?.messageId ?? undefined
         );
         replyTo.value = null;

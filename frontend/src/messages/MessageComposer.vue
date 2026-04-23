@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, shallowRef } from 'vue';
-import EmojiPicker from 'vue3-emoji-picker';
-import 'vue3-emoji-picker/css';
+import { computed, ref, shallowRef } from 'vue';
+import EmojiPicker from './picker/EmojiPicker.vue';
+import StickerPicker from './picker/StickerPicker.vue';
+import type { StickerRecent } from './picker/recents';
 import type { OutgoingMessage, MessageReference } from './types';
 
 const props = defineProps<{
@@ -17,16 +18,29 @@ const emit = defineEmits<{
 
 const content = ref('');
 const attachments = shallowRef<File[]>([]);
+const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
-const showPicker = ref(false);
+const showEmojiPicker = ref(false);
+const showStickerPicker = ref(false);
 const textArea = ref<HTMLTextAreaElement | null>(null);
 
-function onPick(emoji: { i?: string; n?: string[]; r?: string }) {
-    const value = emoji.i ?? (Array.isArray(emoji.n) ? emoji.n[0] : '') ?? emoji.r ?? '';
-    if (!value) return;
-    insertAtCursor(value);
-    showPicker.value = false;
+const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
+
+function onEmojiSelect(payload: { kind: 'unicode'; value: string } | { kind: 'custom'; id: string; name: string; animated: boolean }) {
+    const text = payload.kind === 'unicode' ? payload.value : `<${payload.animated ? 'a' : ''}:${payload.name}:${payload.id}>`;
+    insertAtCursor(text);
+    showEmojiPicker.value = false;
     textArea.value?.focus();
+}
+
+function onStickerSelect(sticker: StickerRecent) {
+    if (stickerLimitReached.value) return;
+    pendingStickers.value = [...pendingStickers.value, sticker];
+    showStickerPicker.value = false;
+}
+
+function removeSticker(idx: number) {
+    pendingStickers.value = pendingStickers.value.filter((_, i) => i !== idx);
 }
 
 function insertAtCursor(text: string) {
@@ -56,14 +70,16 @@ function removeAttachment(idx: number) {
 
 function send() {
     const text = content.value.trim();
-    if (!text && attachments.value.length === 0) return;
+    if (!text && attachments.value.length === 0 && pendingStickers.value.length === 0) return;
     emit('send', {
         content: text,
         attachments: attachments.value.length ? attachments.value : undefined,
+        stickerIds: pendingStickers.value.length ? pendingStickers.value.map(s => s.id) : undefined,
         reference: props.replyTo ?? null
     });
     content.value = '';
     attachments.value = [];
+    pendingStickers.value = [];
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -71,6 +87,10 @@ function onKeydown(event: KeyboardEvent) {
         event.preventDefault();
         send();
     }
+}
+
+function stickerPreview(id: string): string {
+    return `https://cdn.discordapp.com/stickers/${id}.png`;
 }
 </script>
 
@@ -80,10 +100,15 @@ function onKeydown(event: KeyboardEvent) {
             <span>Replying</span>
             <button type="button" class="link" @click="$emit('cancel-reply')">Cancel</button>
         </div>
-        <div v-if="attachments.length" class="attachments">
-            <div v-for="(file, idx) in attachments" :key="idx" class="chip">
+        <div v-if="attachments.length || pendingStickers.length" class="attachments">
+            <div v-for="(file, idx) in attachments" :key="'f' + idx" class="chip">
                 <span>{{ file.name }}</span>
                 <button type="button" @click="removeAttachment(idx)">×</button>
+            </div>
+            <div v-for="(sticker, idx) in pendingStickers" :key="'s' + sticker.id" class="chip sticker-chip">
+                <img :src="stickerPreview(sticker.id)" :alt="sticker.name" class="sticker-thumb" />
+                <span>{{ sticker.name }}</span>
+                <button type="button" @click="removeSticker(idx)">×</button>
             </div>
         </div>
         <div class="input-row">
@@ -98,11 +123,15 @@ function onKeydown(event: KeyboardEvent) {
                 class="textarea"
                 @keydown="onKeydown"
             />
-            <button type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" title="Emoji">😊</button>
+            <button type="button" class="icon-button" :disabled="disabled" @click="showStickerPicker = !showStickerPicker; showEmojiPicker = false" title="Sticker">🏷</button>
+            <button type="button" class="icon-button" :disabled="disabled" @click="showEmojiPicker = !showEmojiPicker; showStickerPicker = false" title="Emoji">😊</button>
             <button type="button" class="send" :disabled="disabled" @click="send">Send</button>
         </div>
-        <div v-if="showPicker" class="picker">
-            <EmojiPicker :native="true" @select="onPick" />
+        <div v-if="showEmojiPicker" class="picker-pop emoji-pop">
+            <EmojiPicker @select="onEmojiSelect" />
+        </div>
+        <div v-if="showStickerPicker" class="picker-pop sticker-pop">
+            <StickerPicker @select="onStickerSelect" />
         </div>
     </div>
 </template>
@@ -147,6 +176,11 @@ function onKeydown(event: KeyboardEvent) {
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 0.8rem;
+}
+.sticker-chip .sticker-thumb {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
 }
 .chip button {
     background: none;
@@ -199,12 +233,17 @@ function onKeydown(event: KeyboardEvent) {
     opacity: 0.5;
     cursor: default;
 }
-.picker {
+.picker-pop {
     position: absolute;
     bottom: 100%;
-    right: 0;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.35rem;
     z-index: 10;
+}
+.emoji-pop {
+    right: 0;
+}
+.sticker-pop {
+    right: 0;
 }
 .hidden {
     display: none;
