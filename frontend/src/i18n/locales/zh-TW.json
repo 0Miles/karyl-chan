@@ -93,6 +93,7 @@
     },
     "messages": {
         "modeDm": "私人訊息",
+        "modePickerTitle": "選擇訊息來源",
         "selectChat": "請選擇一個對話以查看訊息。",
         "noMessages": "目前沒有訊息。",
         "loadingOlder": "載入較舊訊息…",

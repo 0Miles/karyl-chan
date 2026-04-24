@@ -93,6 +93,7 @@
     },
     "messages": {
         "modeDm": "私信",
+        "modePickerTitle": "选择消息来源",
         "selectChat": "请选择一个对话以查看消息。",
         "noMessages": "暂无消息。",
         "loadingOlder": "加载更早的消息…",

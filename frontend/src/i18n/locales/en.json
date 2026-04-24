@@ -93,6 +93,7 @@
     },
     "messages": {
         "modeDm": "Direct messages",
+        "modePickerTitle": "Pick a conversation source",
         "selectChat": "Select a chat to view messages.",
         "noMessages": "No messages yet.",
         "loadingOlder": "Loading older…",
