@@ -14,6 +14,7 @@ import {
     type AuthorizedUserRecord,
     type AdminCapability
 } from './authorized-user.service.js';
+import { listAudit, recordAudit } from './admin-audit.service.js';
 import { avatarUrlFor } from './message-mapper.js';
 
 export interface AdminManagementRoutesOptions {
@@ -203,7 +204,13 @@ export async function registerAdminManagementRoutes(
                 return;
             }
             const note = isNonEmptyString(body.note) ? body.note : null;
+            const existing = await findAuthorizedUser(body.userId);
             const record = await addAuthorizedUser(body.userId, body.role, note);
+            await recordAudit(request.authUserId!, existing ? 'user.update' : 'user.create', body.userId, {
+                role: body.role,
+                previousRole: existing?.role ?? null,
+                note
+            });
             return record;
         }
     );
@@ -225,6 +232,7 @@ export async function registerAdminManagementRoutes(
             reply.code(404).send({ error: 'user not in allow list' });
             return;
         }
+        await recordAudit(request.authUserId!, 'user.delete', request.params.userId);
         reply.code(204).send();
     });
 
@@ -245,7 +253,10 @@ export async function registerAdminManagementRoutes(
                 return;
             }
             const description = isNonEmptyString(body.description) ? body.description : null;
+            const existing = await listAdminRoles();
+            const isUpdate = existing.some(r => r.name === body.name);
             const record = await createAdminRole(body.name, description);
+            await recordAudit(request.authUserId!, isUpdate ? 'role.update' : 'role.create', body.name, { description });
             return record;
         }
     );
@@ -265,6 +276,7 @@ export async function registerAdminManagementRoutes(
             const body = request.body ?? {};
             const description = isNonEmptyString(body.description) ? body.description : null;
             const record = await createAdminRole(request.params.name, description);
+            await recordAudit(request.authUserId!, 'role.update', request.params.name, { description });
             return record;
         }
     );
@@ -289,6 +301,7 @@ export async function registerAdminManagementRoutes(
             reply.code(404).send({ error: 'role not found' });
             return;
         }
+        await recordAudit(request.authUserId!, 'role.delete', request.params.name);
         reply.code(204).send();
     });
 
@@ -308,6 +321,7 @@ export async function registerAdminManagementRoutes(
                 return;
             }
             await grantRoleCapability(request.params.name, cap as AdminCapability);
+            await recordAudit(request.authUserId!, 'role.grant-capability', request.params.name, { capability: cap });
             reply.code(204).send();
         }
     );
@@ -336,7 +350,30 @@ export async function registerAdminManagementRoutes(
                 }
             }
             await revokeRoleCapability(request.params.name, request.params.capability as AdminCapability);
+            await recordAudit(request.authUserId!, 'role.revoke-capability', request.params.name, {
+                capability: request.params.capability
+            });
             reply.code(204).send();
+        }
+    );
+
+    // ── Audit ────────────────────────────────────────────────────────────
+    // Reverse-chronological, id-cursor paginated. `before` takes the smallest
+    // id from the previous page; omit it for the first page.
+    server.get<{ Querystring: { limit?: string; before?: string } }>(
+        '/api/admin/audit',
+        async (request, reply) => {
+            if (!requireAdmin(request, reply)) return;
+            const parse = (s: string | undefined): number | undefined => {
+                if (!s) return undefined;
+                const n = Number(s);
+                return Number.isFinite(n) ? n : undefined;
+            };
+            const entries = await listAudit({
+                limit: parse(request.query.limit),
+                before: parse(request.query.before)
+            });
+            return { entries };
         }
     );
 }
