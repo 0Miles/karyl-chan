@@ -27,20 +27,29 @@ function readOwnerId(): string | null {
     return process.env.BOT_OWNER_ID?.trim() || null;
 }
 
-// ── Capability cache ──────────────────────────────────────────────────────
+// ── User-session cache ────────────────────────────────────────────────────
 //
 // The auth hook runs resolveUserCapabilities on every authenticated request;
 // without caching a chatty page (e.g., DiscordConversation polling + SSE +
 // reactions) pays two DB queries per call. A short TTL gives us bounded
 // staleness so a role change still takes effect within seconds, and every
 // write path explicitly invalidates the touched user(s) for instant cuts.
+//
+// The cache holds both the role name and the resolved capability set so
+// the DM login handler (which wants the role label for its reply) reads
+// from the same source instead of doing its own near-identical lookup.
 
-const CAPABILITY_CACHE_TTL_MS = 30_000;
-const capabilityCache = new Map<string, { caps: Set<AdminCapability>; expiresAt: number }>();
+interface UserSession {
+    role: string | null;
+    caps: Set<AdminCapability>;
+}
+
+const SESSION_CACHE_TTL_MS = 30_000;
+const sessionCache = new Map<string, UserSession & { expiresAt: number }>();
 
 export function invalidateCapabilityCache(userId?: string): void {
-    if (userId === undefined) capabilityCache.clear();
-    else capabilityCache.delete(userId);
+    if (userId === undefined) sessionCache.clear();
+    else sessionCache.delete(userId);
 }
 
 function toUserRecord(row: InstanceType<typeof AuthorizedUser>): AuthorizedUserRecord {
@@ -84,6 +93,30 @@ async function capabilitiesForRole(role: string): Promise<Set<AdminCapability>> 
 }
 
 /**
+ * Single source of truth for "who is this token-bearer and what can they do?".
+ * Owner → every capability, role label 'owner'. Anyone else → their
+ * authorized_users row + the role's granted capabilities. Unknown user →
+ * empty set, null role. Cached by userId with a short TTL.
+ */
+export async function resolveUserSession(
+    userId: string,
+    ownerId: string | null = readOwnerId(),
+    now: number = Date.now()
+): Promise<UserSession> {
+    // Owner bypass is constant-time — no DB work, no caching needed.
+    if (ownerId && userId === ownerId) {
+        return { role: 'owner', caps: new Set(ADMIN_CAPABILITY_KEYS) };
+    }
+    const cached = sessionCache.get(userId);
+    if (cached && cached.expiresAt > now) return { role: cached.role, caps: cached.caps };
+    const user = await AuthorizedUser.findByPk(userId);
+    const role = user ? (user.getDataValue('role') as string) : null;
+    const caps = role ? await capabilitiesForRole(role) : new Set<AdminCapability>();
+    sessionCache.set(userId, { role, caps, expiresAt: now + SESSION_CACHE_TTL_MS });
+    return { role, caps };
+}
+
+/**
  * Combined resolution: bot owner gets every capability; any other user gets
  * the set defined by their assigned role. Returns an empty set (caller should
  * treat as unauthorized) for users with no entry in authorized_users.
@@ -93,16 +126,7 @@ export async function resolveUserCapabilities(
     ownerId: string | null = readOwnerId(),
     now: number = Date.now()
 ): Promise<Set<AdminCapability>> {
-    // Owner bypass is constant-time; no need to cache it.
-    if (ownerId && userId === ownerId) return new Set(ADMIN_CAPABILITY_KEYS);
-    const cached = capabilityCache.get(userId);
-    if (cached && cached.expiresAt > now) return cached.caps;
-    const user = await AuthorizedUser.findByPk(userId);
-    const caps = user
-        ? await capabilitiesForRole(user.getDataValue('role') as string)
-        : new Set<AdminCapability>();
-    capabilityCache.set(userId, { caps, expiresAt: now + CAPABILITY_CACHE_TTL_MS });
-    return caps;
+    return (await resolveUserSession(userId, ownerId, now)).caps;
 }
 
 /**
@@ -115,13 +139,9 @@ export async function resolveLoginRole(
     userId: string,
     ownerId: string | null = readOwnerId()
 ): Promise<string | null> {
-    if (ownerId && userId === ownerId) return 'admin';
-    const user = await AuthorizedUser.findByPk(userId);
-    if (!user) return null;
-    const role = user.getDataValue('role') as string;
-    const caps = await capabilitiesForRole(role);
-    if (caps.size === 0) return null;
-    return role;
+    const session = await resolveUserSession(userId, ownerId);
+    if (session.caps.size === 0) return null;
+    return session.role;
 }
 
 // ── Authorized-user CRUD ──────────────────────────────────────────────────
@@ -154,18 +174,29 @@ export async function removeAuthorizedUser(userId: string): Promise<boolean> {
 // ── Role CRUD ─────────────────────────────────────────────────────────────
 
 export async function listAdminRoles(): Promise<AdminRoleRecord[]> {
-    const roles = await AdminRole.findAll({ order: [['name', 'ASC']] });
-    const result: AdminRoleRecord[] = [];
-    for (const role of roles) {
+    // Two SELECTs + in-memory group-by, regardless of role count. The old
+    // shape did one SELECT + one per role (N+1).
+    const [roles, capRows] = await Promise.all([
+        AdminRole.findAll({ order: [['name', 'ASC']] }),
+        AdminRoleCapability.findAll()
+    ]);
+    const capsByRole = new Map<string, AdminCapability[]>();
+    for (const row of capRows) {
+        const role = row.getDataValue('role') as string;
+        const cap = row.getDataValue('capability') as string;
+        if (!isAdminCapability(cap)) continue;
+        const list = capsByRole.get(role);
+        if (list) list.push(cap);
+        else capsByRole.set(role, [cap]);
+    }
+    return roles.map(role => {
         const name = role.getDataValue('name') as string;
-        const caps = await capabilitiesForRole(name);
-        result.push({
+        return {
             name,
             description: (role.getDataValue('description') as string | null) ?? null,
-            capabilities: [...caps]
-        });
-    }
-    return result;
+            capabilities: capsByRole.get(name) ?? []
+        };
+    });
 }
 
 export async function createAdminRole(name: string, description: string | null = null): Promise<AdminRoleRecord> {
