@@ -168,8 +168,21 @@ export async function registerAdminManagementRoutes(
                 return;
             }
             const roles = await listAdminRoles();
-            if (!roles.some(r => r.name === body.role)) {
+            const targetRole = roles.find(r => r.name === body.role);
+            if (!targetRole) {
                 reply.code(400).send({ error: `unknown role "${body.role}"` });
+                return;
+            }
+            // Self-lockout guard: moving yourself to a role without the
+            // `admin` capability would make this the last request you could
+            // make. Owner is exempt via the BOT_OWNER_ID bypass.
+            if (
+                request.authUserId
+                && body.userId === request.authUserId
+                && request.authUserId !== ownerId
+                && !targetRole.capabilities.includes('admin')
+            ) {
+                reply.code(400).send({ error: 'cannot move yourself to a role without the admin capability' });
                 return;
             }
             const note = isNonEmptyString(body.note) ? body.note : null;
@@ -180,6 +193,16 @@ export async function registerAdminManagementRoutes(
 
     server.delete<{ Params: { userId: string } }>('/api/admin/users/:userId', async (request, reply) => {
         if (!requireAdmin(request, reply)) return;
+        const ownerId = readOwnerId();
+        // Self-lockout guard: deleting your own allow-list row severs access
+        // the moment the capability cache expires. Owner is exempt.
+        if (
+            request.authUserId === request.params.userId
+            && request.authUserId !== ownerId
+        ) {
+            reply.code(400).send({ error: 'cannot remove yourself from the allow list' });
+            return;
+        }
         const removed = await removeAuthorizedUser(request.params.userId);
         if (!removed) {
             reply.code(404).send({ error: 'user not in allow list' });
