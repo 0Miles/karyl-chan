@@ -6,7 +6,7 @@ import { createDiscordMessageContext } from './createMessageContext';
 import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
-import { loadLastDmChannel, saveLastDmChannel } from './last-channel';
+import { loadLastDmChannel, saveLastDmChannel, saveLastSurface } from './last-channel';
 import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useDmStore } from './stores/dmStore';
@@ -15,6 +15,8 @@ export interface UseDiscordDmOptions {
     onAuthError?: () => void;
     /** Fired when the workspace machine's pending scroll target resolves (found or gave up). */
     onScrollFinished?: (messageId: string, found: boolean) => void;
+    /** Scroller-aware scroll attempt — see UseWorkspaceOptions.attemptScroll. */
+    attemptScroll?: (messageId: string) => boolean;
 }
 
 export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
@@ -41,8 +43,10 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         readLastChannel: () => loadLastDmChannel(),
         onChannelCommitted: (_gid, channelId) => {
             saveLastDmChannel(channelId);
+            saveLastSurface({ mode: 'dm', channelId });
         },
-        onScrollFinished: opts.onScrollFinished
+        onScrollFinished: opts.onScrollFinished,
+        attemptScroll: opts.attemptScroll
     });
 
     const selectedChannelId = workspace.selectedChannelId;
@@ -62,6 +66,22 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     });
 
     watch(chat.messages, () => workspace.notifyMessagesChanged());
+
+    // Anchor-fetch pending scroll targets that aren't in the loaded
+    // batch — typically a link click to an older DM message.
+    let lastAroundFetch = '';
+    watch(
+        [workspace.pendingScrollTo, chat.messages],
+        ([scrollTarget, msgs]) => {
+            if (!scrollTarget || lastAroundFetch === scrollTarget) return;
+            if (msgs.some(m => m.id === scrollTarget)) return;
+            lastAroundFetch = scrollTarget;
+            chat.loadAround(scrollTarget).catch(() => { /* best-effort */ });
+        }
+    );
+    watch(workspace.pendingScrollTo, (v) => {
+        if (v === null) lastAroundFetch = '';
+    });
 
     const selectedChannel = computed(() =>
         dmStore.channels.find(c => c.id === selectedChannelId.value) ?? null

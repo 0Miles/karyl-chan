@@ -126,11 +126,12 @@ export async function listGuildChannelMembers(guildId: string, channelId: string
 export async function getGuildMessages(
     guildId: string,
     channelId: string,
-    opts: { limit?: number; before?: string } = {}
+    opts: { limit?: number; before?: string; around?: string } = {}
 ): Promise<{ messages: Message[]; hasMore: boolean }> {
     const params = new URLSearchParams();
     if (opts.limit) params.set('limit', String(opts.limit));
     if (opts.before) params.set('before', opts.before);
+    if (opts.around) params.set('around', opts.around);
     const query = params.toString();
     const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages${query ? `?${query}` : ''}`;
     const response = await authedFetch(url);

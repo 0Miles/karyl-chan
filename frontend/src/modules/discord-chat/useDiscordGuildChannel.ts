@@ -6,7 +6,7 @@ import { createDiscordMessageContext } from './createMessageContext';
 import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
-import { loadLastGuildChannel, saveLastGuildChannel } from './last-channel';
+import { loadLastGuildChannel, saveLastGuildChannel, saveLastSurface } from './last-channel';
 import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useGuildChannelStore } from './stores/guildChannelStore';
@@ -15,6 +15,8 @@ export interface UseDiscordGuildChannelOptions {
     onAuthError?: () => void;
     /** Fired when the workspace machine's pending scroll target resolves (found or gave up). */
     onScrollFinished?: (messageId: string, found: boolean) => void;
+    /** Scroller-aware scroll attempt — see UseWorkspaceOptions.attemptScroll. */
+    attemptScroll?: (messageId: string) => boolean;
 }
 
 export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDiscordGuildChannelOptions = {}) {
@@ -44,11 +46,13 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         onChannelCommitted: (gid, channelId) => {
             if (!gid) return;
             saveLastGuildChannel(gid, channelId);
+            saveLastSurface({ mode: gid, channelId });
             guildStore.ensureChannelMembers(gid, channelId).catch(() => {
                 /* best-effort mention cache */
             });
         },
-        onScrollFinished: opts.onScrollFinished
+        onScrollFinished: opts.onScrollFinished,
+        attemptScroll: opts.attemptScroll
     });
 
     const selectedChannelId = workspace.selectedChannelId;
@@ -77,6 +81,25 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     // so pending scroll targets can retry against the freshly-rendered
     // DOM.
     watch(chat.messages, () => workspace.notifyMessagesChanged());
+
+    // When a scroll target is pending but the message isn't in the
+    // loaded batch (typical message-link case — target is older than
+    // the default latest page), fetch a window centred on it. One
+    // request is enough; the resulting MESSAGES_CHANGED will let the
+    // machine retry the scroll.
+    let lastAroundFetch = '';
+    watch(
+        [workspace.pendingScrollTo, chat.messages],
+        ([scrollTarget, msgs]) => {
+            if (!scrollTarget || lastAroundFetch === scrollTarget) return;
+            if (msgs.some(m => m.id === scrollTarget)) return;
+            lastAroundFetch = scrollTarget;
+            chat.loadAround(scrollTarget).catch(() => { /* best-effort */ });
+        }
+    );
+    watch(workspace.pendingScrollTo, (v) => {
+        if (v === null) lastAroundFetch = '';
+    });
 
     const selectedChannel = computed(() =>
         channels.value.find(c => c.id === selectedChannelId.value) ?? null

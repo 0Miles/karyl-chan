@@ -22,6 +22,16 @@ export interface UseWorkspaceOptions {
     onChannelCommitted: (guildId: string | null, channelId: string) => void;
     /** Fired when a pending scroll either landed or gave up. Caller uses it to clear `?scrollTo=`. */
     onScrollFinished?: (messageId: string, found: boolean) => void;
+    /**
+     * Try to bring `messageId` into view. Return `true` when the target
+     * is already in the DOM and has been scrolled to (machine moves to
+     * `idle` via `SCROLL_RESOLVED`); return `false` when the target
+     * isn't on screen — the machine stays pending and retries on the
+     * next `MESSAGES_CHANGED`. The caller supplies this so the view
+     * can use the virtual scroller's `scrollToItem` to nudge off-screen
+     * items into render.
+     */
+    attemptScroll?: (messageId: string) => boolean;
 }
 
 export interface UseWorkspaceReturn {
@@ -71,10 +81,29 @@ export function useWorkspace(opts: UseWorkspaceOptions): UseWorkspaceReturn {
                 queueMicrotask(() => send({ type: 'SELECT_CHANNEL', channelId: pick }));
             },
             tryScroll: (_args, params) => {
-                const el = document.querySelector(`[data-message-id="${params.messageId}"]`);
-                if (!el) return;
-                (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
-                queueMicrotask(() => send({ type: 'SCROLL_RESOLVED' }));
+                // Delegate to the caller's scroller-aware helper when
+                // provided (DiscordConversation's `scrollToMessage`).
+                // Fallback: plain DOM query for tests / scenarios
+                // without a view attached.
+                const attempt = opts.attemptScroll
+                    ?? ((id: string) => {
+                        const el = document.querySelector(`[data-message-id="${id}"]`);
+                        if (!el) return false;
+                        (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return true;
+                    });
+                if (attempt(params.messageId)) {
+                    queueMicrotask(() => send({ type: 'SCROLL_RESOLVED' }));
+                    return;
+                }
+                // Attempt returned false: either the target isn't in the
+                // loaded batch (anchor fetch handled upstream) or it's
+                // in the list but outside the virtual scroller's
+                // rendered window (scrollToItem was nudged in). Either
+                // way, a frame or two later we should retry — feed
+                // MESSAGES_CHANGED so the retry counter ticks and the
+                // machine hits its `scrollLimitReached` give-up guard.
+                requestAnimationFrame(() => send({ type: 'MESSAGES_CHANGED' }));
             },
             finishScroll: (_args, params) => {
                 opts.onScrollFinished?.(params.messageId, params.found);

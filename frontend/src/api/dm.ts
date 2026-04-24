@@ -42,10 +42,11 @@ export async function listChannels(): Promise<DmChannelSummary[]> {
     return body.channels;
 }
 
-export async function getMessages(channelId: string, opts: { limit?: number; before?: string } = {}): Promise<MessagesPage> {
+export async function getMessages(channelId: string, opts: { limit?: number; before?: string; around?: string } = {}): Promise<MessagesPage> {
     const params = new URLSearchParams();
     if (opts.limit) params.set('limit', String(opts.limit));
     if (opts.before) params.set('before', opts.before);
+    if (opts.around) params.set('around', opts.around);
     const query = params.toString();
     const url = `/api/dm/channels/${encodeURIComponent(channelId)}/messages${query ? `?${query}` : ''}`;
     const response = await authedFetch(url);

@@ -32,6 +32,8 @@ function clearScrollToQuery() {
     router.replace({ query: next });
 }
 
+const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
+
 const {
     channels,
     selectedChannelId,
@@ -49,7 +51,8 @@ const {
     requestScroll
 } = useDiscordDm({
     onAuthError: () => router.replace({ name: 'auth' }),
-    onScrollFinished: () => clearScrollToQuery()
+    onScrollFinished: () => clearScrollToQuery(),
+    attemptScroll: (id) => conversationRef.value?.scrollToMessage(id) ?? false
 });
 
 function handleSelect(id: string) {
@@ -84,7 +87,6 @@ watch(selectedChannelId, (id) => {
     router.replace({ query: { ...route.query, channel: id } });
 }, { immediate: true });
 
-const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
     chat.bindContainers({

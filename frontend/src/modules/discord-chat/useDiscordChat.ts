@@ -85,6 +85,21 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         await fillIfNoScrollbar();
     }
 
+    /**
+     * Fetch a window of messages centred on `messageId` (used when a
+     * message-link click needs to land on an older message not already
+     * in the cache). Replaces the current batch.
+     */
+    async function loadAround(messageId: string): Promise<void> {
+        const channelId = opts.channelId.value;
+        if (!channelId) return;
+        try {
+            await messageCache.loadAround(channelId, messageId, opts.api.listMessages);
+        } catch (err) {
+            bail(err);
+        }
+    }
+
     // Scroll to bottom when a new message arrives and we're near the bottom.
     const lastMessageId = computed(() => {
         const msgs = messages.value;
@@ -224,5 +239,6 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         submitEdit,
         confirmDelete,
         loadOlder,
+        loadAround,
     };
 }

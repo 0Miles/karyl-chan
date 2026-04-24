@@ -47,12 +47,13 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         return { channels: await inbox.listChannels() };
     });
 
-    server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string } }>(
+    server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
             const { channelId } = request.params;
             const limit = Math.min(Math.max(Number(request.query.limit ?? 10) || 10, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
+            const around = typeof request.query.around === 'string' && request.query.around.length > 0 ? request.query.around : undefined;
 
             const summary = await inbox.getChannel(channelId);
             if (!summary) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -61,14 +62,19 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
 
             try {
-                const fetched = await channel.messages.fetch({ limit, before });
+                // `around` (anchor pagination) takes precedence over `before`
+                // so a link click can grab the window that contains the
+                // target in one shot instead of trickling older pages.
+                const fetched = around
+                    ? await channel.messages.fetch({ limit, around })
+                    : await channel.messages.fetch({ limit, before });
                 const messages = [...fetched.values()]
                     .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
                     .map(toApiMessage);
                 return {
                     channel: summary,
                     messages,
-                    hasMore: messages.length === limit
+                    hasMore: messages.length === limit && !around
                 };
             } catch (err) {
                 request.log.error({ err }, 'failed to fetch DM messages');

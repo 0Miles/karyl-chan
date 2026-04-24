@@ -10,7 +10,7 @@ export type ChannelMessageEvent =
 
 export type ListMessagesFn = (
     channelId: string,
-    opts: { limit?: number; before?: string }
+    opts: { limit?: number; before?: string; around?: string }
 ) => Promise<{ messages: Message[]; hasMore: boolean }>;
 
 const PAGE_SIZE = 16;
@@ -112,6 +112,33 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         }
     }
 
+    /**
+     * Fetch a window of messages centred on `messageId` and replace the
+     * channel's cached batch so a UI jump can land on the anchor. Used
+     * by message-link clicks where the target is typically older than
+     * anything the default PAGE_SIZE load would have fetched. Skips if
+     * the anchor is already in the cache to avoid throwing away context.
+     */
+    async function loadAround(channelId: string, messageId: string, listFn: ListMessagesFn): Promise<void> {
+        const entry = getOrCreate(channelId);
+        if (entry.loadingInitial || entry.loadingOlder) return;
+        if (entry.loaded && entry.messages.some(m => m.id === messageId)) return;
+        entry.loadingInitial = true;
+        try {
+            const result = await listFn(channelId, { limit: PAGE_SIZE * 2, around: messageId });
+            entry.messages = result.messages;
+            // `around` windows have older content on both sides but the
+            // backend doesn't tell us whether more remain below the
+            // anchor; we conservatively flag there may be older (so
+            // `loadOlder` stays usable) and leave newer-side gap for a
+            // future enhancement.
+            entry.hasMore = result.messages.length === PAGE_SIZE * 2;
+            entry.loaded = true;
+        } finally {
+            entry.loadingInitial = false;
+        }
+    }
+
     function applyEvent(event: ChannelMessageEvent): void {
         const entry = entries[event.channelId];
         if (!entry?.loaded) return;
@@ -150,6 +177,7 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         isLoaded,
         ensureLoaded,
         loadOlder,
+        loadAround,
         applyEvent,
         applyReactionDelta,
         saveScrollPosition,

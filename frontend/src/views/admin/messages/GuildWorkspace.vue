@@ -30,6 +30,8 @@ function clearScrollToQuery() {
     router.replace({ query: next });
 }
 
+const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
+
 const {
     categories,
     channels,
@@ -45,7 +47,8 @@ const {
     requestScroll
 } = useDiscordGuildChannel(guildIdRef, {
     onAuthError: () => router.replace({ name: 'auth' }),
-    onScrollFinished: () => clearScrollToQuery()
+    onScrollFinished: () => clearScrollToQuery(),
+    attemptScroll: (id) => conversationRef.value?.scrollToMessage(id) ?? false
 });
 
 function handleSelect(id: string) {
@@ -84,7 +87,6 @@ watch(() => props.guildId, id => {
     selectedGuild.value = props.guilds.find(g => g.id === id) ?? null;
 });
 
-const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
     chat.bindContainers({

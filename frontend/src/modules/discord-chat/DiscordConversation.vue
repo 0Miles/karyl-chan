@@ -70,6 +70,49 @@ function scrollToBottom() {
     if (el) el.scrollTop = el.scrollHeight;
 }
 
+/**
+ * DynamicScroller measures items lazily, so `scrollHeight` right after a
+ * fresh render is often an under-estimate — a single `scrollTop = height`
+ * lands mid-list instead of bottom. We set a value larger than the doc
+ * can hold (browsers clamp to `scrollHeight`) and repeat across a few
+ * frames so each measurement pass re-clamps us to the true end.
+ */
+function scrollToBottomStable(maxFrames = 6): void {
+    let frame = 0;
+    const tick = () => {
+        const el = messagesContainer.value;
+        if (!el) return;
+        el.scrollTop = Number.MAX_SAFE_INTEGER;
+        frame++;
+        if (frame < maxFrames) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+}
+
+/**
+ * Try to land on the given message id. Returns `true` when the target
+ * is already in the DOM and we scrolled to it; returns `false` when the
+ * message is either out of the virtual-scroller's rendered window (in
+ * which case we nudge it in via `scrollToItem` so the next render picks
+ * it up) or not in the loaded batch at all.
+ */
+function scrollToMessage(messageId: string): boolean {
+    const el = messagesContainer.value;
+    if (!el) return false;
+    const msgEl = el.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(messageId)}"]`);
+    if (msgEl) {
+        msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return true;
+    }
+    if (useVirtual.value && scrollerRef.value) {
+        const idx = props.messages.findIndex(m => m.id === messageId);
+        if (idx >= 0) {
+            (scrollerRef.value as unknown as { scrollToItem?: (i: number) => void }).scrollToItem?.(idx);
+        }
+    }
+    return false;
+}
+
 function isNearBottom(): boolean {
     const el = messagesContainer.value;
     if (!el) return true;
@@ -136,7 +179,7 @@ function applyRestore(restore: PendingRestore, attempt = 0): void {
     if (!el) return;
     const { position } = restore;
     if (!position) {
-        el.scrollTop = el.scrollHeight;
+        scrollToBottomStable();
         return;
     }
     const msgEl = el.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(position.messageId)}"]`);
@@ -218,6 +261,7 @@ onBeforeUnmount(() => {
 
 defineExpose({
     scrollToBottom,
+    scrollToMessage,
     isNearBottom,
     addFiles: (files: File[]) => composerRef.value?.addFiles(files),
     messagesContainer,
