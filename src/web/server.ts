@@ -155,8 +155,8 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     // Security headers. CSP allows same-origin scripts plus 'unsafe-eval'
     // (required by lottie-web) and 'unsafe-inline' for Vue's scoped styles.
     // Discord CDN hosts every avatar + custom emoji + sticker we render, so
-    // it's whitelisted under img-src / media-src. connect-src stays 'self'
-    // — admin API + SSE are same-origin.
+    // it's whitelisted under img-src / media-src. connect-src adds the
+    // Iconify API hosts since @iconify/vue fetches icon SVGs at runtime.
     await server.register(fastifyHelmet, {
         contentSecurityPolicy: {
             directives: {
@@ -177,7 +177,12 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
                 'style-src': ["'self'", "'unsafe-inline'"],
                 'script-src': ["'self'", "'unsafe-eval'"],
                 'script-src-attr': ["'none'"],
-                'connect-src': ["'self'"],
+                'connect-src': [
+                    "'self'",
+                    'https://api.iconify.design',
+                    'https://api.simplesvg.com',
+                    'https://api.unisvg.com'
+                ],
                 'form-action': ["'self'"],
                 'frame-ancestors': ["'none'"],
                 'object-src': ["'none'"]
