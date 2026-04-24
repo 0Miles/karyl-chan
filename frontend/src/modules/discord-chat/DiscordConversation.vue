@@ -243,6 +243,48 @@ function startReact(messageId: string) {
     reactingButton.value = reactingButtons.get(messageId) ?? null;
 }
 
+// Transient "just copied" flag per message id — flips back after the
+// user's eye has had time to catch the tooltip swap (~1.2s).
+const copiedMessageId = ref<string | null>(null);
+let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+function messageUrl(message: Message): string {
+    // `@me` stands in for null guildId in Discord's own permalink scheme.
+    return `https://discord.com/channels/${message.guildId ?? '@me'}/${message.channelId}/${message.id}`;
+}
+
+async function copyMessageLink(message: Message) {
+    const url = messageUrl(message);
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(url);
+        } else {
+            // Older browsers / non-secure contexts: fall back to the
+            // `execCommand` path via a hidden textarea.
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+        copiedMessageId.value = message.id;
+        if (copiedResetTimer) clearTimeout(copiedResetTimer);
+        copiedResetTimer = setTimeout(() => {
+            copiedMessageId.value = null;
+            copiedResetTimer = null;
+        }, 1200);
+    } catch {
+        // Silent: clipboard may be blocked by permissions policy.
+    }
+}
+
+onBeforeUnmount(() => {
+    if (copiedResetTimer) clearTimeout(copiedResetTimer);
+});
+
 const replyToProp = computed(() => props.replyTo);
 </script>
 
@@ -322,6 +364,16 @@ const replyToProp = computed(() => props.replyTo);
                                 <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
                                     <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
                                 </button>
+                            </template>
+                            <button
+                                type="button"
+                                :class="['action', { copied: copiedMessageId === message.id }]"
+                                :title="copiedMessageId === message.id ? $t('messages.copyLinkDone') : $t('messages.copyLink')"
+                                @click="copyMessageLink(message)"
+                            >
+                                <Icon :icon="copiedMessageId === message.id ? 'material-symbols:check-rounded' : 'material-symbols:link-rounded'" width="16" height="16" />
+                            </button>
+                            <template v-if="isOwn(message)">
                                 <button
                                     type="button"
                                     :class="['action', { danger: shiftHeld }]"
@@ -378,6 +430,16 @@ const replyToProp = computed(() => props.replyTo);
                             <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
                                 <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
                             </button>
+                        </template>
+                        <button
+                            type="button"
+                            :class="['action', { copied: copiedMessageId === message.id }]"
+                            :title="copiedMessageId === message.id ? $t('messages.copyLinkDone') : $t('messages.copyLink')"
+                            @click="copyMessageLink(message)"
+                        >
+                            <Icon :icon="copiedMessageId === message.id ? 'material-symbols:check-rounded' : 'material-symbols:link-rounded'" width="16" height="16" />
+                        </button>
+                        <template v-if="isOwn(message)">
                             <button
                                 type="button"
                                 :class="['action', { danger: shiftHeld }]"
@@ -503,6 +565,10 @@ const replyToProp = computed(() => props.replyTo);
 .action.danger {
     background: rgba(239, 68, 68, 0.18);
     color: var(--danger);
+}
+.action.copied {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
 }
 .composer-row {
     padding: 0.5rem 0.75rem;

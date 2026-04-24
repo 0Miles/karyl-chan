@@ -109,6 +109,8 @@
         "delete": "Delete",
         "deleteNoConfirm": "Delete (no confirm)",
         "deleteShiftConfirm": "Delete (shift to skip confirm)",
+        "copyLink": "Copy message link",
+        "copyLinkDone": "Copied",
         "replying": "Replying",
         "dropFiles": "Drop files to attach",
         "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",
