@@ -225,9 +225,12 @@ defineExpose({
 
 function onReactPicked(selection: MediaSelection) {
     if (!reactingMessageId.value) return;
-    const messageId = reactingMessageId.value;
-    closeReactPicker();
-    emit('react', messageId, selection);
+    // Don't close here — MediaPicker decides whether to emit a `close`
+    // (and thus flip update:visible → closeReactPicker) based on the
+    // shift key. Closing unconditionally here would stomp the
+    // shift-to-stay-open affordance and collapse the picker between
+    // every reaction added to the same message.
+    emit('react', reactingMessageId.value, selection);
 }
 
 function startReact(messageId: string) {
