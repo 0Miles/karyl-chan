@@ -89,9 +89,13 @@ const anchorRef = computed<HTMLElement | null>(() => {
 
 // Desktop popover visibility — ref, not computed, because usePopover
 // flips it on self-close (Escape / click-outside) and we surface those
-// back to the caller via update:open.
+// back to the caller via update:open. `immediate: true` seeds the
+// correct initial value: without it, a popover that mounts with
+// `isOpen === true` (e.g. bound to an already-set controller state)
+// would leave `popoverVisible` stuck at false until the next change,
+// so the content would silently stay hidden.
 const popoverVisible = ref(false);
-watch(isOpen, (v) => { popoverVisible.value = !isMobile.value && v; });
+watch(isOpen, (v) => { popoverVisible.value = !isMobile.value && v; }, { immediate: true });
 watch(isMobile, (mobile) => { popoverVisible.value = !mobile && isOpen.value; });
 watch(popoverVisible, (v) => {
     const expected = !isMobile.value && isOpen.value;

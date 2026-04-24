@@ -177,12 +177,20 @@ async function sendDm() {
 <style scoped>
 .user-card {
     width: 300px;
-    max-width: 90vw;
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
     overflow: hidden;
+}
+@media (max-width: 768px) {
+    .user-card {
+        width: 100%;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    
 }
 .banner {
     height: 72px;
