@@ -1,4 +1,4 @@
-import { computed, onMounted, provide, ref, watch, type Ref } from 'vue';
+import { computed, onMounted, provide, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { MessageContextKey, type ComposerSuggestionItem } from '../../libs/messages';
@@ -7,11 +7,14 @@ import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
 import { loadLastGuildChannel, saveLastGuildChannel } from './last-channel';
+import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useGuildChannelStore } from './stores/guildChannelStore';
 
 export interface UseDiscordGuildChannelOptions {
     onAuthError?: () => void;
+    /** Fired when the workspace machine's pending scroll target resolves (found or gave up). */
+    onScrollFinished?: (messageId: string, found: boolean) => void;
 }
 
 export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDiscordGuildChannelOptions = {}) {
@@ -19,8 +22,6 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     const botStore = useBotStore();
     const router = useRouter();
     const { t } = useI18n();
-
-    const selectedChannelId = ref<string | null>(null);
 
     const bailOnAuthError = createAuthErrorBail({ onAuthError: opts.onAuthError });
 
@@ -31,6 +32,26 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId.value ? guildStore.getCategories(guildId.value) : []
     );
     const channels = computed(() => categories.value.flatMap(c => c.channels));
+    const availableChannelIds = computed(() => channels.value.map(c => c.id));
+
+    // Workspace machine owns selection + scroll lifecycle. Side effects
+    // (save localStorage, ensureChannelMembers) are surfaced here where
+    // the guildStore is reachable.
+    const workspace = useWorkspace({
+        guildId,
+        availableChannelIds,
+        readLastChannel: (gid) => gid ? loadLastGuildChannel(gid) : null,
+        onChannelCommitted: (gid, channelId) => {
+            if (!gid) return;
+            saveLastGuildChannel(gid, channelId);
+            guildStore.ensureChannelMembers(gid, channelId).catch(() => {
+                /* best-effort mention cache */
+            });
+        },
+        onScrollFinished: opts.onScrollFinished
+    });
+
+    const selectedChannelId = workspace.selectedChannelId;
 
     const chat = useDiscordChat({
         channelId: selectedChannelId,
@@ -50,6 +71,12 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         },
         onError: bailOnAuthError,
     });
+
+    // Feed the scroll region of the machine: every time the chat
+    // messages ref changes identity (a load batch arrives), we notify
+    // so pending scroll targets can retry against the freshly-rendered
+    // DOM.
+    watch(chat.messages, () => workspace.notifyMessagesChanged());
 
     const selectedChannel = computed(() =>
         channels.value.find(c => c.id === selectedChannelId.value) ?? null
@@ -114,10 +141,6 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
                     if (gid !== guildId.value || channelId !== selectedChannelId.value) return [];
                     const items: ComposerSuggestionItem[] = [];
                     const MEMBER_MAX = 20;
-                    // With no typed query we only surface the top 3 roles so
-                    // the menu doesn't drown the members list. Once the user
-                    // filters, every matching role is eligible — the popover
-                    // is scrollable, so we let the query do the narrowing.
                     const ROLE_MAX = query ? 10 : 3;
                     for (const m of members) {
                         if (items.length >= MEMBER_MAX) break;
@@ -152,6 +175,9 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     });
     provide(MessageContextKey, messageContext);
 
+    // Kick off remote fetches whenever the guild changes. The workspace
+    // machine handles selection bookkeeping; we just make sure the
+    // guildStore has the channel list + roles to feed it.
     async function loadGuild(id: string) {
         try {
             await guildStore.ensureChannels(id);
@@ -162,43 +188,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     }
 
     watch(guildId, async (id) => {
-        selectedChannelId.value = null;
         if (id) await loadGuild(id);
-    });
-
-    // Central channel-selection policy: every time the channel list for
-    // the active guild updates (initial load, guild switch, channel
-    // created/deleted) or `selectedChannelId` is externally set (URL
-    // `?channel=`, programmatic navigation), ensure it points at a live
-    // channel in the current guild. Watching both refs is load-bearing:
-    // a cross-surface navigation may seed a stale id before the channel
-    // list refreshes, and without the selectedChannelId dep the watcher
-    // would not re-fire to correct it. Falls back to the per-guild
-    // localStorage record, then the first channel.
-    watch([channels, selectedChannelId], ([list, current]) => {
-        const gid = guildId.value;
-        if (!gid || list.length === 0) return;
-        if (current && list.some(c => c.id === current)) return;
-        const remembered = loadLastGuildChannel(gid);
-        const match = remembered ? list.find(c => c.id === remembered) : null;
-        selectedChannelId.value = match ? match.id : list[0].id;
-    }, { immediate: true });
-
-    // Persist the active channel and prefetch mention members. Depends on
-    // `channels` as well as `selectedChannelId` so the validation fires
-    // again when the channel list arrives after a URL-seeded selection:
-    // without that, reloading `?guild=A&channel=X` would set the id before
-    // channels loaded, the list-membership guard would reject it, and no
-    // ensureChannelMembers call would ever happen — leaving messages
-    // rendered without role colours. The list-membership guard also stops
-    // a transient stale id (e.g. carried over from another guild) from
-    // poisoning the localStorage record or triggering a bad fetch.
-    watch([selectedChannelId, channels], ([channelId, list]) => {
-        const gid = guildId.value;
-        if (!gid || !channelId) return;
-        if (!list.some(c => c.id === channelId)) return;
-        saveLastGuildChannel(gid, channelId);
-        guildStore.ensureChannelMembers(gid, channelId).catch(() => { /* best-effort */ });
     });
 
     onMounted(async () => {
@@ -219,5 +209,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         send: chat.send,
         reactWithSelection: chat.reactWithSelection,
         refreshChannels: () => guildId.value ? guildStore.loadChannels(guildId.value) : Promise.resolve(),
+        selectChannel: workspace.select,
+        requestScroll: workspace.requestScroll
     };
 }

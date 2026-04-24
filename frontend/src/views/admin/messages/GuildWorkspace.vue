@@ -23,6 +23,13 @@ const route = useRoute();
 const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
 
+function clearScrollToQuery() {
+    if (typeof route.query.scrollTo !== 'string' || !route.query.scrollTo) return;
+    const next = { ...route.query };
+    delete next.scrollTo;
+    router.replace({ query: next });
+}
+
 const {
     categories,
     channels,
@@ -33,54 +40,44 @@ const {
     botUserId,
     chat,
     send,
-    reactWithSelection
+    reactWithSelection,
+    selectChannel,
+    requestScroll
 } = useDiscordGuildChannel(guildIdRef, {
-    onAuthError: () => router.replace({ name: 'auth' })
+    onAuthError: () => router.replace({ name: 'auth' }),
+    onScrollFinished: () => clearScrollToQuery()
 });
 
 function handleSelect(id: string) {
-    selectedChannelId.value = id;
+    selectChannel(id);
     if (props.isMobile) closeOverlay();
 }
 
-// Deep link + refresh survival: URL is the source of truth on load, then
-// we mirror user-driven channel switches back into `?channel=` with
-// `router.replace` so history doesn't bloat.
+// URL → machine. `?channel=` seeds the selection, `?scrollTo=` seeds
+// the scroll target. The workspace machine owns the ordering so we
+// can dispatch these events in any order without tripping over each
+// other.
 function applyChannelQuery(value: unknown) {
     if (typeof value !== 'string' || value.length === 0) return;
-    if (selectedChannelId.value === value) return;
-    selectedChannelId.value = value;
+    selectChannel(value);
+}
+function applyScrollQuery(value: unknown) {
+    if (typeof value !== 'string' || value.length === 0) return;
+    requestScroll(value);
 }
 applyChannelQuery(route.query.channel);
+applyScrollQuery(route.query.scrollTo);
 watch(() => route.query.channel, applyChannelQuery);
+watch(() => route.query.scrollTo, applyScrollQuery);
 
-// Same policy as DmWorkspace: only reflect ids that actually exist in
-// the loaded channel list, so a stale URL param or a mid-navigation
-// seed doesn't briefly land in the history/query before the composable
-// validator corrects it.
+// Machine → URL. Mirror the committed selection back into `?channel=`
+// once it lands in the live channel list.
 watch(selectedChannelId, (id) => {
     if (!id) return;
     if (!channels.value.some(c => c.id === id)) return;
     if (route.query.channel === id) return;
     router.replace({ query: { ...route.query, channel: id } });
 }, { immediate: true });
-
-// `?scrollTo=<messageId>` deep-links to a specific message. Runs after
-// each render so the scroller has had a chance to draw the target row;
-// clears the query when we find it so refreshes don't keep jumping.
-watch(
-    [() => route.query.scrollTo, () => chat.messages.value],
-    ([scrollTo]) => {
-        if (typeof scrollTo !== 'string' || !scrollTo) return;
-        const el = document.querySelector(`[data-message-id="${scrollTo}"]`) as HTMLElement | null;
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const next = { ...route.query };
-        delete next.scrollTo;
-        router.replace({ query: next });
-    },
-    { flush: 'post' }
-);
 
 const selectedGuild = ref(props.guilds.find(g => g.id === props.guildId) ?? null);
 watch(() => props.guildId, id => {

@@ -21,6 +21,17 @@ const router = useRouter();
 const route = useRoute();
 const { closeOverlay } = useAppShell();
 
+// `onScrollFinished` fires from the workspace machine once a pending
+// scroll either landed on its target or gave up — we use that as the
+// trigger to drop the `?scrollTo=` query, which otherwise would keep
+// re-triggering the same jump on refresh.
+function clearScrollToQuery() {
+    if (typeof route.query.scrollTo !== 'string' || !route.query.scrollTo) return;
+    const next = { ...route.query };
+    delete next.scrollTo;
+    router.replace({ query: next });
+}
+
 const {
     channels,
     selectedChannelId,
@@ -33,61 +44,45 @@ const {
     chat,
     send,
     reactWithSelection,
-    startNewDm
+    startNewDm,
+    selectChannel,
+    requestScroll
 } = useDiscordDm({
-    onAuthError: () => router.replace({ name: 'auth' })
+    onAuthError: () => router.replace({ name: 'auth' }),
+    onScrollFinished: () => clearScrollToQuery()
 });
 
 function handleSelect(id: string) {
-    selectedChannelId.value = id;
+    selectChannel(id);
     if (props.isMobile) closeOverlay();
 }
 
-// Allow deep links like /admin/messages?channel=<id>. Set synchronously
-// so useDiscordDm's own onMounted pick-the-first-channel guard skips
-// the default; also watch for future navigations (e.g., the user card
-// "Send DM" button pushes a new query after creating the channel).
+// URL → machine. `?channel=` seeds the selection, `?scrollTo=` seeds
+// the scroll target. The workspace machine owns the ordering so we
+// can dispatch these events in any order without tripping over each
+// other.
 function applyChannelQuery(value: unknown) {
     if (typeof value !== 'string' || value.length === 0) return;
-    if (selectedChannelId.value === value) return;
-    selectedChannelId.value = value;
+    selectChannel(value);
+}
+function applyScrollQuery(value: unknown) {
+    if (typeof value !== 'string' || value.length === 0) return;
+    requestScroll(value);
 }
 applyChannelQuery(route.query.channel);
+applyScrollQuery(route.query.scrollTo);
 watch(() => route.query.channel, applyChannelQuery);
+watch(() => route.query.scrollTo, applyScrollQuery);
 
-// Mirror the selection back into the URL so a refresh lands on the same
-// channel. Skips when the URL already matches to avoid pushing an
-// identical history entry, and uses `replace` so the back button doesn't
-// accumulate entries per channel switch. Only writes ids that exist in
-// the DM channel list — otherwise a transient stale id (e.g. one left
-// over from a guild→DM mode swap before useDiscordDm's validator
-// re-picks) would briefly poison the URL. Immediate so a hot nav with
-// a pre-selected channel flushes its id into the query.
+// Machine → URL. Mirror the committed selection back into `?channel=`
+// once it lands in the live channel list — guarantees we never write a
+// stale id that the machine hasn't validated.
 watch(selectedChannelId, (id) => {
     if (!id) return;
     if (!channels.value.some(c => c.id === id)) return;
     if (route.query.channel === id) return;
     router.replace({ query: { ...route.query, channel: id } });
 }, { immediate: true });
-
-// Honour `?scrollTo=<messageId>` — the query is written by a
-// message-link click elsewhere in the app. Runs whenever messages
-// re-render; post-flush so `[data-message-id]` is in the DOM by the
-// time we query for it. Clears the query once the scroll lands so a
-// later refresh of the same URL doesn't keep pulling the user there.
-watch(
-    [() => route.query.scrollTo, () => chat.messages.value],
-    ([scrollTo]) => {
-        if (typeof scrollTo !== 'string' || !scrollTo) return;
-        const el = document.querySelector(`[data-message-id="${scrollTo}"]`) as HTMLElement | null;
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const next = { ...route.query };
-        delete next.scrollTo;
-        router.replace({ query: next });
-    },
-    { flush: 'post' }
-);
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {

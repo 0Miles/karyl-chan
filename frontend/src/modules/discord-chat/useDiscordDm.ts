@@ -1,4 +1,4 @@
-import { computed, onMounted, provide, ref, watch } from 'vue';
+import { computed, onMounted, provide, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { MessageContextKey } from '../../libs/messages';
@@ -7,11 +7,14 @@ import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
 import { loadLastDmChannel, saveLastDmChannel } from './last-channel';
+import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useDmStore } from './stores/dmStore';
 
 export interface UseDiscordDmOptions {
     onAuthError?: () => void;
+    /** Fired when the workspace machine's pending scroll target resolves (found or gave up). */
+    onScrollFinished?: (messageId: string, found: boolean) => void;
 }
 
 export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
@@ -20,7 +23,6 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     const router = useRouter();
     const { t } = useI18n();
 
-    const selectedChannelId = ref<string | null>(null);
     const newRecipientId = ref('');
     const showStart = ref(false);
 
@@ -28,6 +30,22 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
 
     const botUserId = computed(() => botStore.userId);
     const botDisplayName = () => botStore.displayName();
+
+    // DM surfaces have no guild id.
+    const guildIdRef = shallowRef<string | null>(null);
+    const availableChannelIds = computed(() => dmStore.channels.map(c => c.id));
+
+    const workspace = useWorkspace({
+        guildId: guildIdRef,
+        availableChannelIds,
+        readLastChannel: () => loadLastDmChannel(),
+        onChannelCommitted: (_gid, channelId) => {
+            saveLastDmChannel(channelId);
+        },
+        onScrollFinished: opts.onScrollFinished
+    });
+
+    const selectedChannelId = workspace.selectedChannelId;
 
     const chat = useDiscordChat({
         channelId: selectedChannelId,
@@ -42,6 +60,8 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         },
         onError: bailOnAuthError,
     });
+
+    watch(chat.messages, () => workspace.notifyMessagesChanged());
 
     const selectedChannel = computed(() =>
         dmStore.channels.find(c => c.id === selectedChannelId.value) ?? null
@@ -135,40 +155,13 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         if (!id) return;
         try {
             const channel = await dmStore.startNewDmChannel(id);
-            selectedChannelId.value = channel.id;
+            workspace.select(channel.id);
             showStart.value = false;
             newRecipientId.value = '';
         } catch (err) {
             if (bailOnAuthError(err)) return;
         }
     }
-
-    // Only persist ids we've verified against the live list — stops a
-    // stale URL param (e.g. a guild channel id left over from a mode
-    // switch) from being written to localStorage before the selection
-    // watcher below re-picks a valid DM channel. Depends on the channel
-    // list too so a URL-seeded selection that arrives before `ensureChannels`
-    // completes still gets persisted once the list populates.
-    watch([selectedChannelId, () => dmStore.channels], ([id, list]) => {
-        if (!id) return;
-        if (!list.some(c => c.id === id)) return;
-        saveLastDmChannel(id);
-    });
-
-    // Same selection policy as useDiscordGuildChannel: validate the
-    // current id against the live list, otherwise fall back to the
-    // localStorage record and then the first channel. Depends on
-    // selectedChannelId too so any externally-set invalid id (URL query,
-    // deep link) is immediately corrected without waiting for a list
-    // mutation. Immediate so a hot nav with a pre-populated store still
-    // picks a channel.
-    watch([() => dmStore.channels, selectedChannelId], ([list, current]) => {
-        if (list.length === 0) return;
-        if (current && list.some(c => c.id === current)) return;
-        const remembered = loadLastDmChannel();
-        const match = remembered ? list.find(c => c.id === remembered) : null;
-        selectedChannelId.value = match ? match.id : list[0].id;
-    }, { immediate: true });
 
     onMounted(async () => {
         botStore.init();
@@ -194,5 +187,7 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         reactWithSelection: chat.reactWithSelection,
         startNewDm,
         refreshChannels: () => dmStore.loadChannels(),
+        selectChannel: workspace.select,
+        requestScroll: workspace.requestScroll
     };
 }
