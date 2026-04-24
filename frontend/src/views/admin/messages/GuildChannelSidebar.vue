@@ -56,7 +56,7 @@ function isCategoryCollapsed(id: string | null): boolean {
                     :key="channel.id"
                     :class="{
                         active: channel.id === selectedId,
-                        unread: unreadStore.getChannelCount(channel.id) > 0
+                        unread: unreadStore.hasChannelUnread(channel.id)
                     }"
                     @click="emit('select', channel.id)">
                     <span class="hash">#</span>

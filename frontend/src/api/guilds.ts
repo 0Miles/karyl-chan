@@ -73,6 +73,7 @@ export async function getGuildDetail(guildId: string): Promise<GuildDetail> {
 export interface GuildTextChannel {
     id: string;
     name: string;
+    lastMessageId: string | null;
 }
 
 export interface GuildChannelCategory {

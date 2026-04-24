@@ -83,13 +83,18 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
 
             const categoryIds = new Set(categoryChannels.map(c => c.id));
             const uncategorized = textChannels.filter(c => !c.parentId || !categoryIds.has(c.parentId));
-            const categories: Array<{ id: string | null; name: string | null; channels: { id: string; name: string }[] }> = [];
+            // `lastMessageId` is kept in sync by discord.js from the
+            // gateway cache — free for us to forward; the client diffs
+            // it against its persisted `lastSeen` marker to surface
+            // unreads that accumulated while the app was closed.
+            const toChannel = (c: TextChannel) => ({ id: c.id, name: c.name, lastMessageId: c.lastMessageId ?? null });
+            const categories: Array<{ id: string | null; name: string | null; channels: { id: string; name: string; lastMessageId: string | null }[] }> = [];
 
             if (uncategorized.length > 0) {
-                categories.push({ id: null, name: null, channels: uncategorized.map(c => ({ id: c.id, name: c.name })) });
+                categories.push({ id: null, name: null, channels: uncategorized.map(toChannel) });
             }
             for (const cat of categoryChannels) {
-                const children = textChannels.filter(c => c.parentId === cat.id).map(c => ({ id: c.id, name: c.name }));
+                const children = textChannels.filter(c => c.parentId === cat.id).map(toChannel);
                 if (children.length > 0) {
                     categories.push({ id: cat.id, name: cat.name, channels: children });
                 }

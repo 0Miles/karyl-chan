@@ -68,7 +68,11 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
 
     watch(chat.messages, () => workspace.notifyMessagesChanged());
 
-    useUnreadSync(selectedChannelId, computed(() => dmStore.channels), 'dm');
+    useUnreadSync(
+        selectedChannelId,
+        computed(() => dmStore.channels.map(c => ({ id: c.id, lastMarker: c.lastMessageId }))),
+        'dm',
+    );
 
     // Anchor-fetch pending scroll targets that aren't in the loaded
     // batch — typically a link click to an older DM message.

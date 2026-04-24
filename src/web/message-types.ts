@@ -84,6 +84,10 @@ export interface Message {
     reference?: MessageReference | null;
     referencedMessage?: Message | null;
     mentionEveryone?: boolean;
+    /** True when this message pings the bot — direct user mention,
+     *  role the bot holds, @everyone/@here, or a reply to the bot.
+     *  Source of truth for the unread "@mention" indicator. */
+    mentionsMe?: boolean;
     pinned?: boolean;
     tts?: boolean;
 }

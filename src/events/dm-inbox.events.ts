@@ -37,6 +37,34 @@ function recipientFor(channel: DMChannel): DmRecipient | null {
 
 @Discord()
 export class DmInboxEvents {
+    /**
+     * After the gateway connects, walk the persisted DM channels and
+     * pull the freshest `lastMessageId` from Discord. Messages that
+     * arrived while the bot was offline don't replay as events, so
+     * without this sync the unread-count endpoint compares the client's
+     * `lastSeen` against a stale DB value and reports zero unreads.
+     */
+    @On({ event: 'ready' })
+    async ready([client]: ArgsOf<'ready'>): Promise<void> {
+        try {
+            const summaries = await dmInboxService.listChannels();
+            for (const summary of summaries) {
+                try {
+                    const channel = await client.channels.fetch(summary.id).catch(() => null);
+                    if (!channel || channel.type !== ChannelType.DM) continue;
+                    const latest = (channel as DMChannel).lastMessageId;
+                    if (latest && latest !== summary.lastMessageId) {
+                        await dmInboxService.updateLatestMessageId(summary.id, latest);
+                    }
+                } catch (err) {
+                    console.warn('dm-inbox ready sync skip:', summary.id, err);
+                }
+            }
+        } catch (err) {
+            console.error('dm-inbox ready sync failed:', err);
+        }
+    }
+
     @On()
     async messageCreate([message]: ArgsOf<'messageCreate'>): Promise<void> {
         try {

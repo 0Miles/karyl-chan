@@ -12,12 +12,14 @@ export interface DmChannelSummary {
     id: string;
     recipient: DmRecipient;
     lastMessageAt: string | null;
+    lastMessageId: string | null;
     lastMessagePreview: string | null;
 }
 
 export interface DmInboxStore {
     upsertChannel(channelId: string, recipient: DmRecipient): Promise<DmChannelSummary>;
     recordActivity(channelId: string, recipient: DmRecipient, message: ApiMessage): Promise<DmChannelSummary>;
+    updateLatestMessageId(channelId: string, messageId: string): Promise<void>;
     listChannels(): Promise<DmChannelSummary[]>;
     getChannel(channelId: string): Promise<DmChannelSummary | null>;
 }
@@ -39,7 +41,7 @@ export class InMemoryDmInbox implements DmInboxStore {
             existing.recipient = recipient;
             return { ...existing };
         }
-        const summary: DmChannelSummary = { id: channelId, recipient, lastMessageAt: null, lastMessagePreview: null };
+        const summary: DmChannelSummary = { id: channelId, recipient, lastMessageAt: null, lastMessageId: null, lastMessagePreview: null };
         this.channels.set(channelId, summary);
         return { ...summary };
     }
@@ -49,9 +51,16 @@ export class InMemoryDmInbox implements DmInboxStore {
         const stored = this.channels.get(channelId)!;
         if (!stored.lastMessageAt || message.createdAt >= stored.lastMessageAt) {
             stored.lastMessageAt = message.createdAt;
+            stored.lastMessageId = message.id;
             stored.lastMessagePreview = previewFor(message);
         }
         return { ...stored };
+    }
+
+    async updateLatestMessageId(channelId: string, messageId: string): Promise<void> {
+        const existing = this.channels.get(channelId);
+        if (!existing) return;
+        existing.lastMessageId = messageId;
     }
 
     async listChannels(): Promise<DmChannelSummary[]> {
@@ -89,9 +98,14 @@ export class SqliteDmInbox implements DmInboxStore {
             recipientGlobalName: recipient.globalName,
             recipientAvatarUrl: recipient.avatarUrl,
             lastMessageAt: isNewer ? message.createdAt : previousLast,
+            lastMessageId: isNewer ? message.id : (existing?.getDataValue('lastMessageId') as string | null),
             lastMessagePreview: isNewer ? previewFor(message) : (existing?.getDataValue('lastMessagePreview') as string | null)
         });
         return this.rowToSummary(row);
+    }
+
+    async updateLatestMessageId(channelId: string, messageId: string): Promise<void> {
+        await DmChannel.update({ lastMessageId: messageId }, { where: { id: channelId } });
     }
 
     async listChannels(): Promise<DmChannelSummary[]> {
@@ -114,6 +128,7 @@ export class SqliteDmInbox implements DmInboxStore {
                 avatarUrl: (row.getDataValue('recipientAvatarUrl') as string | null) ?? null
             },
             lastMessageAt: (row.getDataValue('lastMessageAt') as string | null) ?? null,
+            lastMessageId: (row.getDataValue('lastMessageId') as string | null) ?? null,
             lastMessagePreview: (row.getDataValue('lastMessagePreview') as string | null) ?? null
         };
     }

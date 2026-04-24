@@ -1,11 +1,16 @@
 import { onBeforeUnmount, watch, type Ref } from 'vue';
 import { useUnreadStore } from './stores/unreadStore';
 
-interface ChannelIdentifier { id: string }
+export interface UnreadSyncChannel {
+    id: string;
+    /** Latest message marker (timestamp or snowflake). Used to detect
+     *  unreads that arrived while the app was closed. `null` skips. */
+    lastMarker?: string | null;
+}
 
 export function useUnreadSync(
     selectedChannelId: Ref<string | null>,
-    channels: Ref<ChannelIdentifier[]>,
+    channels: Ref<UnreadSyncChannel[]>,
     mode: Ref<string | null> | string,
 ): void {
     const unreadStore = useUnreadStore();
@@ -23,7 +28,10 @@ export function useUnreadSync(
     watch(sources, () => {
         const current = resolveMode();
         if (!current) return;
-        for (const c of channels.value) unreadStore.registerScope(c.id, current);
+        for (const c of channels.value) {
+            unreadStore.registerScope(c.id, current);
+            if (c.lastMarker) unreadStore.noteLatest(c.id, current, c.lastMarker);
+        }
     }, { immediate: true });
 
     onBeforeUnmount(() => unreadStore.setCurrentChannel(null));

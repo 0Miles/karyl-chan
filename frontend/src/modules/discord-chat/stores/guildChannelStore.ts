@@ -84,14 +84,7 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
                         message: event.message
                     });
                     if (event.type === 'guild-message-created' && event.message.author.id !== botStore.userId) {
-                        const botId = botStore.userId;
-                        const content = event.message.content ?? '';
-                        // Discord serializes user mentions as `<@id>` / `<@!id>`.
-                        // Role mentions (`<@&id>`) require bot-role membership
-                        // data we don't have client-side, so they're ignored.
-                        const mentioned = !!event.message.mentionEveryone
-                            || (!!botId && (content.includes(`<@${botId}>`) || content.includes(`<@!${botId}>`)));
-                        unread.noteMessage(event.channelId, event.guildId, mentioned);
+                        unread.noteMessage(event.channelId, event.guildId, !!event.message.mentionsMe, event.message.id);
                     }
                 }
             },

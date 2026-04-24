@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { dmInboxService, type DmInboxStore } from './dm-inbox.service.js';
+import { dmInboxService, type DmChannelSummary, type DmInboxStore } from './dm-inbox.service.js';
 import { dmEventBus, type DmEventBus } from './dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
@@ -46,6 +46,71 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get('/api/dm/channels', async () => {
         return { channels: await inbox.listChannels() };
     });
+
+    server.post<{ Body: { lastSeen?: Record<string, string | null> } }>(
+        '/api/dm/unread',
+        async (request, reply) => {
+            const lastSeen = (request.body?.lastSeen && typeof request.body.lastSeen === 'object')
+                ? request.body.lastSeen
+                : {};
+            const channels = await inbox.listChannels();
+            const botUserId = bot.user?.id ?? '';
+
+            // Snowflakes are monotonically increasing — string compare
+            // works when both sides are the same length. `lastMessageId`
+            // null means we never recorded a message; treat every message
+            // after the oldest possible id as unread (equivalent to passing
+            // a zero snowflake).
+            function isNewer(latest: string | null, seen: string | null | undefined): boolean {
+                if (!latest) return false;
+                if (!seen) return true;
+                if (latest.length !== seen.length) return latest.length > seen.length;
+                return latest > seen;
+            }
+
+            const stale = channels.filter(c => isNewer(c.lastMessageId, lastSeen[c.id] ?? null));
+
+            const MAX_COUNT = 500;
+            const PAGE_SIZE = 100;
+            const CONCURRENCY = 5;
+
+            async function countFor(c: DmChannelSummary): Promise<[string, { count: number; hasMore: boolean }]> {
+                const seen = lastSeen[c.id] ?? null;
+                try {
+                    const channel = await fetchDmChannel(bot, c.id);
+                    if (!channel) return [c.id, { count: 0, hasMore: false }];
+                    let cursor = seen ?? '0';
+                    let count = 0;
+                    while (count < MAX_COUNT) {
+                        const fetched = await channel.messages.fetch({ limit: PAGE_SIZE, after: cursor });
+                        if (fetched.size === 0) break;
+                        let maxId = cursor;
+                        for (const m of fetched.values()) {
+                            if (m.author.id !== botUserId) count++;
+                            if (m.id > maxId || m.id.length > maxId.length) maxId = m.id;
+                        }
+                        if (fetched.size < PAGE_SIZE) break;
+                        if (maxId === cursor) break;
+                        cursor = maxId;
+                    }
+                    return [c.id, { count: Math.min(count, MAX_COUNT), hasMore: count >= MAX_COUNT }];
+                } catch (err) {
+                    request.log.warn({ err, channelId: c.id }, 'dm unread fetch failed');
+                    return [c.id, { count: 0, hasMore: false }];
+                }
+            }
+
+            // Chunked fan-out: unbounded Promise.all over 200+ DM channels
+            // bursts Discord's REST queue and stalls unrelated requests.
+            const channelsOut: Record<string, { count: number; hasMore: boolean }> = {};
+            for (let i = 0; i < stale.length; i += CONCURRENCY) {
+                const slice = stale.slice(i, i + CONCURRENCY);
+                const results = await Promise.all(slice.map(countFor));
+                for (const [id, data] of results) channelsOut[id] = data;
+            }
+            reply.send({ channels: channelsOut });
+        }
+    );
 
     server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/dm/channels/:channelId/messages',

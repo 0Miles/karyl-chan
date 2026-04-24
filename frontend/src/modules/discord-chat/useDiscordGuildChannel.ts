@@ -83,7 +83,11 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     // DOM.
     watch(chat.messages, () => workspace.notifyMessagesChanged());
 
-    useUnreadSync(selectedChannelId, channels, guildId);
+    useUnreadSync(
+        selectedChannelId,
+        computed(() => channels.value.map(c => ({ id: c.id, lastMarker: c.lastMessageId }))),
+        guildId,
+    );
 
     // When a scroll target is pending but the message isn't in the
     // loaded batch (typical message-link case — target is older than

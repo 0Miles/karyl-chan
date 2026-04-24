@@ -80,7 +80,7 @@ function formatTimestamp(iso: string | null): string {
             <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <div class="row">
-                    <span class="name" :class="{ 'has-unread': unreadStore.getChannelCount(channel.id) > 0 }">
+                    <span class="name" :class="{ 'has-unread': unreadStore.hasChannelUnread(channel.id) }">
                         {{ channel.recipient.globalName ?? channel.recipient.username }}
                     </span>
                     <span class="timestamp">{{ formatTimestamp(channel.lastMessageAt) }}</span>

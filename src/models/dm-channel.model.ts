@@ -26,6 +26,10 @@ export const DmChannel = sequelize.define('DmChannel', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    lastMessageId: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     lastMessagePreview: {
         type: DataTypes.STRING(160),
         allowNull: true

@@ -132,6 +132,10 @@ export function toApiMessage(message: DjsMessage): ApiMessage {
             : null,
         referencedMessage: referenced ? toApiMessage(referenced) : null,
         mentionEveryone: message.mentions.everyone,
+        // `mentions.has(bot.user)` covers direct mentions, any of the
+        // bot's guild roles, @everyone/@here, and reply-pings — exactly
+        // the signal the unread "@me" indicator cares about.
+        mentionsMe: message.client.user ? message.mentions.has(message.client.user) : false,
         pinned: message.pinned,
         tts: message.tts
     };

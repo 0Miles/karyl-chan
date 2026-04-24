@@ -80,6 +80,9 @@ export interface Message {
     reference?: MessageReference | null;
     referencedMessage?: Message | null;
     mentionEveryone?: boolean;
+    /** True when the bot is pinged by this message (direct, role,
+     *  @everyone, or reply). Server-computed via discord.js. */
+    mentionsMe?: boolean;
     pinned?: boolean;
     tts?: boolean;
 }

@@ -13,7 +13,13 @@ export interface DmChannelSummary {
     id: string;
     recipient: DmRecipient;
     lastMessageAt: string | null;
+    lastMessageId: string | null;
     lastMessagePreview: string | null;
+}
+
+export interface DmUnreadCount {
+    count: number;
+    hasMore: boolean;
 }
 
 export interface MessagesPage {
@@ -39,6 +45,18 @@ async function jsonOrThrow<T>(response: Response): Promise<T> {
 export async function listChannels(): Promise<DmChannelSummary[]> {
     const response = await authedFetch('/api/dm/channels');
     const body = await jsonOrThrow<{ channels: DmChannelSummary[] }>(response);
+    return body.channels;
+}
+
+export async function fetchUnreadCounts(
+    lastSeen: Record<string, string | null>,
+): Promise<Record<string, DmUnreadCount>> {
+    const response = await authedFetch('/api/dm/unread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastSeen }),
+    });
+    const body = await jsonOrThrow<{ channels: Record<string, DmUnreadCount> }>(response);
     return body.channels;
 }
 

@@ -89,6 +89,7 @@ onMounted(() => {
 async function signOut() {
     closeOverlay();
     await logout();
+    unreadStore.clear();
     router.replace({ name: 'auth' });
 }
 

@@ -4,6 +4,7 @@ import {
     addReaction as apiAddReaction,
     deleteMessage as apiDeleteMessage,
     editMessage as apiEditMessage,
+    fetchUnreadCounts as apiFetchUnreadCounts,
     getMessages as apiGetMessages,
     listChannels as apiListChannels,
     removeReaction as apiRemoveReaction,
@@ -49,7 +50,7 @@ export const useDmStore = defineStore('discord-dm', () => {
                 } else {
                     messageCache.applyEvent(event satisfies ChannelMessageEvent);
                     if (event.type === 'message-created' && event.message.author.id !== botStore.userId) {
-                        unread.noteMessage(event.channelId, 'dm');
+                        unread.noteMessage(event.channelId, 'dm', false, event.message.id);
                     }
                 }
             },
@@ -63,11 +64,34 @@ export const useDmStore = defineStore('discord-dm', () => {
             channels.value = await apiListChannels();
             channelsLoaded.value = true;
             error.value = null;
+            // Backfill unread counts for channels that accumulated messages
+            // while the app was closed. Runs in the background so sidebar
+            // paints immediately — counts light up a beat later.
+            void refreshHistoricalUnread();
         } catch (err) {
             error.value = err instanceof Error ? err.message : 'Failed to load channels';
             throw err;
         } finally {
             loadingChannels.value = false;
+        }
+    }
+
+    async function refreshHistoricalUnread() {
+        if (channels.value.length === 0) return;
+        const unread = useUnreadStore();
+        const lastSeen: Record<string, string | null> = {};
+        const snapshot: Record<string, number> = {};
+        for (const c of channels.value) {
+            lastSeen[c.id] = unread.lastSeen[c.id] ?? null;
+            snapshot[c.id] = unread.getChannelCount(c.id);
+        }
+        try {
+            const result = await apiFetchUnreadCounts(lastSeen);
+            for (const [channelId, { count }] of Object.entries(result)) {
+                unread.applyHistoricalCount(channelId, 'dm', count, snapshot[channelId] ?? 0);
+            }
+        } catch {
+            /* best-effort backfill */
         }
     }
 
@@ -115,6 +139,7 @@ export const useDmStore = defineStore('discord-dm', () => {
         startSSE,
         loadChannels,
         ensureChannels,
+        refreshHistoricalUnread,
         startNewDmChannel,
         listMessages,
         sendMessage,
