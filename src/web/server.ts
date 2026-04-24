@@ -7,7 +7,23 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
 import { resolveUserCapabilities, type AdminCapability } from './authorized-user.service.js';
+import { RateLimiter } from '../utils/rate-limiter.js';
 import fastifyMultipart from '@fastify/multipart';
+
+// Per-IP throttles for the unauthenticated auth endpoints. One-time
+// tokens are 256-bit so brute force is infeasible, but the limiter
+// protects against a misbehaving client saturating sequelize or a
+// targeted flood. Windows are intentionally wider than a single
+// legitimate login attempt ever needs.
+const loginRateLimiter = new RateLimiter({ windowMs: 60_000, max: 10 });
+const refreshRateLimiter = new RateLimiter({ windowMs: 60_000, max: 60 });
+
+function clientKey(request: import('fastify').FastifyRequest): string {
+    // x-forwarded-for is only honored in trust-proxy'd deployments; raw
+    // socket address is the baseline. We don't configure trust-proxy
+    // today so request.ip is the immediate peer.
+    return request.ip || 'unknown';
+}
 import { registerDmRoutes } from './dm-routes.js';
 import { registerDiscordRoutes } from './discord-routes.js';
 import { registerGuildsRoutes } from './guilds-routes.js';
@@ -144,6 +160,10 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             reply.code(503).send({ error: 'Auth not configured' });
             return;
         }
+        if (loginRateLimiter.isRateLimited(clientKey(request))) {
+            reply.code(429).send({ error: 'Too many attempts, slow down' });
+            return;
+        }
         const oneTimeToken = typeof request.body?.token === 'string' ? request.body.token : null;
         if (!oneTimeToken) {
             reply.code(400).send({ error: 'token required' });
@@ -161,6 +181,10 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     server.post<{ Body: { refreshToken?: unknown } }>('/api/auth/refresh', async (request, reply) => {
         if (!authEnabled) {
             reply.code(503).send({ error: 'Auth not configured' });
+            return;
+        }
+        if (refreshRateLimiter.isRateLimited(clientKey(request))) {
+            reply.code(429).send({ error: 'Too many refresh attempts, slow down' });
             return;
         }
         const refreshToken = typeof request.body?.refreshToken === 'string' ? request.body.refreshToken : null;
