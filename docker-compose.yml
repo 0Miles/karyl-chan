@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   bot:
-    build: .
+    image: karyl-chan-bot:latest
     env_file:
       - .env
     environment:
@@ -14,33 +14,17 @@ services:
       # 未設定時 /api/* 不啟用驗證（僅本機 dev 暫用）
       - BOT_OWNER_ID=${BOT_OWNER_ID:-}
       # 前端對外網址，bot 私訊回傳的登入連結會以此為 base
-      # TLS 由 caddy 終結，這裡請填 https://${DOMAIN}:${WEB_PORT}
       - WEB_BASE_URL=${WEB_BASE_URL:-}
-    expose:
-      - "3000"
+      # container 內固定聽 3000，host 用 WEB_PORT 對映出去
+      - WEB_PORT=3000
+      # host 的 CERTS_DIR 會 mount 到 /certs，底下須有 fullchain.pem 與 privkey.pem
+      - SSL_CERT_PATH=/certs/fullchain.pem
+      - SSL_KEY_PATH=/certs/privkey.pem
+    ports:
+      - "${WEB_PORT:-902}:3000"
     volumes:
       - karyl-chan-data:/usr/src/app/data
-
-  caddy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-    restart: unless-stopped
-    depends_on:
-      - bot
-    environment:
-      - DOMAIN=${DOMAIN:?DOMAIN is required}
-      - ACME_EMAIL=${ACME_EMAIL:?ACME_EMAIL is required}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN is required}
-      - WEB_PORT=${WEB_PORT:-902}
-    ports:
-      - "${WEB_PORT:-902}:${WEB_PORT:-902}"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
+      - ${CERTS_DIR:?CERTS_DIR is required (host absolute path to cert dir)}:/certs:ro
 
 volumes:
   karyl-chan-data:
-  caddy-data:
-  caddy-config:
