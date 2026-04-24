@@ -104,6 +104,7 @@ function formatTimestamp(iso: string | null): string {
 .sidebar-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border);
