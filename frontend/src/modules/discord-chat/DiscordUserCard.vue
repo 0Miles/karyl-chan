@@ -60,13 +60,22 @@ watch(() => [props.userId, props.guildId] as const, () => {
     load();
 });
 
+// Identity preference order mirrors Discord: guild Display Name
+// (server profile, stored as `member.nickname`) beats the user's global
+// display name, which beats the raw username. Guild surfaces populate
+// `data.member`; DM surfaces leave it null and fall through.
 const displayName = computed(() =>
-    data.value?.user.globalName ?? data.value?.user.username ?? props.userId
+    data.value?.member?.nickname
+    ?? data.value?.user.globalName
+    ?? data.value?.user.username
+    ?? props.userId
 );
 const initial = computed(() => (displayName.value || props.userId).trim().charAt(0).toUpperCase() || '?');
 
 const avatarSrc = computed(() => {
-    const url = data.value?.user.avatarUrl;
+    // Prefer the guild-specific server-profile avatar when set; fall back
+    // to the global one.
+    const url = data.value?.member?.avatarUrl ?? data.value?.user.avatarUrl;
     if (!url) return null;
     return isAnimatedAvatar(url) ? animatedAvatarUrl(url) : url;
 });
@@ -75,7 +84,9 @@ const bannerStyle = computed(() => {
     if (loading.value && !data.value) {
         return { backgroundColor: 'var(--bg-surface-2)' };
     }
-    const url = data.value?.user.bannerUrl;
+    // Same hierarchy as the avatar — guild banner beats global banner
+    // beats accent colour beats generic accent fallback.
+    const url = data.value?.member?.bannerUrl ?? data.value?.user.bannerUrl;
     if (url) {
         const resolved = isAnimatedBanner(url) ? animatedAvatarUrl(url) : url;
         return { backgroundImage: `url(${resolved})` };
@@ -140,7 +151,10 @@ async function sendDm() {
                     <span class="display-name">{{ displayName }}</span>
                     <span v-if="data.user.bot" class="bot-tag">BOT</span>
                 </div>
-                <div v-if="data.member?.nickname" class="nickname">{{ data.member.nickname }}</div>
+                <div
+                    v-if="data.member?.nickname && data.user.globalName && data.user.globalName !== data.member.nickname"
+                    class="nickname"
+                >{{ data.user.globalName }}</div>
                 <div class="tagline">
                     <span class="tag">@{{ data.user.username }}<span v-if="data.user.discriminator">#{{ data.user.discriminator }}</span></span>
                 </div>
@@ -155,8 +169,13 @@ async function sendDm() {
                                 v-for="role in data.member.roles"
                                 :key="role.id"
                                 class="role-chip"
-                                :style="role.color ? { borderColor: role.color, color: role.color } : undefined"
-                            >{{ role.name }}</span>
+                            >
+                                <span
+                                    class="role-dot"
+                                    :style="{ backgroundColor: role.color ?? 'var(--text-muted)' }"
+                                ></span>
+                                {{ role.name }}
+                            </span>
                         </dd>
                     </template>
                 </dl>
@@ -193,7 +212,7 @@ async function sendDm() {
     
 }
 .banner {
-    height: 72px;
+    height: 102px;
     background-size: cover;
     background-position: center;
     background-color: var(--accent);
@@ -325,12 +344,20 @@ async function sendDm() {
 .role-chip {
     display: inline-flex;
     align-items: center;
-    padding: 0.05rem 0.45rem;
+    gap: 0.3rem;
+    padding: 0.1rem 0.5rem 0.1rem 0.4rem;
     border: 1px solid var(--border);
     border-radius: 999px;
     font-size: 0.72rem;
     color: var(--text);
     background: var(--bg-surface-2);
+}
+.role-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 .dm-button {
     margin-top: 0.5rem;

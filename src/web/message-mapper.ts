@@ -1,4 +1,4 @@
-import type { Message as DjsMessage, MessageReaction as DjsReaction, MessageType as DjsMessageType, User } from 'discord.js';
+import type { GuildMember, Message as DjsMessage, MessageReaction as DjsReaction, MessageType as DjsMessageType, User } from 'discord.js';
 import type {
     Message as ApiMessage,
     MessageAttachment,
@@ -21,17 +21,38 @@ export function avatarUrlFor(userId: string, avatarHash: string | null, size = 1
     return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.webp?size=${size}`;
 }
 
+// Per-guild avatar: rendered only when a member has set a guild-specific
+// avatar distinct from their global one. Same `a_` hash convention as
+// global avatars, just hosted under /guilds/:gid/users/:uid/avatars/.
+export function guildAvatarUrlFor(guildId: string, userId: string, avatarHash: string, size = 128): string {
+    return `https://cdn.discordapp.com/guilds/${guildId}/users/${userId}/avatars/${avatarHash}.webp?size=${size}`;
+}
+
 export function bannerUrlFor(userId: string, bannerHash: string | null | undefined, size = 600): string | null {
     if (!bannerHash) return null;
     return `https://cdn.discordapp.com/banners/${userId}/${bannerHash}.webp?size=${size}`;
 }
 
-export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot' | 'avatar'>): MessageAuthor {
+export function guildBannerUrlFor(guildId: string, userId: string, bannerHash: string | null | undefined, size = 600): string | null {
+    if (!bannerHash) return null;
+    return `https://cdn.discordapp.com/guilds/${guildId}/users/${userId}/banners/${bannerHash}.webp?size=${size}`;
+}
+
+export function authorFromUser(
+    user: Pick<User, 'id' | 'username' | 'globalName' | 'bot' | 'avatar'>,
+    member?: Pick<GuildMember, 'nickname' | 'avatar'> | null,
+    guildId?: string | null
+): MessageAuthor {
+    const memberAvatar = member?.avatar;
+    const avatarUrl = memberAvatar && guildId
+        ? guildAvatarUrlFor(guildId, user.id, memberAvatar)
+        : avatarUrlFor(user.id, user.avatar);
     return {
         id: user.id,
         username: user.username,
         globalName: user.globalName ?? null,
-        avatarUrl: avatarUrlFor(user.id, user.avatar),
+        nickname: member?.nickname ?? null,
+        avatarUrl,
         bot: !!user.bot
     };
 }
@@ -94,7 +115,7 @@ export function toApiMessage(message: DjsMessage): ApiMessage {
         id: message.id,
         channelId: message.channelId,
         guildId: message.guildId ?? null,
-        author: authorFromUser(message.author),
+        author: authorFromUser(message.author, message.member, message.guildId),
         content: message.content,
         createdAt: message.createdAt.toISOString(),
         editedAt: message.editedAt ? message.editedAt.toISOString() : null,

@@ -71,7 +71,10 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
             if (gid && channelId) {
                 const members = guildStore.getChannelMembers(gid, channelId);
                 const hit = members?.find(m => m.id === id);
-                if (hit) return { name: hit.nickname ?? hit.globalName ?? hit.username };
+                if (hit) return {
+                    name: hit.nickname ?? hit.globalName ?? hit.username,
+                    color: hit.color
+                };
             }
             for (const message of chat.messages.value) {
                 if (message.author.id === id) {
@@ -170,16 +173,19 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         selectedChannelId.value = match ? match.id : list[0].id;
     }, { immediate: true });
 
-    // Persist the active channel and prefetch mention members. Separated from
-    // the guild watcher so manual user selections within the same guild still
-    // update both the "last channel" record and the mention cache. Only
-    // writes the localStorage record for ids that exist in this guild's
-    // channel list — otherwise a transient stale id (e.g. from a URL
-    // param that belonged to a different guild) would poison the record.
-    watch(selectedChannelId, (channelId) => {
+    // Persist the active channel and prefetch mention members. Depends on
+    // `channels` as well as `selectedChannelId` so the validation fires
+    // again when the channel list arrives after a URL-seeded selection:
+    // without that, reloading `?guild=A&channel=X` would set the id before
+    // channels loaded, the list-membership guard would reject it, and no
+    // ensureChannelMembers call would ever happen — leaving messages
+    // rendered without role colours. The list-membership guard also stops
+    // a transient stale id (e.g. carried over from another guild) from
+    // poisoning the localStorage record or triggering a bad fetch.
+    watch([selectedChannelId, channels], ([channelId, list]) => {
         const gid = guildId.value;
         if (!gid || !channelId) return;
-        if (!channels.value.some(c => c.id === channelId)) return;
+        if (!list.some(c => c.id === channelId)) return;
         saveLastGuildChannel(gid, channelId);
         guildStore.ensureChannelMembers(gid, channelId).catch(() => { /* best-effort */ });
     });

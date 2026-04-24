@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { avatarUrlFor, bannerUrlFor } from './message-mapper.js';
+import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor } from './message-mapper.js';
 
 export interface DiscordRoutesOptions {
     bot: Client;
@@ -69,7 +69,10 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
                 const guild = bot.guilds.cache.get(guildId);
                 if (!guild) { reply.code(404).send({ error: 'guild not found' }); return; }
                 try {
-                    const member = await guild.members.fetch(request.params.userId);
+                    // `force: true` so we refetch member data (avatar/banner
+                    // can change; cache may be stale from older gateway
+                    // events that lack the newer banner field entirely).
+                    const member = await guild.members.fetch({ user: request.params.userId, force: true });
                     // Sort roles highest first, skip @everyone (role id === guildId).
                     const roles = [...member.roles.cache.values()]
                         .filter(r => r.id !== guildId)
@@ -85,6 +88,11 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
                         member: {
                             nickname: member.nickname ?? null,
                             joinedAt: member.joinedAt?.toISOString() ?? null,
+                            // Per-guild avatar/banner are distinct from the
+                            // user's global ones; frontend prefers these
+                            // when present to match Discord's own rendering.
+                            avatarUrl: member.avatar ? guildAvatarUrlFor(guildId, user.id, member.avatar, 256) : null,
+                            bannerUrl: guildBannerUrlFor(guildId, user.id, member.banner, 600),
                             roles
                         }
                     };

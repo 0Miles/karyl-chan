@@ -15,7 +15,7 @@ function jump() {
     <button type="button" class="reply" @click="jump">
         <span class="arrow">↩</span>
         <img v-if="referenced.author.avatarUrl" :src="referenced.author.avatarUrl" alt="" class="avatar" />
-        <span class="author">{{ referenced.author.globalName ?? referenced.author.username }}</span>
+        <span class="author">{{ referenced.author.nickname ?? referenced.author.globalName ?? referenced.author.username }}</span>
         <span class="preview">{{ referenced.content || '(attachment)' }}</span>
     </button>
 </template>

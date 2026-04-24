@@ -28,7 +28,20 @@ const time = computed(() => {
     const d = new Date(props.message.createdAt);
     return Number.isNaN(d.getTime()) ? props.message.createdAt : d.toLocaleString();
 });
-const displayName = computed(() => props.message.author.globalName ?? props.message.author.username);
+const resolvedAuthor = computed(() => ctx.resolveUser?.(props.message.author.id) ?? null);
+// Prefer the guild nickname the backend attaches from `message.member`,
+// so guild surfaces render each author by their per-guild identity even
+// before the channel-members cache has populated for resolveUser.
+const displayName = computed(() =>
+    props.message.author.nickname
+    ?? props.message.author.globalName
+    ?? props.message.author.username
+);
+// Discord renders author names in the member's highest-coloured role.
+// resolveUser returns the colour when the context knows about the member
+// (guild surfaces with a populated channel-members cache); DM fall through
+// to no colour.
+const authorColor = computed(() => resolvedAuthor.value?.color ?? null);
 
 const hovered = ref(false);
 const avatarSrc = computed(() => {
@@ -87,7 +100,11 @@ function onAuthorClick(event: MouseEvent) {
                 @click="onAuthorClick"
             >{{ displayName.charAt(0).toUpperCase() }}</div>
             <div class="meta">
-                <span class="name author-click" @click="onAuthorClick">{{ displayName }}</span>
+                <span
+                    class="name author-click"
+                    :style="authorColor ? { color: authorColor } : undefined"
+                    @click="onAuthorClick"
+                >{{ displayName }}</span>
                 <span v-if="message.author.bot" class="bot-tag">BOT</span>
                 <time class="time" :datetime="message.createdAt">{{ time }}</time>
                 <span v-if="message.editedAt" class="edited">(edited)</span>

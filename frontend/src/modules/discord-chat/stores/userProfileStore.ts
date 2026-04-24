@@ -23,6 +23,10 @@ export interface DiscordGuildRole {
 export interface DiscordGuildMember {
     nickname: string | null;
     joinedAt: string | null;
+    /** Per-guild avatar; null if the member uses their global avatar. */
+    avatarUrl: string | null;
+    /** Per-guild banner; null if the member hasn't set one. */
+    bannerUrl: string | null;
     roles: DiscordGuildRole[];
 }
 

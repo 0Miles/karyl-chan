@@ -106,6 +106,8 @@ export interface GuildChannelMember {
     globalName: string | null;
     nickname: string | null;
     avatarUrl: string | null;
+    /** Hex string of the member's highest coloured role, or null if none. */
+    color: string | null;
     bot: boolean;
 }
 

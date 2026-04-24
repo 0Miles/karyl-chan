@@ -135,10 +135,12 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     // Only persist ids we've verified against the live list — stops a
     // stale URL param (e.g. a guild channel id left over from a mode
     // switch) from being written to localStorage before the selection
-    // watcher below re-picks a valid DM channel.
-    watch(selectedChannelId, (id) => {
+    // watcher below re-picks a valid DM channel. Depends on the channel
+    // list too so a URL-seeded selection that arrives before `ensureChannels`
+    // completes still gets persisted once the list populates.
+    watch([selectedChannelId, () => dmStore.channels], ([id, list]) => {
         if (!id) return;
-        if (!dmStore.channels.some(c => c.id === id)) return;
+        if (!list.some(c => c.id === id)) return;
         saveLastDmChannel(id);
     });
 

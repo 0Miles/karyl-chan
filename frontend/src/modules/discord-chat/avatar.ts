@@ -7,7 +7,10 @@
 
 export function isAnimatedAvatar(url: string | null | undefined): boolean {
     if (!url) return false;
-    return /\/avatars\/\d+\/a_/.test(url);
+    // Global avatars live at `/avatars/<userId>/<hash>`; guild-specific
+    // avatars at `/guilds/<gid>/users/<uid>/avatars/<hash>`. Both use the
+    // `a_` hash prefix to mark animated variants.
+    return /\/avatars\/(?:\d+\/)?a_/.test(url);
 }
 
 export function isAnimatedBanner(url: string | null | undefined): boolean {

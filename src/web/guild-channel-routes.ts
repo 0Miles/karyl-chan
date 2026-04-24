@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
-import { avatarUrlFor, toApiMessage } from './message-mapper.js';
+import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 
 export interface GuildChannelRoutesOptions {
@@ -151,7 +151,15 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
                     username: m.user.username,
                     globalName: m.user.globalName ?? null,
                     nickname: m.nickname ?? null,
-                    avatarUrl: avatarUrlFor(m.user.id, m.user.avatar, 64),
+                    // Prefer the per-guild avatar when the member has one;
+                    // the mention suggestion UI matches Discord's own server
+                    // render that way.
+                    avatarUrl: m.avatar
+                        ? guildAvatarUrlFor(guildId, m.user.id, m.avatar, 64)
+                        : avatarUrlFor(m.user.id, m.user.avatar, 64),
+                    // Display color = the member's highest coloured role, matching
+                    // Discord's own author-name tint. 0 means no coloured role.
+                    color: m.displayColor ? `#${m.displayColor.toString(16).padStart(6, '0')}` : null,
                     bot: m.user.bot
                 }))
                 .sort((a, b) => (a.nickname ?? a.globalName ?? a.username).localeCompare(b.nickname ?? b.globalName ?? b.username));

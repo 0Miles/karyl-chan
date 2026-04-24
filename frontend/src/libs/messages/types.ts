@@ -2,6 +2,8 @@ export interface MessageAuthor {
     id: string;
     username: string;
     globalName?: string | null;
+    /** Per-guild nickname; present when the message came from a guild channel. */
+    nickname?: string | null;
     avatarUrl: string | null;
     bot?: boolean;
 }
