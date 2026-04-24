@@ -75,7 +75,12 @@ const contentEl = ref<HTMLElement | null>(null);
 // display: contents, which means its getBoundingClientRect is unreliable
 // (some browsers return zero) — reading firstElementChild gives Popper
 // a real laid-out element to position against.
-const referenceEl = computed<HTMLElement | null>(() => {
+//
+// Named `anchorRef` so it doesn't shadow the `referenceEl` prop in the
+// template: `v-if="!referenceEl"` reads the prop, not this computed,
+// which avoids a mount → unmount loop when the slot wrapper's presence
+// feeds back into its own v-if condition.
+const anchorRef = computed<HTMLElement | null>(() => {
     if (props.referenceEl) return props.referenceEl;
     const wrap = triggerWrapRef.value;
     if (!wrap) return null;
@@ -95,7 +100,7 @@ watch(popoverVisible, (v) => {
 
 const drawerVisible = computed(() => isMobile.value && isOpen.value);
 
-usePopover(referenceEl, contentEl, {
+usePopover(anchorRef, contentEl, {
     placement: props.placement,
     trigger: 'manual',
     offset: props.offset,
@@ -218,5 +223,10 @@ function onContentClick() {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    /* Belt-and-braces: fixed-width content (e.g., MediaPicker's 420px
+       picker) shouldn't ever force horizontal overflow past the drawer
+       edge. Drawer panel already has overflow: hidden but body is the
+       scrolling region. */
+    overflow-x: hidden;
 }
 </style>

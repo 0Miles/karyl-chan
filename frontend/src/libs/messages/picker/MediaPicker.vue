@@ -359,7 +359,12 @@ function categoryLabel(id: string): string {
 <style scoped>
 .picker {
     width: 420px;
+    /* Don't exceed the host container (matters inside the mobile drawer,
+       which is viewport-wide — the fixed 420px would otherwise force
+       horizontal overflow and clip the search input). */
+    max-width: 100%;
     max-height: 460px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     background: var(--bg-surface);
@@ -372,9 +377,13 @@ function categoryLabel(id: string): string {
     padding: 0.5rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    box-sizing: border-box;
 }
 .search {
     width: 100%;
+    /* border-box so width: 100% + padding + border doesn't extend past
+       the search-row (which has its own padding). */
+    box-sizing: border-box;
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 4px;
