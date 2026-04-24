@@ -2,9 +2,7 @@
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
-import MediaPickerDrawer from './picker/MediaPickerDrawer.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
-import { useBreakpoint } from '../../composables/use-breakpoint';
 import type { StickerRecent } from './picker/recents';
 import ComposerSuggestions from './ComposerSuggestions.vue';
 import { findActiveTrigger } from './composer-suggestions';
@@ -53,7 +51,6 @@ const pickerButton = ref<HTMLButtonElement | null>(null);
 
 const ctx = useMessageContext();
 const codec = ctx.composerTokenCodec ?? NOOP_TOKEN_CODEC;
-const { isMobile } = useBreakpoint();
 
 const triggerChars = computed(() => {
     const set = new Set<string>();
@@ -363,16 +360,9 @@ onMounted(() => {
             </button>
         </div>
         <MediaPickerPopover
-            v-if="!isMobile"
             :reference-el="pickerButton"
             :visible="showPicker"
             placement="top-end"
-            @update:visible="(v) => (showPicker = v)"
-            @select="onMediaSelect"
-        />
-        <MediaPickerDrawer
-            v-else
-            :visible="showPicker"
             @update:visible="(v) => (showPicker = v)"
             @select="onMediaSelect"
         />

@@ -1,17 +1,28 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { usePopover, type Placement } from '../../../composables/use-popover';
+import { useBreakpoint } from '../../../composables/use-breakpoint';
+import AppPopover from '../../../components/AppPopover.vue';
 import MediaPicker, { type MediaSelection } from './MediaPicker.vue';
+import type { Placement } from '../../../composables/use-popover';
 
 type MediaPickerInstance = InstanceType<typeof MediaPicker>;
 
+/**
+ * Viewport-aware wrapper around MediaPicker, built on AppPopover:
+ * - Desktop → popover anchored to the caller's trigger button.
+ * - Mobile  → bottom drawer (AppPopover swaps presentations internally).
+ *
+ * Desktop popover keeps the picker mounted across show/hide, so we
+ * flush recents explicitly on close. The mobile drawer unmounts the
+ * picker when it closes, which already runs MediaPicker.onBeforeUnmount
+ * → flushRecents for us.
+ */
 const props = defineProps<{
-    /** The element the popover anchors to (typically a `<button>` ref). */
+    /** Button element the desktop popover anchors to. */
     referenceEl: HTMLElement | null;
-    /** v-model:visible — true to open, false to close. */
+    /** Two-way via v-model:visible. */
     visible: boolean;
     placement?: Placement;
-    /** Distance offset from the reference, [skidding, distance]. */
     offset?: [number, number];
 }>();
 
@@ -20,44 +31,38 @@ const emit = defineEmits<{
     (e: 'update:visible', value: boolean): void;
 }>();
 
-const contentEl = ref<HTMLElement | null>(null);
-const referenceRef = computed(() => props.referenceEl);
-const pickerRef = ref<MediaPickerInstance | null>(null);
+const { isMobile } = useBreakpoint();
 
-const popoverVisible = ref(props.visible);
-watch(() => props.visible, (v) => { popoverVisible.value = v; });
-watch(popoverVisible, (v) => {
-    // MediaPicker stays mounted inside the teleported popover, so recents
-    // must be flushed explicitly when the popover closes.
-    if (!v) pickerRef.value?.flushRecents();
-    if (v !== props.visible) emit('update:visible', v);
+const desktopPickerRef = ref<MediaPickerInstance | null>(null);
+
+const open = computed<boolean>({
+    get: () => props.visible,
+    set: (v) => emit('update:visible', v)
 });
 
-function handlePickerClose() {
+watch(() => props.visible, (v, prev) => {
+    // The desktop popover keeps the picker mounted across open/close, so
+    // recents need to be flushed explicitly. On mobile the picker unmounts
+    // with the drawer and MediaPicker's own onBeforeUnmount handles it.
+    if (!v && prev && !isMobile.value) desktopPickerRef.value?.flushRecents();
+});
+
+function handleClose() {
     emit('update:visible', false);
 }
-
-usePopover(referenceRef, contentEl, {
-    placement: props.placement ?? 'top-end',
-    trigger: 'manual',
-    offset: props.offset ?? [0, 8],
-    teleportTo: 'body',
-    visible: popoverVisible,
-    closeOnClickOutside: true,
-    closeOnEscape: true
-});
 </script>
 
 <template>
-    <div ref="contentEl" class="media-picker-popover" style="display: none">
+    <AppPopover
+        v-model:open="open"
+        :reference-el="referenceEl"
+        :placement="placement ?? 'top-end'"
+        :offset="offset ?? [0, 8]"
+    >
         <MediaPicker
-            ref="pickerRef"
+            ref="desktopPickerRef"
             @select="(s) => emit('select', s)"
-            @close="handlePickerClose"
+            @close="handleClose"
         />
-    </div>
+    </AppPopover>
 </template>
-
-<style scoped>
-.media-picker-popover { z-index: 1000; }
-</style>
