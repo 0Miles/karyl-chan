@@ -27,6 +27,22 @@ function readOwnerId(): string | null {
     return process.env.BOT_OWNER_ID?.trim() || null;
 }
 
+// ── Capability cache ──────────────────────────────────────────────────────
+//
+// The auth hook runs resolveUserCapabilities on every authenticated request;
+// without caching a chatty page (e.g., DiscordConversation polling + SSE +
+// reactions) pays two DB queries per call. A short TTL gives us bounded
+// staleness so a role change still takes effect within seconds, and every
+// write path explicitly invalidates the touched user(s) for instant cuts.
+
+const CAPABILITY_CACHE_TTL_MS = 30_000;
+const capabilityCache = new Map<string, { caps: Set<AdminCapability>; expiresAt: number }>();
+
+export function invalidateCapabilityCache(userId?: string): void {
+    if (userId === undefined) capabilityCache.clear();
+    else capabilityCache.delete(userId);
+}
+
 function toUserRecord(row: InstanceType<typeof AuthorizedUser>): AuthorizedUserRecord {
     return {
         userId: row.getDataValue('userId') as string,
@@ -74,12 +90,19 @@ async function capabilitiesForRole(role: string): Promise<Set<AdminCapability>> 
  */
 export async function resolveUserCapabilities(
     userId: string,
-    ownerId: string | null = readOwnerId()
+    ownerId: string | null = readOwnerId(),
+    now: number = Date.now()
 ): Promise<Set<AdminCapability>> {
+    // Owner bypass is constant-time; no need to cache it.
     if (ownerId && userId === ownerId) return new Set(ADMIN_CAPABILITY_KEYS);
+    const cached = capabilityCache.get(userId);
+    if (cached && cached.expiresAt > now) return cached.caps;
     const user = await AuthorizedUser.findByPk(userId);
-    if (!user) return new Set();
-    return capabilitiesForRole(user.getDataValue('role') as string);
+    const caps = user
+        ? await capabilitiesForRole(user.getDataValue('role') as string)
+        : new Set<AdminCapability>();
+    capabilityCache.set(userId, { caps, expiresAt: now + CAPABILITY_CACHE_TTL_MS });
+    return caps;
 }
 
 /**
@@ -118,11 +141,13 @@ export async function addAuthorizedUser(userId: string, role: string, note: stri
     // enforce a FK so listing a user against an undefined role leaves them
     // harmless (capabilities set resolves to empty → no access).
     const [row] = await AuthorizedUser.upsert({ userId, role, note });
+    invalidateCapabilityCache(userId);
     return toUserRecord(row);
 }
 
 export async function removeAuthorizedUser(userId: string): Promise<boolean> {
     const deleted = await AuthorizedUser.destroy({ where: { userId } });
+    invalidateCapabilityCache(userId);
     return deleted > 0;
 }
 
@@ -155,6 +180,9 @@ export async function deleteAdminRole(name: string): Promise<boolean> {
     // resolve to an empty capability set and be treated as unauthorized.
     await AdminRoleCapability.destroy({ where: { role: name } });
     const removed = await AdminRole.destroy({ where: { name } });
+    // Role-level mutations can affect any number of users — clearing the
+    // whole cache is simpler and still cheap (we rebuild on next request).
+    invalidateCapabilityCache();
     return removed > 0;
 }
 
@@ -163,8 +191,10 @@ export async function grantRoleCapability(role: string, capability: AdminCapabil
         where: { role, capability },
         defaults: { role, capability }
     });
+    invalidateCapabilityCache();
 }
 
 export async function revokeRoleCapability(role: string, capability: AdminCapability): Promise<void> {
     await AdminRoleCapability.destroy({ where: { role, capability } });
+    invalidateCapabilityCache();
 }
