@@ -27,7 +27,8 @@
     "rcon": "^1.1.0",
     "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.8",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "umzug": "^3.8.2"
   },
   "devDependencies": {
     "@types/node": "^24.12.2",

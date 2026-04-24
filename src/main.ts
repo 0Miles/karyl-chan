@@ -10,6 +10,7 @@ import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
 import { seedDefaultRoles } from './web/authorized-user.service.js';
 import { systemEventLog } from './web/system-event-log.js';
+import { runPendingMigrations } from './migrations/runner.js';
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -120,7 +121,13 @@ process.on('uncaughtException', (error) => {
 async function run() {
     try {
         await importx(dirname(import.meta.url) + '/{events,commands}/**/*.{ts,js}');
+        // sync() creates any tables missing on fresh installs; migrations
+        // layer on top for schema evolution that sync() wouldn't attempt
+        // (new columns, renames, index changes). Migrations are expected
+        // to be idempotent / guard against already-applied changes so
+        // fresh-sync'd DBs don't trip over them.
         await sequelize.sync();
+        await runPendingMigrations();
         await seedDefaultRoles();
 
         authStore.attach(sequelizeRefreshStore);
