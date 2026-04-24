@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { GuildSummary } from '../../../api/guilds';
-import AppPopover from '../../../components/AppPopover.vue';
+import AppSelect from '../../../components/AppSelect.vue';
 
 const props = defineProps<{
     mode: string;
@@ -27,10 +27,9 @@ function select(mode: string) {
 </script>
 
 <template>
-    <AppPopover
+    <AppSelect
         v-model:open="isOpen"
         :drawer-title="t('messages.modePickerTitle')"
-        :close-on-content-click="true"
     >
         <template #trigger="{ isOpen: open }">
             <button class="trigger" type="button">
@@ -65,7 +64,7 @@ function select(mode: string) {
                 <span class="label">{{ g.name }}</span>
             </li>
         </ul>
-    </AppPopover>
+    </AppSelect>
 </template>
 
 <style scoped>

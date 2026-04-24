@@ -39,6 +39,8 @@ const props = withDefaults(defineProps<{
     closeOnEscape?: boolean;
     /** Close after any click inside the content (menu items etc). */
     closeOnContentClick?: boolean;
+    /** Make the desktop popover match the trigger's width. */
+    sameWidth?: boolean;
 }>(), {
     referenceEl: null,
     placement: 'bottom-start',
@@ -46,7 +48,8 @@ const props = withDefaults(defineProps<{
     drawerPlacement: 'bottom',
     closeOnClickOutside: true,
     closeOnEscape: true,
-    closeOnContentClick: false
+    closeOnContentClick: false,
+    sameWidth: false
 });
 
 const emit = defineEmits<{
@@ -100,7 +103,8 @@ usePopover(referenceEl, contentEl, {
     visible: popoverVisible,
     closeOnClickOutside: props.closeOnClickOutside,
     closeOnEscape: props.closeOnEscape,
-    closeOnContentClick: props.closeOnContentClick
+    closeOnContentClick: props.closeOnContentClick,
+    sameWidth: props.sameWidth
 });
 
 const { placement: drawerPlace, backdropClass, panelClass, backdropTransition, panelTransition } = useDrawer({
