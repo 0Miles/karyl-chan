@@ -46,11 +46,22 @@ async function fetchProfile(bot: Client | undefined, userId: string): Promise<Us
     }
 }
 
-function requireAdmin(request: FastifyRequest, reply: FastifyReply): boolean {
-    if (request.authCapabilities?.has('admin')) return true;
-    reply.code(403).send({ error: 'admin capability required' });
-    return false;
+/**
+ * Per-route capability gate. `admin` is a universal token that bypasses
+ * every other check, mirroring hasAdminCapability in the permission
+ * module. Use this helper for every capability-scoped route so the
+ * semantics stay consistent across the admin surface.
+ */
+function requireCapability(cap: AdminCapability) {
+    return (request: FastifyRequest, reply: FastifyReply): boolean => {
+        const caps = request.authCapabilities;
+        if (caps && (caps.has('admin') || caps.has(cap))) return true;
+        reply.code(403).send({ error: `${cap} capability required` });
+        return false;
+    };
 }
+
+const requireAdmin = requireCapability('admin');
 
 function isNonEmptyString(value: unknown): value is string {
     return typeof value === 'string' && value.trim().length > 0;
@@ -222,13 +233,16 @@ export async function registerAdminManagementRoutes(
         '/api/admin/roles/:name',
         async (request, reply) => {
             if (!requireAdmin(request, reply)) return;
+            // PATCH on a non-existent role should 404 — the old handler
+            // happily created one via the upsert shortcut, which made the
+            // verb misleading.
+            const existing = await listAdminRoles();
+            if (!existing.some(r => r.name === request.params.name)) {
+                reply.code(404).send({ error: 'role not found' });
+                return;
+            }
             const body = request.body ?? {};
-            const description = isNonEmptyString(body.description)
-                ? body.description
-                : body.description === null
-                    ? null
-                    : null;
-            // createAdminRole doubles as an upsert so PATCH reuses it.
+            const description = isNonEmptyString(body.description) ? body.description : null;
             const record = await createAdminRole(request.params.name, description);
             return record;
         }

@@ -97,7 +97,7 @@ async function onSaveDescription(role: AdminRole) {
 }
 
 async function onDeleteRole(role: AdminRole) {
-    if (!window.confirm(`Delete role ${role.name}?`)) return;
+    if (!window.confirm(t('admin.roles.removeConfirm', { name: role.name }))) return;
     try {
         await deleteAdminRole(role.name);
         emit('changed');

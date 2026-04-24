@@ -80,6 +80,29 @@ export async function seedDefaultRoles(): Promise<void> {
     }
 }
 
+/**
+ * Warn the operator about capability tokens persisted in the DB that
+ * the current code doesn't know about — typically a rename or removal
+ * that left rows stranded. Those rows are silently filtered out of the
+ * capability set at resolve time, so users assigned them effectively
+ * lose capabilities without any explanation.
+ */
+export async function auditStoredCapabilities(
+    logger: { warn: (msg: string) => void } = console
+): Promise<void> {
+    const rows = await AdminRoleCapability.findAll();
+    const unknown = new Set<string>();
+    for (const row of rows) {
+        const cap = row.getDataValue('capability') as string;
+        if (!isAdminCapability(cap)) unknown.add(cap);
+    }
+    if (unknown.size > 0) {
+        logger.warn(
+            `admin_role_capabilities contains unknown tokens (silently ignored): ${[...unknown].join(', ')}`
+        );
+    }
+}
+
 // ── Capability resolution ─────────────────────────────────────────────────
 
 async function capabilitiesForRole(role: string): Promise<Set<AdminCapability>> {

@@ -8,7 +8,7 @@ import { sequelize } from './models/db.js';
 import { startWebServer } from './web/server.js';
 import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
-import { seedDefaultRoles } from './web/authorized-user.service.js';
+import { auditStoredCapabilities, seedDefaultRoles } from './web/authorized-user.service.js';
 import { systemEventLog } from './web/system-event-log.js';
 import { runPendingMigrations } from './migrations/runner.js';
 
@@ -129,6 +129,7 @@ async function run() {
         await sequelize.sync();
         await runPendingMigrations();
         await seedDefaultRoles();
+        await auditStoredCapabilities();
 
         authStore.attach(sequelizeRefreshStore);
         await authStore.init();
