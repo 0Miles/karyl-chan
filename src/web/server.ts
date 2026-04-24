@@ -1,5 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
+import fastifyHelmet from '@fastify/helmet';
 import { Client } from 'discordx';
 import { existsSync } from 'fs';
 import { dirname, resolve } from 'path';
@@ -97,6 +98,41 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         }
         request.authUserId = userId;
         request.authCapabilities = capabilities;
+    });
+
+    // Security headers. CSP allows same-origin scripts plus 'unsafe-eval'
+    // (required by lottie-web) and 'unsafe-inline' for Vue's scoped styles.
+    // Discord CDN hosts every avatar + custom emoji + sticker we render, so
+    // it's whitelisted under img-src / media-src. connect-src stays 'self'
+    // — admin API + SSE are same-origin.
+    await server.register(fastifyHelmet, {
+        contentSecurityPolicy: {
+            directives: {
+                'default-src': ["'self'"],
+                'base-uri': ["'self'"],
+                'img-src': [
+                    "'self'",
+                    'data:',
+                    'https://cdn.discordapp.com',
+                    'https://media.discordapp.net'
+                ],
+                'media-src': [
+                    "'self'",
+                    'https://cdn.discordapp.com',
+                    'https://media.discordapp.net'
+                ],
+                'font-src': ["'self'", 'data:'],
+                'style-src': ["'self'", "'unsafe-inline'"],
+                'script-src': ["'self'", "'unsafe-eval'"],
+                'script-src-attr': ["'none'"],
+                'connect-src': ["'self'"],
+                'form-action': ["'self'"],
+                'frame-ancestors': ["'none'"],
+                'object-src': ["'none'"]
+            }
+        },
+        crossOriginEmbedderPolicy: false,
+        crossOriginResourcePolicy: { policy: 'same-origin' }
     });
 
     await server.register(fastifyMultipart, {
