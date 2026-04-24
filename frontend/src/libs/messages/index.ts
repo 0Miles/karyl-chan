@@ -24,7 +24,9 @@ export type {
     ResolvedUser,
     ResolvedChannel,
     ResolvedRole,
-    ResolvedCustomEmoji
+    ResolvedCustomEmoji,
+    RichLink,
+    RichLinkHandler
 } from './context';
 
 export { MessageContextKey, useMessageContext } from './context';

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
+import type { Message as DjsMessage } from 'discord.js';
 import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor } from './message-mapper.js';
 
 export interface DiscordRoutesOptions {
@@ -23,6 +24,21 @@ interface GuildBucket<T> {
     guildId: string;
     guildName: string;
     items: T[];
+}
+
+function messagePreview(message: DjsMessage): string {
+    const content = message.content.trim();
+    if (content) return content.length > 60 ? `${content.slice(0, 60)}…` : content;
+    if (message.stickers.size > 0) {
+        const first = [...message.stickers.values()][0];
+        return `[${first.name}]`;
+    }
+    if (message.attachments.size > 0) {
+        const first = [...message.attachments.values()][0];
+        return `📎 ${first.name}`;
+    }
+    if (message.embeds.length > 0) return '[embed]';
+    return '(empty)';
 }
 
 export async function registerDiscordRoutes(server: FastifyInstance, options: DiscordRoutesOptions): Promise<void> {
@@ -103,6 +119,86 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
             } catch (err) {
                 request.log.error({ err }, 'failed to fetch user');
                 reply.code(404).send({ error: 'user not found' });
+            }
+        }
+    );
+
+    // Metadata for a Discord permalink (message link or channel link).
+    // `guild=@me` (or omitted) indicates a DM surface. `message` is
+    // optional — when absent the endpoint returns channel/guild info
+    // with a null preview so the client can render a channel-only chip.
+    // Returns 404 when anything in the chain is unreachable (bot isn't
+    // in the guild, channel isn't visible, message is gone); the client
+    // falls back to the `# 不明` chip in that case.
+    server.get<{ Querystring: { guild?: string; channel?: string; message?: string } }>(
+        '/api/discord/message-link',
+        async (request, reply) => {
+            const rawGuild = request.query.guild;
+            const guildId = rawGuild && rawGuild !== '@me' ? rawGuild : null;
+            const channelId = request.query.channel;
+            const messageId = request.query.message && request.query.message.length > 0
+                ? request.query.message
+                : null;
+            if (!channelId) {
+                reply.code(400).send({ error: 'channel required' });
+                return;
+            }
+            try {
+                if (guildId) {
+                    const guild = bot.guilds.cache.get(guildId);
+                    if (!guild) {
+                        request.log.info({ guildId }, 'message-link: guild not in bot cache');
+                        reply.code(404).send({ error: 'guild not accessible' });
+                        return;
+                    }
+                    // Threads / announcement / forum posts all live under
+                    // `guild.channels` (including threads in most setups)
+                    // but a freshly created one may not be cached yet —
+                    // fall back to a REST fetch before giving up.
+                    let channel = guild.channels.cache.get(channelId) ?? null;
+                    if (!channel) {
+                        channel = await guild.channels.fetch(channelId).catch(() => null);
+                    }
+                    if (!channel || !channel.isTextBased()) {
+                        request.log.info({ guildId, channelId, type: channel?.type }, 'message-link: channel not accessible or not text-based');
+                        reply.code(404).send({ error: 'channel not accessible' });
+                        return;
+                    }
+                    const message = messageId ? await channel.messages.fetch(messageId) : null;
+                    return {
+                        guildId,
+                        guildName: guild.name,
+                        guildIconUrl: guild.iconURL({ size: 64, extension: 'webp' }) ?? null,
+                        channelId,
+                        channelName: channel.name ?? '',
+                        messageId: message?.id ?? null,
+                        preview: message ? messagePreview(message) : null
+                    };
+                }
+                // DM path: bot can only reach DMs where it's a party.
+                const channel = await bot.channels.fetch(channelId);
+                if (!channel || !channel.isDMBased()) {
+                    request.log.info({ channelId, type: channel?.type }, 'message-link: DM channel not accessible');
+                    reply.code(404).send({ error: 'channel not accessible' });
+                    return;
+                }
+                const message = messageId ? await channel.messages.fetch(messageId) : null;
+                let channelName = 'Direct Message';
+                if ('recipient' in channel && channel.recipient) {
+                    channelName = channel.recipient.globalName ?? channel.recipient.username;
+                }
+                return {
+                    guildId: null,
+                    guildName: null,
+                    guildIconUrl: null,
+                    channelId,
+                    channelName,
+                    messageId: message?.id ?? null,
+                    preview: message ? messagePreview(message) : null
+                };
+            } catch (err) {
+                request.log.info({ err, guildId, channelId, messageId }, 'message-link fetch threw');
+                reply.code(404).send({ error: 'not accessible' });
             }
         }
     );

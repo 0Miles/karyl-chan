@@ -5,7 +5,8 @@ import type {
     MessageContext,
     ResolvedChannel,
     ResolvedRole,
-    ResolvedUser
+    ResolvedUser,
+    RichLinkHandler
 } from '../../libs/messages';
 import { createDiscordComposerTokenCodec } from './composer-token-codec';
 import { createDefaultDiscordMediaProvider } from './createMediaProvider';
@@ -27,6 +28,12 @@ export interface DiscordMessageContextOptions {
     mediaProvider?: MediaProvider;
     /** Override the default "scroll to referenced message" behavior. */
     onReplyClick?: (messageId: string) => void;
+    /**
+     * URL handlers to register on the generated context. Pass any
+     * number of platform-specific handlers (Discord message links,
+     * invite links, …) and `MessageContent` will pick the first match.
+     */
+    linkHandlers?: RichLinkHandler[];
 }
 
 function defaultScrollToReply(messageId: string) {
@@ -56,7 +63,8 @@ export function createDiscordMessageContext(opts: DiscordMessageContextOptions):
         resolveChannel: opts.resolveChannel,
         resolveRole: opts.resolveRole,
         mediaProvider: opts.mediaProvider ?? createDefaultDiscordMediaProvider(),
-        suggestionProviders: opts.suggestionProviders
+        suggestionProviders: opts.suggestionProviders,
+        linkHandlers: opts.linkHandlers
     };
     ctx.composerTokenCodec = createDiscordComposerTokenCodec(ctx);
     return ctx;

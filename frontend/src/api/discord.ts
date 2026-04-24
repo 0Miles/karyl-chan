@@ -27,3 +27,37 @@ export async function loadStickerLottie(stickerId: string): Promise<unknown | nu
     if (!response.ok) return null;
     return await response.json();
 }
+
+export interface DiscordMessageLinkInfo {
+    guildId: string | null;
+    guildName: string | null;
+    guildIconUrl: string | null;
+    channelId: string;
+    channelName: string;
+    /** Null when the URL is a channel-only link (no trailing message id). */
+    messageId: string | null;
+    /** Null for channel-only links; populated for message links. */
+    preview: string | null;
+}
+
+/**
+ * Resolve metadata for a Discord permalink. Accepts either message links
+ * (with `messageId`) or channel links (without). Returns `null` when the
+ * target is unreachable — bot not in guild, channel not visible, message
+ * deleted — so the caller can render an "unknown" chip instead of an
+ * error toast.
+ */
+export async function fetchMessageLink(
+    guildId: string | null,
+    channelId: string,
+    messageId: string | null
+): Promise<DiscordMessageLinkInfo | null> {
+    const params = new URLSearchParams();
+    if (guildId) params.set('guild', guildId);
+    params.set('channel', channelId);
+    if (messageId) params.set('message', messageId);
+    const response = await authedFetch(`/api/discord/message-link?${params.toString()}`);
+    if (response.status === 404) return null;
+    if (!response.ok) throw new ApiError(response.status, `${response.status} ${response.statusText}`);
+    return (await response.json()) as DiscordMessageLinkInfo;
+}

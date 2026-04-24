@@ -1,6 +1,9 @@
 import { computed, onMounted, provide, ref, watch, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { MessageContextKey, type ComposerSuggestionItem } from '../../libs/messages';
 import { createDiscordMessageContext } from './createMessageContext';
+import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
 import { loadLastGuildChannel, saveLastGuildChannel } from './last-channel';
@@ -14,6 +17,8 @@ export interface UseDiscordGuildChannelOptions {
 export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDiscordGuildChannelOptions = {}) {
     const guildStore = useGuildChannelStore();
     const botStore = useBotStore();
+    const router = useRouter();
+    const { t } = useI18n();
 
     const selectedChannelId = ref<string | null>(null);
 
@@ -61,6 +66,12 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        linkHandlers: [createDiscordMessageLinkHandler({
+            router,
+            currentChannelId: () => selectedChannelId.value,
+            currentGuildId: () => guildId.value ?? null,
+            unknownLabel: t('messages.linkUnknown')
+        })],
         resolveUser(id) {
             if (botUserId.value === id) {
                 const name = botDisplayName();

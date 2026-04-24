@@ -1,6 +1,9 @@
 import { computed, onMounted, provide, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { MessageContextKey } from '../../libs/messages';
 import { createDiscordMessageContext } from './createMessageContext';
+import { createDiscordMessageLinkHandler } from './discord-link-handler';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
 import { loadLastDmChannel, saveLastDmChannel } from './last-channel';
@@ -14,6 +17,8 @@ export interface UseDiscordDmOptions {
 export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     const dmStore = useDmStore();
     const botStore = useBotStore();
+    const router = useRouter();
+    const { t } = useI18n();
 
     const selectedChannelId = ref<string | null>(null);
     const newRecipientId = ref('');
@@ -52,6 +57,12 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         botUserId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        linkHandlers: [createDiscordMessageLinkHandler({
+            router,
+            currentChannelId: () => selectedChannelId.value,
+            currentGuildId: () => null,
+            unknownLabel: t('messages.linkUnknown')
+        })],
         resolveUser(id) {
             const channel = selectedChannel.value;
             if (channel?.recipient.id === id) {

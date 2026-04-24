@@ -1,6 +1,7 @@
 <script lang="ts">
 import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import MentionChip from './MentionChip.vue';
+import RichLinkChip from './RichLinkChip.vue';
 import { useMessageContext, type MessageContext } from './context';
 import { twemojiUrl } from './twemoji';
 import type { ASTNode } from './markdown';
@@ -78,6 +79,11 @@ function renderNode(node: ASTNode, ctx: MessageContext): Renderable {
         case 'url':
         case 'link': {
             const target = String(node.target ?? '');
+            // Consult caller-supplied handlers; the first scheme match
+            // wins and gets a rich chip. Unhandled URLs fall back to a
+            // plain anchor so this module stays platform-agnostic.
+            const handler = ctx.linkHandlers?.find(h => h.matches(target));
+            if (handler) return h(RichLinkChip, { url: target, handler });
             return h('a', {
                 href: target,
                 target: '_blank',

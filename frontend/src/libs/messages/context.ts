@@ -22,6 +22,40 @@ export interface ResolvedCustomEmoji {
     alt: string;
 }
 
+/**
+ * Generic shape for a "rich" link chip. Platform handlers map their own
+ * concepts (a Discord message link, a GitHub issue URL, …) onto these
+ * display-only fields so the chip component stays agnostic.
+ */
+export interface RichLink {
+    /** Absolute icon URL; when null the chip uses `iconFallback` instead. */
+    iconUrl?: string | null;
+    /** Short text (1–2 chars) rendered in a badge when `iconUrl` is absent. */
+    iconFallback?: string | null;
+    /** Prepended directly to the label, no space (e.g. `#`). */
+    labelPrefix?: string;
+    /** Primary label text. */
+    label: string;
+    /** Secondary text shown after a `›` separator. */
+    preview?: string | null;
+}
+
+/**
+ * Pluggable URL handler. Wired through `MessageContext.linkHandlers` so
+ * callers can teach the messages module about their own link schemes
+ * without the module learning any platform-specific syntax.
+ */
+export interface RichLinkHandler {
+    /** Cheap synchronous predicate so the renderer can decide whether to spawn a chip. */
+    matches(url: string): boolean;
+    /** Async resolve to chip data. Returning null means "known scheme, unreachable target". */
+    resolve(url: string): Promise<RichLink | null>;
+    /** Invoked when the user activates a resolved chip. */
+    onClick(link: RichLink, url: string): void;
+    /** Label rendered when `resolve` returns null (e.g. `# 不明` in Traditional Chinese). */
+    unknownLabel: string;
+}
+
 export interface MessageContext {
     resolveUser?: (id: string) => ResolvedUser | null;
     resolveChannel?: (id: string) => ResolvedChannel | null;
@@ -42,6 +76,13 @@ export interface MessageContext {
     suggestionProviders?: ComposerSuggestionProvider[];
     /** Platform-specific codec that translates between canonical text and chip elements. */
     composerTokenCodec?: ComposerTokenCodec;
+    /**
+     * URL handlers consulted in order when rendering a link node. The
+     * first `matches(url)` wins and produces a rich chip; unmatched URLs
+     * fall back to a plain anchor. Keeps link-scheme knowledge out of
+     * this module.
+     */
+    linkHandlers?: RichLinkHandler[];
 }
 
 export const MessageContextKey: InjectionKey<MessageContext> = Symbol('MessageContext');

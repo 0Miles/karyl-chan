@@ -65,6 +65,23 @@ watch(selectedChannelId, (id) => {
     router.replace({ query: { ...route.query, channel: id } });
 }, { immediate: true });
 
+// `?scrollTo=<messageId>` deep-links to a specific message. Runs after
+// each render so the scroller has had a chance to draw the target row;
+// clears the query when we find it so refreshes don't keep jumping.
+watch(
+    [() => route.query.scrollTo, () => chat.messages.value],
+    ([scrollTo]) => {
+        if (typeof scrollTo !== 'string' || !scrollTo) return;
+        const el = document.querySelector(`[data-message-id="${scrollTo}"]`) as HTMLElement | null;
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const next = { ...route.query };
+        delete next.scrollTo;
+        router.replace({ query: next });
+    },
+    { flush: 'post' }
+);
+
 const selectedGuild = ref(props.guilds.find(g => g.id === props.guildId) ?? null);
 watch(() => props.guildId, id => {
     selectedGuild.value = props.guilds.find(g => g.id === id) ?? null;

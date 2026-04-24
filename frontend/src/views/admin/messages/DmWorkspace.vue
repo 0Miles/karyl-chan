@@ -70,6 +70,25 @@ watch(selectedChannelId, (id) => {
     router.replace({ query: { ...route.query, channel: id } });
 }, { immediate: true });
 
+// Honour `?scrollTo=<messageId>` — the query is written by a
+// message-link click elsewhere in the app. Runs whenever messages
+// re-render; post-flush so `[data-message-id]` is in the DOM by the
+// time we query for it. Clears the query once the scroll lands so a
+// later refresh of the same URL doesn't keep pulling the user there.
+watch(
+    [() => route.query.scrollTo, () => chat.messages.value],
+    ([scrollTo]) => {
+        if (typeof scrollTo !== 'string' || !scrollTo) return;
+        const el = document.querySelector(`[data-message-id="${scrollTo}"]`) as HTMLElement | null;
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const next = { ...route.query };
+        delete next.scrollTo;
+        router.replace({ query: next });
+    },
+    { flush: 'post' }
+);
+
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
