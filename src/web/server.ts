@@ -24,6 +24,21 @@ function clientKey(request: import('fastify').FastifyRequest): string {
     // today so request.ip is the immediate peer.
     return request.ip || 'unknown';
 }
+
+/**
+ * Paths that accept access_token via query string. Restricting the
+ * fallback keeps the token out of access logs for non-SSE traffic.
+ */
+const SSE_PATHS = new Set<string>([
+    '/api/dm/events',
+    '/api/guilds/events'
+]);
+
+function isEventStreamPath(url: string): boolean {
+    // Strip query before matching so "/api/dm/events?access_token=…" hits.
+    const path = url.split('?', 1)[0];
+    return SSE_PATHS.has(path);
+}
 import { registerDmRoutes } from './dm-routes.js';
 import { registerDiscordRoutes } from './discord-routes.js';
 import { registerGuildsRoutes } from './guilds-routes.js';
@@ -89,9 +104,10 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         if (!authEnabled) return;
         const header = request.headers.authorization;
         let presented: string | null = header?.startsWith('Bearer ') ? header.slice(7) : null;
-        if (!presented) {
-            // EventSource can't set Authorization headers, so /api/dm/events
-            // accepts the access token as a query string fallback.
+        if (!presented && isEventStreamPath(request.url)) {
+            // EventSource can't set Authorization headers, so SSE endpoints
+            // alone get to fall back to a query string. Scoping by path
+            // keeps the token out of access logs for every other route.
             const query = request.query as { access_token?: string } | undefined;
             if (typeof query?.access_token === 'string' && query.access_token.length > 0) {
                 presented = query.access_token;
@@ -207,6 +223,12 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         }
         const refreshToken = typeof request.body?.refreshToken === 'string' ? request.body.refreshToken : null;
         if (refreshToken) await auth.revokeRefresh(refreshToken);
+        // Revoke the presented access token too. Access tokens live in
+        // memory (not JWTs), so we can actually invalidate them rather
+        // than waiting for TTL. The Authorization header arrives even
+        // though /api/auth/* is excluded from the hook.
+        const header = request.headers.authorization;
+        if (header?.startsWith('Bearer ')) auth.revokeAccess(header.slice(7));
         reply.code(204).send();
     });
 

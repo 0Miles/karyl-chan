@@ -129,6 +129,14 @@ export class AuthStore {
         return removed;
     }
 
+    revokeAccess(token: string): boolean {
+        // In-process access tokens give us the luxury real JWTs don't — a
+        // logout can actually invalidate the presented access token, not
+        // just the refresh. Caller flow: client sends access in the auth
+        // header, refresh in the body; we revoke both.
+        return this.access.delete(hashToken(token));
+    }
+
     async revokeOwner(ownerId: string): Promise<void> {
         for (const [key, record] of this.access) {
             if (record.ownerId === ownerId) this.access.delete(key);

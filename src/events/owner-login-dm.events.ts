@@ -4,7 +4,10 @@ import { ChannelType } from 'discord.js';
 import { authStore } from '../web/auth-store.service.js';
 import { resolveLoginRole } from '../web/authorized-user.service.js';
 
-const LOGIN_KEYWORD = /^!?login\b/i;
+// Full-message match — trimmed content must be exactly "login" (or
+// "!login"). The old \b variant triggered on "loginwithus" or any prose
+// that contained the substring, which was noisy and occasionally unsafe.
+const LOGIN_KEYWORD = /^!?login$/i;
 
 function buildBaseUrl(): string {
     const explicit = process.env.WEB_BASE_URL?.trim();
