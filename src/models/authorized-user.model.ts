@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import { sequelize } from './db.js';
+import { AdminRole } from './admin-role.model.js';
 
 /**
  * Non-owner Discord users allowed to request login tokens from the bot. The
@@ -14,7 +15,17 @@ export const AuthorizedUser = sequelize.define('AuthorizedUser', {
     },
     role: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: false,
+        // FK → admin_roles(name). On SQLite the constraint is only
+        // enforced when PRAGMA foreign_keys is ON (set in db.ts). If the
+        // referenced role is deleted, CASCADE removes the row here too;
+        // the service layer also wipes the session cache to cut access.
+        references: {
+            model: AdminRole,
+            key: 'name'
+        },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE'
     },
     note: {
         type: DataTypes.STRING,
