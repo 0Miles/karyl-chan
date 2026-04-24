@@ -32,10 +32,25 @@ const display = computed(() => {
             return { text: `/${props.name ?? ''}`, color: null };
     }
 });
+
+const isUser = computed(() => props.kind === 'user' && !!props.id);
+
+function onClick(event: MouseEvent) {
+    if (!isUser.value || !props.id || !ctx.onUserClick) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+    ctx.onUserClick(props.id, anchor);
+}
 </script>
 
 <template>
-    <span class="mention" :style="display.color ? { color: display.color } : undefined">{{ display.text }}</span>
+    <span
+        :class="['mention', { clickable: isUser }]"
+        :style="display.color ? { color: display.color } : undefined"
+        @click="onClick"
+    >{{ display.text }}</span>
 </template>
 
 <style scoped>
@@ -47,5 +62,12 @@ const display = computed(() => {
     border-radius: 3px;
     font-weight: 500;
     cursor: default;
+}
+.mention.clickable {
+    cursor: pointer;
+}
+.mention.clickable:hover {
+    background: var(--accent);
+    color: var(--text-on-accent);
 }
 </style>

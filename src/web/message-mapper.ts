@@ -21,6 +21,11 @@ export function avatarUrlFor(userId: string, avatarHash: string | null, size = 1
     return `https://cdn.discordapp.com/avatars/${userId}/${avatarHash}.webp?size=${size}`;
 }
 
+export function bannerUrlFor(userId: string, bannerHash: string | null | undefined, size = 600): string | null {
+    if (!bannerHash) return null;
+    return `https://cdn.discordapp.com/banners/${userId}/${bannerHash}.webp?size=${size}`;
+}
+
 export function authorFromUser(user: Pick<User, 'id' | 'username' | 'globalName' | 'bot' | 'avatar'>): MessageAuthor {
     return {
         id: user.id,

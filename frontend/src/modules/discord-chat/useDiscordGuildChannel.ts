@@ -51,6 +51,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
 
     const messageContext = createDiscordMessageContext({
         botUserId,
+        guildId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
         resolveUser(id) {

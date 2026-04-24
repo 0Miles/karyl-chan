@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
 import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
 import type { GuildSummary } from '../../../api/guilds';
@@ -18,6 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 const { closeOverlay } = useAppShell();
 
 const {
@@ -41,6 +42,18 @@ function handleSelect(id: string) {
     selectedChannelId.value = id;
     if (props.isMobile) closeOverlay();
 }
+
+// Allow deep links like /admin/messages?channel=<id>. Set synchronously
+// so useDiscordDm's own onMounted pick-the-first-channel guard skips
+// the default; also watch for future navigations (e.g., the user card
+// "Send DM" button pushes a new query after creating the channel).
+function applyChannelQuery(value: unknown) {
+    if (typeof value !== 'string' || value.length === 0) return;
+    if (selectedChannelId.value === value) return;
+    selectedChannelId.value = value;
+}
+applyChannelQuery(route.query.channel);
+watch(() => route.query.channel, applyChannelQuery);
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {

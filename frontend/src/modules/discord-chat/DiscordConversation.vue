@@ -4,6 +4,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
+import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
 import { useFileDrop } from '../../composables/use-file-drop';
@@ -404,6 +405,9 @@ const replyToProp = computed(() => props.replyTo);
             @update:visible="(v) => { if (!v) closeReactPicker(); }"
             @select="onReactPicked"
         />
+        <!-- Single shared user-profile popover, driven by the
+             userProfileStore that MessageContext.onUserClick writes to. -->
+        <DiscordUserCardPopover />
         <footer v-if="channelId" class="composer-row">
             <MessageComposer
                 ref="composerRef"

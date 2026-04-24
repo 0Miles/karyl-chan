@@ -31,6 +31,11 @@
         "title": "Karyl Chan",
         "lead": "Public surfaces will live here in the future."
     },
+    "userCard": {
+        "id": "User id",
+        "roles": "Roles",
+        "sendDm": "Send DM"
+    },
     "profile": {
         "title": "Profile",
         "userId": "User id",

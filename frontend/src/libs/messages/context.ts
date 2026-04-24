@@ -29,9 +29,13 @@ export interface MessageContext {
     resolveCustomEmoji?: (id: string, animated: boolean, name: string) => ResolvedCustomEmoji;
     resolveSlashCommand?: (name: string, id: string) => { display: string } | null;
     currentUserId?: string | null;
+    /** Present in guild-scoped contexts; used by profile lookups to pull member info. */
+    guildId?: string | null;
     onReactionAdd?: (messageId: string, emoji: MessageEmoji) => void;
     onReactionRemove?: (messageId: string, emoji: MessageEmoji) => void;
     onReplyClick?: (messageId: string) => void;
+    /** Fired when the user clicks a message avatar, author name, or user mention. */
+    onUserClick?: (userId: string, anchor: HTMLElement) => void;
     onAttachmentOpen?: (attachmentId: string) => void;
     mediaProvider?: MediaProvider;
     /** Providers consulted by the MessageComposer when the user types a trigger char. */

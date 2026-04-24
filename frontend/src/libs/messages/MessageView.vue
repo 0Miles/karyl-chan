@@ -54,6 +54,15 @@ function onEditKeydown(event: KeyboardEvent) {
         emit('submit-edit', editDraft.value);
     }
 }
+
+function onAuthorClick(event: MouseEvent) {
+    if (!ctx.onUserClick) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+    ctx.onUserClick(props.message.author.id, anchor);
+}
 </script>
 
 <template>
@@ -65,10 +74,20 @@ function onEditKeydown(event: KeyboardEvent) {
     >
         <MessageReplyHeader v-if="message.referencedMessage" :referenced="message.referencedMessage" />
         <header v-if="!compact" class="header">
-            <img v-if="avatarSrc" :src="avatarSrc" alt="" class="avatar" />
-            <div v-else class="avatar avatar-fallback">{{ displayName.charAt(0).toUpperCase() }}</div>
+            <img
+                v-if="avatarSrc"
+                :src="avatarSrc"
+                alt=""
+                class="avatar author-click"
+                @click="onAuthorClick"
+            />
+            <div
+                v-else
+                class="avatar avatar-fallback author-click"
+                @click="onAuthorClick"
+            >{{ displayName.charAt(0).toUpperCase() }}</div>
             <div class="meta">
-                <span class="name">{{ displayName }}</span>
+                <span class="name author-click" @click="onAuthorClick">{{ displayName }}</span>
                 <span v-if="message.author.bot" class="bot-tag">BOT</span>
                 <time class="time" :datetime="message.createdAt">{{ time }}</time>
                 <span v-if="message.editedAt" class="edited">(edited)</span>
@@ -147,6 +166,18 @@ function onEditKeydown(event: KeyboardEvent) {
 .name {
     font-weight: 600;
     color: var(--text-strong);
+}
+.author-click {
+    cursor: pointer;
+}
+.author-click:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+img.author-click:hover,
+div.author-click:hover {
+    text-decoration: none;
+    opacity: 0.88;
 }
 .bot-tag {
     background: var(--accent);

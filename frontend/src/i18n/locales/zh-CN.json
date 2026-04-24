@@ -31,6 +31,11 @@
         "title": "Karyl Chan",
         "lead": "未来将在此提供公开功能。"
     },
+    "userCard": {
+        "id": "用户 ID",
+        "roles": "身份组",
+        "sendDm": "发送私信"
+    },
     "profile": {
         "title": "个人资料",
         "userId": "用户 ID",

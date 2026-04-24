@@ -9,10 +9,13 @@ import type {
 } from '../../libs/messages';
 import { createDiscordComposerTokenCodec } from './composer-token-codec';
 import { createDefaultDiscordMediaProvider } from './createMediaProvider';
+import { useUserProfileStore } from './stores/userProfileStore';
 
 export interface DiscordMessageContextOptions {
     /** Bot user id ref — exposed as `currentUserId` via a live getter. */
     botUserId: Ref<string | null>;
+    /** Guild the conversation lives in — null for DMs. Threaded into MessageContext.guildId. */
+    guildId?: Ref<string | null>;
     onReactionAdd: NonNullable<MessageContext['onReactionAdd']>;
     onReactionRemove: NonNullable<MessageContext['onReactionRemove']>;
     /** Platform-specific user resolver (DM: recipient+bot; guild: members). */
@@ -40,11 +43,15 @@ function defaultScrollToReply(messageId: string) {
  * `mediaProvider` reads inside the codec stay live after this returns.
  */
 export function createDiscordMessageContext(opts: DiscordMessageContextOptions): MessageContext {
+    const userCard = useUserProfileStore();
+    const guildIdRef = opts.guildId;
     const ctx: MessageContext = {
         onReactionAdd: opts.onReactionAdd,
         onReactionRemove: opts.onReactionRemove,
         onReplyClick: opts.onReplyClick ?? defaultScrollToReply,
+        onUserClick: (userId, anchor) => userCard.openFor(userId, anchor, guildIdRef?.value ?? null),
         get currentUserId() { return opts.botUserId.value; },
+        get guildId() { return guildIdRef?.value ?? null; },
         resolveUser: opts.resolveUser,
         resolveChannel: opts.resolveChannel,
         resolveRole: opts.resolveRole,
