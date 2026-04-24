@@ -8,6 +8,16 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
+      # 若要使用 /rcon-forward-channel 功能需設定（openssl rand -hex 32）；其他功能不需要
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      # Bot 持有者的 Discord user id（僅此 id 可透過私訊 bot 取得 admin 登入連結）
+      # 未設定時 /api/* 不啟用驗證（僅本機 dev 暫用）
+      - BOT_OWNER_ID=${BOT_OWNER_ID:-}
+      # 前端對外網址，bot 私訊回傳的登入連結會以此為 base
+      # 未設定時 fallback 到 http://localhost:${WEB_PORT}
+      - WEB_BASE_URL=${WEB_BASE_URL:-}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:

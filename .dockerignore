@@ -10,3 +10,6 @@ tests
 tsconfig.test.json
 frontend/dist
 frontend/node_modules
+storage.sqlite
+token
+data/database.sqlite

@@ -2,7 +2,8 @@ import Fastify, { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyHelmet from '@fastify/helmet';
 import { Client } from 'discordx';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import type { ServerOptions as HttpsServerOptions } from 'https';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
@@ -77,11 +78,29 @@ function defaultStaticRoot(): string | null {
     return candidates.find(p => existsSync(p)) ?? null;
 }
 
+function resolveHttpsOptions(): HttpsServerOptions | null {
+    const certPath = process.env.SSL_CERT_PATH?.trim();
+    const keyPath = process.env.SSL_KEY_PATH?.trim();
+    if (!certPath || !keyPath) return null;
+    // Fail loud if only one is set or files are missing — partial config
+    // silently falling back to HTTP would be a nasty production footgun.
+    if (!existsSync(certPath)) throw new Error(`SSL_CERT_PATH does not exist: ${certPath}`);
+    if (!existsSync(keyPath)) throw new Error(`SSL_KEY_PATH does not exist: ${keyPath}`);
+    const caPath = process.env.SSL_CA_PATH?.trim();
+    return {
+        cert: readFileSync(certPath),
+        key: readFileSync(keyPath),
+        ...(caPath ? { ca: readFileSync(caPath) } : {})
+    };
+}
+
 export async function createWebServer(options: CreateWebServerOptions = {}): Promise<FastifyInstance> {
+    const https = resolveHttpsOptions();
     const server = Fastify({
         logger: {
             level: process.env.NODE_ENV === 'production' ? 'info' : 'debug'
-        }
+        },
+        ...(https ? { https } : {})
     });
 
     const ownerId = process.env.BOT_OWNER_ID?.trim();
