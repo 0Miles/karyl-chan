@@ -28,6 +28,17 @@ export type MediaSelection =
     | { type: 'custom'; id: string; name: string; animated: boolean }
     | { type: 'sticker'; id: string; name: string; formatType: number };
 
+const props = withDefaults(defineProps<{
+    /**
+     * Allow sticker selection. When false, the Stickers tab, sticker
+     * search results, and sticker recents are all hidden — used by the
+     * reaction picker, since Discord reactions only accept emojis.
+     */
+    stickers?: boolean;
+}>(), {
+    stickers: true
+});
+
 const emit = defineEmits<{
     (e: 'select', selection: MediaSelection): void;
     (e: 'close'): void;
@@ -64,12 +75,15 @@ const activeUnicodeCategory = ref<string>(cachedUnicode?.categories[0]?.id ?? ''
 const activeCustomGuild = ref<string>(cachedEmojis?.[0]?.guildId ?? '');
 const activeStickerGuild = ref<string>(cachedStickers?.[0]?.guildId ?? '');
 
-const TABS = computed<{ id: Tab; label: string }[]>(() => [
-    { id: 'recent', label: t('picker.tabs.recent') },
-    { id: 'unicode', label: t('picker.tabs.emoji') },
-    { id: 'custom', label: t('picker.tabs.custom') },
-    { id: 'sticker', label: t('picker.tabs.stickers') }
-]);
+const TABS = computed<{ id: Tab; label: string }[]>(() => {
+    const tabs: { id: Tab; label: string }[] = [
+        { id: 'recent', label: t('picker.tabs.recent') },
+        { id: 'unicode', label: t('picker.tabs.emoji') },
+        { id: 'custom', label: t('picker.tabs.custom') }
+    ];
+    if (props.stickers) tabs.push({ id: 'sticker', label: t('picker.tabs.stickers') });
+    return tabs;
+});
 
 const query = computed(() => search.value.trim().toLowerCase());
 const isSearching = computed(() => query.value.length > 0);
@@ -134,7 +148,7 @@ const filteredCustomCells = computed(() => {
 });
 
 const filteredStickerCells = computed(() => {
-    if (!query.value) return [];
+    if (!props.stickers || !query.value) return [];
     const q = query.value;
     const out: StickerCell[] = [];
     for (const bucket of stickerGuilds.value) {
@@ -163,13 +177,14 @@ const recentEmojiCells = computed<EmojiCell[]>(() => emojiRecents.value.map(entr
     };
 }));
 
-const recentStickerCells = computed<StickerCell[]>(() =>
-    stickerRecents.value.map(s => ({
+const recentStickerCells = computed<StickerCell[]>(() => {
+    if (!props.stickers) return [];
+    return stickerRecents.value.map(s => ({
         key: s.id,
         title: s.name,
         imageUrl: stickerImageUrl(s)
-    }))
-);
+    }));
+});
 
 const activeUnicodeCells = computed<EmojiCell[]>(() => {
     const cat = unicodeCategories.value.find(c => c.id === activeUnicodeCategory.value);
@@ -348,7 +363,7 @@ function categoryLabel(id: string): string {
                 <p v-else class="muted">{{ $t('picker.noCustomEmoji') }}</p>
             </template>
 
-            <template v-else-if="activeTab === 'sticker'">
+            <template v-else-if="stickers && activeTab === 'sticker'">
                 <StickerGrid v-if="activeStickerCells.length" :cells="activeStickerCells" @pick="pickSticker" />
                 <p v-else class="muted">{{ $t('picker.noGuildStickers') }}</p>
             </template>

@@ -27,14 +27,22 @@ type MediaPickerInstance = InstanceType<typeof MediaPicker>;
  * the picker with itself, and MediaPicker.onBeforeUnmount already
  * handles that path.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     /** External anchor — used when the trigger lives outside this component. */
     referenceEl?: HTMLElement | null;
     /** Two-way via v-model:visible. */
     visible: boolean;
     placement?: Placement;
     offset?: [number, number];
-}>();
+    /**
+     * Allow stickers. Set to false for reaction pickers — Discord
+     * reactions only support emojis, so the Stickers tab / recents /
+     * search results should be hidden in that flow.
+     */
+    stickers?: boolean;
+}>(), {
+    stickers: true
+});
 
 const emit = defineEmits<{
     (e: 'select', selection: MediaSelection): void;
@@ -71,6 +79,7 @@ function handleClose() {
         </template>
         <MediaPicker
             ref="pickerRef"
+            :stickers="stickers"
             @select="(s) => emit('select', s)"
             @close="handleClose"
         />

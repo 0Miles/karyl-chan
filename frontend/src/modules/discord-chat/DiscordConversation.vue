@@ -396,6 +396,7 @@ const replyToProp = computed(() => props.replyTo);
         <MediaPickerPopover
             :reference-el="reactingButton"
             :visible="reactingMessageId !== null"
+            :stickers="false"
             placement="top-end"
             @update:visible="(v) => { if (!v) closeReactPicker(); }"
             @select="onReactPicked"
