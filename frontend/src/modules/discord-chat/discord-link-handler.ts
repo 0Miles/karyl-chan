@@ -1,5 +1,6 @@
 import type { Router } from 'vue-router';
 import type { RichLinkHandler } from '../../libs/messages';
+import { flashMessage } from '../../libs/messages/scroll-flash';
 import { useMessageLinkStore } from './stores/messageLinkStore';
 
 // Discord permalink URLs come in several flavours:
@@ -87,6 +88,7 @@ export function createDiscordMessageLinkHandler(opts: DiscordMessageLinkHandlerO
                 if (parsed.messageId) {
                     document.querySelector(`[data-message-id="${parsed.messageId}"]`)
                         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    flashMessage(parsed.messageId);
                 }
                 return;
             }

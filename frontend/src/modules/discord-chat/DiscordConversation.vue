@@ -7,6 +7,7 @@ import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vu
 import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
+import { flashMessage } from '../../libs/messages/scroll-flash';
 import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
@@ -65,6 +66,22 @@ const drop = useFileDrop((files) => {
 
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
 
+/**
+ * Whether `message` targets the current bot user — directly (@mention),
+ * broadly (@everyone / @here), or by being a reply to one of the bot's
+ * messages. Drives the "mentioned-self" highlight so the user can spot
+ * pings at a glance.
+ */
+function mentionsSelf(message: Message): boolean {
+    const selfId = props.botUserId;
+    if (!selfId) return false;
+    // `<@id>` + the legacy `<@!id>` nickname-mention variant.
+    if (new RegExp(`<@!?${selfId}>`).test(message.content)) return true;
+    if (message.mentionEveryone) return true;
+    if (message.referencedMessage?.author.id === selfId) return true;
+    return false;
+}
+
 function scrollToBottom() {
     const el = messagesContainer.value;
     if (el) el.scrollTop = el.scrollHeight;
@@ -102,6 +119,7 @@ function scrollToMessage(messageId: string): boolean {
     const msgEl = el.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(messageId)}"]`);
     if (msgEl) {
         msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        flashMessage(messageId);
         return true;
     }
     if (useVirtual.value && scrollerRef.value) {
@@ -381,7 +399,10 @@ const replyToProp = computed(() => props.replyTo);
                     :data-index="idx"
                 >
                     <div
-                        :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
+                        :class="['message-wrap', {
+                        'group-start': !isContinuation(messages[idx - 1], message),
+                        'mentioned-self': mentionsSelf(message)
+                    }]"
                         :data-message-id="message.id"
                     >
                         <MessageView
@@ -447,7 +468,10 @@ const replyToProp = computed(() => props.replyTo);
                 <div
                     v-for="(message, idx) in messages"
                     :key="message.id"
-                    :class="['message-wrap', { 'group-start': !isContinuation(messages[idx - 1], message) }]"
+                    :class="['message-wrap', {
+                        'group-start': !isContinuation(messages[idx - 1], message),
+                        'mentioned-self': mentionsSelf(message)
+                    }]"
                     :data-message-id="message.id"
                 >
                     <MessageView
@@ -573,6 +597,22 @@ const replyToProp = computed(() => props.replyTo);
 .small { font-size: 0.8rem; margin: 0.5rem 0; }
 .message-wrap { position: relative; }
 .message-wrap.group-start:not(:first-child) { margin-top: 0.4rem; }
+/* Mention / reply-to-self — persistent highlight. Inset box-shadow
+   draws the left accent without pushing content right. */
+.message-wrap.mentioned-self {
+    background: rgba(250, 166, 26, 0.08);
+    box-shadow: inset 3px 0 0 #faa61a;
+}
+/* Scroll-target flash — transient pulse that fades back to either
+   transparent or the `.mentioned-self` background underneath. */
+.message-wrap.msg-flash {
+    animation: msg-flash 1.2s ease-out;
+}
+@keyframes msg-flash {
+    0% { background-color: rgba(99, 150, 240, 0.32); }
+    60% { background-color: rgba(99, 150, 240, 0.2); }
+    100% { background-color: transparent; }
+}
 .message-wrap:hover .message-actions,
 .message-actions:focus-within { opacity: 1; }
 .message-actions {

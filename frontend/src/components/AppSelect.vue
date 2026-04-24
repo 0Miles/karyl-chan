@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import AppPopover from './AppPopover.vue';
 import type { Placement } from '../composables/use-popover';
 import type { DrawerPlacement } from '../composables/use-drawer';
 
 /**
  * Dropdown-select layer on top of AppPopover. Same viewport split
- * (popover desktop / drawer mobile) and the same trigger-slot + isOpen
+ * (popover desktop / drawer mobile) and the same trigger-slot + v-model
  * control surface, plus:
  * - A styled content wrapper (surface background, border, shadow) so
  *   the dropdown doesn't render transparent.
@@ -14,11 +13,15 @@ import type { DrawerPlacement } from '../composables/use-drawer';
  *   width, which is the usual expectation for a <select>-style picker.
  * - Closes on item click by default.
  *
+ * This component is a pure wrapper — `v-model:open` and all trigger /
+ * content slots pass straight through to AppPopover, so we don't have
+ * a second copy of the open-state dance to keep in sync.
+ *
  * AppPopover stays the underlying primitive for cases where the caller
  * wants to style the content themselves (e.g., MediaPicker with its
  * own surface) or doesn't want the same-width behavior.
  */
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
     open?: boolean;
     placement?: Placement;
     drawerPlacement?: DrawerPlacement;
@@ -34,37 +37,29 @@ const props = withDefaults(defineProps<{
     sameWidth: true
 });
 
-const emit = defineEmits<{
+defineEmits<{
     (e: 'update:open', value: boolean): void;
 }>();
-
-const internalOpen = ref(false);
-const isOpen = computed<boolean>({
-    get: () => props.open ?? internalOpen.value,
-    set: (v) => {
-        internalOpen.value = v;
-        emit('update:open', v);
-    }
-});
-
-function close() { isOpen.value = false; }
 </script>
 
 <template>
     <AppPopover
-        v-model:open="isOpen"
+        :open="open"
         :placement="placement"
         :drawer-placement="drawerPlacement"
         :drawer-title="drawerTitle"
         :close-on-content-click="closeOnItemClick"
         :same-width="sameWidth"
+        @update:open="(v: boolean) => $emit('update:open', v)"
     >
-        <template #trigger="{ isOpen: open, toggle }">
-            <slot name="trigger" :is-open="open" :toggle="toggle" />
+        <template #trigger="triggerScope">
+            <slot name="trigger" v-bind="triggerScope" />
         </template>
-        <div class="app-select-dropdown">
-            <slot :close="close" :is-open="isOpen" />
-        </div>
+        <template #default="contentScope">
+            <div class="app-select-dropdown">
+                <slot v-bind="contentScope" />
+            </div>
+        </template>
     </AppPopover>
 </template>
 

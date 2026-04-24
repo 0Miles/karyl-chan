@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import AppPopover from '../../../components/AppPopover.vue';
 import MediaPicker, { type MediaSelection } from './MediaPicker.vue';
@@ -22,10 +22,12 @@ type MediaPickerInstance = InstanceType<typeof MediaPicker>;
  *      the trigger can't be co-located with the picker (e.g., one
  *      picker shared across many react buttons in a message list).
  *
- * The desktop popover keeps MediaPicker mounted across show/hide, so
- * recents are flushed explicitly on close. The mobile drawer unmounts
- * the picker with itself, and MediaPicker.onBeforeUnmount already
- * handles that path.
+ * `v-model:visible` flows straight through to AppPopover's `open` —
+ * we just rename the prop for API readability and don't hold any
+ * intermediate state of our own. The desktop popover keeps MediaPicker
+ * mounted across show/hide, so recents are flushed explicitly on close.
+ * The mobile drawer unmounts the picker with itself, and
+ * MediaPicker.onBeforeUnmount already handles that path.
  */
 const props = withDefaults(defineProps<{
     /** External anchor — used when the trigger lives outside this component. */
@@ -53,26 +55,18 @@ const { isMobile } = useBreakpoint();
 
 const pickerRef = ref<MediaPickerInstance | null>(null);
 
-const open = computed<boolean>({
-    get: () => props.visible,
-    set: (v) => emit('update:visible', v)
-});
-
 watch(() => props.visible, (v, prev) => {
     if (!v && prev && !isMobile.value) pickerRef.value?.flushRecents();
 });
-
-function handleClose() {
-    emit('update:visible', false);
-}
 </script>
 
 <template>
     <AppPopover
-        v-model:open="open"
+        :open="visible"
         :reference-el="referenceEl ?? null"
         :placement="placement ?? 'top-end'"
         :offset="offset ?? [0, 8]"
+        @update:open="(v: boolean) => emit('update:visible', v)"
     >
         <template #trigger>
             <slot name="trigger" />
@@ -81,7 +75,7 @@ function handleClose() {
             ref="pickerRef"
             :stickers="stickers"
             @select="(s) => emit('select', s)"
-            @close="handleClose"
+            @close="() => emit('update:visible', false)"
         />
     </AppPopover>
 </template>

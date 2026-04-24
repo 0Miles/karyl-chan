@@ -8,6 +8,7 @@ import type {
     ResolvedUser,
     RichLinkHandler
 } from '../../libs/messages';
+import { flashMessage } from '../../libs/messages/scroll-flash';
 import { createDiscordComposerTokenCodec } from './composer-token-codec';
 import { createDefaultDiscordMediaProvider } from './createMediaProvider';
 import { useUserProfileStore } from './stores/userProfileStore';
@@ -39,6 +40,7 @@ export interface DiscordMessageContextOptions {
 function defaultScrollToReply(messageId: string) {
     document.querySelector(`[data-message-id="${messageId}"]`)
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    flashMessage(messageId);
 }
 
 /**

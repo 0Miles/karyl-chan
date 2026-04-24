@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useBreakpoint } from '../composables/use-breakpoint';
 import { usePopover, type Placement } from '../composables/use-popover';
 import { useDrawer, type DrawerPlacement } from '../composables/use-drawer';
@@ -87,21 +87,12 @@ const anchorRef = computed<HTMLElement | null>(() => {
     return (wrap.firstElementChild as HTMLElement | null) ?? wrap;
 });
 
-// Desktop popover visibility — ref, not computed, because usePopover
-// flips it on self-close (Escape / click-outside) and we surface those
-// back to the caller via update:open. `immediate: true` seeds the
-// correct initial value: without it, a popover that mounts with
-// `isOpen === true` (e.g. bound to an already-set controller state)
-// would leave `popoverVisible` stuck at false until the next change,
-// so the content would silently stay hidden.
-const popoverVisible = ref(false);
-watch(isOpen, (v) => { popoverVisible.value = !isMobile.value && v; }, { immediate: true });
-watch(isMobile, (mobile) => { popoverVisible.value = !mobile && isOpen.value; });
-watch(popoverVisible, (v) => {
-    const expected = !isMobile.value && isOpen.value;
-    if (v !== expected) isOpen.value = v;
-});
-
+// Visibility is purely derived: desktop popover shows iff we're open
+// AND on a wide enough viewport (mobile switches to the drawer branch
+// below). Keeping this a computed — rather than a ref with three sync
+// watchers — means there's exactly one source of truth (`isOpen`) and
+// `usePopover` just reflects it.
+const popoverVisible = computed(() => !isMobile.value && isOpen.value);
 const drawerVisible = computed(() => isMobile.value && isOpen.value);
 
 usePopover(anchorRef, contentEl, {
@@ -113,7 +104,16 @@ usePopover(anchorRef, contentEl, {
     closeOnClickOutside: props.closeOnClickOutside,
     closeOnEscape: props.closeOnEscape,
     closeOnContentClick: props.closeOnContentClick,
-    sameWidth: props.sameWidth
+    sameWidth: props.sameWidth,
+    // Surface self-close (click-outside / Escape / content click) back
+    // onto `isOpen` so the caller's v-model observes it. We only flip
+    // when `popoverVisible` is still truthy — the false branch means
+    // we're already mid-close (caller set open=false, or a mobile
+    // switch recomputed popoverVisible), and re-emitting would be
+    // redundant at best and a cycle at worst.
+    onHide: () => {
+        if (popoverVisible.value) isOpen.value = false;
+    }
 });
 
 const { placement: drawerPlace, backdropClass, panelClass, backdropTransition, panelTransition } = useDrawer({
