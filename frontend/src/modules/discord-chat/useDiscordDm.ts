@@ -132,18 +132,36 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         }
     }
 
-    watch(selectedChannelId, (id) => { if (id) saveLastDmChannel(id); });
+    // Only persist ids we've verified against the live list — stops a
+    // stale URL param (e.g. a guild channel id left over from a mode
+    // switch) from being written to localStorage before the selection
+    // watcher below re-picks a valid DM channel.
+    watch(selectedChannelId, (id) => {
+        if (!id) return;
+        if (!dmStore.channels.some(c => c.id === id)) return;
+        saveLastDmChannel(id);
+    });
+
+    // Same selection policy as useDiscordGuildChannel: validate the
+    // current id against the live list, otherwise fall back to the
+    // localStorage record and then the first channel. Depends on
+    // selectedChannelId too so any externally-set invalid id (URL query,
+    // deep link) is immediately corrected without waiting for a list
+    // mutation. Immediate so a hot nav with a pre-populated store still
+    // picks a channel.
+    watch([() => dmStore.channels, selectedChannelId], ([list, current]) => {
+        if (list.length === 0) return;
+        if (current && list.some(c => c.id === current)) return;
+        const remembered = loadLastDmChannel();
+        const match = remembered ? list.find(c => c.id === remembered) : null;
+        selectedChannelId.value = match ? match.id : list[0].id;
+    }, { immediate: true });
 
     onMounted(async () => {
         botStore.init();
         dmStore.startSSE();
         try {
             await dmStore.ensureChannels();
-            if (!selectedChannelId.value && dmStore.channels.length > 0) {
-                const remembered = loadLastDmChannel();
-                const match = remembered ? dmStore.channels.find(c => c.id === remembered) : null;
-                selectedChannelId.value = match ? match.id : dmStore.channels[0].id;
-            }
         } catch (err) {
             bailOnAuthError(err);
         }

@@ -55,6 +55,21 @@ function applyChannelQuery(value: unknown) {
 applyChannelQuery(route.query.channel);
 watch(() => route.query.channel, applyChannelQuery);
 
+// Mirror the selection back into the URL so a refresh lands on the same
+// channel. Skips when the URL already matches to avoid pushing an
+// identical history entry, and uses `replace` so the back button doesn't
+// accumulate entries per channel switch. Only writes ids that exist in
+// the DM channel list — otherwise a transient stale id (e.g. one left
+// over from a guild→DM mode swap before useDiscordDm's validator
+// re-picks) would briefly poison the URL. Immediate so a hot nav with
+// a pre-selected channel flushes its id into the query.
+watch(selectedChannelId, (id) => {
+    if (!id) return;
+    if (!channels.value.some(c => c.id === id)) return;
+    if (route.query.channel === id) return;
+    router.replace({ query: { ...route.query, channel: id } });
+}, { immediate: true });
+
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;

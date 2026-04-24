@@ -8,7 +8,7 @@ export { createDiscordMediaProvider, createDefaultDiscordMediaProvider, type Med
 export { createDiscordComposerTokenCodec } from './composer-token-codec';
 export { createAuthErrorBail, type AuthErrorBailOptions } from './useAuthErrorBail';
 export { stickerImageUrl } from './sticker-url';
-export { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
+export { animatedAvatarUrl, isAnimatedAvatar, isAnimatedBanner } from './avatar';
 
 // Pinia stores.
 export { useBotStore } from './stores/botStore';

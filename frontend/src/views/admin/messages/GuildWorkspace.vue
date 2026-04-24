@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, toRef, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
 import type { GuildSummary } from '../../../api/guilds';
@@ -19,11 +19,13 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const route = useRoute();
 const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
 
 const {
     categories,
+    channels,
     selectedChannelId,
     selectedChannel,
     loadingChannels,
@@ -40,6 +42,28 @@ function handleSelect(id: string) {
     selectedChannelId.value = id;
     if (props.isMobile) closeOverlay();
 }
+
+// Deep link + refresh survival: URL is the source of truth on load, then
+// we mirror user-driven channel switches back into `?channel=` with
+// `router.replace` so history doesn't bloat.
+function applyChannelQuery(value: unknown) {
+    if (typeof value !== 'string' || value.length === 0) return;
+    if (selectedChannelId.value === value) return;
+    selectedChannelId.value = value;
+}
+applyChannelQuery(route.query.channel);
+watch(() => route.query.channel, applyChannelQuery);
+
+// Same policy as DmWorkspace: only reflect ids that actually exist in
+// the loaded channel list, so a stale URL param or a mid-navigation
+// seed doesn't briefly land in the history/query before the composable
+// validator corrects it.
+watch(selectedChannelId, (id) => {
+    if (!id) return;
+    if (!channels.value.some(c => c.id === id)) return;
+    if (route.query.channel === id) return;
+    router.replace({ query: { ...route.query, channel: id } });
+}, { immediate: true });
 
 const selectedGuild = ref(props.guilds.find(g => g.id === props.guildId) ?? null);
 watch(() => props.guildId, id => {

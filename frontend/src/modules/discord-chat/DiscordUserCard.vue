@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { ApiError } from '../../api/client';
 import { startChannel as startDmChannel } from '../../api/dm';
+import { animatedAvatarUrl, isAnimatedAvatar, isAnimatedBanner } from './avatar';
 import { useUserProfileStore, type DiscordUserView } from './stores/userProfileStore';
 
 const props = defineProps<{
@@ -27,38 +28,66 @@ const data = ref<DiscordUserView | null>(
 );
 const loading = ref(!data.value);
 const error = ref<string | null>(null);
+// Guards against a slow request for user A resolving after the user has
+// clicked user B — the stale response would otherwise overwrite B's data.
+let loadToken = 0;
 
 async function load() {
-    loading.value = !data.value;
+    const token = ++loadToken;
     error.value = null;
+    loading.value = !data.value;
     try {
-        data.value = await store.fetchUser(props.userId, props.guildId ?? null);
+        const fetched = await store.fetchUser(props.userId, props.guildId ?? null);
+        if (token !== loadToken) return;
+        data.value = fetched;
     } catch (err) {
+        if (token !== loadToken) return;
         error.value = err instanceof ApiError ? err.message : (err instanceof Error ? err.message : 'Failed to load');
     } finally {
-        loading.value = false;
+        if (token === loadToken) loading.value = false;
     }
 }
 
 onMounted(load);
-// Re-fetch if the card is reused for a different user (popover instance
-// persists even as `target.userId` changes).
-watch(() => [props.userId, props.guildId] as const, load);
+// The popover reuses a single DiscordUserCard instance across clicks, so
+// when `userId`/`guildId` change we must reset the rendered data to the
+// cache entry for the new target (usually null). Without this the card
+// keeps showing the previous user's name/avatar/roles while the new
+// request is in flight.
+watch(() => [props.userId, props.guildId] as const, () => {
+    data.value = store.readCached(props.userId, props.guildId ?? null);
+    error.value = null;
+    load();
+});
 
 const displayName = computed(() =>
     data.value?.user.globalName ?? data.value?.user.username ?? props.userId
 );
 const initial = computed(() => (displayName.value || props.userId).trim().charAt(0).toUpperCase() || '?');
 
+const avatarSrc = computed(() => {
+    const url = data.value?.user.avatarUrl;
+    if (!url) return null;
+    return isAnimatedAvatar(url) ? animatedAvatarUrl(url) : url;
+});
+
 const bannerStyle = computed(() => {
+    if (loading.value && !data.value) {
+        return { backgroundColor: 'var(--bg-surface-2)' };
+    }
     const url = data.value?.user.bannerUrl;
-    if (url) return { backgroundImage: `url(${url})` };
+    if (url) {
+        const resolved = isAnimatedBanner(url) ? animatedAvatarUrl(url) : url;
+        return { backgroundImage: `url(${resolved})` };
+    }
     const accent = data.value?.user.accentColor;
     if (typeof accent === 'number') {
         return { backgroundColor: `#${accent.toString(16).padStart(6, '0')}` };
     }
     return { backgroundColor: 'var(--accent)' };
 });
+
+const showSkeleton = computed(() => loading.value && !data.value);
 
 // ── Send DM ────────────────────────────────────────────────────────
 //
@@ -84,12 +113,13 @@ async function sendDm() {
 </script>
 
 <template>
-    <div class="user-card">
-        <div class="banner" :style="bannerStyle"></div>
+    <div :class="['user-card', { 'is-loading': showSkeleton }]">
+        <div :class="['banner', { 'skeleton-block': showSkeleton }]" :style="bannerStyle"></div>
         <div class="avatar-wrap">
+            <div v-if="showSkeleton" class="avatar avatar-skeleton skeleton-block"></div>
             <img
-                v-if="data?.user.avatarUrl"
-                :src="data.user.avatarUrl"
+                v-else-if="avatarSrc"
+                :src="avatarSrc"
                 alt=""
                 class="avatar"
             />
@@ -97,10 +127,15 @@ async function sendDm() {
         </div>
 
         <div class="body">
-            <p v-if="loading && !data" class="muted">{{ $t('common.loading') }}</p>
+            <template v-if="showSkeleton">
+                <div class="skeleton-line skeleton-block skeleton-line-name"></div>
+                <div class="skeleton-line skeleton-block skeleton-line-tag"></div>
+                <div class="skeleton-line skeleton-block skeleton-line-facts"></div>
+                <span class="visually-hidden">{{ $t('common.loading') }}</span>
+            </template>
             <p v-else-if="error" class="error">{{ error }}</p>
 
-            <template v-if="data">
+            <template v-if="data && !showSkeleton">
                 <div class="headline">
                     <span class="display-name">{{ displayName }}</span>
                     <span v-if="data.user.bot" class="bot-tag">BOT</span>
@@ -179,6 +214,39 @@ async function sendDm() {
     color: var(--text-on-accent);
     font-weight: 600;
     font-size: 1.8rem;
+}
+.avatar-skeleton {
+    background: var(--bg-surface-2);
+}
+.skeleton-block {
+    background-color: var(--bg-surface-2);
+    background-image: linear-gradient(
+        90deg,
+        var(--bg-surface-2) 0%,
+        var(--bg-surface-hover, rgba(255, 255, 255, 0.08)) 50%,
+        var(--bg-surface-2) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.2s linear infinite;
+}
+@keyframes skeleton-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+.skeleton-line {
+    height: 0.9rem;
+    border-radius: 4px;
+}
+.skeleton-line-name { width: 55%; margin-top: 0.3rem; }
+.skeleton-line-tag { width: 35%; }
+.skeleton-line-facts { width: 70%; margin-top: 0.4rem; }
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
 }
 .body {
     padding: 0.2rem 0.9rem 0.9rem;

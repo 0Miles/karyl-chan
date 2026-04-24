@@ -138,14 +138,9 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     });
     provide(MessageContextKey, messageContext);
 
-    async function loadGuild(id: string, autoSelect = true) {
+    async function loadGuild(id: string) {
         try {
             await guildStore.ensureChannels(id);
-            if (autoSelect && !selectedChannelId.value && channels.value.length > 0) {
-                const remembered = loadLastGuildChannel(id);
-                const match = remembered ? channels.value.find(c => c.id === remembered) : null;
-                selectedChannelId.value = match ? match.id : channels.value[0].id;
-            }
             guildStore.ensureRoles(id).catch(() => { /* best-effort mention cache */ });
         } catch (err) {
             bailOnAuthError(err);
@@ -157,12 +152,34 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         if (id) await loadGuild(id);
     });
 
+    // Central channel-selection policy: every time the channel list for
+    // the active guild updates (initial load, guild switch, channel
+    // created/deleted) or `selectedChannelId` is externally set (URL
+    // `?channel=`, programmatic navigation), ensure it points at a live
+    // channel in the current guild. Watching both refs is load-bearing:
+    // a cross-surface navigation may seed a stale id before the channel
+    // list refreshes, and without the selectedChannelId dep the watcher
+    // would not re-fire to correct it. Falls back to the per-guild
+    // localStorage record, then the first channel.
+    watch([channels, selectedChannelId], ([list, current]) => {
+        const gid = guildId.value;
+        if (!gid || list.length === 0) return;
+        if (current && list.some(c => c.id === current)) return;
+        const remembered = loadLastGuildChannel(gid);
+        const match = remembered ? list.find(c => c.id === remembered) : null;
+        selectedChannelId.value = match ? match.id : list[0].id;
+    }, { immediate: true });
+
     // Persist the active channel and prefetch mention members. Separated from
     // the guild watcher so manual user selections within the same guild still
-    // update both the "last channel" record and the mention cache.
+    // update both the "last channel" record and the mention cache. Only
+    // writes the localStorage record for ids that exist in this guild's
+    // channel list — otherwise a transient stale id (e.g. from a URL
+    // param that belonged to a different guild) would poison the record.
     watch(selectedChannelId, (channelId) => {
         const gid = guildId.value;
         if (!gid || !channelId) return;
+        if (!channels.value.some(c => c.id === channelId)) return;
         saveLastGuildChannel(gid, channelId);
         guildStore.ensureChannelMembers(gid, channelId).catch(() => { /* best-effort */ });
     });
