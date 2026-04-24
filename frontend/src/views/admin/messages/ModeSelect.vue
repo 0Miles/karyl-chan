@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { GuildSummary } from '../../../api/guilds';
 import AppSelect from '../../../components/AppSelect.vue';
+import { Icon } from '@iconify/vue';
 
 const props = defineProps<{
     mode: string;
@@ -42,7 +43,9 @@ function select(mode: string) {
                 <span v-else-if="selectedGuild" class="icon icon-fallback">
                     {{ selectedGuild.name.charAt(0).toUpperCase() }}
                 </span>
-                <span v-else class="icon icon-dm">💬</span>
+                <span v-else class="icon icon-dm">
+                    <Icon icon="material-symbols:chat-bubble-rounded" width="20" height="20" />
+                </span>
                 <span class="label">{{ selectedGuild?.name ?? $t('messages.modeDm') }}</span>
                 <span class="chevron" :class="{ open }">›</span>
             </button>
@@ -50,7 +53,9 @@ function select(mode: string) {
 
         <ul class="mode-dropdown">
             <li :class="{ active: mode === 'dm' }" @click="select('dm')">
-                <span class="icon icon-dm">💬</span>
+                <span class="icon icon-dm">
+                    <Icon icon="material-symbols:chat-bubble-rounded" width="20" height="20" />
+                </span>
                 <span class="label">{{ $t('messages.modeDm') }}</span>
             </li>
             <li
