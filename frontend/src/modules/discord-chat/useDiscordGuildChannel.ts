@@ -10,6 +10,7 @@ import { loadLastGuildChannel, saveLastGuildChannel, saveLastSurface } from './l
 import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useGuildChannelStore } from './stores/guildChannelStore';
+import { useUnreadSync } from './useUnreadSync';
 
 export interface UseDiscordGuildChannelOptions {
     onAuthError?: () => void;
@@ -81,6 +82,8 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     // so pending scroll targets can retry against the freshly-rendered
     // DOM.
     watch(chat.messages, () => workspace.notifyMessagesChanged());
+
+    useUnreadSync(selectedChannelId, channels, guildId);
 
     // When a scroll target is pending but the message isn't in the
     // loaded batch (typical message-link case — target is older than

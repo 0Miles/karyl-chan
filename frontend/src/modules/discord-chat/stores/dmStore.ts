@@ -14,6 +14,8 @@ import {
 } from '../../../api/dm';
 import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore, type ChannelMessageEvent } from './messageCacheStore';
+import { useBotStore } from './botStore';
+import { useUnreadStore } from './unreadStore';
 
 export const useDmStore = defineStore('discord-dm', () => {
     const channels = ref<DmChannelSummary[]>([]);
@@ -38,12 +40,17 @@ export const useDmStore = defineStore('discord-dm', () => {
     function startSSE() {
         if (stopSSE) return;
         const messageCache = useMessageCacheStore();
+        const unread = useUnreadStore();
+        const botStore = useBotStore();
         stopSSE = subscribeEvents({
             onEvent(event) {
                 if (event.type === 'channel-touched') {
                     touchChannel(event.channel);
                 } else {
                     messageCache.applyEvent(event satisfies ChannelMessageEvent);
+                    if (event.type === 'message-created' && event.message.author.id !== botStore.userId) {
+                        unread.noteMessage(event.channelId, 'dm');
+                    }
                 }
             },
             onError: () => {}

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../../../modules/discord-chat';
+import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
+import UnreadPill from '../../../components/UnreadPill.vue';
 import type { DmChannelSummary } from '../../../api/dm';
 import type { GuildSummary } from '../../../api/guilds';
 import ModeSelect from './ModeSelect.vue';
 import { Icon } from '@iconify/vue';
+
+const unreadStore = useUnreadStore();
 
 defineProps<{
     guilds: GuildSummary[];
@@ -76,10 +80,15 @@ function formatTimestamp(iso: string | null): string {
             <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <div class="row">
-                    <span class="name">{{ channel.recipient.globalName ?? channel.recipient.username }}</span>
+                    <span class="name" :class="{ 'has-unread': unreadStore.getChannelCount(channel.id) > 0 }">
+                        {{ channel.recipient.globalName ?? channel.recipient.username }}
+                    </span>
                     <span class="timestamp">{{ formatTimestamp(channel.lastMessageAt) }}</span>
                 </div>
-                <div class="preview">{{ channel.lastMessagePreview ?? '' }}</div>
+                <div class="preview-row">
+                    <span class="preview">{{ channel.lastMessagePreview ?? '' }}</span>
+                    <UnreadPill :count="unreadStore.getChannelCount(channel.id)" />
+                </div>
             </div>
         </li>
     </ul>
@@ -183,13 +192,22 @@ function formatTimestamp(iso: string | null): string {
 .meta { flex: 1; min-width: 0; }
 .row { display: flex; justify-content: space-between; align-items: baseline; }
 .name { font-weight: 500; color: var(--text-strong); }
+.name.has-unread { font-weight: 700; }
 .timestamp { font-size: 0.75rem; color: var(--text-muted); }
+.preview-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
 .preview {
+    flex: 1;
     font-size: 0.8rem;
     color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
 }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }

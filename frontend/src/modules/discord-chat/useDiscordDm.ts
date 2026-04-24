@@ -10,6 +10,7 @@ import { loadLastDmChannel, saveLastDmChannel, saveLastSurface } from './last-ch
 import { useWorkspace } from './useWorkspace';
 import { useBotStore } from './stores/botStore';
 import { useDmStore } from './stores/dmStore';
+import { useUnreadSync } from './useUnreadSync';
 
 export interface UseDiscordDmOptions {
     onAuthError?: () => void;
@@ -66,6 +67,8 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     });
 
     watch(chat.messages, () => workspace.notifyMessagesChanged());
+
+    useUnreadSync(selectedChannelId, computed(() => dmStore.channels), 'dm');
 
     // Anchor-fetch pending scroll targets that aren't in the loaded
     // batch — typically a link click to an older DM message.

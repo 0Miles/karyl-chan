@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { GuildSummary } from '../../../api/guilds';
+import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import AppSelect from '../../../components/AppSelect.vue';
+import UnreadPill from '../../../components/UnreadPill.vue';
 import { Icon } from '@iconify/vue';
 
 const props = defineProps<{
@@ -16,10 +18,28 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const isOpen = ref(false);
+const unreadStore = useUnreadStore();
 
 const selectedGuild = computed(() =>
     props.guilds.find(g => g.id === props.mode) ?? null
 );
+
+// Per-mode pill count: DM counts every unread, guild only @-mentions.
+function dmPillCount(): number {
+    return unreadStore.getModeCount('dm');
+}
+function guildPillCount(guildId: string): number {
+    return unreadStore.getModeMentionCount(guildId);
+}
+function modePillCount(mode: string): number {
+    return mode === 'dm' ? dmPillCount() : guildPillCount(mode);
+}
+
+const currentPillCount = computed(() => modePillCount(props.mode));
+const otherModesHaveUnread = computed(() => {
+    if (props.mode !== 'dm' && dmPillCount() > 0) return true;
+    return props.guilds.some(g => g.id !== props.mode && guildPillCount(g.id) > 0);
+});
 
 function select(mode: string) {
     emit('mode-change', mode);
@@ -47,7 +67,9 @@ function select(mode: string) {
                     <Icon icon="material-symbols:chat-bubble-rounded" width="20" height="20" />
                 </span>
                 <span class="label">{{ selectedGuild?.name ?? $t('messages.modeDm') }}</span>
+                <UnreadPill class="trigger-pill" :count="currentPillCount" />
                 <span class="chevron" :class="{ open }">›</span>
+                <span v-if="otherModesHaveUnread" class="trigger-dot" aria-hidden="true"></span>
             </button>
         </template>
 
@@ -57,6 +79,7 @@ function select(mode: string) {
                     <Icon icon="material-symbols:chat-bubble-rounded" width="20" height="20" />
                 </span>
                 <span class="label">{{ $t('messages.modeDm') }}</span>
+                <UnreadPill class="mode-pill" :count="dmPillCount()" />
             </li>
             <li
                 v-for="g in guilds"
@@ -67,6 +90,7 @@ function select(mode: string) {
                 <img v-if="g.iconUrl" :src="g.iconUrl" alt="" class="icon" />
                 <span v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</span>
                 <span class="label">{{ g.name }}</span>
+                <UnreadPill class="mode-pill" :count="guildPillCount(g.id)" />
             </li>
         </ul>
     </AppSelect>
@@ -77,6 +101,7 @@ function select(mode: string) {
    below ends up as a direct flex child of the caller's container
    (sidebar-header). flex: 1 makes it fill the available width. */
 .trigger {
+    position: relative;
     flex: 1;
     display: flex;
     align-items: center;
@@ -96,6 +121,17 @@ function select(mode: string) {
 .trigger:hover { background: var(--bg-surface-hover); }
 .trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+.trigger-dot {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--unread-accent, #f23f43);
+    box-shadow: 0 0 0 2px var(--bg-surface);
+    pointer-events: none;
+}
 .icon {
     flex-shrink: 0;
     width: 20px;
@@ -183,10 +219,13 @@ function select(mode: string) {
     font-size: 0.95rem;
 }
 .mode-dropdown li .label {
+    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.mode-pill { margin-left: auto; }
+.trigger-pill { margin-left: auto; }
 
 /* On mobile the drawer body owns the scroll region; release the
    popover-oriented max-height cap so the 70vh drawer drives it. Mirrors

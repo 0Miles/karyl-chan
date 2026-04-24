@@ -9,6 +9,9 @@ import { provideAppShell } from './composables/use-app-shell';
 import { useBreakpoint } from './composables/use-breakpoint';
 import { useDrawer } from './composables/use-drawer';
 import { useCurrentUserStore } from './stores/currentUserStore';
+import { useDmStore } from './modules/discord-chat/stores/dmStore';
+import { useGuildChannelStore } from './modules/discord-chat/stores/guildChannelStore';
+import { useUnreadStore } from './modules/discord-chat/stores/unreadStore';
 import Draggable from './components/Draggable.vue';
 import AppMenu from './components/AppMenu.vue';
 import AppMenuItem from './components/AppMenuItem.vue';
@@ -19,12 +22,28 @@ const { t } = useI18n();
 const { overlayOpen, openOverlay, closeOverlay, flushMain, hasExtras, overlayView, toggleOverlayView } = provideAppShell();
 const { isMobile } = useBreakpoint();
 const currentUser = useCurrentUserStore();
+const dmStore = useDmStore();
+const guildStore = useGuildChannelStore();
+const unreadStore = useUnreadStore();
+
+// Subscribe to both SSE streams whenever we're authenticated so the nav
+// unread dot tracks new messages even when the user is not on the
+// messages page. `startSSE` is idempotent.
+function ensureUnreadSSE() {
+    if (!isAuthenticated.value) return;
+    dmStore.startSSE();
+    guildStore.startSSE();
+}
 
 // Keep the nav avatar in sync with the session: reload on login, clear on
 // logout, refresh once on cold mount if we already hold tokens.
 watch(() => isAuthenticated.value, (authed) => {
-    if (authed) void currentUser.refresh();
-    else currentUser.clear();
+    if (authed) {
+        void currentUser.refresh();
+        ensureUnreadSSE();
+    } else {
+        currentUser.clear();
+    }
 });
 
 const displayName = computed(() =>
@@ -64,6 +83,7 @@ const dragBounds = ref<HTMLElement | null>(null);
 onMounted(() => {
     dragBounds.value = document.documentElement;
     if (isAuthenticated.value && !currentUser.user) void currentUser.refresh();
+    ensureUnreadSSE();
 });
 
 async function signOut() {
@@ -84,7 +104,10 @@ function navigate() {
             <nav class="desktop-nav">
                 <template v-if="isAuthenticated">
                     <RouterLink to="/admin">{{ $t('app.nav.dashboard') }}</RouterLink>
-                    <RouterLink to="/admin/messages">{{ $t('app.nav.messages') }}</RouterLink>
+                    <RouterLink to="/admin/messages" class="nav-with-dot">
+                        {{ $t('app.nav.messages') }}
+                        <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
+                    </RouterLink>
                     <RouterLink to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
                     <RouterLink v-if="canOpenAdminPanel" to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <AppMenu placement="bottom-end" :offset="[0, 10]">
@@ -169,7 +192,10 @@ function navigate() {
                 <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
                     <template v-if="isAuthenticated">
                         <RouterLink to="/admin" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
-                        <RouterLink to="/admin/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
+                        <RouterLink to="/admin/messages" class="nav-with-dot" @click="navigate">
+                            {{ $t('app.nav.messages') }}
+                            <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
+                        </RouterLink>
                         <RouterLink to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
                         <RouterLink v-if="canOpenAdminPanel" to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
@@ -216,6 +242,19 @@ function navigate() {
 .desktop-nav a.router-link-active {
     color: var(--text-on-header);
     font-weight: 500;
+}
+.nav-with-dot {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.nav-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--unread-accent, #f23f43);
+    margin-left: 0.35rem;
+    flex-shrink: 0;
 }
 .link-button {
     background: none;

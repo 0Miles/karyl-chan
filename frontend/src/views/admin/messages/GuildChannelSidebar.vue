@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { GuildChannelCategory, GuildSummary } from '../../../api/guilds';
+import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
+import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
+
+const unreadStore = useUnreadStore();
 
 defineProps<{
     guilds: GuildSummary[];
@@ -50,10 +54,14 @@ function isCategoryCollapsed(id: string | null): boolean {
                 <li
                     v-for="channel in cat.channels"
                     :key="channel.id"
-                    :class="{ active: channel.id === selectedId }"
+                    :class="{
+                        active: channel.id === selectedId,
+                        unread: unreadStore.getChannelCount(channel.id) > 0
+                    }"
                     @click="emit('select', channel.id)">
                     <span class="hash">#</span>
                     <span class="name">{{ channel.name }}</span>
+                    <UnreadPill class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
                 </li>
             </ul>
         </div>
@@ -138,6 +146,12 @@ function isCategoryCollapsed(id: string | null): boolean {
 }
 .channel-list li.active .name,
 .channel-list li:hover .name { color: var(--text); }
+.channel-list li.unread .name {
+    color: var(--text-strong);
+    font-weight: 700;
+}
+.channel-list li.unread .hash { color: var(--text-strong); }
+.channel-pill { margin-left: auto; }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }
 .loading { padding: 1rem; text-align: center; }
