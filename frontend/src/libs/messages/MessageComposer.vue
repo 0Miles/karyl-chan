@@ -47,7 +47,6 @@ const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
 const editorRef = ref<HTMLDivElement | null>(null);
-const pickerButton = ref<HTMLButtonElement | null>(null);
 
 const ctx = useMessageContext();
 const codec = ctx.composerTokenCodec ?? NOOP_TOKEN_CODEC;
@@ -352,20 +351,22 @@ onMounted(() => {
                 @keyup="refreshSuggestions"
                 @blur="cancelSuggestions"
             />
-            <button ref="pickerButton" type="button" class="icon-button" :disabled="disabled" @click="showPicker = !showPicker" :title="$t('composer.picker')" :aria-label="$t('composer.picker')">
-                <Icon icon="ic:round-emoji-emotions" width="20" height="20" />
-            </button>
+            <MediaPickerPopover
+                :visible="showPicker"
+                placement="top-end"
+                @update:visible="(v) => (showPicker = v)"
+                @select="onMediaSelect"
+            >
+                <template #trigger>
+                    <button type="button" class="icon-button" :disabled="disabled" :title="$t('composer.picker')" :aria-label="$t('composer.picker')">
+                        <Icon icon="ic:round-emoji-emotions" width="20" height="20" />
+                    </button>
+                </template>
+            </MediaPickerPopover>
             <button type="button" class="icon-button" :disabled="disabled" @click="send" :title="$t('composer.send')" :aria-label="$t('composer.send')">
                 <Icon icon="material-symbols:send-rounded" width="20" height="20" />
             </button>
         </div>
-        <MediaPickerPopover
-            :reference-el="pickerButton"
-            :visible="showPicker"
-            placement="top-end"
-            @update:visible="(v) => (showPicker = v)"
-            @select="onMediaSelect"
-        />
     </div>
 </template>
 

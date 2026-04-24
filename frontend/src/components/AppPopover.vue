@@ -5,37 +5,42 @@ import { usePopover, type Placement } from '../composables/use-popover';
 import { useDrawer, type DrawerPlacement } from '../composables/use-drawer';
 
 /**
- * Viewport-aware popover controlled by an external reference element.
- * Mirrors AppSelect's desktop/mobile split but doesn't bake in a
- * trigger — callers own the button and drive open state via v-model:open.
+ * Viewport-aware popover:
+ * - Desktop → popover anchored to the trigger via usePopover.
+ * - Mobile  → bottom drawer via useDrawer. Backdrop + panel z-index
+ *   raised to 2000/2001 so a popover opened from inside the mobile
+ *   hamburger nav (which sits at 1001) still renders on top.
  *
- * - Desktop → popover anchored to `referenceEl` via usePopover.
- * - Mobile  → bottom drawer via useDrawer. Backdrop + panel get a
- *   raised z-index so nested popovers (e.g., a picker opened from the
- *   hamburger nav) render on top of the app-shell drawer at 1001.
+ * Two ways to wire the trigger:
+ *   1. `#trigger` slot — the slot is wrapped in a `display: contents`
+ *      span so the wrapper doesn't affect the caller's layout. Clicks
+ *      anywhere on the wrapped content toggle open/close.
+ *   2. `referenceEl` prop — for cases where the trigger can't live
+ *      inside this component (e.g., per-row react buttons in a list
+ *      that share a single popover instance). No click wiring; the
+ *      caller drives open state directly.
  *
- * Usage:
- *   <button ref="triggerEl" @click="open = !open">…</button>
- *   <AppPopover :reference-el="triggerEl" v-model:open="open">
- *       …content…
- *   </AppPopover>
+ * If both are provided, `referenceEl` wins.
+ *
+ * Open state is `v-model:open`; if the caller doesn't bind, the
+ * component manages it internally.
  */
 const props = withDefaults(defineProps<{
-    /** Element the desktop popover anchors to. Ignored in drawer mode. */
-    referenceEl: HTMLElement | null;
-    /** Controlled open state; two-way via v-model:open. */
-    open: boolean;
+    /** External reference element. Overrides the #trigger slot if set. */
+    referenceEl?: HTMLElement | null;
+    /** Controlled open state; two-way via v-model:open. Optional. */
+    open?: boolean;
     placement?: Placement;
-    /** [skidding, distance] from the reference (desktop popover only). */
     offset?: [number, number];
     drawerPlacement?: DrawerPlacement;
-    /** Optional title rendered at the top of the mobile drawer. */
+    /** Optional heading rendered at the top of the mobile drawer. */
     drawerTitle?: string;
     closeOnClickOutside?: boolean;
     closeOnEscape?: boolean;
     /** Close after any click inside the content (menu items etc). */
     closeOnContentClick?: boolean;
 }>(), {
+    referenceEl: null,
     placement: 'bottom-start',
     offset: () => [0, 8],
     drawerPlacement: 'bottom',
@@ -50,31 +55,44 @@ const emit = defineEmits<{
 
 const { isMobile } = useBreakpoint();
 
+const internalOpen = ref(false);
+const isOpen = computed<boolean>({
+    get: () => props.open ?? internalOpen.value,
+    set: (v) => {
+        internalOpen.value = v;
+        emit('update:open', v);
+    }
+});
+
+const triggerWrapRef = ref<HTMLElement | null>(null);
 const contentEl = ref<HTMLElement | null>(null);
-// Wrap the prop so usePopover's internal watcher reruns when callers
-// swap the reference (e.g., a per-row button that remounts on edit).
-const referenceRef = computed(() => props.referenceEl);
 
-// Desktop popover visibility — ref (not computed) because usePopover
-// toggles it itself on self-close (Escape / click-outside) and we need
-// to surface that back to the caller via update:open.
+// Resolve the popover's anchor: caller's external prop wins; otherwise
+// take the first real child of the slot wrapper. The wrapper itself uses
+// display: contents, which means its getBoundingClientRect is unreliable
+// (some browsers return zero) — reading firstElementChild gives Popper
+// a real laid-out element to position against.
+const referenceEl = computed<HTMLElement | null>(() => {
+    if (props.referenceEl) return props.referenceEl;
+    const wrap = triggerWrapRef.value;
+    if (!wrap) return null;
+    return (wrap.firstElementChild as HTMLElement | null) ?? wrap;
+});
+
+// Desktop popover visibility — ref, not computed, because usePopover
+// flips it on self-close (Escape / click-outside) and we surface those
+// back to the caller via update:open.
 const popoverVisible = ref(false);
-watch(() => props.open, (v) => { popoverVisible.value = !isMobile.value && v; });
-watch(isMobile, (mobile) => {
-    popoverVisible.value = !mobile && props.open;
-});
+watch(isOpen, (v) => { popoverVisible.value = !isMobile.value && v; });
+watch(isMobile, (mobile) => { popoverVisible.value = !mobile && isOpen.value; });
 watch(popoverVisible, (v) => {
-    // Only fire when the popover genuinely transitioned — caller already
-    // knows about its own state changes.
-    const expected = !isMobile.value && props.open;
-    if (v !== expected) emit('update:open', v);
+    const expected = !isMobile.value && isOpen.value;
+    if (v !== expected) isOpen.value = v;
 });
 
-// Mobile drawer visibility — computed, onClose handles the transition
-// back to the caller's state.
-const drawerVisible = computed(() => isMobile.value && props.open);
+const drawerVisible = computed(() => isMobile.value && isOpen.value);
 
-usePopover(referenceRef, contentEl, {
+usePopover(referenceEl, contentEl, {
     placement: props.placement,
     trigger: 'manual',
     offset: props.offset,
@@ -89,33 +107,44 @@ const { placement: drawerPlace, backdropClass, panelClass, backdropTransition, p
     visible: drawerVisible,
     placement: props.drawerPlacement,
     closeOnEscape: props.closeOnEscape,
-    onClose: () => emit('update:open', false)
+    onClose: () => { isOpen.value = false; }
 });
 
-function close() { emit('update:open', false); }
+function toggle() { isOpen.value = !isOpen.value; }
+function open() { isOpen.value = true; }
+function close() { isOpen.value = false; }
 function onContentClick() {
     if (props.closeOnContentClick) close();
 }
 </script>
 
 <template>
-    <!-- Desktop popover content. Always rendered so usePopover finds a
-         stable ref on mount; invisible on mobile because popoverVisible
-         stays false there. That means the slot mounts once on mobile too
-         (next to the trigger, display: none) — acceptable for the two
-         menu-shaped consumers we have today. -->
+    <!-- Trigger wrapper. display: contents makes the span layout-invisible
+         so the slot children sit directly in the caller's flex/grid flow.
+         The span still exists in the event tree, so a click anywhere inside
+         bubbles up and toggles the popover. Suppressed entirely when the
+         caller supplies an external `referenceEl`. -->
+    <span
+        v-if="!referenceEl"
+        ref="triggerWrapRef"
+        class="app-popover-trigger"
+        @click="toggle"
+    >
+        <slot name="trigger" :is-open="isOpen" :toggle="toggle" :open="open" :close="close" />
+    </span>
+
+    <!-- Desktop popover content. Always rendered so usePopover can bind on
+         mount; visibility gated by popoverVisible. -->
     <div
         ref="contentEl"
         class="app-popover-content"
         style="display: none"
         @click="onContentClick"
     >
-        <slot />
+        <slot :close="close" :is-open="isOpen" />
     </div>
 
-    <!-- Mobile drawer. z-index is raised above any parent drawer the
-         content might have been opened from (e.g., the hamburger nav at
-         1001). -->
+    <!-- Mobile drawer. -->
     <Teleport v-if="isMobile" to="body">
         <Transition :name="backdropTransition">
             <div
@@ -137,7 +166,7 @@ function onContentClick() {
             >
                 <header v-if="drawerTitle" class="app-popover-drawer-title">{{ drawerTitle }}</header>
                 <div class="app-popover-drawer-body">
-                    <slot />
+                    <slot :close="close" :is-open="isOpen" />
                 </div>
             </div>
         </Transition>
@@ -145,6 +174,9 @@ function onContentClick() {
 </template>
 
 <style scoped>
+.app-popover-trigger {
+    display: contents;
+}
 .app-popover-content {
     z-index: 1000;
 }

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { GuildSummary } from '../../../api/guilds';
-import AppSelect from '../../../components/AppSelect.vue';
+import AppPopover from '../../../components/AppPopover.vue';
 
 const props = defineProps<{
     mode: string;
@@ -27,13 +27,13 @@ function select(mode: string) {
 </script>
 
 <template>
-    <AppSelect
+    <AppPopover
         v-model:open="isOpen"
-        class="mode-select"
         :drawer-title="t('messages.modePickerTitle')"
+        :close-on-content-click="true"
     >
-        <template #trigger="{ toggle, isOpen: open }">
-            <button class="trigger" type="button" @click="toggle">
+        <template #trigger="{ isOpen: open }">
+            <button class="trigger" type="button">
                 <img
                     v-if="selectedGuild?.iconUrl"
                     :src="selectedGuild.iconUrl"
@@ -65,18 +65,15 @@ function select(mode: string) {
                 <span class="label">{{ g.name }}</span>
             </li>
         </ul>
-    </AppSelect>
+    </AppPopover>
 </template>
 
 <style scoped>
-.mode-select {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-}
-
+/* AppPopover's trigger wrapper is display: contents, so the button
+   below ends up as a direct flex child of the caller's container
+   (sidebar-header). flex: 1 makes it fill the available width. */
 .trigger {
-    width: 100%;
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 0.5rem;

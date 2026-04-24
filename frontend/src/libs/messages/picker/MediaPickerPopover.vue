@@ -8,18 +8,28 @@ import type { Placement } from '../../../composables/use-popover';
 type MediaPickerInstance = InstanceType<typeof MediaPicker>;
 
 /**
- * Viewport-aware wrapper around MediaPicker, built on AppPopover:
- * - Desktop → popover anchored to the caller's trigger button.
- * - Mobile  → bottom drawer (AppPopover swaps presentations internally).
+ * Viewport-aware emoji/sticker picker built on AppPopover. Two ways to
+ * wire the trigger:
  *
- * Desktop popover keeps the picker mounted across show/hide, so we
- * flush recents explicitly on close. The mobile drawer unmounts the
- * picker when it closes, which already runs MediaPicker.onBeforeUnmount
- * → flushRecents for us.
+ *   1. Pass a button via the `#trigger` slot:
+ *        <MediaPickerPopover v-model:visible="showPicker">
+ *            <template #trigger>
+ *                <button>…</button>
+ *            </template>
+ *        </MediaPickerPopover>
+ *
+ *   2. Pass a pre-existing element ref via `referenceEl` — useful when
+ *      the trigger can't be co-located with the picker (e.g., one
+ *      picker shared across many react buttons in a message list).
+ *
+ * The desktop popover keeps MediaPicker mounted across show/hide, so
+ * recents are flushed explicitly on close. The mobile drawer unmounts
+ * the picker with itself, and MediaPicker.onBeforeUnmount already
+ * handles that path.
  */
 const props = defineProps<{
-    /** Button element the desktop popover anchors to. */
-    referenceEl: HTMLElement | null;
+    /** External anchor — used when the trigger lives outside this component. */
+    referenceEl?: HTMLElement | null;
     /** Two-way via v-model:visible. */
     visible: boolean;
     placement?: Placement;
@@ -33,7 +43,7 @@ const emit = defineEmits<{
 
 const { isMobile } = useBreakpoint();
 
-const desktopPickerRef = ref<MediaPickerInstance | null>(null);
+const pickerRef = ref<MediaPickerInstance | null>(null);
 
 const open = computed<boolean>({
     get: () => props.visible,
@@ -41,10 +51,7 @@ const open = computed<boolean>({
 });
 
 watch(() => props.visible, (v, prev) => {
-    // The desktop popover keeps the picker mounted across open/close, so
-    // recents need to be flushed explicitly. On mobile the picker unmounts
-    // with the drawer and MediaPicker's own onBeforeUnmount handles it.
-    if (!v && prev && !isMobile.value) desktopPickerRef.value?.flushRecents();
+    if (!v && prev && !isMobile.value) pickerRef.value?.flushRecents();
 });
 
 function handleClose() {
@@ -55,12 +62,15 @@ function handleClose() {
 <template>
     <AppPopover
         v-model:open="open"
-        :reference-el="referenceEl"
+        :reference-el="referenceEl ?? null"
         :placement="placement ?? 'top-end'"
         :offset="offset ?? [0, 8]"
     >
+        <template #trigger>
+            <slot name="trigger" />
+        </template>
         <MediaPicker
-            ref="desktopPickerRef"
+            ref="pickerRef"
             @select="(s) => emit('select', s)"
             @close="handleClose"
         />
