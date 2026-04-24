@@ -117,6 +117,10 @@
     },
     "admin": {
         "title": "后台权限",
+        "accessDenied": {
+            "title": "无访问权限",
+            "body": "你的身份组没有 admin 权限词条,请向现有管理员申请授予。"
+        },
         "tabs": {
             "users": "用户",
             "roles": "身份组"

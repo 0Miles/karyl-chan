@@ -117,6 +117,10 @@
     },
     "admin": {
         "title": "Admin access",
+        "accessDenied": {
+            "title": "Access denied",
+            "body": "Your role doesn't carry the admin capability. Ask an existing admin to grant it."
+        },
         "tabs": {
             "users": "Users",
             "roles": "Roles"

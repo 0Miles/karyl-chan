@@ -32,6 +32,10 @@ const displayName = computed(() =>
     ?? currentUser.user?.profile?.username
     ?? t('admin.users.unknownProfile')
 );
+// Hide the "Admin access" nav entry for users whose capability set
+// doesn't include admin — the page itself renders a 403 anyway, but
+// pointing at a door you can't open is bad UX.
+const canOpenAdminPanel = computed(() => currentUser.user?.capabilities.includes('admin') ?? false);
 const avatarUrl = computed(() => currentUser.user?.profile?.avatarUrl ?? null);
 const avatarInitial = computed(() => {
     const name = currentUser.user?.profile?.globalName
@@ -82,7 +86,7 @@ function navigate() {
                     <RouterLink to="/admin">{{ $t('app.nav.dashboard') }}</RouterLink>
                     <RouterLink to="/admin/messages">{{ $t('app.nav.messages') }}</RouterLink>
                     <RouterLink to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
-                    <RouterLink to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
+                    <RouterLink v-if="canOpenAdminPanel" to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <AppMenu placement="bottom-end" :offset="[0, 10]">
                         <template #trigger>
                             <button
@@ -167,7 +171,7 @@ function navigate() {
                         <RouterLink to="/admin" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
                         <RouterLink to="/admin/messages" @click="navigate">{{ $t('app.nav.messages') }}</RouterLink>
                         <RouterLink to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
-                        <RouterLink to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
+                        <RouterLink v-if="canOpenAdminPanel" to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>
                     </template>

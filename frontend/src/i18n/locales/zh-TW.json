@@ -117,6 +117,10 @@
     },
     "admin": {
         "title": "後台權限",
+        "accessDenied": {
+            "title": "無存取權限",
+            "body": "你的身分組沒有 admin 權限詞條,請向現有管理員申請授予。"
+        },
         "tabs": {
             "users": "使用者",
             "roles": "身分組"

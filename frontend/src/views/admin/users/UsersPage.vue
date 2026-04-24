@@ -23,6 +23,7 @@ const roles = ref<AdminRole[]>([]);
 const users = ref<AdminUserList>({ ownerId: null, users: [] });
 const loading = ref(true);
 const error = ref<string | null>(null);
+const accessDenied = ref(false);
 
 async function refresh() {
     loading.value = true;
@@ -38,12 +39,14 @@ async function refresh() {
         roles.value = roleList;
         users.value = userList;
         error.value = null;
+        accessDenied.value = false;
     } catch (err) {
         if (err instanceof ApiError) {
             if (err.status === 401) { router.replace({ name: 'auth' }); return; }
-            // 403 is a "valid" terminal state for users without the admin
-            // capability — keep them here with a readable message rather than
-            // redirecting elsewhere.
+            // 403 is a terminal state for users without the admin
+            // capability — render a friendly "no access" view instead
+            // of a raw error banner.
+            if (err.status === 403) { accessDenied.value = true; return; }
         }
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
@@ -78,6 +81,10 @@ onMounted(refresh);
         </nav>
 
         <p v-if="loading" class="muted">{{ $t('common.loading') }}</p>
+        <div v-else-if="accessDenied" class="access-denied">
+            <h2>{{ $t('admin.accessDenied.title') }}</h2>
+            <p class="muted">{{ $t('admin.accessDenied.body') }}</p>
+        </div>
         <p v-else-if="error" class="error">{{ error }}</p>
         <template v-else>
             <UsersPanel
@@ -127,4 +134,9 @@ onMounted(refresh);
     border: 1px solid rgba(239, 68, 68, 0.35);
     border-radius: 4px;
 }
+.access-denied {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+.access-denied h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
 </style>
