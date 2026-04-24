@@ -57,7 +57,13 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     const authEnabled = !!ownerId;
 
     if (!authEnabled) {
-        server.log.warn('BOT_OWNER_ID is not set — /api endpoints are UNAUTHENTICATED');
+        // Refuse to boot in production rather than silently serve admin APIs
+        // to anyone. Dev and tests still get the permissive path with a
+        // prominent warning so local work isn't blocked.
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error('BOT_OWNER_ID must be set in production — refusing to start an unauthenticated admin API');
+        }
+        server.log.warn('BOT_OWNER_ID is not set — /api endpoints are UNAUTHENTICATED (dev only)');
     }
 
     server.addHook('onRequest', async (request, reply) => {
