@@ -42,6 +42,7 @@ function isEventStreamPath(url: string): boolean {
 }
 import { registerDmRoutes } from './dm-routes.js';
 import { registerDiscordRoutes } from './discord-routes.js';
+import { avatarUrlFor } from './message-mapper.js';
 import { registerGuildsRoutes } from './guilds-routes.js';
 import { registerGuildChannelRoutes } from './guild-channel-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
@@ -265,10 +266,14 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     if (bot) {
         server.get('/api/bot/status', async () => {
             const ready = bot.isReady();
+            const user = ready ? bot.user : null;
             return {
                 ready,
-                userTag: ready ? bot.user?.tag ?? null : null,
-                userId: ready ? bot.user?.id ?? null : null,
+                userTag: user?.tag ?? null,
+                userId: user?.id ?? null,
+                username: user?.username ?? null,
+                globalName: user?.globalName ?? null,
+                avatarUrl: user ? avatarUrlFor(user.id, user.avatar) : null,
                 guildCount: bot.guilds.cache.size,
                 uptimeMs: bot.uptime ?? 0
             };

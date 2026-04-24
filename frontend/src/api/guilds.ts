@@ -92,6 +92,35 @@ export async function listGuildTextChannels(guildId: string): Promise<GuildChann
     return body.categories;
 }
 
+export interface GuildRoleSummary {
+    id: string;
+    name: string;
+    color: string | null;
+    position: number;
+    mentionable: boolean;
+}
+
+export interface GuildChannelMember {
+    id: string;
+    username: string;
+    globalName: string | null;
+    nickname: string | null;
+    avatarUrl: string | null;
+    bot: boolean;
+}
+
+export async function listGuildRoles(guildId: string): Promise<GuildRoleSummary[]> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/roles`);
+    const body = await jsonOrThrow<{ roles: GuildRoleSummary[] }>(response);
+    return body.roles;
+}
+
+export async function listGuildChannelMembers(guildId: string, channelId: string): Promise<GuildChannelMember[]> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/members`);
+    const body = await jsonOrThrow<{ members: GuildChannelMember[] }>(response);
+    return body.members;
+}
+
 export async function getGuildMessages(
     guildId: string,
     channelId: string,

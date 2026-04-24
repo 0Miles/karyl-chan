@@ -26,7 +26,7 @@ const emit = defineEmits<{
             @mouseenter="emit('hover', idx)"
         >
             <img v-if="item.iconUrl" :src="item.iconUrl" alt="" class="icon" />
-            <span class="label">{{ item.label }}</span>
+            <span class="label" :style="item.color ? { color: item.color } : undefined">{{ item.label }}</span>
             <span v-if="item.secondary" class="secondary">{{ item.secondary }}</span>
         </button>
     </div>

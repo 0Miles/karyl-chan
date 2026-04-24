@@ -1,8 +1,9 @@
 import { computed, onMounted, provide, ref, watch, type Ref } from 'vue';
-import { MessageContextKey } from '../../libs/messages';
+import { MessageContextKey, type ComposerSuggestionItem } from '../../libs/messages';
 import { createDiscordMessageContext } from './createMessageContext';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
+import { loadLastGuildChannel, saveLastGuildChannel } from './last-channel';
 import { useBotStore } from './stores/botStore';
 import { useGuildChannelStore } from './stores/guildChannelStore';
 
@@ -49,6 +50,12 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         channels.value.find(c => c.id === selectedChannelId.value) ?? null
     );
 
+    function matchesQuery(query: string, ...candidates: (string | null | undefined)[]): boolean {
+        if (!query) return true;
+        const q = query.toLowerCase();
+        return candidates.some(c => !!c && c.toLowerCase().includes(q));
+    }
+
     const messageContext = createDiscordMessageContext({
         botUserId,
         guildId,
@@ -57,7 +64,14 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         resolveUser(id) {
             if (botUserId.value === id) {
                 const name = botDisplayName();
-                return name ? { name } : null;
+                if (name) return { name };
+            }
+            const gid = guildId.value;
+            const channelId = selectedChannelId.value;
+            if (gid && channelId) {
+                const members = guildStore.getChannelMembers(gid, channelId);
+                const hit = members?.find(m => m.id === id);
+                if (hit) return { name: hit.nickname ?? hit.globalName ?? hit.username };
             }
             for (const message of chat.messages.value) {
                 if (message.author.id === id) {
@@ -66,7 +80,61 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
             }
             return null;
         },
-        suggestionProviders: []
+        resolveRole(id) {
+            const gid = guildId.value;
+            if (!gid) return null;
+            const role = guildStore.getRoles(gid)?.find(r => r.id === id);
+            return role ? { name: role.name, color: role.color } : null;
+        },
+        suggestionProviders: [
+            {
+                triggers: ['@'],
+                async suggest({ query }) {
+                    const gid = guildId.value;
+                    const channelId = selectedChannelId.value;
+                    if (!gid || !channelId) return [];
+                    const [roles, members] = await Promise.all([
+                        guildStore.ensureRoles(gid).catch(() => []),
+                        guildStore.ensureChannelMembers(gid, channelId).catch(() => [])
+                    ]);
+                    if (gid !== guildId.value || channelId !== selectedChannelId.value) return [];
+                    const items: ComposerSuggestionItem[] = [];
+                    const MEMBER_MAX = 20;
+                    // With no typed query we only surface the top 3 roles so
+                    // the menu doesn't drown the members list. Once the user
+                    // filters, every matching role is eligible — the popover
+                    // is scrollable, so we let the query do the narrowing.
+                    const ROLE_MAX = query ? 10 : 3;
+                    for (const m of members) {
+                        if (items.length >= MEMBER_MAX) break;
+                        const display = m.nickname ?? m.globalName ?? m.username;
+                        if (!matchesQuery(query, m.nickname, m.globalName, m.username, m.id)) continue;
+                        items.push({
+                            key: `user:${m.id}`,
+                            label: display,
+                            secondary: m.username !== display ? `@${m.username}` : null,
+                            iconUrl: m.avatarUrl,
+                            insert: `<@${m.id}>`
+                        });
+                    }
+                    let roleCount = 0;
+                    for (const role of roles) {
+                        if (roleCount >= ROLE_MAX) break;
+                        if (!matchesQuery(query, role.name)) continue;
+                        items.push({
+                            key: `role:${role.id}`,
+                            label: `@${role.name}`,
+                            secondary: 'role',
+                            iconUrl: null,
+                            color: role.color,
+                            insert: `<@&${role.id}>`
+                        });
+                        roleCount++;
+                    }
+                    return items;
+                }
+            }
+        ]
     });
     provide(MessageContextKey, messageContext);
 
@@ -74,8 +142,11 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         try {
             await guildStore.ensureChannels(id);
             if (autoSelect && !selectedChannelId.value && channels.value.length > 0) {
-                selectedChannelId.value = channels.value[0].id;
+                const remembered = loadLastGuildChannel(id);
+                const match = remembered ? channels.value.find(c => c.id === remembered) : null;
+                selectedChannelId.value = match ? match.id : channels.value[0].id;
             }
+            guildStore.ensureRoles(id).catch(() => { /* best-effort mention cache */ });
         } catch (err) {
             bailOnAuthError(err);
         }
@@ -84,6 +155,16 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     watch(guildId, async (id) => {
         selectedChannelId.value = null;
         if (id) await loadGuild(id);
+    });
+
+    // Persist the active channel and prefetch mention members. Separated from
+    // the guild watcher so manual user selections within the same guild still
+    // update both the "last channel" record and the mention cache.
+    watch(selectedChannelId, (channelId) => {
+        const gid = guildId.value;
+        if (!gid || !channelId) return;
+        saveLastGuildChannel(gid, channelId);
+        guildStore.ensureChannelMembers(gid, channelId).catch(() => { /* best-effort */ });
     });
 
     onMounted(async () => {

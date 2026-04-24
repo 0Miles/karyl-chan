@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { ChannelType, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
-import { toApiMessage } from './message-mapper.js';
+import { avatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 
 export interface GuildChannelRoutesOptions {
@@ -96,6 +96,66 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             }
 
             return { categories };
+        }
+    );
+
+    // Roles available for @-mentioning, sorted by position (highest first).
+    // Includes @everyone filter (role id === guild id) and skips managed
+    // integration roles which users generally can't mention meaningfully.
+    server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/roles',
+        async (request, reply) => {
+            const { guildId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const roles = [...guild.roles.cache.values()]
+                .filter(r => r.id !== guildId)
+                .sort((a, b) => b.position - a.position)
+                .map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
+                    position: r.position,
+                    mentionable: r.mentionable
+                }));
+            return { roles };
+        }
+    );
+
+    // Channel members that can @-mention — users holding ViewChannel on the
+    // target channel. `guild.members.cache` only contains members the bot
+    // has already observed via events, so we fetch the full roster once.
+    // Discord.js dedupes concurrent fetches and reuses the cache on
+    // subsequent calls, so the cost is a single gateway round-trip the
+    // first time a guild's mention list is opened.
+    server.get<{ Params: { guildId: string; channelId: string } }>(
+        '/api/guilds/:guildId/text-channels/:channelId/members',
+        async (request, reply) => {
+            const { guildId, channelId } = request.params;
+            const channel = fetchTextChannel(bot, guildId, channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
+            const guild = channel.guild;
+            if (guild.members.cache.size < guild.memberCount) {
+                try {
+                    await guild.members.fetch();
+                } catch (err) {
+                    // Most likely GuildMembers intent unavailable for this
+                    // guild; fall through with whatever is cached.
+                    request.log.warn({ err, guildId }, 'guild.members.fetch failed');
+                }
+            }
+            const members = [...guild.members.cache.values()]
+                .filter(m => m.permissionsIn(channel).has(PermissionFlagsBits.ViewChannel))
+                .map(m => ({
+                    id: m.id,
+                    username: m.user.username,
+                    globalName: m.user.globalName ?? null,
+                    nickname: m.nickname ?? null,
+                    avatarUrl: avatarUrlFor(m.user.id, m.user.avatar, 64),
+                    bot: m.user.bot
+                }))
+                .sort((a, b) => (a.nickname ?? a.globalName ?? a.username).localeCompare(b.nickname ?? b.globalName ?? b.username));
+            return { members };
         }
     );
 

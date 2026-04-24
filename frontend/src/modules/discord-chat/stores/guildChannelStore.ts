@@ -5,11 +5,15 @@ import {
     deleteGuildMessage as apiDeleteMessage,
     editGuildMessage as apiEditMessage,
     getGuildMessages as apiGetMessages,
+    listGuildChannelMembers as apiListChannelMembers,
+    listGuildRoles as apiListRoles,
     listGuildTextChannels as apiListChannels,
     removeGuildReaction as apiRemoveReaction,
     sendGuildMessage as apiSendMessage,
     subscribeGuildEvents,
     type GuildChannelCategory,
+    type GuildChannelMember,
+    type GuildRoleSummary,
 } from '../../../api/guilds';
 import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore } from './messageCacheStore';
@@ -19,6 +23,10 @@ interface GuildEntry {
     loading: boolean;
     loaded: boolean;
     error: string | null;
+    roles: GuildRoleSummary[] | null;
+    rolesPending: Promise<GuildRoleSummary[]> | null;
+    channelMembers: Record<string, GuildChannelMember[]>;
+    channelMembersPending: Record<string, Promise<GuildChannelMember[]>>;
 }
 
 export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
@@ -28,7 +36,16 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
 
     function getOrCreate(guildId: string): GuildEntry {
         if (!guilds[guildId]) {
-            guilds[guildId] = { categories: [], loading: false, loaded: false, error: null };
+            guilds[guildId] = {
+                categories: [],
+                loading: false,
+                loaded: false,
+                error: null,
+                roles: null,
+                rolesPending: null,
+                channelMembers: {},
+                channelMembersPending: {}
+            };
         }
         return guilds[guildId];
     }
@@ -112,6 +129,44 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         return apiRemoveReaction(guildId, channelId, messageId, emoji);
     }
 
+    // Mentionables: lazy-fetched, deduped via pending promises so concurrent
+    // suggestion calls don't spam the API. Cache lives until the page reloads —
+    // members/roles rarely change within a session and a stale list is a better
+    // UX than a spinner on every `@`.
+    async function ensureRoles(guildId: string): Promise<GuildRoleSummary[]> {
+        const entry = getOrCreate(guildId);
+        if (entry.roles) return entry.roles;
+        if (entry.rolesPending) return entry.rolesPending;
+        const promise = apiListRoles(guildId).then(roles => {
+            entry.roles = roles;
+            return roles;
+        }).finally(() => { entry.rolesPending = null; });
+        entry.rolesPending = promise;
+        return promise;
+    }
+
+    async function ensureChannelMembers(guildId: string, channelId: string): Promise<GuildChannelMember[]> {
+        const entry = getOrCreate(guildId);
+        const cached = entry.channelMembers[channelId];
+        if (cached) return cached;
+        const pending = entry.channelMembersPending[channelId];
+        if (pending) return pending;
+        const promise = apiListChannelMembers(guildId, channelId).then(members => {
+            entry.channelMembers[channelId] = members;
+            return members;
+        }).finally(() => { delete entry.channelMembersPending[channelId]; });
+        entry.channelMembersPending[channelId] = promise;
+        return promise;
+    }
+
+    function getRoles(guildId: string): GuildRoleSummary[] | null {
+        return guilds[guildId]?.roles ?? null;
+    }
+
+    function getChannelMembers(guildId: string, channelId: string): GuildChannelMember[] | null {
+        return guilds[guildId]?.channelMembers[channelId] ?? null;
+    }
+
     return {
         guilds,
         getCategories,
@@ -126,5 +181,9 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         deleteMessage,
         addReaction,
         removeReaction,
+        ensureRoles,
+        ensureChannelMembers,
+        getRoles,
+        getChannelMembers,
     };
 });

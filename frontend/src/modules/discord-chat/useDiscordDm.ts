@@ -1,8 +1,9 @@
-import { computed, onMounted, provide, ref } from 'vue';
+import { computed, onMounted, provide, ref, watch } from 'vue';
 import { MessageContextKey } from '../../libs/messages';
 import { createDiscordMessageContext } from './createMessageContext';
 import { createAuthErrorBail } from './useAuthErrorBail';
 import { useDiscordChat } from './useDiscordChat';
+import { loadLastDmChannel, saveLastDmChannel } from './last-channel';
 import { useBotStore } from './stores/botStore';
 import { useDmStore } from './stores/dmStore';
 
@@ -85,6 +86,18 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
                             insert: `<@${recipient.id}>`
                         });
                     }
+                    const selfId = botUserId.value;
+                    const selfUsername = botStore.username;
+                    const selfName = botDisplayName() ?? selfUsername;
+                    if (selfId && selfName && mentionMatches(query, selfName, selfUsername, selfId)) {
+                        items.push({
+                            key: selfId,
+                            label: selfName,
+                            secondary: selfUsername && selfUsername !== selfName ? `@${selfUsername}` : null,
+                            iconUrl: botStore.avatarUrl,
+                            insert: `<@${selfId}>`
+                        });
+                    }
                     return items;
                 }
             }
@@ -119,13 +132,17 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         }
     }
 
+    watch(selectedChannelId, (id) => { if (id) saveLastDmChannel(id); });
+
     onMounted(async () => {
         botStore.init();
         dmStore.startSSE();
         try {
             await dmStore.ensureChannels();
             if (!selectedChannelId.value && dmStore.channels.length > 0) {
-                selectedChannelId.value = dmStore.channels[0].id;
+                const remembered = loadLastDmChannel();
+                const match = remembered ? dmStore.channels.find(c => c.id === remembered) : null;
+                selectedChannelId.value = match ? match.id : dmStore.channels[0].id;
             }
         } catch (err) {
             bailOnAuthError(err);

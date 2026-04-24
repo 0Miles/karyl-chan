@@ -114,6 +114,8 @@ export interface ComposerSuggestionItem {
     label: string;
     secondary?: string | null;
     iconUrl?: string | null;
+    /** Optional label color — used e.g. for role mentions that carry a role color. */
+    color?: string | null;
     /** Text inserted in place of the trigger range when the user picks this item. */
     insert: string;
 }

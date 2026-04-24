@@ -8,6 +8,9 @@ export interface BotStatus {
     ready: boolean;
     userTag: string | null;
     userId: string | null;
+    username: string | null;
+    globalName: string | null;
+    avatarUrl: string | null;
     guildCount: number;
     uptimeMs: number;
 }
