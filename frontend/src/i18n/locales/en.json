@@ -156,7 +156,10 @@
             "saveDescription": "Save",
             "ownerOnlyCapability": "admin"
         },
-        "capabilitiesCatalog": "Known capability tokens"
+        "capabilitiesCatalog": "Known capability tokens",
+        "capabilityDesc": {
+            "admin": "Full admin access (bypasses every other capability check)"
+        }
     },
     "picker": {
         "searchPlaceholder": "Search emoji & stickers…",

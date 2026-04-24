@@ -156,7 +156,10 @@
             "saveDescription": "儲存",
             "ownerOnlyCapability": "admin"
         },
-        "capabilitiesCatalog": "可用權限詞條"
+        "capabilitiesCatalog": "可用權限詞條",
+        "capabilityDesc": {
+            "admin": "完整後台權限(可無視其他所有權限檢查)"
+        }
     },
     "picker": {
         "searchPlaceholder": "搜尋表情與貼圖…",

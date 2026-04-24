@@ -4,10 +4,8 @@ import { useRouter } from 'vue-router';
 import { DashboardLayout } from '../../../layouts';
 import { ApiError } from '../../../api/client';
 import {
-    listAdminCapabilities,
     listAdminRoles,
     listAdminUsers,
-    type AdminCapabilityDef,
     type AdminRole,
     type AdminUserList
 } from '../../../api/admin';
@@ -19,7 +17,6 @@ const router = useRouter();
 type Tab = 'users' | 'roles';
 const activeTab = ref<Tab>('users');
 
-const capabilities = ref<AdminCapabilityDef[]>([]);
 const roles = ref<AdminRole[]>([]);
 const users = ref<AdminUserList>({ ownerId: null, users: [] });
 const loading = ref(true);
@@ -28,12 +25,10 @@ const error = ref<string | null>(null);
 async function refresh() {
     loading.value = true;
     try {
-        const [caps, roleList, userList] = await Promise.all([
-            listAdminCapabilities(),
+        const [roleList, userList] = await Promise.all([
             listAdminRoles(),
             listAdminUsers()
         ]);
-        capabilities.value = caps;
         roles.value = roleList;
         users.value = userList;
         error.value = null;
@@ -89,7 +84,6 @@ onMounted(refresh);
             <RolesPanel
                 v-else
                 :roles="roles"
-                :capabilities="capabilities"
                 @changed="refresh"
                 @error="setError"
             />

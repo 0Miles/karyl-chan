@@ -1,21 +1,38 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
 import {
     deleteAdminRole,
     grantRoleCapability,
     patchAdminRole,
     revokeRoleCapability,
     upsertAdminRole,
-    type AdminCapabilityDef,
     type AdminRole
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
+import { ADMIN_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
 
 const props = defineProps<{
     roles: AdminRole[];
-    capabilities: AdminCapabilityDef[];
 }>();
+
+const { t } = useI18n();
+
+interface AdminCapabilityDef {
+    key: string;
+    description: string;
+}
+
+// Catalog is a static constant shipped with the frontend; descriptions
+// come from i18n so they match the active locale. Backend is the
+// authority for validation — see src/permission/admin-capabilities.ts.
+const capabilities = computed<AdminCapabilityDef[]>(() =>
+    ADMIN_CAPABILITY_KEYS.map(key => ({
+        key,
+        description: t(`admin.capabilityDesc.${key}`)
+    }))
+);
 
 const emit = defineEmits<{
     (e: 'changed'): void;
@@ -42,10 +59,10 @@ function capPickFor(role: AdminRole): string {
 
 function availableCapsFor(role: AdminRole): AdminCapabilityDef[] {
     const granted = new Set(role.capabilities);
-    return props.capabilities.filter(c => !granted.has(c.key));
+    return capabilities.value.filter(c => !granted.has(c.key));
 }
 
-const knownCapabilities = computed(() => props.capabilities);
+const knownCapabilities = computed(() => capabilities.value);
 
 function handleErr(err: unknown) {
     emit('error', err instanceof ApiError ? err.message : String(err));

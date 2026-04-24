@@ -156,7 +156,10 @@
             "saveDescription": "保存",
             "ownerOnlyCapability": "admin"
         },
-        "capabilitiesCatalog": "可用权限词条"
+        "capabilitiesCatalog": "可用权限词条",
+        "capabilityDesc": {
+            "admin": "完整后台权限(可无视其他所有权限检查)"
+        }
     },
     "picker": {
         "searchPlaceholder": "搜索表情与贴纸…",

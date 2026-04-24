@@ -1,8 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Client } from 'discordx';
 import {
-    ADMIN_CAPABILITIES,
-    ADMIN_CAPABILITY_KEYS,
     addAuthorizedUser,
     createAdminRole,
     deleteAdminRole,
@@ -97,19 +95,6 @@ export async function registerAdminManagementRoutes(
             note: row?.note ?? null,
             profile,
             capabilities: [...(request.authCapabilities ?? new Set())]
-        };
-    });
-
-    // Catalog of capability tokens the app understands. Clients pull this
-    // to render the "grant capability" dropdown so adding a new token in
-    // code immediately surfaces in the UI.
-    server.get('/api/admin/capabilities', async (request, reply) => {
-        if (!requireAdmin(request, reply)) return;
-        return {
-            capabilities: ADMIN_CAPABILITY_KEYS.map(key => ({
-                key,
-                description: ADMIN_CAPABILITIES[key]
-            }))
         };
     });
 

@@ -1,10 +1,5 @@
 import { ApiError, authedFetch } from './client';
 
-export interface AdminCapabilityDef {
-    key: string;
-    description: string;
-}
-
 export interface AdminRole {
     name: string;
     description: string | null;
@@ -56,12 +51,6 @@ async function json<T>(response: Response): Promise<T> {
 export async function getCurrentUser(): Promise<CurrentUser> {
     const response = await authedFetch('/api/admin/me');
     return json<CurrentUser>(response);
-}
-
-export async function listAdminCapabilities(): Promise<AdminCapabilityDef[]> {
-    const response = await authedFetch('/api/admin/capabilities');
-    const body = await json<{ capabilities: AdminCapabilityDef[] }>(response);
-    return body.capabilities;
 }
 
 export async function listAdminUsers(): Promise<AdminUserList> {
