@@ -47,44 +47,42 @@ function formatTimestamp(iso: string | null): string {
 </script>
 
 <template>
-    <aside class="sidebar">
-        <header class="sidebar-header">
-            <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
-            <button type="button" class="ghost" @click="emit('toggle-start')">
-                <Icon icon="material-symbols:add-rounded" width="20" height="20" />
-            </button>
-        </header>
-        <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
-            <input
-                :value="newRecipientId"
-                :placeholder="$t('messages.recipientId')"
-                @input="emit('update:newRecipientId', ($event.target as HTMLInputElement).value)"
-            />
-            <button type="submit" :disabled="!newRecipientId?.trim()">{{ $t('common.start') }}</button>
-        </form>
-        <div v-if="loading && channels.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
-        <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? $t('messages.noDms') }}</p>
-        <ul class="channel-list">
-            <li
-                v-for="channel in channels"
-                :key="channel.id"
-                :class="{ active: channel.id === selectedId }"
-                @click="emit('select', channel.id)"
-                @mouseenter="hoveredChannelId = channel.id"
-                @mouseleave="hoveredChannelId = null"
-            >
-                <img v-if="rowAvatarSrc(channel)" :src="rowAvatarSrc(channel) ?? ''" alt="" class="avatar" />
-                <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
-                <div class="meta">
-                    <div class="row">
-                        <span class="name">{{ channel.recipient.globalName ?? channel.recipient.username }}</span>
-                        <span class="timestamp">{{ formatTimestamp(channel.lastMessageAt) }}</span>
-                    </div>
-                    <div class="preview">{{ channel.lastMessagePreview ?? '' }}</div>
+    <header class="sidebar-header">
+        <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
+        <button type="button" class="ghost" @click="emit('toggle-start')">
+            <Icon icon="material-symbols:add-rounded" width="20" height="20" />
+        </button>
+    </header>
+    <form v-if="showStartForm" class="start-form" @submit.prevent="emit('submit-start')">
+        <input
+            :value="newRecipientId"
+            :placeholder="$t('messages.recipientId')"
+            @input="emit('update:newRecipientId', ($event.target as HTMLInputElement).value)"
+        />
+        <button type="submit" :disabled="!newRecipientId?.trim()">{{ $t('common.start') }}</button>
+    </form>
+    <div v-if="loading && channels.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
+    <p v-else-if="channels.length === 0" class="muted empty">{{ emptyHint ?? $t('messages.noDms') }}</p>
+    <ul class="channel-list">
+        <li
+            v-for="channel in channels"
+            :key="channel.id"
+            :class="{ active: channel.id === selectedId }"
+            @click="emit('select', channel.id)"
+            @mouseenter="hoveredChannelId = channel.id"
+            @mouseleave="hoveredChannelId = null"
+        >
+            <img v-if="rowAvatarSrc(channel)" :src="rowAvatarSrc(channel) ?? ''" alt="" class="avatar" />
+            <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
+            <div class="meta">
+                <div class="row">
+                    <span class="name">{{ channel.recipient.globalName ?? channel.recipient.username }}</span>
+                    <span class="timestamp">{{ formatTimestamp(channel.lastMessageAt) }}</span>
                 </div>
-            </li>
-        </ul>
-    </aside>
+                <div class="preview">{{ channel.lastMessagePreview ?? '' }}</div>
+            </div>
+        </li>
+    </ul>
 </template>
 
 <style scoped>
@@ -95,12 +93,6 @@ function formatTimestamp(iso: string | null): string {
     overflow-y: auto;
     min-height: 0;
 }
-@media (max-width: 768px) {
-    .sidebar {
-        border-right: none;
-        height: 100%;
-    }
-}
 .sidebar-header {
     display: flex;
     align-items: center;
@@ -109,6 +101,16 @@ function formatTimestamp(iso: string | null): string {
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    height: 54px;
+}
+@media (max-width: 768px) {
+    .sidebar {
+        border-right: none;
+        height: 100%;
+    }
+    .sidebar-header{
+        height: auto;
+    }
 }
 .ghost {
     flex-shrink: 0;

@@ -579,11 +579,17 @@ const replyToProp = computed(() => props.replyTo);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 .conv-header {
-    padding: 0.6rem 1rem;
+    height: 54px;
+    padding: 1rem;
     border-bottom: 1px solid var(--border);
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 0.5rem;
+}
+@media (max-width: 768px) {
+    .conv-header {
+        height: auto;
+    }
 }
 .title { font-weight: 600; color: var(--text-strong); }
 .subtitle {

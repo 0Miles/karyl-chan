@@ -31,37 +31,33 @@ function isCategoryCollapsed(id: string | null): boolean {
 </script>
 
 <template>
-    <aside class="sidebar">
-        <header class="sidebar-header">
-            <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
-        </header>
-        <div v-if="loading && categories.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
-        <p v-else-if="categories.length === 0" class="muted empty">{{ $t('messages.noTextChannels') }}</p>
-        <div class="channel-tree">
-            <div v-for="cat in categories" :key="cat.id ?? '__none__'" class="category">
-                <button
+    <header class="sidebar-header">
+        <ModeSelect :mode="mode" :guilds="guilds" @mode-change="emit('mode-change', $event)" />
+    </header>
+    <div v-if="loading && categories.length === 0" class="loading muted">{{ $t('common.loading') }}</div>
+    <p v-else-if="categories.length === 0" class="muted empty">{{ $t('messages.noTextChannels') }}</p>
+    <div class="channel-tree">
+        <div v-for="cat in categories" :key="cat.id ?? '__none__'" class="category">
+            <button
                     v-if="cat.name"
                     type="button"
                     class="category-header"
-                    @click="toggleCategory(cat.id)"
-                >
-                    <span class="chevron" :class="{ collapsed: isCategoryCollapsed(cat.id) }">›</span>
-                    {{ cat.name.toUpperCase() }}
-                </button>
-                <ul v-if="!isCategoryCollapsed(cat.id)" class="channel-list">
-                    <li
-                        v-for="channel in cat.channels"
-                        :key="channel.id"
-                        :class="{ active: channel.id === selectedId }"
-                        @click="emit('select', channel.id)"
-                    >
-                        <span class="hash">#</span>
-                        <span class="name">{{ channel.name }}</span>
-                    </li>
-                </ul>
-            </div>
+                    @click="toggleCategory(cat.id)">
+                <span class="chevron" :class="{ collapsed: isCategoryCollapsed(cat.id) }">›</span>
+                {{ cat.name.toUpperCase() }}
+            </button>
+            <ul v-if="!isCategoryCollapsed(cat.id)" class="channel-list">
+                <li
+                    v-for="channel in cat.channels"
+                    :key="channel.id"
+                    :class="{ active: channel.id === selectedId }"
+                    @click="emit('select', channel.id)">
+                    <span class="hash">#</span>
+                    <span class="name">{{ channel.name }}</span>
+                </li>
+            </ul>
         </div>
-    </aside>
+    </div>
 </template>
 
 <style scoped>
@@ -72,18 +68,22 @@ function isCategoryCollapsed(id: string | null): boolean {
     overflow: hidden;
     min-height: 0;
 }
-@media (max-width: 768px) {
-    .sidebar {
-        border-right: none;
-        height: 100%;
-    }
-}
 .sidebar-header {
     display: flex;
     align-items: center;
     padding: 0.6rem 0.75rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    height: 54px;
+}
+@media (max-width: 768px) {
+    .sidebar {
+        border-right: none;
+        height: 100%;
+    }
+    .sidebar-header{
+        height: auto;
+    }
 }
 .channel-tree {
     flex: 1;
