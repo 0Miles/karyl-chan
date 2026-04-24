@@ -9,10 +9,12 @@ import {
     type AdminRole,
     type AdminUserList
 } from '../../../api/admin';
+import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import UsersPanel from './UsersPanel.vue';
 import RolesPanel from './RolesPanel.vue';
 
 const router = useRouter();
+const currentUser = useCurrentUserStore();
 
 type Tab = 'users' | 'roles';
 const activeTab = ref<Tab>('users');
@@ -25,9 +27,13 @@ const error = ref<string | null>(null);
 async function refresh() {
     loading.value = true;
     try {
+        // Refresh the nav-level identity cache in parallel — the admin
+        // surface is exactly where self-role / capability changes happen,
+        // and a stale avatar/menu after a successful mutation is confusing.
         const [roleList, userList] = await Promise.all([
             listAdminRoles(),
-            listAdminUsers()
+            listAdminUsers(),
+            currentUser.refresh()
         ]);
         roles.value = roleList;
         users.value = userList;

@@ -31,17 +31,30 @@ interface AdminUserView extends AuthorizedUserRecord {
     profile: UserProfile | null;
 }
 
-async function fetchProfile(bot: Client | undefined, userId: string): Promise<UserProfile | null> {
+// Small in-memory cache around bot.users.fetch — avatars and display
+// names don't change often and the admin panel re-hits /api/admin/users
+// + /api/admin/me on every refresh. Discord.js has its own user cache,
+// but it's unbounded and not TTL'd; this keeps our view coherent.
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const profileCache = new Map<string, { profile: UserProfile | null; expiresAt: number }>();
+
+async function fetchProfile(bot: Client | undefined, userId: string, now: number = Date.now()): Promise<UserProfile | null> {
     if (!bot) return null;
+    const cached = profileCache.get(userId);
+    if (cached && cached.expiresAt > now) return cached.profile;
     try {
         const user = await bot.users.fetch(userId);
-        return {
+        const profile: UserProfile = {
             username: user.username,
             globalName: user.globalName ?? null,
             avatarUrl: avatarUrlFor(user.id, user.avatar)
         };
+        profileCache.set(userId, { profile, expiresAt: now + PROFILE_CACHE_TTL_MS });
+        return profile;
     } catch {
-        // Unknown / deleted / not cacheable — let the client render a fallback.
+        // Unknown / deleted / not cacheable — cache the null too so we don't
+        // hammer Discord for a user that never resolves.
+        profileCache.set(userId, { profile: null, expiresAt: now + PROFILE_CACHE_TTL_MS });
         return null;
     }
 }
@@ -121,6 +134,16 @@ export async function registerAdminManagementRoutes(
         const rows = await listAuthorizedUsers();
         const ownerId = readOwnerId();
 
+        // Every profile fetch (owner included) runs concurrently — the
+        // owner isn't special enough to pay extra latency for serializing.
+        const profileJobs = new Map<string, Promise<UserProfile | null>>();
+        if (ownerId) profileJobs.set(ownerId, fetchProfile(bot, ownerId));
+        for (const row of rows) {
+            if (ownerId && row.userId === ownerId) continue; // deduped below
+            profileJobs.set(row.userId, fetchProfile(bot, row.userId));
+        }
+        await Promise.all(profileJobs.values());
+
         const hydrated: AdminUserView[] = [];
         if (ownerId) {
             hydrated.push({
@@ -128,21 +151,19 @@ export async function registerAdminManagementRoutes(
                 role: 'owner',
                 note: null,
                 isOwner: true,
-                profile: await fetchProfile(bot, ownerId)
+                profile: (await profileJobs.get(ownerId)) ?? null
             });
         }
-        // Parallelize profile fetches — usually just a handful of users.
-        const others = await Promise.all(rows.map(async (row) => {
+        for (const row of rows) {
             // Defensive: if an owner somehow lives in authorized_users, fold
             // it into the owner entry rather than surfacing a duplicate.
-            if (ownerId && row.userId === ownerId) return null;
-            return {
+            if (ownerId && row.userId === ownerId) continue;
+            hydrated.push({
                 ...row,
                 isOwner: false,
-                profile: await fetchProfile(bot, row.userId)
-            } satisfies AdminUserView;
-        }));
-        for (const entry of others) if (entry) hydrated.push(entry);
+                profile: (await profileJobs.get(row.userId)) ?? null
+            });
+        }
 
         return { ownerId, users: hydrated };
     });
