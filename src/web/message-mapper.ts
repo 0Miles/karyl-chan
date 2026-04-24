@@ -134,8 +134,10 @@ export function toApiMessage(message: DjsMessage): ApiMessage {
         mentionEveryone: message.mentions.everyone,
         // `mentions.has(bot.user)` covers direct mentions, any of the
         // bot's guild roles, @everyone/@here, and reply-pings — exactly
-        // the signal the unread "@me" indicator cares about.
-        mentionsMe: message.client.user ? message.mentions.has(message.client.user) : false,
+        // the signal the unread "@me" indicator cares about. `client`
+        // is optional on the mock messages the tests construct, hence
+        // the optional-chain.
+        mentionsMe: message.client?.user ? message.mentions.has(message.client.user) : false,
         pinned: message.pinned,
         tts: message.tts
     };
