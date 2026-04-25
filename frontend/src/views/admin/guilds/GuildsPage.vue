@@ -4,9 +4,11 @@ import {
     createGuildInvite,
     getGuildDetail,
     listGuildInvites,
+    listGuildRoles,
     listGuilds,
     type GuildDetail,
     type GuildInvite,
+    type GuildRoleSummary,
     type GuildSummary
 } from '../../../api/guilds';
 import { SidebarLayout } from '../../../layouts';
@@ -50,11 +52,22 @@ async function loadDetail(id: string) {
         detail.value = await getGuildDetail(id);
         error.value = null;
         void loadInvites(id);
+        void loadRoles(id);
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'Failed to load guild detail';
     } finally {
         loadingDetail.value = false;
+    }
+}
+
+const roles = ref<GuildRoleSummary[]>([]);
+async function loadRoles(guildId: string) {
+    roles.value = [];
+    try {
+        roles.value = await listGuildRoles(guildId);
+    } catch {
+        /* informational; silently skip */
     }
 }
 
@@ -231,6 +244,20 @@ function customEmojiUrl(id: string, char: string): string {
                     <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
+                <section class="card" v-if="roles.length > 0">
+                    <h3>{{ $t('guilds.rolesTitle') }} <span class="count-pill">{{ roles.length }}</span></h3>
+                    <ul class="bare role-list">
+                        <li v-for="r in roles" :key="r.id" class="role-row">
+                            <span class="role-swatch" :style="{ background: r.color ?? 'var(--bg-surface-2)' }"></span>
+                            <span class="role-name" :style="r.color ? { color: r.color } : undefined">@{{ r.name }}</span>
+                            <span v-if="r.memberCount !== undefined" class="muted role-count">
+                                {{ $t('guilds.roleMembers', { count: r.memberCount }) }}
+                            </span>
+                            <span v-if="r.managed" class="role-flag">{{ $t('guilds.roleManaged') }}</span>
+                        </li>
+                    </ul>
+                </section>
+
                 <section class="card">
                     <h3>
                         {{ $t('guilds.invites.title') }}
@@ -319,6 +346,31 @@ function customEmojiUrl(id: string, char: string): string {
     font-weight: 600;
 }
 .invite-meta { font-size: 0.78rem; }
+.role-list { display: flex; flex-direction: column; gap: 0.2rem; }
+.role-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+.role-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+}
+.role-name { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-count { font-size: 0.78rem; flex-shrink: 0; }
+.role-flag {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    border-radius: 3px;
+    padding: 0 0.35rem;
+    flex-shrink: 0;
+}
 .link {
     background: none;
     border: none;

@@ -107,6 +107,9 @@
         "roleReactions": "身份组反应消息",
         "roleReactionMessage": "· 消息 {id}",
         "capabilityGrants": "权限授予",
+        "rolesTitle": "身份组",
+        "roleMembers": "{count} 位成员",
+        "roleManaged": "集成",
         "invites": {
             "title": "邀请链接",
             "create": "创建 24h 邀请",

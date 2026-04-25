@@ -107,6 +107,9 @@
         "roleReactions": "Role reaction messages",
         "roleReactionMessage": "· message {id}",
         "capabilityGrants": "Capability grants",
+        "rolesTitle": "Roles",
+        "roleMembers": "{count} members",
+        "roleManaged": "managed",
         "invites": {
             "title": "Invite links",
             "create": "Create 24h invite",

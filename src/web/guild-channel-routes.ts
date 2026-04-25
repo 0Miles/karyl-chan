@@ -280,7 +280,16 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
                     name: r.name,
                     color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
                     position: r.position,
-                    mentionable: r.mentionable
+                    mentionable: r.mentionable,
+                    // Cached members only — accurate when GuildMembers
+                    // intent is on AND we've fetched the roster, which
+                    // listGuildChannelMembers does on demand. For roles
+                    // page first-load we accept whatever's in cache;
+                    // the member count is informational and refreshes
+                    // naturally on subsequent loads.
+                    memberCount: r.members.size,
+                    hoist: r.hoist,
+                    managed: r.managed
                 }));
             return { roles };
         }

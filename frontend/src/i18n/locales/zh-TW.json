@@ -107,6 +107,9 @@
         "roleReactions": "身分組反應訊息",
         "roleReactionMessage": "· 訊息 {id}",
         "capabilityGrants": "權限授予",
+        "rolesTitle": "身分組",
+        "roleMembers": "{count} 位成員",
+        "roleManaged": "整合",
         "invites": {
             "title": "邀請連結",
             "create": "新增 24h 邀請",

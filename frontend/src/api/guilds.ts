@@ -165,6 +165,9 @@ export interface GuildRoleSummary {
     color: string | null;
     position: number;
     mentionable: boolean;
+    memberCount?: number;
+    hoist?: boolean;
+    managed?: boolean;
 }
 
 export interface GuildChannelMember {
