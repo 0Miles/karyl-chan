@@ -156,7 +156,11 @@
         "picker": "表情与贴纸",
         "send": "发送",
         "spoilerOn": "标记为剧透",
-        "spoilerOff": "取消剧透"
+        "spoilerOff": "取消剧透",
+        "replyPingOn": "停止 @ 原作者",
+        "replyPingOff": "启用 @ 原作者",
+        "replyPingOnShort": "@",
+        "replyPingOffShort": "@?"
     },
     "admin": {
         "title": "后台权限",

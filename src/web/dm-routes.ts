@@ -162,6 +162,10 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
 
             let content = '';
             let replyToMessageId: string | undefined;
+            // Discord defaults to pinging the replied-to author. We default
+            // to NOT pinging because the admin client favours quiet replies;
+            // composer is responsible for opting back in via this flag.
+            let replyPingAuthor = false;
             let stickerIds: string[] = [];
             const files: Array<{ attachment: Buffer; name: string }> = [];
 
@@ -175,16 +179,21 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                     } else if (part.fieldname === 'replyToMessageId') {
                         const value = String(part.value ?? '').trim();
                         if (value) replyToMessageId = value;
+                    } else if (part.fieldname === 'replyPingAuthor') {
+                        replyPingAuthor = String(part.value ?? '') === '1';
                     } else if (part.fieldname === 'stickerIds' || part.fieldname === 'stickerIds[]') {
                         const value = String(part.value ?? '').trim();
                         if (value) stickerIds.push(value);
                     }
                 }
             } else {
-                const body = (request.body ?? {}) as { content?: unknown; replyToMessageId?: unknown; stickerIds?: unknown };
+                const body = (request.body ?? {}) as { content?: unknown; replyToMessageId?: unknown; replyPingAuthor?: unknown; stickerIds?: unknown };
                 content = typeof body.content === 'string' ? body.content : '';
                 if (typeof body.replyToMessageId === 'string' && body.replyToMessageId.length > 0) {
                     replyToMessageId = body.replyToMessageId;
+                }
+                if (typeof body.replyPingAuthor === 'boolean') {
+                    replyPingAuthor = body.replyPingAuthor;
                 }
                 if (Array.isArray(body.stickerIds)) {
                     stickerIds = body.stickerIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -217,6 +226,11 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                     stickers: stickerIds.length > 0 ? stickerIds : undefined,
                     reply: replyToMessageId
                         ? { messageReference: replyToMessageId, failIfNotExists: false }
+                        : undefined,
+                    // Only set allowedMentions when actually replying; for
+                    // non-reply messages Discord's defaults are fine.
+                    allowedMentions: replyToMessageId
+                        ? { repliedUser: replyPingAuthor, parse: ['users', 'roles', 'everyone'] }
                         : undefined
                 });
                 return { message: toApiMessage(sent) };

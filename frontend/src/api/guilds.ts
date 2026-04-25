@@ -201,7 +201,8 @@ export async function sendGuildMessage(
     content: string,
     files: File[] = [],
     stickerIds: string[] = [],
-    replyToMessageId?: string
+    replyToMessageId?: string,
+    replyPingAuthor?: boolean
 ): Promise<Message> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages`;
     let response: Response;
@@ -209,6 +210,7 @@ export async function sendGuildMessage(
         const form = new FormData();
         if (content) form.set('content', content);
         if (replyToMessageId) form.set('replyToMessageId', replyToMessageId);
+        if (replyPingAuthor !== undefined) form.set('replyPingAuthor', replyPingAuthor ? '1' : '0');
         stickerIds.forEach(id => form.append('stickerIds', id));
         files.forEach(file => form.append('files', file, file.name));
         response = await authedFetch(url, { method: 'POST', body: form });
@@ -216,7 +218,12 @@ export async function sendGuildMessage(
         response = await authedFetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, replyToMessageId, stickerIds: stickerIds.length ? stickerIds : undefined })
+            body: JSON.stringify({
+                content,
+                replyToMessageId,
+                replyPingAuthor,
+                stickerIds: stickerIds.length ? stickerIds : undefined
+            })
         });
     }
     const body = await jsonOrThrow<{ message: Message }>(response);

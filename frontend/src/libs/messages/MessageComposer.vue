@@ -42,6 +42,15 @@ const props = defineProps<{
     channelId?: string | null;
 }>();
 
+// Reply-to-author ping. Discord defaults to true; we default to false
+// so admin replies are quiet by default — matching what the Discord
+// mobile / desktop client does (the @ button on the reply banner has
+// to be explicitly enabled). Resets when the reply target clears.
+const replyPingAuthor = ref(false);
+watch(() => props.replyTo, (next) => {
+    if (!next) replyPingAuthor.value = false;
+});
+
 const emit = defineEmits<{
     (e: 'send', payload: OutgoingMessage): void;
     (e: 'cancel-reply'): void;
@@ -276,7 +285,8 @@ function send() {
             ? attachments.value.map((file, i) => applySpoilerPrefix(file, attachmentSpoiler.value[i] ?? false))
             : undefined,
         stickerIds: pendingStickers.value.length ? pendingStickers.value.map(s => s.id) : undefined,
-        reference: props.replyTo ?? null
+        reference: props.replyTo ?? null,
+        replyPingAuthor: props.replyTo ? replyPingAuthor.value : undefined
     });
     if (editorRef.value) clearEditor(editorRef.value);
     content.value = '';
@@ -400,6 +410,16 @@ watch(() => props.channelId, (newId, oldId) => {
     <div class="composer" @paste="onPaste">
         <div v-if="replyTo" class="reply-banner">
             <span>{{ $t('messages.replying') }}</span>
+            <button
+                type="button"
+                :class="['reply-ping', { active: replyPingAuthor }]"
+                :title="replyPingAuthor ? $t('composer.replyPingOn') : $t('composer.replyPingOff')"
+                :aria-pressed="replyPingAuthor"
+                @click="replyPingAuthor = !replyPingAuthor"
+            >
+                <Icon icon="material-symbols:alternate-email-rounded" width="14" height="14" />
+                {{ replyPingAuthor ? $t('composer.replyPingOnShort') : $t('composer.replyPingOffShort') }}
+            </button>
             <button type="button" class="link" @click="$emit('cancel-reply')">{{ $t('common.cancel') }}</button>
         </div>
         <div v-if="attachments.length || pendingStickers.length" class="attachments">
@@ -488,10 +508,30 @@ watch(() => props.channelId, (newId, oldId) => {
 }
 .reply-banner {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-bottom: 0.25rem;
+}
+.reply-banner > span:first-child { flex: 1; }
+.reply-ping {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 0.75rem;
+}
+.reply-ping.active {
+    color: var(--accent-text-strong);
+    border-color: var(--accent);
+    background: var(--accent-bg);
 }
 .link {
     background: none;

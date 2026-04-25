@@ -162,8 +162,8 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         return apiGetMessages(guildId, channelId, opts);
     }
 
-    function sendMessage(guildId: string, channelId: string, content: string, files: File[], stickerIds: string[], replyToMessageId?: string) {
-        return apiSendMessage(guildId, channelId, content, files, stickerIds, replyToMessageId);
+    function sendMessage(guildId: string, channelId: string, content: string, files: File[], stickerIds: string[], replyToMessageId?: string, replyPingAuthor?: boolean) {
+        return apiSendMessage(guildId, channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor);
     }
 
     function editMessage(guildId: string, channelId: string, messageId: string, content: string) {

@@ -69,8 +69,8 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         botUserId,
         api: {
             listMessages: (channelId, o) => guildStore.listMessages(guildId.value!, channelId, o),
-            sendMessage: (channelId, content, files, stickerIds, replyToMessageId) =>
-                guildStore.sendMessage(guildId.value!, channelId, content, files, stickerIds, replyToMessageId),
+            sendMessage: (channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor) =>
+                guildStore.sendMessage(guildId.value!, channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor),
             editMessage: (channelId, messageId, content) =>
                 guildStore.editMessage(guildId.value!, channelId, messageId, content),
             deleteMessage: (channelId, messageId) =>

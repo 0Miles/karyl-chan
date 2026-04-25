@@ -147,8 +147,8 @@ export const useDmStore = defineStore('discord-dm', () => {
         return { messages: result.messages, hasMore: result.hasMore };
     }
 
-    function sendMessage(channelId: string, content: string, files: File[], stickerIds: string[], replyToMessageId?: string) {
-        return apiSendMessage(channelId, content, files, stickerIds, replyToMessageId);
+    function sendMessage(channelId: string, content: string, files: File[], stickerIds: string[], replyToMessageId?: string, replyPingAuthor?: boolean) {
+        return apiSendMessage(channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor);
     }
 
     function editMessage(channelId: string, messageId: string, content: string) {

@@ -92,6 +92,11 @@ export interface OutgoingMessage {
     attachments?: File[];
     stickerIds?: string[];
     reference?: MessageReference | null;
+    /** When `reference` is set: true → ping the original author (Discord
+     *  default), false → suppress the author mention. Honoured by the
+     *  workspace senders, which translate it into Discord's
+     *  `allowedMentions.repliedUser` flag. Ignored when not replying. */
+    replyPingAuthor?: boolean;
 }
 
 export interface CustomEmoji {

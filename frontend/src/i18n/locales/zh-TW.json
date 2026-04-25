@@ -156,7 +156,11 @@
         "picker": "表情與貼圖",
         "send": "傳送",
         "spoilerOn": "標記為劇透",
-        "spoilerOff": "取消劇透"
+        "spoilerOff": "取消劇透",
+        "replyPingOn": "停止 @ 原作者",
+        "replyPingOff": "啟用 @ 原作者",
+        "replyPingOnShort": "@",
+        "replyPingOffShort": "@?"
     },
     "admin": {
         "title": "後台權限",

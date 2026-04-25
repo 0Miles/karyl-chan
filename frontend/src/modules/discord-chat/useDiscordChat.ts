@@ -7,7 +7,14 @@ export type { ChannelMessageEvent } from './stores/messageCacheStore';
 
 export interface DiscordChatApi {
     listMessages(channelId: string, opts: { limit?: number; before?: string }): Promise<{ messages: Message[]; hasMore: boolean }>;
-    sendMessage(channelId: string, content: string, files: File[], stickerIds: string[], replyToMessageId?: string): Promise<Message>;
+    sendMessage(
+        channelId: string,
+        content: string,
+        files: File[],
+        stickerIds: string[],
+        replyToMessageId?: string,
+        replyPingAuthor?: boolean
+    ): Promise<Message>;
     editMessage(channelId: string, messageId: string, content: string): Promise<Message>;
     deleteMessage(channelId: string, messageId: string): Promise<void>;
     addReaction(channelId: string, messageId: string, emoji: MessageEmoji): Promise<void>;
@@ -153,7 +160,8 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
                 payload.content,
                 payload.attachments ?? [],
                 payload.stickerIds ?? [],
-                payload.reference?.messageId ?? undefined
+                payload.reference?.messageId ?? undefined,
+                payload.replyPingAuthor
             );
             replyTo.value = null;
             messageCache.applyEvent({ type: 'message-created', channelId: sent.channelId, message: sent });

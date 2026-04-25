@@ -156,7 +156,11 @@
         "picker": "Emoji & stickers",
         "send": "Send",
         "spoilerOn": "Mark as spoiler",
-        "spoilerOff": "Unmark spoiler"
+        "spoilerOff": "Unmark spoiler",
+        "replyPingOn": "Stop pinging the original author",
+        "replyPingOff": "Ping the original author",
+        "replyPingOnShort": "@",
+        "replyPingOffShort": "@?"
     },
     "admin": {
         "title": "Admin access",

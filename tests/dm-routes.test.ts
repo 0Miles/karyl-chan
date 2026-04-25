@@ -131,7 +131,13 @@ describe('DM routes', () => {
             payload: { content: 'pong' }
         });
         expect(response.statusCode).toBe(200);
-        expect(send).toHaveBeenCalledWith({ content: 'pong', files: undefined, stickers: undefined, reply: undefined });
+        expect(send).toHaveBeenCalledWith({
+            content: 'pong',
+            files: undefined,
+            stickers: undefined,
+            reply: undefined,
+            allowedMentions: undefined
+        });
     });
 
     it('POST refuses an empty body with no attachments', async () => {
@@ -164,7 +170,10 @@ describe('DM routes', () => {
             content: 'reply',
             files: undefined,
             stickers: undefined,
-            reply: { messageReference: '111111111111111111', failIfNotExists: false }
+            reply: { messageReference: '111111111111111111', failIfNotExists: false },
+            // Reply path always passes an allowedMentions block; the
+            // composer didn't toggle the @ button, so repliedUser=false.
+            allowedMentions: { repliedUser: false, parse: ['users', 'roles', 'everyone'] }
         });
     });
 
@@ -183,7 +192,8 @@ describe('DM routes', () => {
             content: undefined,
             files: undefined,
             stickers: ['100000000000000001', '100000000000000002', '100000000000000003'],
-            reply: undefined
+            reply: undefined,
+            allowedMentions: undefined
         });
     });
 
