@@ -123,9 +123,27 @@ function renderNode(node: ASTNode, ctx: MessageContext): Renderable {
             return h('img', { src: url, alt, class: 'custom-emoji', loading: 'lazy' });
         }
         case 'twemoji': {
-            const url = twemojiUrl(String(node.name ?? ''));
-            if (!url) return String(node.name ?? '');
-            return h('img', { src: url, alt: String(node.name ?? ''), class: 'unicode-emoji', loading: 'lazy' });
+            const raw = String(node.name ?? '');
+            const url = twemojiUrl(raw);
+            if (!url) return raw;
+            // onerror fallback: if the twemoji CDN is unreachable or a
+            // future CSP tweak blocks it, swap the broken <img> for the
+            // raw unicode codepoint so the OS renders its native emoji
+            // instead of leaving a broken image frame visible (iOS
+            // Safari is particularly ugly about that).
+            return h('img', {
+                src: url,
+                alt: raw,
+                class: 'unicode-emoji',
+                loading: 'lazy',
+                onError: (event: Event) => {
+                    const img = event.target as HTMLImageElement;
+                    const span = document.createElement('span');
+                    span.className = 'unicode-emoji-fallback';
+                    span.textContent = raw;
+                    img.replaceWith(span);
+                }
+            });
         }
         case 'emoticon':
             return Array.isArray(node.content) ? h('span', renderChildren(node.content, ctx)) : String(node.content ?? '');
@@ -223,6 +241,18 @@ export default defineComponent({
 .message-content.only-emoji :deep(.custom-emoji) {
     width: 3em;
     height: 3em;
+}
+/* Fallback when the twemoji <img> fails to load — render the raw
+   unicode glyph at the surrounding font size so the OS picks its
+   native emoji rather than leaving a broken-image rectangle. */
+.message-content :deep(.unicode-emoji-fallback) {
+    display: inline;
+    font-size: 1.2em;
+    vertical-align: middle;
+    line-height: 1;
+}
+.message-content.only-emoji :deep(.unicode-emoji-fallback) {
+    font-size: 3em;
 }
 .message-content :deep(.spoiler) {
     background: var(--spoiler-bg);

@@ -202,7 +202,14 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
                     "'self'",
                     'data:',
                     'https://cdn.discordapp.com',
-                    'https://media.discordapp.net'
+                    'https://media.discordapp.net',
+                    // @twemoji/parser produces
+                    // https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/...
+                    // for every unicode emoji we render in messages and
+                    // reactions. Without this entry the <img> loads are
+                    // CSP-blocked and iOS Safari shows the broken-image
+                    // frame with the alt char crammed into the corner.
+                    'https://cdn.jsdelivr.net'
                 ],
                 'media-src': [
                     "'self'",

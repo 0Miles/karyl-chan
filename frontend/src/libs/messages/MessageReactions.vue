@@ -35,6 +35,19 @@ function toggle(r: MessageReaction) {
     if (r.me) ctx.onReactionRemove?.(props.messageId, r.emoji);
     else ctx.onReactionAdd?.(props.messageId, r.emoji);
 }
+
+// Per-reaction broken-image flag. When the twemoji CDN is unreachable
+// (or future CSP changes block it), the 22×22 broken-image frame is
+// too small to even show alt text, so we swap to the raw unicode glyph
+// and let the OS draw its native emoji.
+import { reactive } from 'vue';
+const failed = reactive(new Set<string>());
+function reactionKey(r: MessageReaction): string {
+    return r.emoji.id ?? r.emoji.name;
+}
+function onImgError(r: MessageReaction) {
+    failed.add(reactionKey(r));
+}
 </script>
 
 <template>
@@ -46,7 +59,13 @@ function toggle(r: MessageReaction) {
             :class="['reaction', { mine: item.reaction.me }]"
             @click="toggle(item.reaction)"
         >
-            <img v-if="item.url" :src="item.url" :alt="item.alt" class="emoji" />
+            <img
+                v-if="item.url && !failed.has(reactionKey(item.reaction))"
+                :src="item.url"
+                :alt="item.alt"
+                class="emoji"
+                @error="onImgError(item.reaction)"
+            />
             <span v-else class="emoji-fallback">{{ item.reaction.emoji.name }}</span>
             <span class="count">{{ item.reaction.count }}</span>
         </button>
