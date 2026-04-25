@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { ChannelType, MessageReferenceType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
@@ -419,6 +419,20 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
 
             try {
+                // Wipe the reactions cache on every message in the channel
+                // BEFORE the bulk fetch. discord.js's `Message._patch` only
+                // rebuilds the reactions cache when the API response
+                // includes a `reactions` field — and Discord OMITS that
+                // field for messages with zero reactions. Without this
+                // pre-clear, stale `MessageReaction` entries (e.g. count=1
+                // ghosts left behind because `MessageReaction._remove`
+                // refuses to decrement the bot's own count) survive a
+                // patch where Discord said "no reactions" by omission.
+                // Clearing first means the omit-path keeps the now-empty
+                // cache, while the present-path repopulates from API.
+                for (const cached of channel.messages.cache.values()) {
+                    cached.reactions.cache.clear();
+                }
                 // `around` returns a window centred on the anchor — used
                 // when a message link click needs to land on an older
                 // message that wouldn't be in the default latest page.
@@ -646,12 +660,14 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             const source = fetchTextChannel(bot, guildId, sourceChannelId);
             if (!source) { reply.code(404).send({ error: 'Unknown source channel' }); return; }
             try {
+                // discord.js v14.26 dropped raw `messageReference` for
+                // forwards in favour of a typed `forward` field on
+                // MessageCreateOptions. The shape carries the source
+                // channel + message; guild is inferred from the channel.
                 const sent = await target.send({
-                    messageReference: {
-                        messageId: sourceMessageId,
-                        channelId: sourceChannelId,
-                        guildId,
-                        type: MessageReferenceType.Forward
+                    forward: {
+                        message: sourceMessageId,
+                        channel: sourceChannelId
                     }
                 });
                 return { message: toApiMessage(sent) };

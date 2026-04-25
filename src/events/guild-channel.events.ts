@@ -11,6 +11,12 @@ async function publishReactionUpdate(reaction: MessageReaction | PartialMessageR
     const guildId = (channel as TextChannel).guildId;
     const channelId = reaction.message.channelId;
     const messageId = reaction.message.id;
+    // Wipe the cached message's reactions before the force-fetch, so
+    // discord.js's `_patch` preserve-when-omitted logic preserves an
+    // empty cache instead of stale ghost entries — same root cause as
+    // the bulk-message route. (See guild-channel-routes' fetch path.)
+    const cached = (channel as TextChannel).messages.cache.get(messageId);
+    if (cached) cached.reactions.cache.clear();
     const message = await (channel as TextChannel).messages.fetch({ message: messageId, force: true }).catch(() => null);
     if (!message) return;
     guildChannelEventBus.publish({ type: 'guild-message-updated', guildId, channelId, message: toApiMessage(message) });
