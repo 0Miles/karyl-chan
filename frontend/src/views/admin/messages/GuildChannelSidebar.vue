@@ -12,6 +12,7 @@ import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import { useUserContextMenuStore } from '../../../modules/discord-chat/stores/userContextMenuStore';
 import { useChannelMgmtStore } from '../../../modules/discord-chat/stores/channelMgmtStore';
+import { useLongPress } from '../../../composables/use-long-press';
 import { deleteGuildChannel, editGuildChannel, type VoiceChannelMember } from '../../../api/guilds';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
@@ -42,6 +43,25 @@ function onThreadContext(event: MouseEvent, thread: GuildActiveThread) {
     event.preventDefault();
     event.stopPropagation();
     channelMenu.value = { x: event.clientX, y: event.clientY, kind: 'thread', thread };
+}
+
+// Touch long-press → same context menu the right-click flow opens.
+// One useLongPress instance per row-kind keeps each gesture's timer
+// independent so a quick tap on (say) a thread can't cancel an in-flight
+// long-press on a channel.
+const channelLongPress = useLongPress();
+const threadLongPress = useLongPress();
+const categoryLongPress = useLongPress();
+const voiceMemberLongPress = useLongPress();
+function onChannelTouchStart(event: TouchEvent, channel: GuildTextChannel) {
+    channelLongPress.start(event, ({ x, y }) => {
+        channelMenu.value = { x, y, kind: 'channel', channel };
+    });
+}
+function onThreadTouchStart(event: TouchEvent, thread: GuildActiveThread) {
+    threadLongPress.start(event, ({ x, y }) => {
+        channelMenu.value = { x, y, kind: 'thread', thread };
+    });
 }
 const channelMenuActions = computed<ContextMenuAction[]>(() => {
     const ctx = channelMenu.value;
@@ -147,6 +167,11 @@ function onCategoryContext(event: MouseEvent, categoryId: string | null) {
     event.stopPropagation();
     categoryMenu.value = { x: event.clientX, y: event.clientY, categoryId };
 }
+function onCategoryTouchStart(event: TouchEvent, categoryId: string | null) {
+    categoryLongPress.start(event, ({ x, y }) => {
+        categoryMenu.value = { x, y, categoryId };
+    });
+}
 const categoryMenuActions = computed<ContextMenuAction[]>(() => {
     if (!categoryMenu.value || !props.guildId) return [];
     return [
@@ -178,6 +203,20 @@ function onVoiceMemberContext(event: MouseEvent, channelId: string, member: Voic
         // the cached member row yet — passing the channel alone unlocks
         // mute/deafen/move/disconnect; the toggles act idempotently.
         voice: { channelId }
+    });
+}
+function onVoiceMemberTouchStart(event: TouchEvent, channelId: string, member: VoiceChannelMember) {
+    if (!props.guildId) return;
+    voiceMemberLongPress.start(event, ({ x, y, target }) => {
+        userMenu.open({
+            userId: member.id,
+            anchor: target,
+            x,
+            y,
+            guildId: props.guildId!,
+            displayName: member.nickname ?? member.globalName ?? member.username,
+            voice: { channelId }
+        });
     });
 }
 
@@ -272,7 +311,11 @@ watch(() => props.guildId, () => {
                     type="button"
                     class="category-header"
                     @click="toggleCategory(cat.id)"
-                    @contextmenu="onCategoryContext($event, cat.id)">
+                    @contextmenu="onCategoryContext($event, cat.id)"
+                    @touchstart.passive="onCategoryTouchStart($event, cat.id)"
+                    @touchend="categoryLongPress.cancel()"
+                    @touchmove="categoryLongPress.cancel()"
+                    @touchcancel="categoryLongPress.cancel()">
                 <span class="chevron" :class="{ collapsed: isCategoryCollapsed(cat.id) }">›</span>
                 {{ cat.name.toUpperCase() }}
             </button>
@@ -286,7 +329,11 @@ watch(() => props.guildId, () => {
                         muted: muteStore.isMuted(channel.id)
                     }]"
                     @click="emit('select', channel.id)"
-                    @contextmenu="onChannelContext($event, channel)">
+                    @contextmenu="onChannelContext($event, channel)"
+                    @touchstart.passive="onChannelTouchStart($event, channel)"
+                    @touchend="channelLongPress.cancel()"
+                    @touchmove="channelLongPress.cancel()"
+                    @touchcancel="channelLongPress.cancel()">
                     <span v-if="channel.kind === 'text'" class="hash">#</span>
                     <Icon v-else :icon="channelIcon(channel) ?? ''" width="14" height="14" class="kind-icon" />
                     <span class="name">{{ channel.name }}</span>
@@ -310,6 +357,10 @@ watch(() => props.guildId, () => {
                             class="voice-member"
                             :title="m.username"
                             @contextmenu="onVoiceMemberContext($event, channel.id, m)"
+                            @touchstart.passive="onVoiceMemberTouchStart($event, channel.id, m)"
+                            @touchend="voiceMemberLongPress.cancel()"
+                            @touchmove="voiceMemberLongPress.cancel()"
+                            @touchcancel="voiceMemberLongPress.cancel()"
                         >
                             <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="voice-avatar" />
                             <span class="voice-name">{{ m.nickname ?? m.globalName ?? m.username }}</span>
@@ -322,6 +373,10 @@ watch(() => props.guildId, () => {
                     :class="['thread-row', { active: thread.id === selectedId }]"
                     @click="emit('select', thread.id)"
                     @contextmenu="onThreadContext($event, thread)"
+                    @touchstart.passive="onThreadTouchStart($event, thread)"
+                    @touchend="threadLongPress.cancel()"
+                    @touchmove="threadLongPress.cancel()"
+                    @touchcancel="threadLongPress.cancel()"
                 >
                     <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
                     <span class="name">{{ thread.name }}</span>

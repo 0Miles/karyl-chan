@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Icon } from '@iconify/vue';
+import AppModal from '../../components/AppModal.vue';
 import {
     addGuildMemberRole,
     banGuildMember,
@@ -81,16 +81,6 @@ watch(target, async (t) => {
 
 function close() { store.close(); }
 
-function onKey(event: KeyboardEvent) {
-    if (!visible.value) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        close();
-    }
-}
-onMounted(() => window.addEventListener('keydown', onKey));
-onUnmounted(() => window.removeEventListener('keydown', onKey));
-
 async function submit() {
     const t = target.value;
     if (!t || submitting.value) return;
@@ -159,17 +149,9 @@ const titleText = computed(() => {
 </script>
 
 <template>
-    <Teleport to="body">
-        <div v-if="visible" class="mm-backdrop" @click.self="close">
-            <div class="mm-modal" role="dialog" aria-modal="true">
-                <header class="mm-head">
-                    <span class="title">{{ titleText }}</span>
-                    <button type="button" class="icon-btn" @click="close" :aria-label="$t('common.close')">
-                        <Icon icon="material-symbols:close-rounded" width="18" height="18" />
-                    </button>
-                </header>
-                <form class="mm-body" @submit.prevent="submit">
-                    <template v-if="target?.mode === 'ban'">
+    <AppModal :visible="visible" :title="titleText" width="min(420px, 92vw)" @close="close">
+        <form class="body" @submit.prevent="submit">
+            <template v-if="target?.mode === 'ban'">
                         <label class="field">
                             <span>{{ $t('memberMgmt.banDeleteLabel') }}</span>
                             <select v-model.number="banDeleteSeconds">
@@ -223,69 +205,29 @@ const titleText = computed(() => {
                             </li>
                         </ul>
                     </template>
-                    <p v-if="error" class="error">{{ error }}</p>
-                    <footer class="mm-actions">
-                        <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
-                        <button
-                            type="submit"
-                            class="primary"
-                            :class="{ danger: target?.mode === 'ban' }"
-                            :disabled="submitting"
-                        >
-                            <template v-if="target?.mode === 'ban'">{{ $t('memberMgmt.banAction') }}</template>
-                            <template v-else>{{ $t('memberMgmt.save') }}</template>
-                        </button>
-                    </footer>
-                </form>
-            </div>
-        </div>
-    </Teleport>
+            <p v-if="error" class="error">{{ error }}</p>
+            <footer class="actions">
+                <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
+                <button
+                    type="submit"
+                    class="primary"
+                    :class="{ danger: target?.mode === 'ban' }"
+                    :disabled="submitting"
+                >
+                    <template v-if="target?.mode === 'ban'">{{ $t('memberMgmt.banAction') }}</template>
+                    <template v-else>{{ $t('memberMgmt.save') }}</template>
+                </button>
+            </footer>
+        </form>
+    </AppModal>
 </template>
 
 <style scoped>
-.mm-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-}
-.mm-modal {
-    width: min(420px, 92vw);
-    max-height: 80vh;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.mm-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.9rem;
-    border-bottom: 1px solid var(--border);
-}
-.title { flex: 1; font-weight: 600; }
-.icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.2rem;
-    display: inline-flex;
-}
-.icon-btn:hover { color: var(--text); }
-.mm-body {
+.body {
     padding: 0.8rem 0.9rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    overflow-y: auto;
 }
 .field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
 .field span { color: var(--text-muted); }
@@ -328,7 +270,7 @@ const titleText = computed(() => {
 }
 .role-name { font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .error { color: var(--danger); font-size: 0.85rem; }
-.mm-actions {
+.actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;

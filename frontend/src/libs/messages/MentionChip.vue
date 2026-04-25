@@ -53,14 +53,43 @@ function onContextMenu(event: MouseEvent) {
     const u = ctx.resolveUser?.(props.id);
     ctx.onUserContextMenu(props.id, anchor, { x: event.clientX, y: event.clientY }, u?.name ?? null);
 }
+
+// Touch long-press → user context menu. Only meaningful for user
+// mentions; channel/role/everyone chips don't have a per-target menu.
+const LONG_PRESS_MS = 450;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+function onTouchStart(event: TouchEvent) {
+    if (!isUser.value || !props.id || !ctx.onUserContextMenu) return;
+    if (event.touches.length !== 1) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    const touch = event.touches[0];
+    const userId = props.id;
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        const u = ctx.resolveUser?.(userId);
+        ctx.onUserContextMenu?.(userId, anchor, { x: touch.clientX, y: touch.clientY }, u?.name ?? null);
+    }, LONG_PRESS_MS);
+}
+function onTouchEnd() {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+}
 </script>
 
 <template>
     <span
         :class="['mention', { clickable: isUser }]"
         :style="display.color ? { color: display.color } : undefined"
-        @click="onClick"
-        @contextmenu="onContextMenu"
+        @click.stop="onClick"
+        @contextmenu.stop="onContextMenu"
+        @touchstart.stop.passive="onTouchStart"
+        @touchend.stop="onTouchEnd"
+        @touchmove.stop="onTouchEnd"
+        @touchcancel.stop="onTouchEnd"
     >{{ display.text }}</span>
 </template>
 

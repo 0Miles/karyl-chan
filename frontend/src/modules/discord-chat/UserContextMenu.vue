@@ -82,23 +82,28 @@ async function pick(key: string) {
     }
     if (key === 'copy-mention') { void copyToClipboard(`<@${t.userId}>`); return; }
     if (key === 'copy-id') { void copyToClipboard(t.userId); return; }
-    if (!t.voice || !t.guildId) return;
-    if (key === 'voice-mute') {
-        try { await setGuildVoiceMemberMute(t.guildId, t.userId, !t.voice.serverMuted); } catch { /* ignore */ }
-        return;
-    }
-    if (key === 'voice-deafen') {
-        try { await setGuildVoiceMemberDeafen(t.guildId, t.userId, !t.voice.serverDeafened); } catch { /* ignore */ }
-        return;
-    }
-    if (key === 'voice-disconnect') {
-        try { await moveGuildVoiceMember(t.guildId, t.userId, null); } catch { /* ignore */ }
-        return;
-    }
-    if (key.startsWith('voice-move:')) {
-        const channelId = key.slice('voice-move:'.length);
-        try { await moveGuildVoiceMember(t.guildId, t.userId, channelId); } catch { /* ignore */ }
-        return;
+    // Everything past this point is guild-scoped; bail if the menu was
+    // opened from a DM surface. Voice-only and mgmt actions are gated
+    // individually below.
+    if (!t.guildId) return;
+    if (t.voice) {
+        if (key === 'voice-mute') {
+            try { await setGuildVoiceMemberMute(t.guildId, t.userId, !t.voice.serverMuted); } catch { /* ignore */ }
+            return;
+        }
+        if (key === 'voice-deafen') {
+            try { await setGuildVoiceMemberDeafen(t.guildId, t.userId, !t.voice.serverDeafened); } catch { /* ignore */ }
+            return;
+        }
+        if (key === 'voice-disconnect') {
+            try { await moveGuildVoiceMember(t.guildId, t.userId, null); } catch { /* ignore */ }
+            return;
+        }
+        if (key.startsWith('voice-move:')) {
+            const channelId = key.slice('voice-move:'.length);
+            try { await moveGuildVoiceMember(t.guildId, t.userId, channelId); } catch { /* ignore */ }
+            return;
+        }
     }
     if (key === 'mgmt-kick') {
         // Kick uses a native confirm() rather than a modal — no extra

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Icon } from '@iconify/vue';
+import AppModal from '../../../components/AppModal.vue';
 import {
     createGuildChannel,
     editGuildChannel,
@@ -76,16 +76,6 @@ const categoryOptions = computed(() =>
 
 function close() { store.close(); }
 
-function onKey(event: KeyboardEvent) {
-    if (!visible.value) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        close();
-    }
-}
-onMounted(() => window.addEventListener('keydown', onKey));
-onUnmounted(() => window.removeEventListener('keydown', onKey));
-
 async function submit() {
     const t = target.value;
     if (!t || submitting.value) return;
@@ -147,122 +137,74 @@ const showTextChannelExtras = computed(() =>
 </script>
 
 <template>
-    <Teleport to="body">
-        <div v-if="visible" class="cm-backdrop" @click.self="close">
-            <div class="cm-modal" role="dialog" aria-modal="true">
-                <header class="cm-head">
-                    <span class="title">{{ titleText }}</span>
-                    <button type="button" class="icon-btn" @click="close" :aria-label="$t('common.close')">
-                        <Icon icon="material-symbols:close-rounded" width="18" height="18" />
-                    </button>
-                </header>
-                <form class="cm-body" @submit.prevent="submit">
-                    <label class="field">
-                        <span>{{ $t('channelMgmt.fieldName') }}</span>
-                        <input v-model="name" type="text" maxlength="100" autofocus required />
-                    </label>
-                    <label v-if="target?.mode === 'create'" class="field">
-                        <span>{{ $t('channelMgmt.fieldType') }}</span>
-                        <select v-model="type">
-                            <option v-for="opt in TYPE_OPTIONS" :key="opt.value" :value="opt.value">
-                                {{ $t(opt.label) }}
-                            </option>
-                        </select>
-                    </label>
-                    <label v-if="target?.mode === 'create' && type !== 'category'" class="field">
-                        <span>{{ $t('channelMgmt.fieldParent') }}</span>
-                        <select v-model="parentId">
-                            <option :value="null">{{ $t('channelMgmt.fieldParentNone') }}</option>
-                            <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                        </select>
-                    </label>
-                    <template v-if="target?.mode === 'edit' && target.isThread">
-                        <label class="field">
-                            <span>{{ $t('channelMgmt.fieldAutoArchive') }}</span>
-                            <select v-model.number="autoArchive">
-                                <option v-for="d in AUTO_ARCHIVE_OPTIONS" :key="d" :value="d">
-                                    {{ $t('channelMgmt.autoArchive' + d) }}
-                                </option>
-                            </select>
-                        </label>
-                        <label class="check">
-                            <input type="checkbox" v-model="archived" />
-                            {{ $t('channelMenu.archiveThread') }}
-                        </label>
-                        <label class="check">
-                            <input type="checkbox" v-model="locked" />
-                            {{ $t('channelMenu.lockThread') }}
-                        </label>
-                    </template>
-                    <template v-if="showTextChannelExtras">
-                        <label class="field">
-                            <span>{{ $t('channelMgmt.fieldTopic') }}</span>
-                            <input v-model="topic" type="text" maxlength="1024" />
-                        </label>
-                        <label class="field">
-                            <span>{{ $t('channelMgmt.fieldSlowmode') }}</span>
-                            <input v-model.number="slowmode" type="number" min="0" max="21600" />
-                        </label>
-                        <label class="check">
-                            <input type="checkbox" v-model="nsfw" />
-                            {{ $t('channelMgmt.fieldNsfw') }}
-                        </label>
-                    </template>
-                    <p v-if="error" class="error">{{ error }}</p>
-                    <footer class="cm-actions">
-                        <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
-                        <button type="submit" class="primary" :disabled="submitting">{{ submitText }}</button>
-                    </footer>
-                </form>
-            </div>
-        </div>
-    </Teleport>
+    <AppModal :visible="visible" :title="titleText" width="min(440px, 92vw)" @close="close">
+        <form class="body" @submit.prevent="submit">
+            <label class="field">
+                <span>{{ $t('channelMgmt.fieldName') }}</span>
+                <input v-model="name" type="text" maxlength="100" autofocus required />
+            </label>
+            <label v-if="target?.mode === 'create'" class="field">
+                <span>{{ $t('channelMgmt.fieldType') }}</span>
+                <select v-model="type">
+                    <option v-for="opt in TYPE_OPTIONS" :key="opt.value" :value="opt.value">
+                        {{ $t(opt.label) }}
+                    </option>
+                </select>
+            </label>
+            <label v-if="target?.mode === 'create' && type !== 'category'" class="field">
+                <span>{{ $t('channelMgmt.fieldParent') }}</span>
+                <select v-model="parentId">
+                    <option :value="null">{{ $t('channelMgmt.fieldParentNone') }}</option>
+                    <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                </select>
+            </label>
+            <template v-if="target?.mode === 'edit' && target.isThread">
+                <label class="field">
+                    <span>{{ $t('channelMgmt.fieldAutoArchive') }}</span>
+                    <select v-model.number="autoArchive">
+                        <option v-for="d in AUTO_ARCHIVE_OPTIONS" :key="d" :value="d">
+                            {{ $t('channelMgmt.autoArchive' + d) }}
+                        </option>
+                    </select>
+                </label>
+                <label class="check">
+                    <input type="checkbox" v-model="archived" />
+                    {{ $t('channelMenu.archiveThread') }}
+                </label>
+                <label class="check">
+                    <input type="checkbox" v-model="locked" />
+                    {{ $t('channelMenu.lockThread') }}
+                </label>
+            </template>
+            <template v-if="showTextChannelExtras">
+                <label class="field">
+                    <span>{{ $t('channelMgmt.fieldTopic') }}</span>
+                    <input v-model="topic" type="text" maxlength="1024" />
+                </label>
+                <label class="field">
+                    <span>{{ $t('channelMgmt.fieldSlowmode') }}</span>
+                    <input v-model.number="slowmode" type="number" min="0" max="21600" />
+                </label>
+                <label class="check">
+                    <input type="checkbox" v-model="nsfw" />
+                    {{ $t('channelMgmt.fieldNsfw') }}
+                </label>
+            </template>
+            <p v-if="error" class="error">{{ error }}</p>
+            <footer class="actions">
+                <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
+                <button type="submit" class="primary" :disabled="submitting">{{ submitText }}</button>
+            </footer>
+        </form>
+    </AppModal>
 </template>
 
 <style scoped>
-.cm-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-}
-.cm-modal {
-    width: min(440px, 92vw);
-    max-height: 88vh;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.cm-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.9rem;
-    border-bottom: 1px solid var(--border);
-}
-.title { flex: 1; font-weight: 600; }
-.icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.2rem;
-    display: inline-flex;
-}
-.icon-btn:hover { color: var(--text); }
-.cm-body {
+.body {
     padding: 0.8rem 0.9rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    overflow-y: auto;
 }
 .field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
 .field span { color: var(--text-muted); }
@@ -278,7 +220,7 @@ const showTextChannelExtras = computed(() =>
 }
 .check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
 .error { color: var(--danger); font-size: 0.85rem; }
-.cm-actions {
+.actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;

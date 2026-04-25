@@ -5,6 +5,7 @@ import { animatedAvatarUrl, isAnimatedAvatar } from '../../../modules/discord-ch
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
+import { useLongPress } from '../../../composables/use-long-press';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import type { DmChannelSummary } from '../../../api/dm';
 import type { GuildSummary } from '../../../api/guilds';
@@ -54,6 +55,14 @@ function onDmContext(event: MouseEvent, channel: DmChannelSummary) {
     const anchor = event.currentTarget as HTMLElement | null;
     if (!anchor) return;
     dmMenu.value = { x: event.clientX, y: event.clientY, channel, anchor };
+}
+
+// Touch long-press surfaces the same menu the right-click flow opens.
+const dmLongPress = useLongPress();
+function onDmTouchStart(event: TouchEvent, channel: DmChannelSummary) {
+    dmLongPress.start(event, ({ x, y, target }) => {
+        dmMenu.value = { x, y, channel, anchor: target };
+    });
 }
 const dmMenuActions = computed<ContextMenuAction[]>(() => {
     if (!dmMenu.value) return [];
@@ -132,6 +141,10 @@ function formatTimestamp(iso: string | null): string {
             :class="{ active: channel.id === selectedId, muted: muteStore.isMuted(channel.id) }"
             @click="emit('select', channel.id)"
             @contextmenu="onDmContext($event, channel)"
+            @touchstart.passive="onDmTouchStart($event, channel)"
+            @touchend="dmLongPress.cancel()"
+            @touchmove="dmLongPress.cancel()"
+            @touchcancel="dmLongPress.cancel()"
             @mouseenter="hoveredChannelId = channel.id"
             @mouseleave="hoveredChannelId = null"
         >

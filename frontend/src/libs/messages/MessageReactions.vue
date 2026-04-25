@@ -180,12 +180,12 @@ function onContextPick(actionKey: string) {
             :key="item.reaction.emoji.id ?? item.reaction.emoji.name"
             type="button"
             :class="['reaction', { mine: item.reaction.me }]"
-            @click="onReactionClick(item.reaction)"
-            @contextmenu="onContextMenu($event, item.reaction)"
-            @touchstart.passive="onTouchStart($event, item.reaction)"
-            @touchend="onTouchEnd"
-            @touchmove="onTouchEnd"
-            @touchcancel="onTouchEnd"
+            @click.stop="onReactionClick(item.reaction)"
+            @contextmenu.stop="onContextMenu($event, item.reaction)"
+            @touchstart.stop.passive="onTouchStart($event, item.reaction)"
+            @touchend.stop="onTouchEnd"
+            @touchmove.stop="onTouchEnd"
+            @touchcancel.stop="onTouchEnd"
         >
             <img
                 v-if="item.url && !failed[reactionKey(item.reaction)]"

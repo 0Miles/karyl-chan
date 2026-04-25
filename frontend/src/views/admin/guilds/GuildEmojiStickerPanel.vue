@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Icon } from '@iconify/vue';
+import AppModal from '../../../components/AppModal.vue';
 import {
     createGuildEmoji,
     createGuildSticker,
@@ -214,65 +214,52 @@ function onPickStickerFile(event: Event) {
         </ul>
     </section>
 
-    <Teleport to="body">
-        <div v-if="emojiUploadOpen" class="modal-backdrop" @click.self="emojiUploadOpen = false">
-            <div class="modal" role="dialog" aria-modal="true">
-                <header class="modal-head">
-                    <span>{{ $t('emojiMgmt.uploadTitle') }}</span>
-                    <button type="button" class="icon-btn" @click="emojiUploadOpen = false" :aria-label="$t('common.close')">
-                        <Icon icon="material-symbols:close-rounded" width="18" height="18" />
-                    </button>
-                </header>
-                <form class="modal-body" @submit.prevent="submitEmojiUpload">
-                    <label class="field">
-                        <span>{{ $t('emojiMgmt.fieldName') }}</span>
-                        <input v-model="emojiUploadName" type="text" maxlength="32" autofocus required />
-                    </label>
-                    <label class="field">
-                        <span>{{ $t('emojiMgmt.fieldFile') }}</span>
-                        <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" @change="onPickEmojiFile" required />
-                    </label>
-                    <footer class="modal-actions">
-                        <button type="button" class="ghost" @click="emojiUploadOpen = false">{{ $t('common.cancel') }}</button>
-                        <button type="submit" class="primary" :disabled="emojiUploadSubmitting">{{ $t('common.save') ?? 'Save' }}</button>
-                    </footer>
-                </form>
-            </div>
-        </div>
+    <AppModal :visible="emojiUploadOpen" :title="$t('emojiMgmt.uploadTitle')" width="min(420px, 92vw)" @close="emojiUploadOpen = false">
+        <form class="modal-body" @submit.prevent="submitEmojiUpload">
+            <label class="field">
+                <span>{{ $t('emojiMgmt.fieldName') }}</span>
+                <input v-model="emojiUploadName" type="text" maxlength="32" autofocus required />
+            </label>
+            <label class="field">
+                <span>{{ $t('emojiMgmt.fieldFile') }}</span>
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" @change="onPickEmojiFile" required />
+            </label>
+            <footer class="modal-actions">
+                <button type="button" class="ghost" @click="emojiUploadOpen = false">{{ $t('common.cancel') }}</button>
+                <button type="submit" class="primary" :disabled="emojiUploadSubmitting">{{ $t('common.save') }}</button>
+            </footer>
+        </form>
+    </AppModal>
 
-        <div v-if="stickerModalOpen" class="modal-backdrop" @click.self="stickerModalOpen = false">
-            <div class="modal" role="dialog" aria-modal="true">
-                <header class="modal-head">
-                    <span>{{ stickerEditing ? $t('stickerMgmt.editTitle') : $t('stickerMgmt.uploadTitle') }}</span>
-                    <button type="button" class="icon-btn" @click="stickerModalOpen = false" :aria-label="$t('common.close')">
-                        <Icon icon="material-symbols:close-rounded" width="18" height="18" />
-                    </button>
-                </header>
-                <form class="modal-body" @submit.prevent="submitStickerModal">
-                    <label class="field">
-                        <span>{{ $t('stickerMgmt.fieldName') }}</span>
-                        <input v-model="stickerForm.name" type="text" maxlength="30" autofocus required />
-                    </label>
-                    <label class="field">
-                        <span>{{ $t('stickerMgmt.fieldTags') }}</span>
-                        <input v-model="stickerForm.tags" type="text" maxlength="200" required />
-                    </label>
-                    <label class="field">
-                        <span>{{ $t('stickerMgmt.fieldDescription') }}</span>
-                        <input v-model="stickerForm.description" type="text" maxlength="100" required />
-                    </label>
-                    <label v-if="!stickerEditing" class="field">
-                        <span>{{ $t('stickerMgmt.fieldFile') }}</span>
-                        <input type="file" accept="image/png,image/apng,application/json" @change="onPickStickerFile" required />
-                    </label>
-                    <footer class="modal-actions">
-                        <button type="button" class="ghost" @click="stickerModalOpen = false">{{ $t('common.cancel') }}</button>
-                        <button type="submit" class="primary" :disabled="stickerSubmitting">{{ $t('common.save') ?? 'Save' }}</button>
-                    </footer>
-                </form>
-            </div>
-        </div>
-    </Teleport>
+    <AppModal
+        :visible="stickerModalOpen"
+        :title="stickerEditing ? $t('stickerMgmt.editTitle') : $t('stickerMgmt.uploadTitle')"
+        width="min(420px, 92vw)"
+        @close="stickerModalOpen = false"
+    >
+        <form class="modal-body" @submit.prevent="submitStickerModal">
+            <label class="field">
+                <span>{{ $t('stickerMgmt.fieldName') }}</span>
+                <input v-model="stickerForm.name" type="text" maxlength="30" autofocus required />
+            </label>
+            <label class="field">
+                <span>{{ $t('stickerMgmt.fieldTags') }}</span>
+                <input v-model="stickerForm.tags" type="text" maxlength="200" required />
+            </label>
+            <label class="field">
+                <span>{{ $t('stickerMgmt.fieldDescription') }}</span>
+                <input v-model="stickerForm.description" type="text" maxlength="100" required />
+            </label>
+            <label v-if="!stickerEditing" class="field">
+                <span>{{ $t('stickerMgmt.fieldFile') }}</span>
+                <input type="file" accept="image/png,image/apng,application/json" @change="onPickStickerFile" required />
+            </label>
+            <footer class="modal-actions">
+                <button type="button" class="ghost" @click="stickerModalOpen = false">{{ $t('common.cancel') }}</button>
+                <button type="submit" class="primary" :disabled="stickerSubmitting">{{ $t('common.save') }}</button>
+            </footer>
+        </form>
+    </AppModal>
 </template>
 
 <style scoped>
@@ -373,42 +360,6 @@ function onPickStickerFile(event: Event) {
 }
 .link.danger { color: var(--danger); }
 
-.modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-}
-.modal {
-    width: min(420px, 92vw);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.modal-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.9rem;
-    border-bottom: 1px solid var(--border);
-    font-weight: 600;
-}
-.modal-head span { flex: 1; }
-.icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.2rem;
-    display: inline-flex;
-}
 .modal-body {
     padding: 0.8rem 0.9rem;
     display: flex;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Icon } from '@iconify/vue';
+import AppModal from '../../../components/AppModal.vue';
 import {
     createGuildRole,
     editGuildRole,
@@ -112,16 +112,6 @@ const computedBits = computed<string>(() => {
 
 function close() { emit('close'); }
 
-function onKey(event: KeyboardEvent) {
-    if (!props.visible) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        close();
-    }
-}
-onMounted(() => window.addEventListener('keydown', onKey));
-onUnmounted(() => window.removeEventListener('keydown', onKey));
-
 async function submit() {
     if (!props.guildId || submitting.value) return;
     if (!name.value.trim()) {
@@ -158,108 +148,60 @@ const titleText = computed(() =>
 </script>
 
 <template>
-    <Teleport to="body">
-        <div v-if="visible" class="rm-backdrop" @click.self="close">
-            <div class="rm-modal" role="dialog" aria-modal="true">
-                <header class="rm-head">
-                    <span class="title">{{ titleText }}</span>
-                    <button type="button" class="icon-btn" @click="close" :aria-label="$t('common.close')">
-                        <Icon icon="material-symbols:close-rounded" width="18" height="18" />
-                    </button>
-                </header>
-                <form class="rm-body" @submit.prevent="submit">
-                    <label class="field">
-                        <span>{{ $t('roleMgmt.fieldName') }}</span>
-                        <input v-model="name" type="text" maxlength="100" autofocus required />
-                    </label>
-                    <label class="field">
-                        <span>{{ $t('roleMgmt.fieldColor') }}</span>
-                        <input v-model="color" type="color" />
-                    </label>
-                    <label class="check">
-                        <input type="checkbox" v-model="hoist" />
-                        {{ $t('roleMgmt.fieldHoist') }}
-                    </label>
-                    <label class="check">
-                        <input type="checkbox" v-model="mentionable" />
-                        {{ $t('roleMgmt.fieldMentionable') }}
-                    </label>
-                    <fieldset class="permissions">
-                        <legend>{{ $t('roleMgmt.fieldPermissions') }}</legend>
-                        <ul class="perm-grid">
-                            <li v-for="flag in PERMISSION_FLAGS" :key="flag.key">
-                                <label>
-                                    <input
-                                        type="checkbox"
-                                        :checked="permissionFlags.has(flag.key)"
-                                        @change="togglePermission(flag.key)"
-                                    />
-                                    {{ flag.key }}
-                                </label>
-                            </li>
-                        </ul>
-                        <label class="field">
-                            <span>{{ $t('roleMgmt.fieldPermissionsAdvanced') }}</span>
-                            <input v-model="advancedPermissions" type="text" :placeholder="$t('roleMgmt.permissionsBitfieldPlaceholder')" />
+    <AppModal :visible="visible" :title="titleText" width="min(480px, 92vw)" @close="close">
+        <form class="body" @submit.prevent="submit">
+            <label class="field">
+                <span>{{ $t('roleMgmt.fieldName') }}</span>
+                <input v-model="name" type="text" maxlength="100" autofocus required />
+            </label>
+            <label class="field">
+                <span>{{ $t('roleMgmt.fieldColor') }}</span>
+                <input v-model="color" type="color" />
+            </label>
+            <label class="check">
+                <input type="checkbox" v-model="hoist" />
+                {{ $t('roleMgmt.fieldHoist') }}
+            </label>
+            <label class="check">
+                <input type="checkbox" v-model="mentionable" />
+                {{ $t('roleMgmt.fieldMentionable') }}
+            </label>
+            <fieldset class="permissions">
+                <legend>{{ $t('roleMgmt.fieldPermissions') }}</legend>
+                <ul class="perm-grid">
+                    <li v-for="flag in PERMISSION_FLAGS" :key="flag.key">
+                        <label>
+                            <input
+                                type="checkbox"
+                                :checked="permissionFlags.has(flag.key)"
+                                @change="togglePermission(flag.key)"
+                            />
+                            {{ flag.key }}
                         </label>
-                    </fieldset>
-                    <p v-if="error" class="error">{{ error }}</p>
-                    <footer class="rm-actions">
-                        <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
-                        <button type="submit" class="primary" :disabled="submitting">
-                            {{ props.role ? $t('roleMgmt.save') : $t('roleMgmt.create') }}
-                        </button>
-                    </footer>
-                </form>
-            </div>
-        </div>
-    </Teleport>
+                    </li>
+                </ul>
+                <label class="field">
+                    <span>{{ $t('roleMgmt.fieldPermissionsAdvanced') }}</span>
+                    <input v-model="advancedPermissions" type="text" :placeholder="$t('roleMgmt.permissionsBitfieldPlaceholder')" />
+                </label>
+            </fieldset>
+            <p v-if="error" class="error">{{ error }}</p>
+            <footer class="actions">
+                <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
+                <button type="submit" class="primary" :disabled="submitting">
+                    {{ props.role ? $t('roleMgmt.save') : $t('roleMgmt.create') }}
+                </button>
+            </footer>
+        </form>
+    </AppModal>
 </template>
 
 <style scoped>
-.rm-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-}
-.rm-modal {
-    width: min(480px, 92vw);
-    max-height: 90vh;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.rm-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.9rem;
-    border-bottom: 1px solid var(--border);
-}
-.title { flex: 1; font-weight: 600; }
-.icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.2rem;
-    display: inline-flex;
-}
-.icon-btn:hover { color: var(--text); }
-.rm-body {
+.body {
     padding: 0.8rem 0.9rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    overflow-y: auto;
 }
 .field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
 .field span { color: var(--text-muted); }
@@ -303,7 +245,7 @@ const titleText = computed(() =>
 }
 .perm-grid label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; }
 .error { color: var(--danger); font-size: 0.85rem; }
-.rm-actions {
+.actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;

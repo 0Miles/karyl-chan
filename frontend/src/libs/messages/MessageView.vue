@@ -90,6 +90,37 @@ function onAuthorContextMenu(event: MouseEvent) {
         displayName.value
     );
 }
+
+// Touch long-press on the avatar/name. Mirrors DiscordConversation's
+// LONG_PRESS_MS so the timing feels consistent across surfaces. Without
+// this, mobile long-press on the author would never fire `onUserContextMenu`
+// — the parent message wrapper's touch handler would win and open the
+// message menu instead.
+const AUTHOR_LONG_PRESS_MS = 450;
+let authorLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+function onAuthorTouchStart(event: TouchEvent) {
+    if (!ctx.onUserContextMenu) return;
+    if (event.touches.length !== 1) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    const touch = event.touches[0];
+    if (authorLongPressTimer) clearTimeout(authorLongPressTimer);
+    authorLongPressTimer = setTimeout(() => {
+        authorLongPressTimer = null;
+        ctx.onUserContextMenu?.(
+            props.message.author.id,
+            anchor,
+            { x: touch.clientX, y: touch.clientY },
+            displayName.value
+        );
+    }, AUTHOR_LONG_PRESS_MS);
+}
+function onAuthorTouchEnd() {
+    if (authorLongPressTimer) {
+        clearTimeout(authorLongPressTimer);
+        authorLongPressTimer = null;
+    }
+}
 </script>
 
 <template>
@@ -106,21 +137,33 @@ function onAuthorContextMenu(event: MouseEvent) {
                 :src="avatarSrc"
                 alt=""
                 class="avatar author-click"
-                @click="onAuthorClick"
-                @contextmenu="onAuthorContextMenu"
+                @click.stop="onAuthorClick"
+                @contextmenu.stop="onAuthorContextMenu"
+                @touchstart.stop.passive="onAuthorTouchStart"
+                @touchend.stop="onAuthorTouchEnd"
+                @touchmove.stop="onAuthorTouchEnd"
+                @touchcancel.stop="onAuthorTouchEnd"
             />
             <div
                 v-else
                 class="avatar avatar-fallback author-click"
-                @click="onAuthorClick"
-                @contextmenu="onAuthorContextMenu"
+                @click.stop="onAuthorClick"
+                @contextmenu.stop="onAuthorContextMenu"
+                @touchstart.stop.passive="onAuthorTouchStart"
+                @touchend.stop="onAuthorTouchEnd"
+                @touchmove.stop="onAuthorTouchEnd"
+                @touchcancel.stop="onAuthorTouchEnd"
             >{{ displayName.charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <span
                     class="name author-click"
                     :style="authorColor ? { color: authorColor } : undefined"
-                    @click="onAuthorClick"
-                @contextmenu="onAuthorContextMenu"
+                    @click.stop="onAuthorClick"
+                    @contextmenu.stop="onAuthorContextMenu"
+                    @touchstart.stop.passive="onAuthorTouchStart"
+                    @touchend.stop="onAuthorTouchEnd"
+                    @touchmove.stop="onAuthorTouchEnd"
+                    @touchcancel.stop="onAuthorTouchEnd"
                 >{{ displayName }}</span>
                 <span v-if="message.author.bot" class="bot-tag">BOT</span>
                 <time class="time" :datetime="message.createdAt">{{ time }}</time>
