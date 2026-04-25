@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@discordjs/formatters": "^0.6.2",
@@ -26,9 +28,12 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.8",
     "@vue/tsconfig": "^0.7.0",
+    "jsdom": "^29.0.2",
     "typescript": "^5.9.3",
     "vite": "^6.0.7",
+    "vitest": "^4.1.5",
     "vue-tsc": "^2.2.0"
   }
 }
