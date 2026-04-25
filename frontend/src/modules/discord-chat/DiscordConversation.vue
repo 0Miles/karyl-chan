@@ -13,6 +13,7 @@ import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
 import { useMuteStore } from './stores/muteStore';
+import { useUnreadStore, markerGreater } from './stores/unreadStore';
 import { Icon } from '@iconify/vue';
 
 const props = defineProps<{
@@ -72,6 +73,23 @@ const isMuted = computed(() => muteStore.isMuted(props.channelId));
 function toggleMute() {
     if (props.channelId) muteStore.toggle(props.channelId);
 }
+
+// Index of the first message strictly newer than the unread divider
+// marker for the current channel. Returns -1 when the channel has no
+// snapshot, no marker, or every loaded message is older — in those
+// cases the divider is suppressed entirely. Re-evaluates on every
+// messages/channel change so SSE arrivals naturally land below.
+const unreadStore = useUnreadStore();
+const unreadDividerIndex = computed<number>(() => {
+    if (!props.channelId) return -1;
+    const marker = unreadStore.getDividerMarker(props.channelId);
+    if (!marker) return -1;
+    for (let i = 0; i < props.messages.length; i++) {
+        const id = props.messages[i].id;
+        if (id && markerGreater(id, marker)) return i;
+    }
+    return -1;
+});
 
 /**
  * Whether `message` targets the current bot user — directly (@mention),
@@ -416,6 +434,14 @@ const replyToProp = computed(() => props.replyTo);
                     :data-index="idx"
                 >
                     <div
+                        v-if="idx === unreadDividerIndex"
+                        class="unread-divider"
+                        role="separator"
+                        :aria-label="$t('messages.newMessages')"
+                    >
+                        <span class="unread-divider-label">{{ $t('messages.newMessages') }}</span>
+                    </div>
+                    <div
                         :class="['message-wrap', {
                         'group-start': !isContinuation(messages[idx - 1], message),
                         'mentioned-self': mentionsSelf(message)
@@ -482,9 +508,16 @@ const replyToProp = computed(() => props.replyTo);
             <p v-if="loadingOlder" class="muted center small">{{ $t('messages.loadingOlder') }}</p>
             <p v-else-if="!hasMore && messages.length > 0" class="muted center small">{{ $t('messages.beginningOfConversation') }}</p>
             <template v-if="messages.length > 0">
+                <template v-for="(message, idx) in messages" :key="message.id">
+                    <div
+                        v-if="idx === unreadDividerIndex"
+                        class="unread-divider"
+                        role="separator"
+                        :aria-label="$t('messages.newMessages')"
+                    >
+                        <span class="unread-divider-label">{{ $t('messages.newMessages') }}</span>
+                    </div>
                 <div
-                    v-for="(message, idx) in messages"
-                    :key="message.id"
                     :class="['message-wrap', {
                         'group-start': !isContinuation(messages[idx - 1], message),
                         'mentioned-self': mentionsSelf(message)
@@ -536,6 +569,7 @@ const replyToProp = computed(() => props.replyTo);
                         </template>
                     </div>
                 </div>
+                </template>
             </template>
             <template v-else>
                 <p v-if="!channelId" class="muted center">{{ $t('messages.selectChat') }}</p>
@@ -645,6 +679,29 @@ const replyToProp = computed(() => props.replyTo);
 .message-wrap.msg-flash {
     animation: msg-flash 1.2s ease-out;
 }
+/* "New messages" divider — anchored at the lastSeen marker captured
+   when the user opened the channel. Re-anchors on next entry, stays
+   put while the channel is open so SSE arrivals land below it. */
+.unread-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.4rem 1rem;
+    color: var(--unread-accent, #f23f43);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+.unread-divider::before,
+.unread-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--unread-accent, #f23f43);
+    opacity: 0.6;
+}
+.unread-divider-label { flex-shrink: 0; }
 @keyframes msg-flash {
     0% { background-color: rgba(99, 150, 240, 0.32); }
     60% { background-color: rgba(99, 150, 240, 0.2); }

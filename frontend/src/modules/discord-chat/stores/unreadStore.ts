@@ -47,8 +47,10 @@ function loadState(): PersistedState {
 
 // ISO timestamps and fixed-length snowflakes both compare correctly as
 // plain strings. Different lengths (e.g. two snowflakes of different
-// magnitudes) — longer is newer.
-function markerGreater(a: string, b: string): boolean {
+// magnitudes) — longer is newer. Exported so the conversation view can
+// pick the first "new" message after the divider marker without
+// duplicating the comparison logic.
+export function markerGreater(a: string, b: string): boolean {
     if (a.length !== b.length) return a.length > b.length;
     return a > b;
 }
@@ -145,9 +147,24 @@ export const useUnreadStore = defineStore('discord-unread', () => {
         schedulePersist();
     }
 
+    // Per-channel snapshot of `lastSeen[channelId]` taken at the moment
+    // the user entered the channel — used by the conversation view to
+    // anchor a "new messages" divider that stays put even after we
+    // mark-read messages below it. Reset every entry so leaving and
+    // returning re-anchors to the new lastSeen position.
+    const dividerMarker = reactive<Record<string, string | null>>({});
+
     function setCurrentChannel(channelId: string | null): void {
+        if (channelId) {
+            // Snapshot BEFORE markRead clobbers lastSeen with `latest`.
+            dividerMarker[channelId] = lastSeen[channelId] ?? null;
+        }
         currentChannelId.value = channelId;
         if (channelId) markRead(channelId);
+    }
+
+    function getDividerMarker(channelId: string): string | null {
+        return dividerMarker[channelId] ?? null;
     }
 
     function registerScope(channelId: string, mode: string): void {
@@ -236,5 +253,6 @@ export const useUnreadStore = defineStore('discord-unread', () => {
         hasChannelUnread,
         getModeCount,
         getModeMentionCount,
+        getDividerMarker
     };
 });

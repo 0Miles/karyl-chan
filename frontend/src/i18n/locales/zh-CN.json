@@ -124,6 +124,7 @@
         "copyLinkDone": "已复制",
         "mute": "静音此对话",
         "unmute": "解除静音",
+        "newMessages": "新消息",
         "replying": "回复中",
         "dropFiles": "拖放文件即可附加",
         "noDms": "还没有私信。在 Discord 向机器人发消息,或从上方发起一条。",

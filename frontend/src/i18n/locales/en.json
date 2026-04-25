@@ -124,6 +124,7 @@
         "copyLinkDone": "Copied",
         "mute": "Mute this channel",
         "unmute": "Unmute",
+        "newMessages": "New messages",
         "replying": "Replying",
         "dropFiles": "Drop files to attach",
         "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",
