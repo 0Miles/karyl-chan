@@ -17,6 +17,7 @@ import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore, type ChannelMessageEvent } from './messageCacheStore';
 import { useBotStore } from './botStore';
 import { useUnreadStore } from './unreadStore';
+import { useTypingStore } from './typingStore';
 import { maybeNotify } from '../notifications';
 
 export const useDmStore = defineStore('discord-dm', () => {
@@ -43,13 +44,23 @@ export const useDmStore = defineStore('discord-dm', () => {
         if (stopSSE) return;
         const messageCache = useMessageCacheStore();
         const unread = useUnreadStore();
+        const typing = useTypingStore();
         const botStore = useBotStore();
         stopSSE = subscribeEvents({
             onEvent(event) {
                 if (event.type === 'channel-touched') {
                     touchChannel(event.channel);
-                } else {
-                    messageCache.applyEvent(event satisfies ChannelMessageEvent);
+                    return;
+                }
+                if (event.type === 'typing-start') {
+                    typing.note(event.channelId, event.userId, event.userName);
+                    return;
+                }
+                {
+                    // Past the channel-touched / typing-start guards above,
+                    // `event` narrows to the message lifecycle events that
+                    // ChannelMessageEvent covers.
+                    messageCache.applyEvent(event as ChannelMessageEvent);
                     if (event.type === 'message-created' && event.message.author.id !== botStore.userId) {
                         unread.noteMessage(event.channelId, 'dm', false, event.message.id);
                         // Skip the notification if the user is actively

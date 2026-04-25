@@ -22,10 +22,12 @@ export const bot = new Client({
         IntentsBitField.Flags.GuildMembers,
         IntentsBitField.Flags.GuildMessages,
         IntentsBitField.Flags.GuildMessageReactions,
+        IntentsBitField.Flags.GuildMessageTyping,
         IntentsBitField.Flags.GuildVoiceStates,
         IntentsBitField.Flags.MessageContent,
         IntentsBitField.Flags.DirectMessages,
-        IntentsBitField.Flags.DirectMessageReactions
+        IntentsBitField.Flags.DirectMessageReactions,
+        IntentsBitField.Flags.DirectMessageTyping
     ],
     partials: [
         Partials.Message,

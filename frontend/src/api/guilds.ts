@@ -84,7 +84,8 @@ export interface GuildChannelCategory {
 export type GuildChannelEvent =
     | { type: 'guild-message-created'; guildId: string; channelId: string; message: Message }
     | { type: 'guild-message-updated'; guildId: string; channelId: string; message: Message }
-    | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string };
+    | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string }
+    | { type: 'guild-typing-start'; guildId: string; channelId: string; userId: string; userName: string; startedAt: number };
 
 export interface VoiceChannelMember {
     id: string;
@@ -380,6 +381,7 @@ export function subscribeGuildEvents(handlers: GuildEventStreamHandlers): () => 
             source.addEventListener('guild-message-created', dispatch as EventListener);
             source.addEventListener('guild-message-updated', dispatch as EventListener);
             source.addEventListener('guild-message-deleted', dispatch as EventListener);
+            source.addEventListener('guild-typing-start', dispatch as EventListener);
         }
     });
 }

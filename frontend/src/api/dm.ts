@@ -31,7 +31,8 @@ export type DmEvent =
     | { type: 'message-created'; channelId: string; message: Message }
     | { type: 'message-updated'; channelId: string; message: Message }
     | { type: 'message-deleted'; channelId: string; messageId: string }
-    | { type: 'channel-touched'; channel: DmChannelSummary };
+    | { type: 'channel-touched'; channel: DmChannelSummary }
+    | { type: 'typing-start'; channelId: string; userId: string; userName: string; startedAt: number };
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -206,6 +207,7 @@ export function subscribeEvents(handlers: EventStreamHandlers): () => void {
             source.addEventListener('message-updated', dispatch as EventListener);
             source.addEventListener('message-deleted', dispatch as EventListener);
             source.addEventListener('channel-touched', dispatch as EventListener);
+            source.addEventListener('typing-start', dispatch as EventListener);
         }
     });
 }

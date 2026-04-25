@@ -4,7 +4,8 @@ import type { Message } from './message-types.js';
 export type GuildChannelEvent =
     | { type: 'guild-message-created'; guildId: string; channelId: string; message: Message }
     | { type: 'guild-message-updated'; guildId: string; channelId: string; message: Message }
-    | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string };
+    | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string }
+    | { type: 'guild-typing-start'; guildId: string; channelId: string; userId: string; userName: string; startedAt: number };
 
 export type GuildChannelEventListener = (event: GuildChannelEvent) => void;
 

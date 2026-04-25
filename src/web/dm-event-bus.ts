@@ -6,7 +6,8 @@ export type DmEvent =
     | { type: 'message-created'; channelId: string; message: Message }
     | { type: 'message-updated'; channelId: string; message: Message }
     | { type: 'message-deleted'; channelId: string; messageId: string }
-    | { type: 'channel-touched'; channel: DmChannelSummary };
+    | { type: 'channel-touched'; channel: DmChannelSummary }
+    | { type: 'typing-start'; channelId: string; userId: string; userName: string; startedAt: number };
 
 export type DmEventListener = (event: DmEvent) => void;
 

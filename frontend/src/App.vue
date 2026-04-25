@@ -13,6 +13,7 @@ import { useDmStore } from './modules/discord-chat/stores/dmStore';
 import { useGuildChannelStore } from './modules/discord-chat/stores/guildChannelStore';
 import { useUnreadStore } from './modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from './modules/discord-chat/stores/muteStore';
+import { useTypingStore } from './modules/discord-chat/stores/typingStore';
 import Draggable from './components/Draggable.vue';
 import AppMenu from './components/AppMenu.vue';
 import AppMenuItem from './components/AppMenuItem.vue';
@@ -28,6 +29,7 @@ const dmStore = useDmStore();
 const guildStore = useGuildChannelStore();
 const unreadStore = useUnreadStore();
 const muteStore = useMuteStore();
+const typingStore = useTypingStore();
 
 // Subscribe to both SSE streams whenever we're authenticated so the nav
 // unread dot tracks new messages even when the user is not on the
@@ -128,6 +130,7 @@ async function signOut() {
     await logout();
     unreadStore.clear();
     muteStore.clear();
+    typingStore.clear();
     router.replace({ name: 'auth' });
 }
 

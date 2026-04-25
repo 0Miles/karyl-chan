@@ -19,6 +19,7 @@ import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore } from './messageCacheStore';
 import { useBotStore } from './botStore';
 import { useUnreadStore } from './unreadStore';
+import { useTypingStore } from './typingStore';
 import { maybeNotify } from '../notifications';
 
 interface GuildEntry {
@@ -83,9 +84,14 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         if (stopSSE) return;
         const messageCache = useMessageCacheStore();
         const unread = useUnreadStore();
+        const typing = useTypingStore();
         const botStore = useBotStore();
         stopSSE = subscribeGuildEvents({
             onEvent(event) {
+                if (event.type === 'guild-typing-start') {
+                    typing.note(event.channelId, event.userId, event.userName);
+                    return;
+                }
                 if (event.type === 'guild-message-deleted') {
                     messageCache.applyEvent({
                         type: 'message-deleted',
