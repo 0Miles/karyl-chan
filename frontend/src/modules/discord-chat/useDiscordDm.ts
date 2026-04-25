@@ -110,6 +110,11 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         botUserId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        // Reply-header click → workspace.requestScroll, which knows how
+        // to fetch-around when the target is older than the loaded
+        // window. Falls back to the DOM-only path if the message is
+        // already on screen, since requestScroll handles both cases.
+        onReplyClick: (messageId) => workspace.requestScroll(messageId),
         async fetchReactionUsers(messageId, emoji) {
             const channelId = selectedChannelId.value;
             if (!channelId) return [];

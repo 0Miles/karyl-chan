@@ -129,6 +129,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        onReplyClick: (messageId) => workspace.requestScroll(messageId),
         async fetchReactionUsers(messageId, emoji) {
             const gid = guildId.value;
             const channelId = selectedChannelId.value;
