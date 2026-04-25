@@ -762,17 +762,19 @@ export async function moveGuildVoiceMember(guildId: string, userId: string, chan
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to move voice member');
 }
 
-export async function forwardGuildMessage(
-    guildId: string,
-    targetChannelId: string,
+/** Forward an existing message to any text-based channel — guild text /
+ *  voice / thread or DM — that the bot has access to. Backend gates on
+ *  the destination's surface (guild.write or dm.write). */
+export async function forwardMessage(
     sourceChannelId: string,
-    sourceMessageId: string
+    sourceMessageId: string,
+    targetChannelId: string
 ): Promise<Message> {
-    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(targetChannelId)}/messages/forward`;
+    const url = `/api/discord/messages/forward`;
     const response = await authedFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceChannelId, sourceMessageId })
+        body: JSON.stringify({ sourceChannelId, sourceMessageId, targetChannelId })
     });
     const body = await jsonOrThrow<{ message: Message }>(response);
     return body.message;

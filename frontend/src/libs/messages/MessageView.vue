@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
 import MessageContent from './MessageContent.vue';
 import MessageReplyHeader from './MessageReplyHeader.vue';
 import MessageAttachment from './MessageAttachment.vue';
@@ -11,6 +13,7 @@ import { useMessageContext } from './context';
 import type { Message } from './types';
 
 const ctx = useMessageContext();
+const { t: $t } = useI18n();
 
 const props = defineProps<{
     message: Message;
@@ -121,10 +124,90 @@ function onAuthorTouchEnd() {
         authorLongPressTimer = null;
     }
 }
+
+// ── System messages (joins, pins, boosts, …) ───────────────────────
+//
+// Discord MessageType numeric constants — only the ones rendered with
+// a custom line. Anything else with `system: true` falls back to the
+// generic `systemMsg.fallback` text.
+const TYPE_CHANNEL_PIN = 6;
+const TYPE_USER_JOIN = 7;
+const TYPE_BOOST = 8;
+const TYPE_BOOST_TIER1 = 9;
+const TYPE_BOOST_TIER2 = 10;
+const TYPE_BOOST_TIER3 = 11;
+const TYPE_CHANNEL_FOLLOW_ADD = 12;
+const TYPE_THREAD_CREATED = 18;
+const TYPE_AUTOMOD = 24;
+const TYPE_STAGE_START = 27;
+const TYPE_STAGE_END = 28;
+const TYPE_STAGE_SPEAKER = 29;
+const TYPE_STAGE_TOPIC = 31;
+
+const systemIcon = computed(() => {
+    switch (props.message.type) {
+        case TYPE_CHANNEL_PIN: return 'material-symbols:keep-rounded';
+        case TYPE_USER_JOIN: return 'material-symbols:waving-hand-outline-rounded';
+        case TYPE_BOOST:
+        case TYPE_BOOST_TIER1:
+        case TYPE_BOOST_TIER2:
+        case TYPE_BOOST_TIER3: return 'material-symbols:bolt-rounded';
+        case TYPE_CHANNEL_FOLLOW_ADD: return 'material-symbols:rss-feed-rounded';
+        case TYPE_THREAD_CREATED: return 'material-symbols:forum-outline-rounded';
+        case TYPE_AUTOMOD: return 'material-symbols:shield-outline-rounded';
+        case TYPE_STAGE_START:
+        case TYPE_STAGE_END:
+        case TYPE_STAGE_SPEAKER:
+        case TYPE_STAGE_TOPIC: return 'material-symbols:campaign-outline-rounded';
+        default: return 'material-symbols:info-outline-rounded';
+    }
+});
+
+const systemText = computed(() => {
+    const name = displayName.value;
+    switch (props.message.type) {
+        case TYPE_CHANNEL_PIN: return $t('systemMsg.pin', { name });
+        case TYPE_USER_JOIN: return $t('systemMsg.join', { name });
+        case TYPE_BOOST: return $t('systemMsg.boost', { name });
+        case TYPE_BOOST_TIER1: return $t('systemMsg.boostTier', { name, tier: 1 });
+        case TYPE_BOOST_TIER2: return $t('systemMsg.boostTier', { name, tier: 2 });
+        case TYPE_BOOST_TIER3: return $t('systemMsg.boostTier', { name, tier: 3 });
+        case TYPE_CHANNEL_FOLLOW_ADD: return $t('systemMsg.channelFollowAdd', { name });
+        case TYPE_THREAD_CREATED: return $t('systemMsg.threadCreated', { name });
+        case TYPE_AUTOMOD: return $t('systemMsg.automod');
+        case TYPE_STAGE_START: return $t('systemMsg.stageStart', { name });
+        case TYPE_STAGE_END: return $t('systemMsg.stageEnd', { name });
+        case TYPE_STAGE_SPEAKER: return $t('systemMsg.stageSpeaker', { name });
+        case TYPE_STAGE_TOPIC: return $t('systemMsg.stageTopic', { name });
+        default: return $t('systemMsg.fallback', { name });
+    }
+});
+
+// ── Forwarded message snapshots ────────────────────────────────────
+//
+// Each snapshot is a partial message (no author / id) — Discord renders
+// forwards as a quoted block under the wrapper. We pre-parse each
+// snapshot's content via the same markdown parser as the main body so
+// mentions / emoji / links light up identically.
+function snapshotAst(content: string) {
+    return parseMessageContent(content);
+}
 </script>
 
 <template>
+    <!-- System events (joins, pins, boosts, …) render as a compact
+         single-row banner; the body / avatar / actions are suppressed. -->
     <article
+        v-if="message.system"
+        :class="['message', 'system-message']"
+        :data-message-id="message.id"
+    >
+        <Icon :icon="systemIcon" width="16" height="16" class="system-icon" />
+        <span class="system-text">{{ systemText }}</span>
+        <time class="system-time" :datetime="message.createdAt">{{ time }}</time>
+    </article>
+    <article
+        v-else
         :class="['message', { compact }]"
         :data-message-id="message.id"
         @mouseenter="hovered = true"
@@ -185,7 +268,7 @@ function onAuthorTouchEnd() {
                 </div>
             </div>
             <template v-else>
-                <MessageContent :nodes="ast" />
+                <MessageContent v-if="message.content" :nodes="ast" />
                 <MessageAttachment
                     v-for="att in message.attachments ?? []"
                     :key="att.id"
@@ -194,6 +277,40 @@ function onAuthorTouchEnd() {
                 />
                 <MessageSticker v-for="sticker in message.stickers ?? []" :key="sticker.id" :sticker="sticker" />
                 <MessageEmbed v-for="(embed, idx) in message.embeds ?? []" :key="idx" :embed="embed" />
+                <!-- Forward snapshots — Discord wraps the original
+                     message content in a quoted-block under a wrapper
+                     message; the wrapper's own content is empty. We
+                     render each snapshot inline with its content +
+                     attachments + embeds + stickers. -->
+                <div
+                    v-for="(snap, i) in message.messageSnapshots ?? []"
+                    :key="`snap-${i}`"
+                    class="forward-snap"
+                >
+                    <header class="forward-snap-head">
+                        <Icon icon="material-symbols:forward-rounded" width="14" height="14" />
+                        <span>{{ $t('systemMsg.forwarded') }}</span>
+                    </header>
+                    <div class="forward-snap-body">
+                        <MessageContent v-if="snap.content" :nodes="snapshotAst(snap.content)" />
+                        <MessageAttachment
+                            v-for="att in snap.attachments ?? []"
+                            :key="`snap-att-${att.id}`"
+                            :attachment="att"
+                            :siblings="snap.attachments ?? []"
+                        />
+                        <MessageSticker
+                            v-for="sticker in snap.stickers ?? []"
+                            :key="`snap-st-${sticker.id}`"
+                            :sticker="sticker"
+                        />
+                        <MessageEmbed
+                            v-for="(embed, ei) in snap.embeds ?? []"
+                            :key="`snap-em-${ei}`"
+                            :embed="embed"
+                        />
+                    </div>
+                </div>
                 <button
                     v-if="message.thread && ctx.onThreadClick"
                     type="button"
@@ -360,5 +477,48 @@ div.author-click:hover {
     padding: 0 0.4rem;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
+}
+
+/* System messages — joins, pins, boosts, etc. Compact one-line row,
+   indented to match where regular message body content starts so the
+   icon column visually replaces the avatar column. */
+.system-message {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.25rem 0.75rem 0.25rem 1.25rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.system-message .system-icon { color: var(--text-muted); flex-shrink: 0; }
+.system-message .system-text { flex: 1; min-width: 0; }
+.system-message .system-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* Forward snapshot — quoted-block style under the wrapper message. */
+.forward-snap {
+    margin-top: 0.3rem;
+    border-left: 3px solid var(--accent);
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-surface-2);
+    border-radius: 4px;
+}
+.forward-snap-head {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    margin-bottom: 0.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.forward-snap-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
 }
 </style>

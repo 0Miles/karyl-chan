@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import type { Message as DjsMessage } from 'discord.js';
-import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor } from './message-mapper.js';
-import { requireAnyCapability } from './route-guards.js';
+import { ChannelType, type Message as DjsMessage, type TextBasedChannel } from 'discord.js';
+import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor, toApiMessage } from './message-mapper.js';
+import { requireAnyCapability, requireCapability } from './route-guards.js';
+import { isSnowflake } from './validators.js';
 
 // Discord lookup endpoints feed both the DM and guild chat surfaces, so
 // either read capability is sufficient. Listing the pair instead of a
@@ -237,4 +238,65 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
         }
         return { guilds: buckets };
     });
+
+    // Cross-surface message forward. Source can be in any guild OR a DM
+    // the bot has access to; target likewise. The capability gate
+    // depends on the target's surface — guild target needs `guild.write`,
+    // DM target needs `dm.write`. Both surfaces ultimately call the same
+    // discord.js `forward` send, with the source's channel + message.
+    server.post<{ Body: { sourceChannelId?: unknown; sourceMessageId?: unknown; targetChannelId?: unknown } }>(
+        '/api/discord/messages/forward',
+        async (request, reply) => {
+            const sourceChannelId = typeof request.body?.sourceChannelId === 'string' ? request.body.sourceChannelId : '';
+            const sourceMessageId = typeof request.body?.sourceMessageId === 'string' ? request.body.sourceMessageId : '';
+            const targetChannelId = typeof request.body?.targetChannelId === 'string' ? request.body.targetChannelId : '';
+            if (!isSnowflake(sourceChannelId) || !isSnowflake(sourceMessageId) || !isSnowflake(targetChannelId)) {
+                reply.code(400).send({ error: 'sourceChannelId, sourceMessageId, targetChannelId required' });
+                return;
+            }
+            const target = await resolveTextChannel(bot, targetChannelId);
+            if (!target) { reply.code(404).send({ error: 'Unknown destination channel' }); return; }
+            // DMs and guild channels gate behind different capabilities;
+            // requireCapability writes the 4xx response itself, so we
+            // bail when it returns false.
+            const targetIsDm = target.type === ChannelType.DM || target.type === ChannelType.GroupDM;
+            const requiredCap = targetIsDm ? 'dm.write' : 'guild.write';
+            if (!requireCapability(request, reply, requiredCap)) return;
+            // Source resolution must succeed before discord.js's forward
+            // path runs — otherwise the cryptic "Cannot read properties
+            // of undefined" surfaces in the logs and we 502 the client.
+            const source = await resolveTextChannel(bot, sourceChannelId);
+            if (!source) { reply.code(404).send({ error: 'Unknown source channel' }); return; }
+            try {
+                const sent = await (target as unknown as {
+                    send: (opts: { forward: { message: string; channel: string } }) => Promise<DjsMessage>
+                }).send({
+                    forward: { message: sourceMessageId, channel: sourceChannelId }
+                });
+                return { message: toApiMessage(sent) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to forward message');
+                reply.code(502).send({ error: 'Failed to forward message' });
+            }
+        }
+    );
+}
+
+/**
+ * Resolve any addressable text-based channel (guild text/voice/thread or
+ * DM/group-DM). Cache hit avoids the REST round-trip; misses fall through
+ * to `bot.channels.fetch` which both fetches and caches. Returns null on
+ * non-text or non-existent ids.
+ */
+async function resolveTextChannel(bot: Client, channelId: string): Promise<TextBasedChannel | null> {
+    let channel = bot.channels.cache.get(channelId);
+    if (!channel) {
+        try {
+            channel = await bot.channels.fetch(channelId) ?? undefined;
+        } catch {
+            channel = undefined;
+        }
+    }
+    if (!channel || !channel.isTextBased()) return null;
+    return channel as TextBasedChannel;
 }

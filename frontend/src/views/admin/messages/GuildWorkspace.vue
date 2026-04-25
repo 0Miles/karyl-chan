@@ -13,7 +13,7 @@ import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/di
 import {
     bulkDeleteGuildMessages,
     deleteGuildMessage,
-    forwardGuildMessage,
+    forwardMessage,
     getGuildPins,
     pinGuildMessage,
     unpinGuildMessage,
@@ -146,7 +146,7 @@ async function onForwardPick(targetChannelId: string) {
     if (!src) return;
     forwardSource.value = null;
     try {
-        await forwardGuildMessage(props.guildId, targetChannelId, src.channelId, src.messageId);
+        await forwardMessage(src.channelId, src.messageId, targetChannelId);
     } catch {
         /* surface via toast in a future change; for now silent */
     }
@@ -292,7 +292,8 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
         />
         <GuildForwardPicker
             :visible="forwardSource !== null"
-            :categories="categories"
+            :guilds="props.guilds"
+            :current-guild-id="props.guildId"
             @pick="onForwardPick"
             @close="forwardSource = null"
         />

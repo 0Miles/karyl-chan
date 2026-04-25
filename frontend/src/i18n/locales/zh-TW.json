@@ -94,6 +94,21 @@
         "view": "檢視討論串",
         "messageCount": "{count} 則訊息"
     },
+    "systemMsg": {
+        "join": "{name} 加入了伺服器。",
+        "pin": "{name} 在此頻道釘選了一則訊息。",
+        "boost": "{name} 剛剛加成了伺服器。",
+        "boostTier": "{name} 剛剛加成了伺服器 — 已達第 {tier} 級！",
+        "channelFollowAdd": "{name} 追蹤了一個公告頻道。",
+        "threadCreated": "{name} 開啟了一個討論串。",
+        "stageStart": "{name} 開始了一個舞台。",
+        "stageEnd": "{name} 結束了舞台。",
+        "stageSpeaker": "{name} 成為發言人。",
+        "stageTopic": "{name} 更改了舞台主題。",
+        "automod": "AutoMod 阻擋了一則訊息。",
+        "fallback": "{name} 觸發了一個系統事件。",
+        "forwarded": "已轉發"
+    },
     "messageMgmt": {
         "pin": "釘選",
         "unpin": "取消釘選",
@@ -302,6 +317,8 @@
         "forwardTitle": "轉發訊息",
         "forwardEmpty": "沒有可用頻道。",
         "forwardFailed": "轉發失敗",
+        "forwardDestination": "目的地",
+        "forwardSearchPlaceholder": "搜尋頻道或使用者⋯",
         "markUnread": "標記為未讀",
         "viewSource": "檢視原始 Markdown",
         "lightboxPrev": "上一張",

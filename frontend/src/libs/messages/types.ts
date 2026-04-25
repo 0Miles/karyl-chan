@@ -89,6 +89,16 @@ export interface Message {
      *  was used as the starter for a public/private thread. The
      *  conversation renders this as a "view thread" chip below the body. */
     thread?: MessageThreadSummary | null;
+    /** Discord MessageType (numeric). Drives system-message rendering. */
+    type?: number;
+    /** True for gateway-synthesised events (joins, pins, boosts, …)
+     *  rather than user content. The frontend renders these as a
+     *  compact one-line system row instead of the standard chat row. */
+    system?: boolean;
+    /** Forwarded message snapshots. Populated when this message is the
+     *  "wrapper" of a forward; the visible content lives inside each
+     *  snapshot. The wrapper's `content` is empty in this case. */
+    messageSnapshots?: MessageSnapshot[];
 }
 
 export interface MessageThreadSummary {
@@ -96,6 +106,16 @@ export interface MessageThreadSummary {
     name: string;
     archived: boolean;
     messageCount: number;
+}
+
+export interface MessageSnapshot {
+    type: number;
+    content: string;
+    createdAt: string;
+    editedAt?: string | null;
+    attachments?: MessageAttachment[];
+    embeds?: MessageEmbed[];
+    stickers?: MessageSticker[];
 }
 
 export interface OutgoingMessage {

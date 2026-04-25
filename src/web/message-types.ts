@@ -76,6 +76,19 @@ export interface MessageThreadSummary {
     messageCount: number;
 }
 
+/** Inline snapshot of a message that has been forwarded into another
+ *  channel. Discord doesn't include author / id on the snapshot — the
+ *  frontend renders these as quoted previews under the parent message. */
+export interface MessageSnapshot {
+    type: number;
+    content: string;
+    createdAt: string;
+    editedAt?: string | null;
+    attachments?: MessageAttachment[];
+    embeds?: MessageEmbed[];
+    stickers?: MessageSticker[];
+}
+
 export interface Message {
     id: string;
     channelId: string;
@@ -101,4 +114,16 @@ export interface Message {
      *  was used as the starter for a public/private thread. The
      *  frontend renders this as a "view thread" chip below the body. */
     thread?: MessageThreadSummary | null;
+    /** Discord MessageType — used by the frontend to decide whether to
+     *  render the message as a regular chat row vs. a system-message
+     *  line (joins, pins, boost notifications, etc.). */
+    type?: number;
+    /** True when the message is a system event rather than user
+     *  content. Mirrors discord.js's `Message.system` (type !== Default
+     *  AND !== Reply AND !== ChatInputCommand etc.). */
+    system?: boolean;
+    /** Forward snapshots — when present, the message is a forward
+     *  whose visible content lives inside these snapshots. The parent
+     *  message's `content` is typically empty in this case. */
+    messageSnapshots?: MessageSnapshot[];
 }

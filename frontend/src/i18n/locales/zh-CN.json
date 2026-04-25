@@ -94,6 +94,21 @@
         "view": "查看讨论串",
         "messageCount": "{count} 条消息"
     },
+    "systemMsg": {
+        "join": "{name} 加入了服务器。",
+        "pin": "{name} 在此频道置顶了一条消息。",
+        "boost": "{name} 刚刚加成了服务器。",
+        "boostTier": "{name} 刚刚加成了服务器 — 已达第 {tier} 级！",
+        "channelFollowAdd": "{name} 关注了一个公告频道。",
+        "threadCreated": "{name} 开启了一个讨论串。",
+        "stageStart": "{name} 开启了一个舞台。",
+        "stageEnd": "{name} 结束了舞台。",
+        "stageSpeaker": "{name} 成为发言人。",
+        "stageTopic": "{name} 更改了舞台主题。",
+        "automod": "AutoMod 拦截了一条消息。",
+        "fallback": "{name} 触发了一个系统事件。",
+        "forwarded": "已转发"
+    },
     "messageMgmt": {
         "pin": "置顶",
         "unpin": "取消置顶",
@@ -302,6 +317,8 @@
         "forwardTitle": "转发消息",
         "forwardEmpty": "没有可用频道。",
         "forwardFailed": "转发失败",
+        "forwardDestination": "目的地",
+        "forwardSearchPlaceholder": "搜索频道或用户…",
         "markUnread": "标记为未读",
         "viewSource": "查看原始 Markdown",
         "lightboxPrev": "上一张",

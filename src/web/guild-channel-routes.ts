@@ -704,44 +704,6 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
         }
     );
 
-    // Forward an existing message into a destination channel using the
-    // native Discord forward primitive (MessageReferenceType.Forward).
-    // Source and destination both live in the same guild so a single
-    // permissions check covers them; cross-guild forward isn't surfaced.
-    server.post<{ Params: { guildId: string; channelId: string }; Body: { sourceChannelId?: unknown; sourceMessageId?: unknown } }>(
-        '/api/guilds/:guildId/text-channels/:channelId/messages/forward',
-        async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
-            const { guildId, channelId } = request.params;
-            const sourceChannelId = typeof request.body?.sourceChannelId === 'string' ? request.body.sourceChannelId : '';
-            const sourceMessageId = typeof request.body?.sourceMessageId === 'string' ? request.body.sourceMessageId : '';
-            if (!isSnowflake(sourceChannelId) || !isSnowflake(sourceMessageId)) {
-                reply.code(400).send({ error: 'sourceChannelId and sourceMessageId required' });
-                return;
-            }
-            const target = fetchTextChannel(bot, guildId, channelId);
-            if (!target) { reply.code(404).send({ error: 'Unknown destination channel' }); return; }
-            const source = fetchTextChannel(bot, guildId, sourceChannelId);
-            if (!source) { reply.code(404).send({ error: 'Unknown source channel' }); return; }
-            try {
-                // discord.js v14.26 dropped raw `messageReference` for
-                // forwards in favour of a typed `forward` field on
-                // MessageCreateOptions. The shape carries the source
-                // channel + message; guild is inferred from the channel.
-                const sent = await target.send({
-                    forward: {
-                        message: sourceMessageId,
-                        channel: sourceChannelId
-                    }
-                });
-                return { message: toApiMessage(sent) };
-            } catch (err) {
-                request.log.error({ err }, 'failed to forward guild message');
-                reply.code(502).send({ error: 'Failed to forward message' });
-            }
-        }
-    );
-
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {

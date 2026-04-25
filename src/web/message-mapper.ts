@@ -1,9 +1,10 @@
-import type { GuildMember, Message as DjsMessage, MessageReaction as DjsReaction, MessageType as DjsMessageType, User } from 'discord.js';
+import type { GuildMember, Message as DjsMessage, MessageReaction as DjsReaction, MessageSnapshot as DjsMessageSnapshot, MessageType as DjsMessageType, User } from 'discord.js';
 import type {
     Message as ApiMessage,
     MessageAttachment,
     MessageEmbed,
     MessageReaction,
+    MessageSnapshot,
     MessageSticker,
     StickerFormat,
     MessageAuthor
@@ -92,7 +93,11 @@ function mapStickers(message: DjsMessage): MessageSticker[] {
 }
 
 function mapEmbeds(message: DjsMessage): MessageEmbed[] {
-    return message.embeds.map(e => ({
+    return message.embeds.map(mapEmbed);
+}
+
+function mapEmbed(e: DjsMessage['embeds'][number]): MessageEmbed {
+    return {
         title: e.title ?? null,
         description: e.description ?? null,
         url: e.url ?? null,
@@ -103,7 +108,42 @@ function mapEmbeds(message: DjsMessage): MessageEmbed[] {
         author: e.author ? { name: e.author.name, url: e.author.url ?? undefined, iconUrl: e.author.iconURL ?? undefined } : null,
         fields: e.fields?.map(f => ({ name: f.name, value: f.value, inline: f.inline })) ?? [],
         timestamp: e.timestamp ?? null
-    }));
+    };
+}
+
+/**
+ * Map a forward snapshot. discord.js's `MessageSnapshot` exposes a
+ * partial-message shape (no author / id / channel) — exactly the
+ * fields the frontend needs to render the quoted preview.
+ */
+function mapSnapshot(s: DjsMessageSnapshot): MessageSnapshot {
+    return {
+        type: Number(s.type ?? 0),
+        content: s.content ?? '',
+        createdAt: (s.createdTimestamp ? new Date(s.createdTimestamp) : new Date()).toISOString(),
+        editedAt: s.editedTimestamp ? new Date(s.editedTimestamp).toISOString() : null,
+        attachments: s.attachments
+            ? [...s.attachments.values()].map(a => ({
+                id: a.id,
+                filename: a.name,
+                url: a.url,
+                proxyUrl: a.proxyURL,
+                contentType: a.contentType ?? null,
+                size: a.size,
+                width: a.width ?? null,
+                height: a.height ?? null,
+                description: a.description ?? null
+            }))
+            : [],
+        embeds: s.embeds ? s.embeds.map(mapEmbed) : [],
+        stickers: s.stickers
+            ? [...s.stickers.values()].map(st => ({
+                id: st.id,
+                name: st.name,
+                formatType: st.format as StickerFormat
+            }))
+            : []
+    };
 }
 
 export function toApiMessage(message: DjsMessage): ApiMessage {
@@ -150,7 +190,18 @@ export function toApiMessage(message: DjsMessage): ApiMessage {
                 archived: !!message.thread.archived,
                 messageCount: message.thread.messageCount ?? 0
             }
-            : null
+            : null,
+        type: Number(message.type),
+        // discord.js `system` flag — true for joins, pins, boosts, and
+        // similar gateway-synthesised events; false for default text,
+        // replies, slash commands, and thread starters.
+        system: message.system,
+        // Forward snapshots — empty (omitted) for normal messages, a
+        // single-element array for forwards. The frontend renders each
+        // snapshot as an inset preview under the parent.
+        messageSnapshots: message.messageSnapshots && message.messageSnapshots.size > 0
+            ? [...message.messageSnapshots.values()].map(mapSnapshot)
+            : undefined
     };
 }
 

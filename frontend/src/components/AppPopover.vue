@@ -191,7 +191,11 @@ function onContentClick() {
     display: contents;
 }
 .app-popover-content {
-    z-index: 1000;
+    /* Above AppModal's backdrop (1500) — popovers opened from inside a
+       modal (e.g. the forward picker's destination AppSelect) need to
+       float above the modal's surface, not behind it. The mobile drawer
+       branch below already sits at 2000/2001 for the same reason. */
+    z-index: 1600;
 }
 .app-popover-drawer-panel {
     max-height: 70vh;

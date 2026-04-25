@@ -3,9 +3,11 @@ import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
 import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
+import GuildForwardPicker from './GuildForwardPicker.vue';
 import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
-import type { GuildSummary } from '../../../api/guilds';
+import { forwardMessage, type GuildSummary } from '../../../api/guilds';
 import { getPins } from '../../../api/dm';
+import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
@@ -63,6 +65,25 @@ const {
 function handleSelect(id: string) {
     selectChannel(id);
     if (props.isMobile) closeOverlay();
+}
+
+// Forward picker — same component as the guild flow; the picker offers
+// guild channels + DMs as destinations and the backend dispatches via
+// channel resolution, so a single handler covers both surfaces.
+const forwardSource = ref<{ channelId: string; messageId: string } | null>(null);
+function onForwardRequested(message: Message) {
+    if (!selectedChannelId.value) return;
+    forwardSource.value = { channelId: selectedChannelId.value, messageId: message.id };
+}
+async function onForwardPick(targetChannelId: string) {
+    const src = forwardSource.value;
+    if (!src) return;
+    forwardSource.value = null;
+    try {
+        await forwardMessage(src.channelId, src.messageId, targetChannelId);
+    } catch {
+        /* surfaced as a silent error today; toast hooks pending */
+    }
 }
 
 // Pin/jump → seed `?scrollTo=` so the workspace machine performs the
@@ -145,6 +166,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :editing-message-id="chat.editingMessageId.value"
             :reply-to="chat.replyTo.value"
             :pin-fetcher="getPins"
+            :can-forward="true"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -155,6 +177,14 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @load-older="chat.loadOlder"
             @react="reactWithSelection"
             @jump-to-message="onJumpToMessage"
+            @forward="onForwardRequested"
+        />
+        <GuildForwardPicker
+            :visible="forwardSource !== null"
+            :guilds="props.guilds"
+            :current-guild-id="null"
+            @pick="onForwardPick"
+            @close="forwardSource = null"
         />
         <UserContextMenu />
     </SidebarLayout>

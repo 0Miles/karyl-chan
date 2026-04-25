@@ -94,6 +94,21 @@
         "view": "View thread",
         "messageCount": "{count} messages"
     },
+    "systemMsg": {
+        "join": "{name} joined the server.",
+        "pin": "{name} pinned a message to this channel.",
+        "boost": "{name} just boosted the server.",
+        "boostTier": "{name} just boosted the server — it's now Tier {tier}!",
+        "channelFollowAdd": "{name} added an announcement channel follow.",
+        "threadCreated": "{name} started a thread.",
+        "stageStart": "{name} started a stage.",
+        "stageEnd": "{name} ended the stage.",
+        "stageSpeaker": "{name} is now a speaker.",
+        "stageTopic": "{name} changed the stage topic.",
+        "automod": "AutoMod blocked a message.",
+        "fallback": "{name} sent a system event.",
+        "forwarded": "Forwarded"
+    },
     "messageMgmt": {
         "pin": "Pin",
         "unpin": "Unpin",
@@ -302,6 +317,8 @@
         "forwardTitle": "Forward message",
         "forwardEmpty": "No channels available.",
         "forwardFailed": "Failed to forward",
+        "forwardDestination": "Destination",
+        "forwardSearchPlaceholder": "Search channel or user…",
         "markUnread": "Mark unread",
         "viewSource": "View source markdown",
         "lightboxPrev": "Previous",

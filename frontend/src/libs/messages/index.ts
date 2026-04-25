@@ -10,6 +10,7 @@ export type {
     MessageEmbed,
     MessageEmbedField,
     MessageThreadSummary,
+    MessageSnapshot,
     OutgoingMessage,
     ComposerSuggestionItem,
     ComposerSuggestionTrigger,
