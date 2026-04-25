@@ -166,6 +166,16 @@ const typingLabel = computed<string | null>(() => {
 // cases the divider is suppressed entirely. Re-evaluates on every
 // messages/channel change so SSE arrivals naturally land below.
 const unreadStore = useUnreadStore();
+// View-source modal — shows the raw markdown for a message so admins
+// can copy syntax verbatim or debug rendering. Pinned to a single
+// reactive ref because at most one source modal is ever open.
+const sourceModalMessage = ref<Message | null>(null);
+function closeSourceModal() { sourceModalMessage.value = null; }
+async function copySourceToClipboard() {
+    if (!sourceModalMessage.value) return;
+    try { await navigator.clipboard.writeText(sourceModalMessage.value.content ?? ''); } catch { /* ignore */ }
+}
+
 // Context menu (right-click / long-press). The action set is computed
 // per-message so the menu shows edit/delete only on the bot's own
 // messages. Mark-unread anchors to the message immediately preceding
@@ -215,6 +225,7 @@ const ctxActions = computed<ContextMenuAction[]>(() => {
         { key: 'copy-text', label: $t('messages.copyText'), icon: 'material-symbols:content-copy-outline-rounded' },
         { key: 'copy-link', label: $t('messages.copyLink'), icon: 'material-symbols:link-rounded' },
         { key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' },
+        { key: 'view-source', label: $t('messages.viewSource'), icon: 'material-symbols:code-rounded' },
         { key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' }
     ];
     if (isOwn(message)) {
@@ -238,6 +249,9 @@ function onContextPick(actionKey: string) {
         case 'copy-text': void copyToClipboard(message.content ?? ''); break;
         case 'copy-link': void copyToClipboard(messageUrl(message)); break;
         case 'copy-id': void copyToClipboard(message.id); break;
+        case 'view-source':
+            sourceModalMessage.value = message;
+            break;
         case 'mark-unread': {
             // Anchor lastSeen at the message immediately before this one
             // so the target message becomes the first unread.
@@ -793,6 +807,22 @@ const replyToProp = computed(() => props.replyTo);
             @pick="onContextPick"
             @close="ctxMenu = null"
         />
+        <Teleport to="body">
+            <div v-if="sourceModalMessage" class="src-backdrop" @click.self="closeSourceModal">
+                <div class="src-modal" role="dialog" aria-modal="true">
+                    <header class="src-head">
+                        <span>{{ $t('messages.viewSource') }}</span>
+                        <button type="button" class="src-icon" @click="copySourceToClipboard" :title="$t('messages.copyText')">
+                            <Icon icon="material-symbols:content-copy-outline-rounded" width="16" height="16" />
+                        </button>
+                        <button type="button" class="src-icon" @click="closeSourceModal" :aria-label="$t('common.close')">
+                            <Icon icon="material-symbols:close-rounded" width="18" height="18" />
+                        </button>
+                    </header>
+                    <pre class="src-body"><code>{{ sourceModalMessage.content ?? '' }}</code></pre>
+                </div>
+            </div>
+        </Teleport>
         <div v-if="channelId && typingLabel" class="typing-row">{{ typingLabel }}</div>
         <footer v-if="channelId" class="composer-row">
             <MessageComposer
@@ -963,6 +993,59 @@ const replyToProp = computed(() => props.replyTo);
     font-size: 0.78rem;
     color: var(--text-muted);
     font-style: italic;
+}
+.src-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 95;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.src-modal {
+    width: min(96vw, 720px);
+    max-height: 80vh;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.src-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--text-strong);
+    font-size: 0.92rem;
+}
+.src-head > span:first-child { flex: 1; }
+.src-icon {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text);
+    line-height: 0;
+}
+.src-icon:hover { background: var(--bg-surface-hover); }
+.src-body {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    overflow: auto;
+    background: var(--bg-surface-2);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 </style>

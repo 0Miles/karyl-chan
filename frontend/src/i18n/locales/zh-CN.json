@@ -141,6 +141,7 @@
         "copyText": "复制消息内容",
         "copyId": "复制消息 ID",
         "markUnread": "标记为未读",
+        "viewSource": "查看原始 Markdown",
         "mute": "静音此对话",
         "unmute": "解除静音",
         "pinnedMessages": "已置顶消息",
