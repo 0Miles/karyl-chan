@@ -4,6 +4,7 @@ import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
+import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
 import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
@@ -15,6 +16,8 @@ import { useMessageCacheStore, type ScrollPosition } from './stores/messageCache
 import { useMuteStore } from './stores/muteStore';
 import { useUnreadStore, markerGreater } from './stores/unreadStore';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
+const { t: $t } = useI18n();
 
 const props = defineProps<{
     channelId: string | null;
@@ -80,6 +83,92 @@ function toggleMute() {
 // cases the divider is suppressed entirely. Re-evaluates on every
 // messages/channel change so SSE arrivals naturally land below.
 const unreadStore = useUnreadStore();
+// Context menu (right-click / long-press). The action set is computed
+// per-message so the menu shows edit/delete only on the bot's own
+// messages. Mark-unread anchors to the message immediately preceding
+// `target` so reopening the channel surfaces the divider above it.
+const ctxMenu = ref<{ x: number; y: number; messageId: string } | null>(null);
+const LONG_PRESS_MS = 500;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+function openContextMenu(event: MouseEvent | TouchEvent, message: Message) {
+    const point = 'touches' in event && event.touches.length > 0
+        ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
+        : { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY };
+    ctxMenu.value = { x: point.x, y: point.y, messageId: message.id };
+}
+
+function onMessageContextMenu(event: MouseEvent, message: Message) {
+    // Allow the OS native menu when the user is right-clicking inside
+    // an editor (compose / edit textbox) so they can paste / spell-check.
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('[contenteditable="true"], textarea, input')) return;
+    event.preventDefault();
+    openContextMenu(event, message);
+}
+
+function onMessageTouchStart(event: TouchEvent, message: Message) {
+    if (event.touches.length !== 1) return;
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        openContextMenu(event, message);
+    }, LONG_PRESS_MS);
+}
+
+function onMessageTouchEnd() {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+}
+
+const ctxActions = computed<ContextMenuAction[]>(() => {
+    if (!ctxMenu.value) return [];
+    const message = props.messages.find(m => m.id === ctxMenu.value!.messageId);
+    if (!message) return [];
+    const actions: ContextMenuAction[] = [
+        { key: 'reply', label: $t('messages.reply'), icon: 'material-symbols:reply-rounded' },
+        { key: 'copy-text', label: $t('messages.copyText'), icon: 'material-symbols:content-copy-outline-rounded' },
+        { key: 'copy-link', label: $t('messages.copyLink'), icon: 'material-symbols:link-rounded' },
+        { key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' },
+        { key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' }
+    ];
+    if (isOwn(message)) {
+        actions.push({ key: 'edit', label: $t('messages.edit'), icon: 'material-symbols:edit-rounded' });
+        actions.push({ key: 'delete', label: $t('messages.delete'), icon: 'material-symbols:delete-rounded', danger: true });
+    }
+    return actions;
+});
+
+async function copyToClipboard(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+}
+
+function onContextPick(actionKey: string) {
+    const ctx = ctxMenu.value;
+    if (!ctx) return;
+    const message = props.messages.find(m => m.id === ctx.messageId);
+    if (!message) return;
+    switch (actionKey) {
+        case 'reply': emit('reply', message); break;
+        case 'copy-text': void copyToClipboard(message.content ?? ''); break;
+        case 'copy-link': void copyToClipboard(messageUrl(message)); break;
+        case 'copy-id': void copyToClipboard(message.id); break;
+        case 'mark-unread': {
+            // Anchor lastSeen at the message immediately before this one
+            // so the target message becomes the first unread.
+            const idx = props.messages.findIndex(m => m.id === message.id);
+            const predecessor = idx > 0 ? props.messages[idx - 1].id : null;
+            if (props.channelId) unreadStore.markUnreadFrom(props.channelId, predecessor);
+            break;
+        }
+        case 'edit': emit('request-edit', message); break;
+        case 'delete': emit('delete', message); break;
+    }
+}
+
+
 const unreadDividerIndex = computed<number>(() => {
     if (!props.channelId) return -1;
     const marker = unreadStore.getDividerMarker(props.channelId);
@@ -447,6 +536,11 @@ const replyToProp = computed(() => props.replyTo);
                         'mentioned-self': mentionsSelf(message)
                     }]"
                         :data-message-id="message.id"
+                        @contextmenu="onMessageContextMenu($event, message)"
+                        @touchstart="onMessageTouchStart($event, message)"
+                        @touchend="onMessageTouchEnd"
+                        @touchmove="onMessageTouchEnd"
+                        @touchcancel="onMessageTouchEnd"
                     >
                         <MessageView
                             :message="message"
@@ -589,6 +683,14 @@ const replyToProp = computed(() => props.replyTo);
         <!-- Single shared user-profile popover, driven by the
              userProfileStore that MessageContext.onUserClick writes to. -->
         <DiscordUserCardPopover />
+        <MessageContextMenu
+            :visible="ctxMenu !== null"
+            :x="ctxMenu?.x ?? 0"
+            :y="ctxMenu?.y ?? 0"
+            :actions="ctxActions"
+            @pick="onContextPick"
+            @close="ctxMenu = null"
+        />
         <footer v-if="channelId" class="composer-row">
             <MessageComposer
                 ref="composerRef"

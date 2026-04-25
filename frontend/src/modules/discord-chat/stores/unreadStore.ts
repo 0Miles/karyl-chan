@@ -167,6 +167,39 @@ export const useUnreadStore = defineStore('discord-unread', () => {
         return dividerMarker[channelId] ?? null;
     }
 
+    /**
+     * Force the channel back into "unread" state from a specific message
+     * id (the message itself becomes the first unread). Sets lastSeen
+     * to the message id immediately preceding `markerId` so the divider
+     * anchors right above it on the next entry. Mark-unread is a UX
+     * convenience — we don't have an authoritative "previous-message"
+     * pointer for the very first message in a channel, so callers must
+     * pass the predecessor's id (or a value the caller already knows is
+     * older than `markerId`).
+     */
+    function markUnreadFrom(channelId: string, predecessorMarker: string | null): void {
+        if (!channelId) return;
+        if (predecessorMarker) {
+            lastSeen[channelId] = predecessorMarker;
+        } else {
+            // No predecessor → wipe lastSeen entirely so EVERY message
+            // in the channel counts as unread on the next look.
+            delete lastSeen[channelId];
+        }
+        // Stub a non-zero count so the sidebar shows the channel as
+        // unread without us having to refetch — concrete count rebuilds
+        // on next channel-list refresh.
+        if (!counts[channelId]) counts[channelId] = 1;
+        if (currentChannelId.value === channelId) {
+            // User is sitting in the channel; bounce them out so the
+            // next entry re-anchors the divider.
+            currentChannelId.value = null;
+        }
+        // Reset the divider marker so re-entry picks up the new state.
+        dividerMarker[channelId] = predecessorMarker;
+        schedulePersist();
+    }
+
     function registerScope(channelId: string, mode: string): void {
         if (scope[channelId] === mode) return;
         scope[channelId] = mode;
@@ -253,6 +286,7 @@ export const useUnreadStore = defineStore('discord-unread', () => {
         hasChannelUnread,
         getModeCount,
         getModeMentionCount,
-        getDividerMarker
+        getDividerMarker,
+        markUnreadFrom
     };
 });
