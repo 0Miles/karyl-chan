@@ -300,6 +300,35 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         }
     );
 
+    server.get<{ Params: { channelId: string; messageId: string }; Querystring: { emojiId?: string; emojiName?: string } }>(
+        '/api/dm/channels/:channelId/messages/:messageId/reactions/users',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
+            const channel = await fetchDmChannel(bot, request.params.channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+            const key = request.query.emojiId ?? request.query.emojiName;
+            if (!key) { reply.code(400).send({ error: 'emoji required' }); return; }
+            try {
+                const message = await channel.messages.fetch(request.params.messageId);
+                const reaction = message.reactions.cache.get(key);
+                if (!reaction) return { users: [] };
+                const users = await reaction.users.fetch();
+                return {
+                    users: [...users.values()].map(u => ({
+                        id: u.id,
+                        username: u.username,
+                        globalName: u.globalName ?? null,
+                        avatarUrl: avatarUrlFor(u.id, u.avatar)
+                    }))
+                };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch DM reaction users');
+                reply.code(502).send({ error: 'Failed to fetch reaction users' });
+            }
+        }
+    );
+
     server.post<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {

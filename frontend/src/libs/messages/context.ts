@@ -67,6 +67,16 @@ export interface MessageContext {
     guildId?: string | null;
     onReactionAdd?: (messageId: string, emoji: MessageEmoji) => void;
     onReactionRemove?: (messageId: string, emoji: MessageEmoji) => void;
+    /** Pull the list of users who reacted with `emoji` on `messageId`.
+     *  Surface-specific (DM vs guild) so the workspace passes the
+     *  matching API call. Returning a rejected promise surfaces in
+     *  the reaction popover as an error message. */
+    fetchReactionUsers?: (messageId: string, emoji: MessageEmoji) => Promise<Array<{
+        id: string;
+        username: string;
+        globalName: string | null;
+        avatarUrl: string;
+    }>>;
     onReplyClick?: (messageId: string) => void;
     /** Fired when the user clicks a message avatar, author name, or user mention. */
     onUserClick?: (userId: string, anchor: HTMLElement) => void;

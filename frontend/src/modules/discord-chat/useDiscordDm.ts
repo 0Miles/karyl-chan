@@ -110,6 +110,12 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
         botUserId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        async fetchReactionUsers(messageId, emoji) {
+            const channelId = selectedChannelId.value;
+            if (!channelId) return [];
+            const { getReactionUsers } = await import('../../api/dm');
+            return getReactionUsers(channelId, messageId, { id: emoji.id ?? null, name: emoji.name });
+        },
         linkHandlers: [createDiscordMessageLinkHandler({
             router,
             currentChannelId: () => selectedChannelId.value,

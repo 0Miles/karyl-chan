@@ -129,6 +129,13 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId,
         onReactionAdd: chat.reactAdd,
         onReactionRemove: chat.reactRemove,
+        async fetchReactionUsers(messageId, emoji) {
+            const gid = guildId.value;
+            const channelId = selectedChannelId.value;
+            if (!gid || !channelId) return [];
+            const { getGuildReactionUsers } = await import('../../api/guilds');
+            return getGuildReactionUsers(gid, channelId, messageId, { id: emoji.id ?? null, name: emoji.name });
+        },
         linkHandlers: [createDiscordMessageLinkHandler({
             router,
             currentChannelId: () => selectedChannelId.value,

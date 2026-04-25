@@ -123,6 +123,28 @@ export async function listGuildChannelMembers(guildId: string, channelId: string
     return body.members;
 }
 
+export interface GuildReactionUser {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
+export async function getGuildReactionUsers(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    emoji: { id: string | null; name: string }
+): Promise<GuildReactionUser[]> {
+    const params = new URLSearchParams();
+    if (emoji.id) params.set('emojiId', emoji.id);
+    else params.set('emojiName', emoji.name);
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions/users?${params}`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ users: GuildReactionUser[] }>(response);
+    return body.users;
+}
+
 export async function getGuildPins(guildId: string, channelId: string): Promise<Message[]> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/pins`;
     const response = await authedFetch(url);

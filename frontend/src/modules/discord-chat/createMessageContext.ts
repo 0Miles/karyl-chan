@@ -20,6 +20,7 @@ export interface DiscordMessageContextOptions {
     guildId?: Ref<string | null>;
     onReactionAdd: NonNullable<MessageContext['onReactionAdd']>;
     onReactionRemove: NonNullable<MessageContext['onReactionRemove']>;
+    fetchReactionUsers?: NonNullable<MessageContext['fetchReactionUsers']>;
     /** Platform-specific user resolver (DM: recipient+bot; guild: members). */
     resolveUser?: (id: string) => ResolvedUser | null;
     resolveChannel?: (id: string) => ResolvedChannel | null;
@@ -57,6 +58,7 @@ export function createDiscordMessageContext(opts: DiscordMessageContextOptions):
     const ctx: MessageContext = {
         onReactionAdd: opts.onReactionAdd,
         onReactionRemove: opts.onReactionRemove,
+        fetchReactionUsers: opts.fetchReactionUsers,
         onReplyClick: opts.onReplyClick ?? defaultScrollToReply,
         onUserClick: (userId, anchor) => userCard.openFor(userId, anchor, guildIdRef?.value ?? null),
         get currentUserId() { return opts.botUserId.value; },

@@ -59,6 +59,27 @@ export async function fetchUnreadCounts(
     return body.channels;
 }
 
+export interface ReactionUser {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
+export async function getReactionUsers(
+    channelId: string,
+    messageId: string,
+    emoji: { id: string | null; name: string }
+): Promise<ReactionUser[]> {
+    const params = new URLSearchParams();
+    if (emoji.id) params.set('emojiId', emoji.id);
+    else params.set('emojiName', emoji.name);
+    const url = `/api/dm/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions/users?${params}`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ users: ReactionUser[] }>(response);
+    return body.users;
+}
+
 export async function getPins(channelId: string): Promise<Message[]> {
     const response = await authedFetch(`/api/dm/channels/${encodeURIComponent(channelId)}/pins`);
     const body = await jsonOrThrow<{ messages: Message[] }>(response);
