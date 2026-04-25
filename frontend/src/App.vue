@@ -88,6 +88,11 @@ onMounted(() => {
 
 async function signOut() {
     closeOverlay();
+    // Tear down live streams BEFORE the auth token is revoked so the server
+    // sees a clean disconnect rather than a 401-on-next-event. Resetting
+    // also clears cached channel/guild data so a re-login starts fresh.
+    dmStore.reset();
+    guildStore.reset();
     await logout();
     unreadStore.clear();
     router.replace({ name: 'auth' });

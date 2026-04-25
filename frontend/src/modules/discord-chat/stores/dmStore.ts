@@ -58,6 +58,20 @@ export const useDmStore = defineStore('discord-dm', () => {
         });
     }
 
+    // Closes the live event stream and resets the in-memory channel list.
+    // Called on sign-out so the previous session's EventSource doesn't
+    // outlive the auth token (and so the next sign-in starts clean).
+    function reset() {
+        if (stopSSE) {
+            stopSSE();
+            stopSSE = null;
+        }
+        channels.value = [];
+        loadingChannels.value = false;
+        channelsLoaded.value = false;
+        error.value = null;
+    }
+
     async function loadChannels() {
         loadingChannels.value = true;
         try {
@@ -137,6 +151,7 @@ export const useDmStore = defineStore('discord-dm', () => {
         error,
         touchChannel,
         startSSE,
+        reset,
         loadChannels,
         ensureChannels,
         refreshHistoricalUnread,

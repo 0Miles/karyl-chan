@@ -1,5 +1,4 @@
-import { ApiError, authedFetch } from './client';
-import { getAccessToken } from '../auth';
+import { ApiError, authedFetch, openTicketedSse } from './client';
 import type { Message, MessageEmoji } from '../libs/messages';
 
 export interface GuildSummary {
@@ -229,10 +228,6 @@ export interface GuildEventStreamHandlers {
 }
 
 export function subscribeGuildEvents(handlers: GuildEventStreamHandlers): () => void {
-    const token = getAccessToken();
-    const params = token ? `?access_token=${encodeURIComponent(token)}` : '';
-    const source = new EventSource(`/api/guilds/events${params}`);
-    if (handlers.onError) source.onerror = handlers.onError;
     const dispatch = (raw: MessageEvent) => {
         try {
             const data = JSON.parse(raw.data) as GuildChannelEvent;
@@ -241,8 +236,13 @@ export function subscribeGuildEvents(handlers: GuildEventStreamHandlers): () => 
             // ignore malformed events
         }
     };
-    source.addEventListener('guild-message-created', dispatch as EventListener);
-    source.addEventListener('guild-message-updated', dispatch as EventListener);
-    source.addEventListener('guild-message-deleted', dispatch as EventListener);
-    return () => source.close();
+    return openTicketedSse('/api/guilds/events', {
+        onEvent: dispatch,
+        onError: handlers.onError,
+        bindEventListeners(source) {
+            source.addEventListener('guild-message-created', dispatch as EventListener);
+            source.addEventListener('guild-message-updated', dispatch as EventListener);
+            source.addEventListener('guild-message-deleted', dispatch as EventListener);
+        }
+    });
 }

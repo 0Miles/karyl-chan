@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Client } from 'discordx';
 import {
     addAuthorizedUser,
+    ADMIN_CAPABILITIES,
+    ADMIN_CAPABILITY_KEYS,
     createAdminRole,
     deleteAdminRole,
     findAuthorizedUser,
@@ -16,6 +18,14 @@ import {
 } from './authorized-user.service.js';
 import { listAudit, recordAudit } from './admin-audit.service.js';
 import { avatarUrlFor } from './message-mapper.js';
+import { requireCapability } from './route-guards.js';
+import {
+    isBoundedString,
+    isNonEmptyString,
+    isSnowflake,
+    ROLE_DESCRIPTION_MAX,
+    USER_NOTE_MAX
+} from './validators.js';
 
 export interface AdminManagementRoutesOptions {
     bot?: Client;
@@ -60,26 +70,8 @@ async function fetchProfile(bot: Client | undefined, userId: string, now: number
     }
 }
 
-/**
- * Per-route capability gate. `admin` is a universal token that bypasses
- * every other check, mirroring hasAdminCapability in the permission
- * module. Use this helper for every capability-scoped route so the
- * semantics stay consistent across the admin surface.
- */
-function requireCapability(cap: AdminCapability) {
-    return (request: FastifyRequest, reply: FastifyReply): boolean => {
-        const caps = request.authCapabilities;
-        if (caps && (caps.has('admin') || caps.has(cap))) return true;
-        reply.code(403).send({ error: `${cap} capability required` });
-        return false;
-    };
-}
-
-const requireAdmin = requireCapability('admin');
-
-function isNonEmptyString(value: unknown): value is string {
-    return typeof value === 'string' && value.trim().length > 0;
-}
+const requireAdmin = (request: FastifyRequest, reply: FastifyReply): boolean =>
+    requireCapability(request, reply, 'admin');
 
 function readOwnerId(): string | null {
     return process.env.BOT_OWNER_ID?.trim() || null;
@@ -174,21 +166,35 @@ export async function registerAdminManagementRoutes(
         async (request, reply) => {
             if (!requireAdmin(request, reply)) return;
             const body = request.body ?? {};
-            if (!isNonEmptyString(body.userId) || !isNonEmptyString(body.role)) {
-                reply.code(400).send({ error: 'userId and role are required' });
+            if (!isSnowflake(body.userId)) {
+                reply.code(400).send({ error: 'userId must be a Discord snowflake' });
+                return;
+            }
+            if (!isNonEmptyString(body.role)) {
+                reply.code(400).send({ error: 'role is required' });
+                return;
+            }
+            if (body.note !== undefined && body.note !== null && !isBoundedString(body.note, USER_NOTE_MAX)) {
+                reply.code(400).send({ error: `note must be ≤${USER_NOTE_MAX} chars` });
                 return;
             }
             // Block setting an allow-list row for the owner itself — owner
             // is always implicitly admin, and a stale row would mislead.
+            // Generic error message to avoid telling a (possibly stolen)
+            // admin token whether a given userId is the owner.
             const ownerId = readOwnerId();
             if (ownerId && body.userId === ownerId) {
-                reply.code(400).send({ error: 'owner is implicitly admin and cannot be listed' });
+                reply.code(400).send({ error: 'userId not allowed' });
                 return;
             }
             const roles = await listAdminRoles();
             const targetRole = roles.find(r => r.name === body.role);
             if (!targetRole) {
-                reply.code(400).send({ error: `unknown role "${body.role}"` });
+                // Don't echo the role name back — keeps error logs from
+                // accumulating arbitrary user input and avoids confirming
+                // existence of nearby valid role names via differential
+                // error messages.
+                reply.code(400).send({ error: 'unknown role' });
                 return;
             }
             // Self-lockout guard: moving yourself to a role without the
@@ -217,6 +223,10 @@ export async function registerAdminManagementRoutes(
 
     server.delete<{ Params: { userId: string } }>('/api/admin/users/:userId', async (request, reply) => {
         if (!requireAdmin(request, reply)) return;
+        if (!isSnowflake(request.params.userId)) {
+            reply.code(400).send({ error: 'userId must be a Discord snowflake' });
+            return;
+        }
         const ownerId = readOwnerId();
         // Self-lockout guard: deleting your own allow-list row severs access
         // the moment the capability cache expires. Owner is exempt.
@@ -236,6 +246,21 @@ export async function registerAdminManagementRoutes(
         reply.code(204).send();
     });
 
+    // ── Capability catalog ───────────────────────────────────────────────
+    // Returns the canonical list of capability tokens the server
+    // recognises so the UI doesn't have to ship a hard-coded mirror that
+    // drifts on every server-side addition. The UI is still responsible
+    // for the human-readable label (i18n by key); this response just
+    // pins the set of valid keys plus a fallback description.
+    server.get('/api/admin/capabilities', async (request, reply) => {
+        if (!requireAdmin(request, reply)) return;
+        const capabilities = ADMIN_CAPABILITY_KEYS.map(key => ({
+            key,
+            description: ADMIN_CAPABILITIES[key]
+        }));
+        return { capabilities };
+    });
+
     // ── Roles ────────────────────────────────────────────────────────────
     server.get('/api/admin/roles', async (request, reply) => {
         if (!requireAdmin(request, reply)) return;
@@ -248,8 +273,13 @@ export async function registerAdminManagementRoutes(
         async (request, reply) => {
             if (!requireAdmin(request, reply)) return;
             const body = request.body ?? {};
-            if (!isNonEmptyString(body.name)) {
-                reply.code(400).send({ error: 'name is required' });
+            if (!isBoundedString(body.name, 64)) {
+                reply.code(400).send({ error: 'name is required (≤64 chars)' });
+                return;
+            }
+            if (body.description !== undefined && body.description !== null
+                && !isBoundedString(body.description, ROLE_DESCRIPTION_MAX)) {
+                reply.code(400).send({ error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars` });
                 return;
             }
             const description = isNonEmptyString(body.description) ? body.description : null;
@@ -274,6 +304,11 @@ export async function registerAdminManagementRoutes(
                 return;
             }
             const body = request.body ?? {};
+            if (body.description !== undefined && body.description !== null
+                && !isBoundedString(body.description, ROLE_DESCRIPTION_MAX)) {
+                reply.code(400).send({ error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars` });
+                return;
+            }
             const description = isNonEmptyString(body.description) ? body.description : null;
             const record = await createAdminRole(request.params.name, description);
             await recordAudit(request.authUserId!, 'role.update', request.params.name, { description });

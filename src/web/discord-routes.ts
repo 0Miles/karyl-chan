@@ -2,6 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import type { Message as DjsMessage } from 'discord.js';
 import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor } from './message-mapper.js';
+import { requireAnyCapability } from './route-guards.js';
+
+// Discord lookup endpoints feed both the DM and guild chat surfaces, so
+// either read capability is sufficient. Listing the pair instead of a
+// blanket 'admin' check keeps the principle-of-least-privilege intent
+// even though the data they return is mostly cosmetic.
+const READ_CAPS = ['dm.read', 'guild.read'] as const;
 
 export interface DiscordRoutesOptions {
     bot: Client;
@@ -44,7 +51,8 @@ function messagePreview(message: DjsMessage): string {
 export async function registerDiscordRoutes(server: FastifyInstance, options: DiscordRoutesOptions): Promise<void> {
     const { bot } = options;
 
-    server.get('/api/discord/emojis', async () => {
+    server.get('/api/discord/emojis', async (request, reply) => {
+        if (!requireAnyCapability(request, reply, READ_CAPS)) return;
         const buckets: GuildBucket<EmojiRow>[] = [];
         for (const guild of bot.guilds.cache.values()) {
             const items: EmojiRow[] = [...guild.emojis.cache.values()].map(e => ({
@@ -67,6 +75,7 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
     server.get<{ Params: { userId: string }; Querystring: { guildId?: string } }>(
         '/api/discord/users/:userId',
         async (request, reply) => {
+            if (!requireAnyCapability(request, reply, READ_CAPS)) return;
             try {
                 const user = await bot.users.fetch(request.params.userId, { force: true });
                 const base = {
@@ -133,6 +142,7 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
     server.get<{ Querystring: { guild?: string; channel?: string; message?: string } }>(
         '/api/discord/message-link',
         async (request, reply) => {
+            if (!requireAnyCapability(request, reply, READ_CAPS)) return;
             const rawGuild = request.query.guild;
             const guildId = rawGuild && rawGuild !== '@me' ? rawGuild : null;
             const channelId = request.query.channel;
@@ -203,7 +213,8 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
         }
     );
 
-    server.get('/api/discord/stickers', async () => {
+    server.get('/api/discord/stickers', async (request, reply) => {
+        if (!requireAnyCapability(request, reply, READ_CAPS)) return;
         const buckets: GuildBucket<StickerRow>[] = [];
         for (const guild of bot.guilds.cache.values()) {
             try {

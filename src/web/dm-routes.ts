@@ -6,6 +6,8 @@ import { dmInboxService, type DmChannelSummary, type DmInboxStore } from './dm-i
 import { dmEventBus, type DmEventBus } from './dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
+import { requireCapability } from './route-guards.js';
+import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
 
 export interface DmRoutesOptions {
     bot: Client;
@@ -43,13 +45,15 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     const inbox = options.inbox ?? dmInboxService;
     const events = options.eventBus ?? dmEventBus;
 
-    server.get('/api/dm/channels', async () => {
+    server.get('/api/dm/channels', async (request, reply) => {
+        if (!requireCapability(request, reply, 'dm.read')) return;
         return { channels: await inbox.listChannels() };
     });
 
     server.post<{ Body: { lastSeen?: Record<string, string | null> } }>(
         '/api/dm/unread',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.read')) return;
             const lastSeen = (request.body?.lastSeen && typeof request.body.lastSeen === 'object')
                 ? request.body.lastSeen
                 : {};
@@ -115,6 +119,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.read')) return;
             const { channelId } = request.params;
             const limit = Math.min(Math.max(Number(request.query.limit ?? 10) || 10, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
@@ -151,6 +156,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.post<{ Params: { channelId: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.write')) return;
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
 
@@ -186,6 +192,18 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
             }
 
             stickerIds = stickerIds.slice(0, 3);
+            if (!stickerIds.every(isSnowflake)) {
+                reply.code(400).send({ error: 'invalid sticker id' });
+                return;
+            }
+            if (replyToMessageId !== undefined && !isSnowflake(replyToMessageId)) {
+                reply.code(400).send({ error: 'invalid replyToMessageId' });
+                return;
+            }
+            if (content.length > DISCORD_MESSAGE_MAX) {
+                reply.code(400).send({ error: `content must be ≤${DISCORD_MESSAGE_MAX} chars` });
+                return;
+            }
 
             if (!content.trim() && files.length === 0 && stickerIds.length === 0) {
                 reply.code(400).send({ error: 'content, attachment, or sticker required' });
@@ -210,8 +228,9 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     );
 
     server.post<{ Body: StartBody }>('/api/dm/channels', async (request, reply) => {
+        if (!requireCapability(request, reply, 'dm.write')) return;
         const recipientUserId = typeof request.body?.recipientUserId === 'string' ? request.body.recipientUserId : '';
-        if (!recipientUserId) { reply.code(400).send({ error: 'recipientUserId required' }); return; }
+        if (!isSnowflake(recipientUserId)) { reply.code(400).send({ error: 'recipientUserId must be a snowflake' }); return; }
         try {
             const user = await bot.users.fetch(recipientUserId);
             const channel = await user.createDM();
@@ -232,10 +251,16 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.patch<{ Params: { channelId: string; messageId: string }; Body: { content?: unknown } }>(
         '/api/dm/channels/:channelId/messages/:messageId',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
             const content = typeof request.body?.content === 'string' ? request.body.content : '';
             if (!content.trim()) { reply.code(400).send({ error: 'content required' }); return; }
+            if (content.length > DISCORD_MESSAGE_MAX) {
+                reply.code(400).send({ error: `content must be ≤${DISCORD_MESSAGE_MAX} chars` });
+                return;
+            }
             try {
                 const message = await channel.messages.fetch(request.params.messageId);
                 if (message.author.id !== bot.user?.id) {
@@ -255,6 +280,8 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.delete<{ Params: { channelId: string; messageId: string } }>(
         '/api/dm/channels/:channelId/messages/:messageId',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
             try {
@@ -276,6 +303,8 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.post<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
             const emoji = request.body?.emoji;
@@ -300,6 +329,8 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.delete<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
             const emoji = request.body?.emoji;
@@ -322,15 +353,30 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { stickerId: string } }>(
         '/api/dm/stickers/:stickerId',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.read')) return;
             const id = request.params.stickerId.replace(/[^0-9]/g, '');
             if (!id) { reply.code(400).send({ error: 'invalid sticker id' }); return; }
+            // Hard ceiling on proxied response size. Lottie sticker JSON
+            // from Discord rarely exceeds ~200KB; 1MB is generous and
+            // protects us from a malicious / misbehaving upstream that
+            // tries to stream a multi-MB blob through our process.
+            const MAX_BYTES = 1_000_000;
             try {
                 const upstream = await fetch(`https://cdn.discordapp.com/stickers/${id}.json`);
                 if (!upstream.ok) { reply.code(upstream.status).send({ error: 'upstream' }); return; }
-                const body = await upstream.text();
+                const declaredLen = Number(upstream.headers.get('content-length') ?? '0');
+                if (declaredLen > MAX_BYTES) {
+                    reply.code(502).send({ error: 'sticker too large' });
+                    return;
+                }
+                const buf = Buffer.from(await upstream.arrayBuffer());
+                if (buf.byteLength > MAX_BYTES) {
+                    reply.code(502).send({ error: 'sticker too large' });
+                    return;
+                }
                 reply.header('content-type', 'application/json');
                 reply.header('cache-control', 'public, max-age=86400');
-                reply.send(body);
+                reply.send(buf);
             } catch (err) {
                 request.log.error({ err }, 'sticker proxy failed');
                 reply.code(502).send({ error: 'proxy failed' });
@@ -339,6 +385,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     );
 
     server.get('/api/dm/events', async (request, reply) => {
+        if (!requireCapability(request, reply, 'dm.read')) return;
         // Hand the socket to us — without this fastify auto-sends a body once
         // the async handler returns, which races with our SSE writes and the
         // browser sees the connection close immediately.

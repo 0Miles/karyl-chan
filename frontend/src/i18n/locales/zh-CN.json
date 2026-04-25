@@ -171,7 +171,12 @@
         },
         "capabilitiesCatalog": "可用权限词条",
         "capabilityDesc": {
-            "admin": "完整后台权限(可无视其他所有权限检查)"
+            "admin": "完整后台权限(可无视其他所有权限检查)",
+            "dm.read": "读取 DM 对话列表、消息与未读数",
+            "dm.write": "在 DM 中发送、编辑、删除消息与反应",
+            "guild.read": "读取公会频道、消息、成员与角色",
+            "guild.write": "在公会频道中发送、编辑、删除消息与反应",
+            "system.read": "查看系统事件记录与统计信息"
         }
     },
     "picker": {

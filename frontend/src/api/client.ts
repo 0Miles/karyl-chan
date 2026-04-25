@@ -107,3 +107,95 @@ export const api = {
     getHealth: () => getJson<HealthStatus>('/api/health'),
     getBotStatus: () => getJson<BotStatus>('/api/bot/status')
 };
+
+interface SseTicket {
+    ticket: string;
+    expiresAt: number;
+}
+
+async function fetchSseTicket(): Promise<string | null> {
+    const response = await authedFetch('/api/auth/sse-ticket', { method: 'POST' });
+    if (!response.ok) return null;
+    const body = (await response.json()) as SseTicket;
+    return body.ticket;
+}
+
+export interface TicketedSseHandlers {
+    /** Called for every event the server pushes — tracker handles the ticket dance. */
+    onEvent: (raw: MessageEvent) => void;
+    /** Bound on every fresh EventSource so consumers can register custom event names. */
+    bindEventListeners: (source: EventSource) => void;
+    /** Optional. Called when an EventSource opens (after handshake). */
+    onOpen?: () => void;
+    /** Optional. Called when an EventSource errors (before reconnect). */
+    onError?: (event: Event) => void;
+}
+
+/**
+ * Opens a SSE stream guarded by a single-use ticket from POST
+ * /api/auth/sse-ticket. Native EventSource auto-reconnect re-uses the
+ * URL, but our tickets are consumed on first use — so this helper owns
+ * the lifecycle: on error or close it grabs a fresh ticket and opens a
+ * new EventSource. Returns a stop function that prevents further
+ * reconnects and closes the live socket.
+ */
+export function openTicketedSse(path: string, handlers: TicketedSseHandlers): () => void {
+    let stopped = false;
+    let current: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let backoffMs = 1000;
+    const MAX_BACKOFF_MS = 30_000;
+
+    async function connect() {
+        if (stopped) return;
+        const ticket = await fetchSseTicket();
+        if (stopped) return;
+        if (!ticket) {
+            // Auth failed — give up silently. The user has likely been
+            // signed out; the next route guard / 401 will redirect them.
+            return;
+        }
+        const url = `${path}?ticket=${encodeURIComponent(ticket)}`;
+        const source = new EventSource(url);
+        current = source;
+        source.onopen = () => {
+            backoffMs = 1000;
+            handlers.onOpen?.();
+        };
+        source.onerror = (event) => {
+            handlers.onError?.(event);
+            if (stopped) return;
+            // EventSource will try to reconnect on its own with the same
+            // (now-consumed) ticket → guaranteed 401 loop. Close it and
+            // retry with a fresh ticket on a backoff schedule.
+            source.close();
+            if (current === source) current = null;
+            scheduleReconnect();
+        };
+        handlers.bindEventListeners(source);
+    }
+
+    function scheduleReconnect() {
+        if (stopped || reconnectTimer) return;
+        const delay = backoffMs;
+        backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+        reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            void connect();
+        }, delay);
+    }
+
+    void connect();
+
+    return () => {
+        stopped = true;
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+        if (current) {
+            current.close();
+            current = null;
+        }
+    };
+}

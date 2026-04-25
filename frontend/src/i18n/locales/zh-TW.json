@@ -171,7 +171,12 @@
         },
         "capabilitiesCatalog": "可用權限詞條",
         "capabilityDesc": {
-            "admin": "完整後台權限(可無視其他所有權限檢查)"
+            "admin": "完整後台權限(可無視其他所有權限檢查)",
+            "dm.read": "讀取 DM 對話列表、訊息與未讀數",
+            "dm.write": "在 DM 中傳送、編輯、刪除訊息與反應",
+            "guild.read": "讀取公會頻道、訊息、成員與角色",
+            "guild.write": "在公會頻道中傳送、編輯、刪除訊息與反應",
+            "system.read": "查看系統事件記錄與統計資訊"
         }
     },
     "picker": {

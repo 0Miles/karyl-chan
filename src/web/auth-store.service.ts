@@ -3,6 +3,10 @@ import { createHash, randomBytes } from 'crypto';
 const ONE_TIME_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// SSE tickets gate EventSource auth without leaking the long-lived
+// access token in the URL. They live just long enough for the browser
+// to open the connection after the API call returns.
+const SSE_TICKET_TTL_MS = 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
 
 interface OneTimeRecord {
@@ -16,6 +20,11 @@ interface AccessRecord {
 }
 
 interface RefreshRecord {
+    ownerId: string;
+    expiresAt: number;
+}
+
+interface SseTicketRecord {
     ownerId: string;
     expiresAt: number;
 }
@@ -47,6 +56,7 @@ export class AuthStore {
     private oneTime = new Map<string, OneTimeRecord>();
     private access = new Map<string, AccessRecord>();
     private refresh = new Map<string, RefreshRecord>();
+    private sseTickets = new Map<string, SseTicketRecord>();
     private cleanupTimer: NodeJS.Timeout;
     private adapter: RefreshStoreAdapter | null;
 
@@ -129,6 +139,28 @@ export class AuthStore {
         return removed;
     }
 
+    // SSE tickets bridge the gap between Bearer-auth API calls and the
+    // EventSource API (which can't send custom headers). Caller flow:
+    // client hits POST /api/auth/sse-ticket with the access token, gets
+    // a single-use ticket, then opens EventSource("…?ticket=<ticket>").
+    // The ticket is invalidated on first read so URL leakage (history,
+    // logs) only buys an attacker a stale value.
+    issueSseTicket(ownerId: string, now: number = Date.now()): { ticket: string; expiresAt: number } {
+        const ticket = newToken();
+        const expiresAt = now + SSE_TICKET_TTL_MS;
+        this.sseTickets.set(hashToken(ticket), { ownerId, expiresAt });
+        return { ticket, expiresAt };
+    }
+
+    consumeSseTicket(ticket: string, now: number = Date.now()): string | null {
+        const key = hashToken(ticket);
+        const record = this.sseTickets.get(key);
+        if (!record) return null;
+        this.sseTickets.delete(key);
+        if (record.expiresAt <= now) return null;
+        return record.ownerId;
+    }
+
     revokeAccess(token: string): boolean {
         // In-process access tokens give us the luxury real JWTs don't — a
         // logout can actually invalidate the presented access token, not
@@ -144,6 +176,9 @@ export class AuthStore {
         for (const [key, record] of this.refresh) {
             if (record.ownerId === ownerId) this.refresh.delete(key);
         }
+        for (const [key, record] of this.sseTickets) {
+            if (record.ownerId === ownerId) this.sseTickets.delete(key);
+        }
         if (this.adapter) await this.adapter.deleteByOwner(ownerId).catch(() => {});
     }
 
@@ -156,6 +191,9 @@ export class AuthStore {
         }
         for (const [key, record] of this.refresh) {
             if (record.expiresAt <= now) this.refresh.delete(key);
+        }
+        for (const [key, record] of this.sseTickets) {
+            if (record.expiresAt <= now) this.sseTickets.delete(key);
         }
         if (this.adapter) {
             void this.adapter.deleteExpired(now).catch(() => {});

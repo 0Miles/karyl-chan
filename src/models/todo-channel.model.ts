@@ -10,6 +10,9 @@ export const TodoChannel = sequelize.define('TodoChannel', {
         type: DataTypes.STRING,
         primaryKey: true
     }
+}, {
+    tableName: 'TodoChannels',
+    timestamps: false
 });
 
 export const findTodoChannel = async (guildId: string, channelId: string) => {

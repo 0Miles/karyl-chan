@@ -171,7 +171,12 @@
         },
         "capabilitiesCatalog": "Known capability tokens",
         "capabilityDesc": {
-            "admin": "Full admin access (bypasses every other capability check)"
+            "admin": "Full admin access (bypasses every other capability check)",
+            "dm.read": "Read DM channel list, messages, and unread counts",
+            "dm.write": "Send, edit, delete DM messages and reactions",
+            "guild.read": "Read guild channels, messages, members, and roles",
+            "guild.write": "Send, edit, delete guild messages and reactions",
+            "system.read": "View system event log and runtime stats"
         }
     },
     "picker": {

@@ -4,6 +4,8 @@ import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdent
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
+import { requireCapability } from './route-guards.js';
+import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
 
 export interface GuildChannelRoutesOptions {
     bot: Client;
@@ -39,6 +41,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
 
     // Static path — Fastify prioritises it over /:guildId even when registered after.
     server.get('/api/guilds/events', async (request, reply) => {
+        if (!requireCapability(request, reply, 'guild.read')) return;
         reply.hijack();
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
@@ -71,6 +74,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/text-channels',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -110,6 +114,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/roles',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -136,6 +141,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/members',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
             const { guildId, channelId } = request.params;
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -175,6 +181,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
             const { guildId, channelId } = request.params;
             const limit = Math.min(Math.max(Number(request.query.limit ?? 16) || 16, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
@@ -204,6 +211,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.post<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
             const { guildId, channelId } = request.params;
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -240,6 +248,18 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             }
 
             stickerIds = stickerIds.slice(0, 3);
+            if (!stickerIds.every(isSnowflake)) {
+                reply.code(400).send({ error: 'invalid sticker id' });
+                return;
+            }
+            if (replyToMessageId !== undefined && !isSnowflake(replyToMessageId)) {
+                reply.code(400).send({ error: 'invalid replyToMessageId' });
+                return;
+            }
+            if (content.length > DISCORD_MESSAGE_MAX) {
+                reply.code(400).send({ error: `content must be ≤${DISCORD_MESSAGE_MAX} chars` });
+                return;
+            }
 
             if (!content.trim() && files.length === 0 && stickerIds.length === 0) {
                 reply.code(400).send({ error: 'content, attachment, or sticker required' });
@@ -266,11 +286,17 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.patch<{ Params: { guildId: string; channelId: string; messageId: string }; Body: { content?: unknown } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
             const { guildId, channelId, messageId } = request.params;
+            if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
             const content = typeof request.body?.content === 'string' ? request.body.content : '';
             if (!content.trim()) { reply.code(400).send({ error: 'content required' }); return; }
+            if (content.length > DISCORD_MESSAGE_MAX) {
+                reply.code(400).send({ error: `content must be ≤${DISCORD_MESSAGE_MAX} chars` });
+                return;
+            }
             try {
                 const message = await channel.messages.fetch(messageId);
                 if (message.author.id !== bot.user?.id) {
@@ -290,7 +316,9 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
             const { guildId, channelId, messageId } = request.params;
+            if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
             try {
@@ -312,7 +340,9 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.post<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
             const { guildId, channelId, messageId } = request.params;
+            if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
             const emoji = request.body?.emoji;
@@ -333,7 +363,9 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
             const { guildId, channelId, messageId } = request.params;
+            if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
             const emoji = request.body?.emoji;

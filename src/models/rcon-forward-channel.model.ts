@@ -16,4 +16,7 @@ export const RconForwardChannel = sequelize.define('RconForwardChannel', {
     host: DataTypes.STRING,
     port: DataTypes.INTEGER,
     password: DataTypes.STRING
+}, {
+    tableName: 'RconForwardChannels',
+    timestamps: false
 });

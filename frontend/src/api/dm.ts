@@ -1,5 +1,4 @@
-import { ApiError, authedFetch } from './client';
-import { getAccessToken } from '../auth';
+import { ApiError, authedFetch, openTicketedSse } from './client';
 import type { Message, MessageEmoji } from '../libs/messages';
 
 export interface DmRecipient {
@@ -156,11 +155,6 @@ export interface EventStreamHandlers {
 }
 
 export function subscribeEvents(handlers: EventStreamHandlers): () => void {
-    const token = getAccessToken();
-    const params = token ? `?access_token=${encodeURIComponent(token)}` : '';
-    const source = new EventSource(`/api/dm/events${params}`);
-    if (handlers.onOpen) source.onopen = handlers.onOpen;
-    if (handlers.onError) source.onerror = handlers.onError;
     const dispatch = (raw: MessageEvent) => {
         try {
             const data = JSON.parse(raw.data) as DmEvent;
@@ -169,9 +163,15 @@ export function subscribeEvents(handlers: EventStreamHandlers): () => void {
             // ignore malformed events
         }
     };
-    source.addEventListener('message-created', dispatch as EventListener);
-    source.addEventListener('message-updated', dispatch as EventListener);
-    source.addEventListener('message-deleted', dispatch as EventListener);
-    source.addEventListener('channel-touched', dispatch as EventListener);
-    return () => source.close();
+    return openTicketedSse('/api/dm/events', {
+        onEvent: dispatch,
+        onOpen: handlers.onOpen,
+        onError: handlers.onError,
+        bindEventListeners(source) {
+            source.addEventListener('message-created', dispatch as EventListener);
+            source.addEventListener('message-updated', dispatch as EventListener);
+            source.addEventListener('message-deleted', dispatch as EventListener);
+            source.addEventListener('channel-touched', dispatch as EventListener);
+        }
+    });
 }

@@ -16,6 +16,9 @@ export const RoleEmoji = sequelize.define('RoleEmoji', {
         type: DataTypes.STRING,
         primaryKey: true
     }
+}, {
+    tableName: 'RoleEmojis',
+    timestamps: false
 });
 
 export const addRoleEmoji = async (guildId: string, roleId: string, emojiChar: string, emojiName: string, emojiId: string) => {

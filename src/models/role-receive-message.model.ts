@@ -14,6 +14,9 @@ export const RoleReceiveMessage = sequelize.define('RoleReceiveMessage', {
         type: DataTypes.STRING,
         primaryKey: true
     }
+}, {
+    tableName: 'RoleReceiveMessages',
+    timestamps: false
 });
 
 export const addRoleReceiveMessage = async (guildId: string, channelId: string, messageId: string) => {

@@ -3,6 +3,7 @@ import type { Client } from 'discordx';
 import { systemEventLog } from './system-event-log.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { sequelize } from '../models/db.js';
+import { requireCapability } from './route-guards.js';
 
 interface SystemRoutesOptions {
     bot?: Client;
@@ -15,11 +16,13 @@ export async function registerSystemRoutes(
 ): Promise<void> {
     const { bot, dmInbox } = options;
 
-    server.get('/api/system/events', async () => {
+    server.get('/api/system/events', async (request, reply) => {
+        if (!requireCapability(request, reply, 'system.read')) return;
         return { events: systemEventLog.list() };
     });
 
-    server.get('/api/system/stats', async () => {
+    server.get('/api/system/stats', async (request, reply) => {
+        if (!requireCapability(request, reply, 'system.read')) return;
         const mem = process.memoryUsage();
 
         let dbConnected = false;

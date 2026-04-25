@@ -74,6 +74,17 @@ export async function deleteAdminUser(userId: string): Promise<void> {
     }
 }
 
+export interface AdminCapabilityCatalogItem {
+    key: string;
+    description: string;
+}
+
+export async function listAdminCapabilities(): Promise<AdminCapabilityCatalogItem[]> {
+    const response = await authedFetch('/api/admin/capabilities');
+    const body = await json<{ capabilities: AdminCapabilityCatalogItem[] }>(response);
+    return body.capabilities;
+}
+
 export async function listAdminRoles(): Promise<AdminRole[]> {
     const response = await authedFetch('/api/admin/roles');
     const body = await json<{ roles: AdminRole[] }>(response);

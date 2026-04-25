@@ -8,6 +8,7 @@ import {
     patchAdminRole,
     revokeRoleCapability,
     upsertAdminRole,
+    type AdminCapabilityCatalogItem,
     type AdminRole
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
@@ -15,6 +16,11 @@ import { ADMIN_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
 
 const props = defineProps<{
     roles: AdminRole[];
+    /** Authoritative catalog from GET /api/admin/capabilities. Falls
+     *  back to the bundled key list if the parent didn't fetch (e.g.
+     *  the endpoint failed). The hard-coded mirror exists precisely so
+     *  the UI keeps working in that degraded state. */
+    capabilityCatalog?: AdminCapabilityCatalogItem[];
 }>();
 
 const { t } = useI18n();
@@ -24,15 +30,27 @@ interface AdminCapabilityDef {
     description: string;
 }
 
-// Catalog is a static constant shipped with the frontend; descriptions
-// come from i18n so they match the active locale. Backend is the
-// authority for validation — see src/permission/admin-capabilities.ts.
-const capabilities = computed<AdminCapabilityDef[]>(() =>
-    ADMIN_CAPABILITY_KEYS.map(key => ({
-        key,
-        description: t(`admin.capabilityDesc.${key}`)
-    }))
-);
+// Prefer the server-provided catalog; fall back to the bundled mirror
+// if the parent didn't fetch (e.g. /api/admin/capabilities errored).
+// Descriptions still resolve through i18n so they match the active
+// locale, with the server's description as a fallback when no i18n key
+// matches (e.g. a new capability was added before translations land).
+const capabilities = computed<AdminCapabilityDef[]>(() => {
+    const source = props.capabilityCatalog?.length
+        ? props.capabilityCatalog.map(item => item.key)
+        : ADMIN_CAPABILITY_KEYS as readonly string[];
+    return source.map(key => {
+        const i18nKey = `admin.capabilityDesc.${key}`;
+        const localized = t(i18nKey);
+        const fromServer = props.capabilityCatalog?.find(c => c.key === key)?.description;
+        return {
+            key,
+            // i18n returns the key itself when no translation exists —
+            // fall back to the server-provided description in that case.
+            description: localized === i18nKey ? (fromServer ?? key) : localized
+        };
+    });
+});
 
 const emit = defineEmits<{
     (e: 'changed'): void;
@@ -48,6 +66,23 @@ const submitting = ref(false);
 // array prop changes.
 const descDrafts = ref<Record<string, string>>({});
 const capPicks = ref<Record<string, string>>({});
+// Per-role lock so rapid clicks on grant/revoke/save/delete don't fire
+// concurrent mutations against the same role.
+const pendingRoles = ref(new Set<string>());
+function isRolePending(name: string) {
+    return pendingRoles.value.has(name);
+}
+async function withRoleLock<T>(name: string, fn: () => Promise<T>): Promise<T | undefined> {
+    if (pendingRoles.value.has(name)) return undefined;
+    pendingRoles.value = new Set([...pendingRoles.value, name]);
+    try {
+        return await fn();
+    } finally {
+        const next = new Set(pendingRoles.value);
+        next.delete(name);
+        pendingRoles.value = next;
+    }
+}
 
 function descriptionDraft(role: AdminRole): string {
     return descDrafts.value[role.name] ?? role.description ?? '';
@@ -87,44 +122,53 @@ async function onAddRole() {
 async function onSaveDescription(role: AdminRole) {
     const draft = descriptionDraft(role).trim();
     if (draft === (role.description ?? '')) return;
-    try {
-        await patchAdminRole(role.name, { description: draft || null });
-        delete descDrafts.value[role.name];
-        emit('changed');
-    } catch (err) {
-        handleErr(err);
-    }
+    await withRoleLock(role.name, async () => {
+        try {
+            await patchAdminRole(role.name, { description: draft || null });
+            delete descDrafts.value[role.name];
+            emit('changed');
+        } catch (err) {
+            handleErr(err);
+        }
+    });
 }
 
 async function onDeleteRole(role: AdminRole) {
+    if (isRolePending(role.name)) return;
     if (!window.confirm(t('admin.roles.removeConfirm', { name: role.name }))) return;
-    try {
-        await deleteAdminRole(role.name);
-        emit('changed');
-    } catch (err) {
-        handleErr(err);
-    }
+    await withRoleLock(role.name, async () => {
+        try {
+            await deleteAdminRole(role.name);
+            emit('changed');
+        } catch (err) {
+            handleErr(err);
+        }
+    });
 }
 
 async function onGrantCap(role: AdminRole) {
     const cap = capPickFor(role);
     if (!cap) return;
-    try {
-        await grantRoleCapability(role.name, cap);
-        capPicks.value[role.name] = '';
-        emit('changed');
-    } catch (err) {
-        handleErr(err);
-    }
+    await withRoleLock(role.name, async () => {
+        try {
+            await grantRoleCapability(role.name, cap);
+            capPicks.value[role.name] = '';
+            emit('changed');
+        } catch (err) {
+            handleErr(err);
+        }
+    });
 }
 
 async function onRevokeCap(role: AdminRole, capability: string) {
-    try {
-        await revokeRoleCapability(role.name, capability);
-        emit('changed');
-    } catch (err) {
-        handleErr(err);
-    }
+    await withRoleLock(role.name, async () => {
+        try {
+            await revokeRoleCapability(role.name, capability);
+            emit('changed');
+        } catch (err) {
+            handleErr(err);
+        }
+    });
 }
 </script>
 
@@ -163,7 +207,13 @@ async function onRevokeCap(role: AdminRole, capability: string) {
             <li v-for="role in roles" :key="role.name" class="role-card">
                 <header class="role-head">
                     <h4>{{ role.name }}</h4>
-                    <button type="button" class="danger" :title="$t('admin.roles.remove')" @click="onDeleteRole(role)">
+                    <button
+                        type="button"
+                        class="danger"
+                        :disabled="isRolePending(role.name)"
+                        :title="$t('admin.roles.remove')"
+                        @click="onDeleteRole(role)"
+                    >
                         <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
                     </button>
                 </header>
@@ -171,6 +221,7 @@ async function onRevokeCap(role: AdminRole, capability: string) {
                     <input
                         type="text"
                         :value="descriptionDraft(role)"
+                        :disabled="isRolePending(role.name)"
                         :placeholder="$t('admin.roles.descriptionPlaceholder')"
                         @input="descDrafts[role.name] = ($event.target as HTMLInputElement).value"
                         @blur="onSaveDescription(role)"
@@ -190,6 +241,7 @@ async function onRevokeCap(role: AdminRole, capability: string) {
                         <button
                             type="button"
                             class="chip-remove"
+                            :disabled="isRolePending(role.name)"
                             :title="$t('admin.roles.revoke')"
                             @click="onRevokeCap(role, cap)"
                         >×</button>
@@ -199,12 +251,18 @@ async function onRevokeCap(role: AdminRole, capability: string) {
                 <div v-if="availableCapsFor(role).length > 0" class="grant-row">
                     <select
                         :value="capPickFor(role)"
+                        :disabled="isRolePending(role.name)"
                         @change="capPicks[role.name] = ($event.target as HTMLSelectElement).value"
                     >
                         <option value="" disabled>{{ $t('admin.roles.selectCapability') }}</option>
                         <option v-for="c in availableCapsFor(role)" :key="c.key" :value="c.key">{{ c.key }}</option>
                     </select>
-                    <button type="button" class="primary small" :disabled="!capPickFor(role)" @click="onGrantCap(role)">
+                    <button
+                        type="button"
+                        class="primary small"
+                        :disabled="!capPickFor(role) || isRolePending(role.name)"
+                        @click="onGrantCap(role)"
+                    >
                         {{ $t('admin.roles.grant') }}
                     </button>
                 </div>

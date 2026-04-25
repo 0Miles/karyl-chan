@@ -27,6 +27,13 @@ const formUserId = ref('');
 const formRole = ref('');
 const formNote = ref('');
 const submitting = ref(false);
+// Per-user lock: a user being mutated (role change / removal) shouldn't
+// accept another mutation until the in-flight one settles. Keyed by
+// userId so concurrent edits to different users still work.
+const pendingUserIds = ref(new Set<string>());
+function isUserPending(userId: string) {
+    return pendingUserIds.value.has(userId);
+}
 
 function resetForm() {
     formUserId.value = '';
@@ -66,21 +73,33 @@ async function onAdd() {
 
 async function onChangeRole(user: AuthorizedUser, role: string) {
     if (role === user.role) return;
+    if (isUserPending(user.userId)) return;
+    pendingUserIds.value = new Set([...pendingUserIds.value, user.userId]);
     try {
         await upsertAdminUser({ userId: user.userId, role, note: user.note });
         emit('changed');
     } catch (err) {
         emit('error', err instanceof ApiError ? err.message : String(err));
+    } finally {
+        const next = new Set(pendingUserIds.value);
+        next.delete(user.userId);
+        pendingUserIds.value = next;
     }
 }
 
 async function onRemove(user: AuthorizedUser) {
+    if (isUserPending(user.userId)) return;
     if (!window.confirm(t('admin.users.removeConfirm', { user: displayNameFor(user) }))) return;
+    pendingUserIds.value = new Set([...pendingUserIds.value, user.userId]);
     try {
         await deleteAdminUser(user.userId);
         emit('changed');
     } catch (err) {
         emit('error', err instanceof ApiError ? err.message : String(err));
+    } finally {
+        const next = new Set(pendingUserIds.value);
+        next.delete(user.userId);
+        pendingUserIds.value = next;
     }
 }
 </script>
@@ -143,6 +162,7 @@ async function onRemove(user: AuthorizedUser) {
                             <select
                                 class="role-select"
                                 :value="user.role"
+                                :disabled="isUserPending(user.userId)"
                                 :title="$t('admin.users.changeRole')"
                                 @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
                             >
@@ -152,7 +172,13 @@ async function onRemove(user: AuthorizedUser) {
                                 </option>
                             </select>
                         </label>
-                        <button type="button" class="danger" :title="$t('admin.users.remove')" @click="onRemove(user)">
+                        <button
+                            type="button"
+                            class="danger"
+                            :disabled="isUserPending(user.userId)"
+                            :title="$t('admin.users.remove')"
+                            @click="onRemove(user)"
+                        >
                             <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
                         </button>
                     </div>

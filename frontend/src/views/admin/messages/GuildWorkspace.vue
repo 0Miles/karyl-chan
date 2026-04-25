@@ -6,6 +6,7 @@ import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/di
 import type { GuildSummary } from '../../../api/guilds';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
+import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -31,6 +32,7 @@ function clearScrollToQuery() {
 }
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
+const accessDenied = ref(false);
 
 const {
     categories,
@@ -47,6 +49,7 @@ const {
     requestScroll
 } = useDiscordGuildChannel(guildIdRef, {
     onAuthError: () => router.replace({ name: 'auth' }),
+    onForbidden: () => { accessDenied.value = true; },
     onScrollFinished: () => clearScrollToQuery(),
     attemptScroll: (id) => conversationRef.value?.scrollToMessage(id) ?? false
 });
@@ -109,7 +112,9 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
                 @select="handleSelect"
             />
         </template>
+        <AccessDeniedView v-if="accessDenied" />
         <DiscordConversation
+            v-else
             ref="conversationRef"
             :channel-id="selectedChannelId"
             :header-title="selectedChannel ? `#${selectedChannel.name}` : null"

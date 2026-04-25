@@ -18,6 +18,13 @@ import fastifyMultipart from '@fastify/multipart';
 // legitimate login attempt ever needs.
 const loginRateLimiter = new RateLimiter({ windowMs: 60_000, max: 10 });
 const refreshRateLimiter = new RateLimiter({ windowMs: 60_000, max: 60 });
+// Catch-all throttle for authenticated mutations. The /api/auth/* paths
+// have their own (tighter) limiters; this one shields every other write
+// route from a buggy client or a compromised admin token. 30/min/user
+// is well above legitimate UI usage and well below what would saturate
+// Discord's REST queue or the SQLite writer.
+const writeRateLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function clientKey(request: import('fastify').FastifyRequest): string {
     // x-forwarded-for is only honored in trust-proxy'd deployments; raw
@@ -27,8 +34,9 @@ function clientKey(request: import('fastify').FastifyRequest): string {
 }
 
 /**
- * Paths that accept access_token via query string. Restricting the
- * fallback keeps the token out of access logs for non-SSE traffic.
+ * Paths that accept a single-use ticket via the `?ticket=` query
+ * parameter (issued by POST /api/auth/sse-ticket). The whitelist keeps
+ * any future non-SSE route from accidentally honoring URL-borne auth.
  */
 const SSE_PATHS = new Set<string>([
     '/api/dm/events',
@@ -36,7 +44,6 @@ const SSE_PATHS = new Set<string>([
 ]);
 
 function isEventStreamPath(url: string): boolean {
-    // Strip query before matching so "/api/dm/events?access_token=…" hits.
     const path = url.split('?', 1)[0];
     return SSE_PATHS.has(path);
 }
@@ -48,6 +55,7 @@ import { registerGuildChannelRoutes } from './guild-channel-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { registerSystemRoutes } from './system-routes.js';
 import { registerAdminManagementRoutes } from './admin-management-routes.js';
+import { requireAnyCapability } from './route-guards.js';
 
 declare module 'fastify' {
     interface FastifyRequest {
@@ -121,19 +129,30 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     server.addHook('onRequest', async (request, reply) => {
         if (!request.url.startsWith('/api')) return;
         if (request.url.startsWith('/api/auth/')) return;
-        if (!authEnabled) return;
-        const header = request.headers.authorization;
-        let presented: string | null = header?.startsWith('Bearer ') ? header.slice(7) : null;
-        if (!presented && isEventStreamPath(request.url)) {
-            // EventSource can't set Authorization headers, so SSE endpoints
-            // alone get to fall back to a query string. Scoping by path
-            // keeps the token out of access logs for every other route.
-            const query = request.query as { access_token?: string } | undefined;
-            if (typeof query?.access_token === 'string' && query.access_token.length > 0) {
-                presented = query.access_token;
-            }
+        if (!authEnabled) {
+            // Dev-only branch (production fails to boot without
+            // BOT_OWNER_ID; see the guard above). Hand requests a
+            // synthetic admin context so per-route capability checks
+            // resolve cleanly — without this, every guarded route would
+            // 403 in tests / `npm run dev` since the hook has no user
+            // to attach.
+            request.authUserId = 'dev';
+            request.authCapabilities = new Set(['admin']);
+            return;
         }
-        const userId = presented ? auth.verifyAccessToken(presented) : null;
+        const header = request.headers.authorization;
+        const presentedAccess: string | null = header?.startsWith('Bearer ') ? header.slice(7) : null;
+        let userId: string | null = presentedAccess ? auth.verifyAccessToken(presentedAccess) : null;
+        if (!userId && isEventStreamPath(request.url)) {
+            // EventSource can't set Authorization headers, so SSE endpoints
+            // accept a single-use ticket from POST /api/auth/sse-ticket
+            // instead. The ticket is consumed on first verification — even
+            // if it leaks via access logs / browser history, it's already
+            // dead by the time anyone reads it.
+            const query = request.query as { ticket?: string } | undefined;
+            const ticket = typeof query?.ticket === 'string' && query.ticket.length > 0 ? query.ticket : null;
+            if (ticket) userId = auth.consumeSseTicket(ticket);
+        }
         if (!userId) {
             reply.code(401).send({ error: 'Unauthorized' });
             return;
@@ -152,11 +171,28 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         request.authCapabilities = capabilities;
     });
 
-    // Security headers. CSP allows same-origin scripts plus 'unsafe-eval'
-    // (required by lottie-web) and 'unsafe-inline' for Vue's scoped styles.
-    // Discord CDN hosts every avatar + custom emoji + sticker we render, so
-    // it's whitelisted under img-src / media-src. connect-src adds the
-    // Iconify API hosts since @iconify/vue fetches icon SVGs at runtime.
+    // Universal write throttle, runs AFTER the auth hook so we can key
+    // off the authenticated user when available (per-IP would let a
+    // shared NAT poison everyone behind it). Skips read methods entirely
+    // and skips /api/auth/* since those have their own dedicated limits.
+    server.addHook('onRequest', async (request, reply) => {
+        if (!request.url.startsWith('/api')) return;
+        if (request.url.startsWith('/api/auth/')) return;
+        if (!WRITE_METHODS.has(request.method)) return;
+        const key = request.authUserId ?? clientKey(request);
+        if (writeRateLimiter.isRateLimited(`write:${key}`)) {
+            reply.code(429).send({ error: 'Too many write requests, slow down' });
+        }
+    });
+
+    // Security headers. 'unsafe-inline' on style-src is required for
+    // Vue's scoped styles. script-src is now strict-self only — lottie
+    // stickers use the `_light` build (see MessageSticker.vue) which
+    // doesn't need `new Function`, so we can drop `unsafe-eval`.
+    // Discord CDN hosts every avatar + custom emoji + sticker we render,
+    // so it's whitelisted under img-src / media-src. connect-src adds
+    // the Iconify API hosts since @iconify/vue fetches icon SVGs at
+    // runtime.
     await server.register(fastifyHelmet, {
         contentSecurityPolicy: {
             directives: {
@@ -175,7 +211,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
                 ],
                 'font-src': ["'self'", 'data:'],
                 'style-src': ["'self'", "'unsafe-inline'"],
-                'script-src': ["'self'", "'unsafe-eval'"],
+                'script-src': ["'self'"],
                 'script-src-attr': ["'none'"],
                 'connect-src': [
                     "'self'",
@@ -241,6 +277,27 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         return issued;
     });
 
+    server.post('/api/auth/sse-ticket', async (request, reply) => {
+        // /api/auth/* is exempt from the global onRequest hook so the
+        // ticket endpoint authenticates inline with the same Bearer-token
+        // contract every other admin route uses. We deliberately skip the
+        // capability join here — the SSE endpoints themselves still go
+        // through the hook (with the ticket) and re-resolve capabilities
+        // at that point, so capability changes still take effect.
+        if (!authEnabled) {
+            reply.code(503).send({ error: 'Auth not configured' });
+            return;
+        }
+        const header = request.headers.authorization;
+        const presented = header?.startsWith('Bearer ') ? header.slice(7) : null;
+        const userId = presented ? auth.verifyAccessToken(presented) : null;
+        if (!userId) {
+            reply.code(401).send({ error: 'Unauthorized' });
+            return;
+        }
+        return auth.issueSseTicket(userId);
+    });
+
     server.post<{ Body: { refreshToken?: unknown } }>('/api/auth/logout', async (request, reply) => {
         if (!authEnabled) {
             reply.code(204).send();
@@ -269,7 +326,11 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
     await registerAdminManagementRoutes(server, { bot });
 
     if (bot) {
-        server.get('/api/bot/status', async () => {
+        server.get('/api/bot/status', async (request, reply) => {
+            // Bot identity feeds the chat composer ("is this me?") and the
+            // dashboard at the same time, so any of the read capabilities
+            // is enough.
+            if (!requireAnyCapability(request, reply, ['dm.read', 'guild.read', 'system.read'])) return;
             const ready = bot.isReady();
             const user = ready ? bot.user : null;
             return {

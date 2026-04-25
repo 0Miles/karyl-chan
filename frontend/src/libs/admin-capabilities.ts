@@ -8,6 +8,13 @@
  * Descriptions resolve through i18n under `admin.capabilityDesc.<key>`
  * so the UI matches the active locale instead of a hard-coded string.
  */
-export const ADMIN_CAPABILITY_KEYS = ['admin'] as const;
+export const ADMIN_CAPABILITY_KEYS = [
+    'admin',
+    'dm.read',
+    'dm.write',
+    'guild.read',
+    'guild.write',
+    'system.read'
+] as const;
 
 export type AdminCapabilityKey = typeof ADMIN_CAPABILITY_KEYS[number];

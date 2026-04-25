@@ -40,12 +40,12 @@ describe('crypto', () => {
             expect(decryptSecret(encryptSecret(''))).toBe('');
         });
 
-        it('tags output with v1 version prefix', () => {
-            expect(encryptSecret('x').startsWith('v1:')).toBe(true);
+        it('tags output with v2 version prefix', () => {
+            expect(encryptSecret('x').startsWith('v2:')).toBe(true);
         });
 
-        it('output has four colon-delimited segments', () => {
-            expect(encryptSecret('x').split(':')).toHaveLength(4);
+        it('output has five colon-delimited segments (version, keyId, iv, tag, ct)', () => {
+            expect(encryptSecret('x').split(':')).toHaveLength(5);
         });
     });
 
@@ -64,8 +64,12 @@ describe('crypto', () => {
     });
 
     describe('malformed input', () => {
+        it('rejects v2: values without all 5 segments', () => {
+            expect(() => decryptSecret('v2:only-one-part')).toThrow(/Invalid v2 encrypted value format/);
+        });
+
         it('rejects v1: values without all 4 segments', () => {
-            expect(() => decryptSecret('v1:only-one-part')).toThrow(/Invalid encrypted value format/);
+            expect(() => decryptSecret('v1:only-one-part')).toThrow(/Invalid v1 encrypted value format/);
         });
 
         it('rejects tampered ciphertext (GCM tag mismatch)', () => {

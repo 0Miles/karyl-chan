@@ -6,6 +6,7 @@ import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
 import { RoleEmoji } from '../models/role-emoji.model.js';
 import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
 import { CapabilityGrant } from '../models/capability-grant.model.js';
+import { requireCapability } from './route-guards.js';
 
 export interface GuildsRoutesOptions {
     bot: Client;
@@ -34,12 +35,14 @@ function summariseGuilds(bot: Client): GuildSummary[] {
 export async function registerGuildsRoutes(server: FastifyInstance, options: GuildsRoutesOptions): Promise<void> {
     const { bot } = options;
 
-    server.get('/api/guilds', async () => {
+    server.get('/api/guilds', async (request, reply) => {
+        if (!requireCapability(request, reply, 'guild.read')) return;
         const guilds = summariseGuilds(bot).sort((a, b) => a.name.localeCompare(b.name));
         return { guilds };
     });
 
     server.get<{ Params: { guildId: string } }>('/api/guilds/:guildId', async (request, reply) => {
+        if (!requireCapability(request, reply, 'guild.read')) return;
         const guild = bot.guilds.cache.get(request.params.guildId);
         if (!guild) {
             reply.code(404).send({ error: 'Bot is not in this guild' });

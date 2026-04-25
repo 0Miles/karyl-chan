@@ -92,6 +92,18 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         });
     }
 
+    // Closes the live event stream and drops every per-guild cache so the
+    // next sign-in repopulates from scratch. Pending member/role promises
+    // are intentionally not awaited — they'll resolve into a discarded
+    // entry and be GC'd.
+    function reset() {
+        if (stopSSE) {
+            stopSSE();
+            stopSSE = null;
+        }
+        for (const key of Object.keys(guilds)) delete guilds[key];
+    }
+
     async function loadChannels(guildId: string) {
         const entry = getOrCreate(guildId);
         entry.loading = true;
@@ -180,6 +192,7 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         isLoading,
         getError,
         startSSE,
+        reset,
         loadChannels,
         ensureChannels,
         listMessages,

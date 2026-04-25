@@ -20,7 +20,12 @@ async function loadLottie() {
     // proxies it server-side). Skip Lottie when no provider is wired.
     const animationData = await ctx.mediaProvider?.loadLottieSticker(props.sticker.id);
     if (!animationData || !containerRef.value) return;
-    const lottie = (await import('lottie-web')).default;
+    // Use the `_light` build so the bundle doesn't pull in lottie's
+    // expressions evaluator — the only piece of lottie-web that uses
+    // `new Function`. Dropping it lets the server CSP remove
+    // `unsafe-eval` from script-src. Discord stickers don't ship
+    // expressions so the visible output is identical.
+    const lottie = (await import('lottie-web/build/player/lottie_light')).default;
     lottieAnim?.destroy();
     if (!containerRef.value) return;
     lottieAnim = lottie.loadAnimation({

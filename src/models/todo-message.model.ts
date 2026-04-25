@@ -15,7 +15,14 @@ export const TodoMessage = sequelize.define('TodoMessage', {
         type: DataTypes.STRING,
         primaryKey: true
     },
+    // `createdAt` is set explicitly from the Discord message timestamp
+    // (see addTodoMessage below) so we override Sequelize's automatic
+    // timestamp behaviour with `timestamps: false` below — otherwise the
+    // ORM would clobber the meaningful value with `Date.now()`.
     createdAt: DataTypes.DATE
+}, {
+    tableName: 'TodoMessages',
+    timestamps: false
 });
 
 export const addTodoMessage = async (message: Message) => {

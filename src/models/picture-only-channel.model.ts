@@ -11,4 +11,7 @@ export const PictureOnlyChannel = sequelize.define('PictureOnlyChannel', {
         type: DataTypes.STRING,
         primaryKey: true
     }
+}, {
+    tableName: 'PictureOnlyChannels',
+    timestamps: false
 });

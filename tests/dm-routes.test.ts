@@ -158,13 +158,13 @@ describe('DM routes', () => {
         await server.inject({
             method: 'POST',
             url: '/api/dm/channels/c1/messages',
-            payload: { content: 'reply', replyToMessageId: 'm-prev' }
+            payload: { content: 'reply', replyToMessageId: '111111111111111111' }
         });
         expect(send).toHaveBeenCalledWith({
             content: 'reply',
             files: undefined,
             stickers: undefined,
-            reply: { messageReference: 'm-prev', failIfNotExists: false }
+            reply: { messageReference: '111111111111111111', failIfNotExists: false }
         });
     });
 
@@ -177,12 +177,12 @@ describe('DM routes', () => {
         await server.inject({
             method: 'POST',
             url: '/api/dm/channels/c1/messages',
-            payload: { content: '', stickerIds: ['s1', 's2', 's3', 's4'] }
+            payload: { content: '', stickerIds: ['100000000000000001', '100000000000000002', '100000000000000003', '100000000000000004'] }
         });
         expect(send).toHaveBeenCalledWith({
             content: undefined,
             files: undefined,
-            stickers: ['s1', 's2', 's3'],
+            stickers: ['100000000000000001', '100000000000000002', '100000000000000003'],
             reply: undefined
         });
     });
@@ -206,7 +206,7 @@ describe('DM routes', () => {
         const response = await server.inject({
             method: 'POST',
             url: '/api/dm/channels',
-            payload: { recipientUserId: 'u-new' }
+            payload: { recipientUserId: '222222222222222222' }
         });
         expect(response.statusCode).toBe(200);
         expect((await inbox.getChannel('c-new'))?.recipient.username).toBe('bob');
@@ -217,14 +217,15 @@ describe('DM routes', () => {
 
     it('POST reaction calls message.react with the resolvable form', async () => {
         const react = vi.fn(async () => undefined);
-        const message = { ...fakeDmMessage(), id: 'm-x', react, reactions: { cache: new Map() } };
+        const messageId = '300000000000000001';
+        const message = { ...fakeDmMessage(), id: messageId, react, reactions: { cache: new Map() } };
         const channel = { id: 'c1', type: 1, messages: { fetch: vi.fn(async () => message) } };
         const bot = fakeBot(channel);
         server = await createWebServer({ staticRoot: undefined, bot, dmInbox: inbox });
         await server.ready();
         const response = await server.inject({
             method: 'POST',
-            url: '/api/dm/channels/c1/messages/m-x/reactions',
+            url: `/api/dm/channels/c1/messages/${messageId}/reactions`,
             payload: { emoji: { id: null, name: '👍' } }
         });
         expect(response.statusCode).toBe(204);
@@ -240,14 +241,15 @@ describe('DM routes', () => {
             me: true,
             users: { remove: usersRemove }
         });
-        const message = { ...fakeDmMessage(), id: 'm-z', reactions: { cache: reactionsCache } };
+        const messageId = '300000000000000002';
+        const message = { ...fakeDmMessage(), id: messageId, reactions: { cache: reactionsCache } };
         const channel = { id: 'c1', type: 1, messages: { fetch: vi.fn(async () => message) } };
         const bot = fakeBot(channel);
         server = await createWebServer({ staticRoot: undefined, bot, dmInbox: inbox });
         await server.ready();
         const response = await server.inject({
             method: 'DELETE',
-            url: '/api/dm/channels/c1/messages/m-z/reactions',
+            url: `/api/dm/channels/c1/messages/${messageId}/reactions`,
             payload: { emoji: { id: null, name: '👍' } }
         });
         expect(response.statusCode).toBe(204);
@@ -269,13 +271,21 @@ describe('DM routes', () => {
             // Manually invoke the route registration with our injected bus.
             const { registerDmRoutes } = await import('../src/web/dm-routes.js');
             const fastify = (await import('fastify')).default();
+            // Per-route capability gates run against request.authCapabilities,
+            // which is normally set by the global auth hook in createWebServer.
+            // This test wires the routes directly, so attach a synthetic
+            // admin context up front.
+            fastify.addHook('onRequest', async (request) => {
+                request.authUserId = 'test';
+                request.authCapabilities = new Set(['admin']);
+            });
             await registerDmRoutes(fastify, { bot, inbox, eventBus });
             await fastify.ready();
             try {
                 const r = await fastify.inject({
                     method: 'POST',
                     url: '/api/dm/channels',
-                    payload: { recipientUserId: 'u-x' }
+                    payload: { recipientUserId: '333333333333333333' }
                 });
                 expect(r.statusCode).toBe(200);
             } finally {

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { ApiError } from '../../../api/client';
 import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../../api/guilds';
 import { SidebarLayout } from '../../../layouts';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
+import { useApiError } from '../../../composables/use-api-error';
+import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 
-const router = useRouter();
 const { closeOverlay } = useAppShell();
 const { isMobile } = useBreakpoint();
+const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
 const guilds = ref<GuildSummary[]>([]);
 const selectedId = ref<string | null>(null);
@@ -17,14 +17,6 @@ const detail = ref<GuildDetail | null>(null);
 const loadingList = ref(false);
 const loadingDetail = ref(false);
 const error = ref<string | null>(null);
-
-function bailOnAuth(err: unknown): boolean {
-    if (err instanceof ApiError && err.status === 401) {
-        router.replace({ name: 'auth' });
-        return true;
-    }
-    return false;
-}
 
 async function refresh() {
     loadingList.value = true;
@@ -34,8 +26,9 @@ async function refresh() {
             selectedId.value = guilds.value[0].id;
         }
         error.value = null;
+        resetError();
     } catch (err) {
-        if (bailOnAuth(err)) return;
+        if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'Failed to load guilds';
     } finally {
         loadingList.value = false;
@@ -49,7 +42,7 @@ async function loadDetail(id: string) {
         detail.value = await getGuildDetail(id);
         error.value = null;
     } catch (err) {
-        if (bailOnAuth(err)) return;
+        if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'Failed to load guild detail';
     } finally {
         loadingDetail.value = false;
@@ -104,6 +97,8 @@ function customEmojiUrl(id: string, char: string): string {
         </template>
 
         <div class="detail">
+            <AccessDeniedView v-if="accessDenied" />
+            <template v-else>
             <p v-if="error" class="error">{{ error }}</p>
             <p v-if="!selectedId" class="muted center">{{ $t('guilds.selectGuild') }}</p>
             <p v-else-if="loadingDetail && !detail" class="muted center">{{ $t('common.loading') }}</p>
@@ -188,6 +183,7 @@ function customEmojiUrl(id: string, char: string): string {
                     <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
             </article>
+            </template>
         </div>
     </SidebarLayout>
 </template>

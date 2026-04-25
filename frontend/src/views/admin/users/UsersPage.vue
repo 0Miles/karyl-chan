@@ -1,29 +1,34 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { DashboardLayout } from '../../../layouts';
-import { ApiError } from '../../../api/client';
 import {
+    listAdminCapabilities,
     listAdminRoles,
     listAdminUsers,
+    type AdminCapabilityCatalogItem,
     type AdminRole,
     type AdminUserList
 } from '../../../api/admin';
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
+import { useApiError } from '../../../composables/use-api-error';
+import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import UsersPanel from './UsersPanel.vue';
 import RolesPanel from './RolesPanel.vue';
 
-const router = useRouter();
 const currentUser = useCurrentUserStore();
+const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
 type Tab = 'users' | 'roles';
 const activeTab = ref<Tab>('users');
 
 const roles = ref<AdminRole[]>([]);
 const users = ref<AdminUserList>({ ownerId: null, users: [] });
+// Catalog comes from the server so the UI can't drift from the
+// authoritative set of capability tokens. Defaults to an empty list and
+// RolesPanel falls back to its hard-coded mirror if this fetch fails.
+const capabilities = ref<AdminCapabilityCatalogItem[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-const accessDenied = ref(false);
 
 async function refresh() {
     loading.value = true;
@@ -31,23 +36,19 @@ async function refresh() {
         // Refresh the nav-level identity cache in parallel — the admin
         // surface is exactly where self-role / capability changes happen,
         // and a stale avatar/menu after a successful mutation is confusing.
-        const [roleList, userList] = await Promise.all([
+        const [roleList, userList, capList] = await Promise.all([
             listAdminRoles(),
             listAdminUsers(),
+            listAdminCapabilities(),
             currentUser.refresh()
         ]);
         roles.value = roleList;
         users.value = userList;
+        capabilities.value = capList;
         error.value = null;
-        accessDenied.value = false;
+        resetError();
     } catch (err) {
-        if (err instanceof ApiError) {
-            if (err.status === 401) { router.replace({ name: 'auth' }); return; }
-            // 403 is a terminal state for users without the admin
-            // capability — render a friendly "no access" view instead
-            // of a raw error banner.
-            if (err.status === 403) { accessDenied.value = true; return; }
-        }
+        if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
         loading.value = false;
@@ -81,10 +82,7 @@ onMounted(refresh);
         </nav>
 
         <p v-if="loading" class="muted">{{ $t('common.loading') }}</p>
-        <div v-else-if="accessDenied" class="access-denied">
-            <h2>{{ $t('admin.accessDenied.title') }}</h2>
-            <p class="muted">{{ $t('admin.accessDenied.body') }}</p>
-        </div>
+        <AccessDeniedView v-else-if="accessDenied" />
         <p v-else-if="error" class="error">{{ error }}</p>
         <template v-else>
             <UsersPanel
@@ -97,6 +95,7 @@ onMounted(refresh);
             <RolesPanel
                 v-else
                 :roles="roles"
+                :capability-catalog="capabilities"
                 @changed="refresh"
                 @error="setError"
             />
@@ -134,9 +133,4 @@ onMounted(refresh);
     border: 1px solid rgba(239, 68, 68, 0.35);
     border-radius: 4px;
 }
-.access-denied {
-    text-align: center;
-    padding: 3rem 1rem;
-}
-.access-denied h2 { margin: 0 0 0.5rem; font-size: 1.1rem; }
 </style>

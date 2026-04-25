@@ -14,4 +14,13 @@ export const RefreshToken = sequelize.define('RefreshToken', {
         type: DataTypes.BIGINT,
         allowNull: false
     }
+}, {
+    tableName: 'RefreshTokens',
+    timestamps: false,
+    // ownerId is the lookup column for sign-out / global revoke (see
+    // refresh-token.repository#deleteByOwner). Without this index every
+    // logout walks the whole table.
+    indexes: [
+        { name: 'refresh_tokens_owner_id_idx', fields: ['ownerId'] }
+    ]
 });

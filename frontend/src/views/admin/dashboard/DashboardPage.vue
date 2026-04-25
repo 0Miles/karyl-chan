@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { RouterLink } from 'vue-router';
 import { ApiError, api } from '../../../api/client';
 import { listGuilds, type GuildSummary } from '../../../api/guilds';
 import { getSystemEvents, getSystemStats } from '../../../api/system';
 import type { BotStatus, HealthStatus, SystemEvent, SystemStats } from '../../../api/types';
 import { DashboardLayout } from '../../../layouts';
+import { useApiError } from '../../../composables/use-api-error';
+import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 
-const router = useRouter();
+const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
 const health = ref<HealthStatus | null>(null);
 const bot = ref<BotStatus | null>(null);
@@ -18,10 +20,21 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const lastUpdated = ref<Date | null>(null);
 
-const REFRESH_INTERVAL_MS = 10_000;
+// 30s gives enough granularity for "is the bot alive?" without burning
+// five round-trips every 10s on a tab nobody's looking at. The visibility
+// hook below pauses entirely when hidden — pre-Visibility-API browsers
+// just keep the slower cadence.
+const REFRESH_INTERVAL_MS = 30_000;
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
+// Skip refreshes that would land less than this apart (e.g. visibility
+// flapping). The previous interval was effectively this — keep at least
+// that responsiveness for the manual button without re-firing on every
+// tab focus.
+const MIN_REFRESH_GAP_MS = 5_000;
+let lastRefreshAt = 0;
 
 async function refresh() {
+    lastRefreshAt = Date.now();
     try {
         const [healthResult, botResult, guildsResult, eventsResult, statsResult] = await Promise.allSettled([
             api.getHealth(),
@@ -50,12 +63,10 @@ async function refresh() {
         if (statsResult.status === 'fulfilled') systemStats.value = statsResult.value;
 
         error.value = null;
+        resetError();
         lastUpdated.value = new Date();
     } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-            router.replace({ name: 'auth' });
-            return;
-        }
+        if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'Unknown error';
     } finally {
         loading.value = false;
@@ -109,13 +120,37 @@ const chartMax = computed(() => {
     return Math.max(...systemStats.value.dmActivity.map(d => d.count), 1);
 });
 
+function startTimer() {
+    if (refreshTimer !== null) return;
+    refreshTimer = setInterval(refresh, REFRESH_INTERVAL_MS);
+}
+
+function stopTimer() {
+    if (refreshTimer === null) return;
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+}
+
+function onVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+        stopTimer();
+    } else {
+        // Coming back from a hidden tab — refresh now if we've been
+        // away long enough that the existing data is plausibly stale.
+        if (Date.now() - lastRefreshAt >= MIN_REFRESH_GAP_MS) refresh();
+        startTimer();
+    }
+}
+
 onMounted(() => {
     refresh();
-    refreshTimer = setInterval(refresh, REFRESH_INTERVAL_MS);
+    if (document.visibilityState !== 'hidden') startTimer();
+    document.addEventListener('visibilitychange', onVisibilityChange);
 });
 
 onUnmounted(() => {
-    if (refreshTimer !== null) clearInterval(refreshTimer);
+    stopTimer();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
 
@@ -128,6 +163,8 @@ onUnmounted(() => {
             <button type="button" :disabled="loading" @click="refresh">{{ $t('common.refresh') }}</button>
         </template>
 
+        <AccessDeniedView v-if="accessDenied" />
+        <template v-else>
         <p v-if="loading && !health" class="muted">{{ $t('common.loading') }}</p>
         <p v-else-if="error" class="error">{{ $t('common.failedToLoad', { error }) }}</p>
 
@@ -247,6 +284,7 @@ onUnmounted(() => {
                 </ul>
             </article>
         </div>
+        </template>
     </DashboardLayout>
 </template>
 

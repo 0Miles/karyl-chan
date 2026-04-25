@@ -14,6 +14,9 @@ import { useUnreadSync } from './useUnreadSync';
 
 export interface UseDiscordDmOptions {
     onAuthError?: () => void;
+    /** Called when the server rejects the request with 403 — the
+     *  workspace should swap in an access-denied view. */
+    onForbidden?: () => void;
     /** Fired when the workspace machine's pending scroll target resolves (found or gave up). */
     onScrollFinished?: (messageId: string, found: boolean) => void;
     /** Scroller-aware scroll attempt — see UseWorkspaceOptions.attemptScroll. */
@@ -29,7 +32,10 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
     const newRecipientId = ref('');
     const showStart = ref(false);
 
-    const bailOnAuthError = createAuthErrorBail({ onAuthError: opts.onAuthError });
+    const bailOnAuthError = createAuthErrorBail({
+        onAuthError: opts.onAuthError,
+        onForbidden: opts.onForbidden
+    });
 
     const botUserId = computed(() => botStore.userId);
     const botDisplayName = () => botStore.displayName();
