@@ -11,6 +11,7 @@ import type {
 import { flashMessage } from '../../libs/messages/scroll-flash';
 import { createDiscordComposerTokenCodec } from './composer-token-codec';
 import { createDefaultDiscordMediaProvider } from './createMediaProvider';
+import { useUserContextMenuStore } from './stores/userContextMenuStore';
 import { useUserProfileStore } from './stores/userProfileStore';
 
 export interface DiscordMessageContextOptions {
@@ -54,6 +55,7 @@ function defaultScrollToReply(messageId: string) {
  */
 export function createDiscordMessageContext(opts: DiscordMessageContextOptions): MessageContext {
     const userCard = useUserProfileStore();
+    const userMenu = useUserContextMenuStore();
     const guildIdRef = opts.guildId;
     const ctx: MessageContext = {
         onReactionAdd: opts.onReactionAdd,
@@ -61,6 +63,14 @@ export function createDiscordMessageContext(opts: DiscordMessageContextOptions):
         fetchReactionUsers: opts.fetchReactionUsers,
         onReplyClick: opts.onReplyClick ?? defaultScrollToReply,
         onUserClick: (userId, anchor) => userCard.openFor(userId, anchor, guildIdRef?.value ?? null),
+        onUserContextMenu: (userId, anchor, point, displayName) => userMenu.open({
+            userId,
+            anchor,
+            x: point.x,
+            y: point.y,
+            guildId: guildIdRef?.value ?? null,
+            displayName
+        }),
         get currentUserId() { return opts.botUserId.value; },
         get guildId() { return guildIdRef?.value ?? null; },
         resolveUser: opts.resolveUser,

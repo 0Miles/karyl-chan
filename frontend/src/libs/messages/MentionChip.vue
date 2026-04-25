@@ -43,6 +43,16 @@ function onClick(event: MouseEvent) {
     event.stopPropagation();
     ctx.onUserClick(props.id, anchor);
 }
+
+function onContextMenu(event: MouseEvent) {
+    if (!isUser.value || !props.id || !ctx.onUserContextMenu) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const u = ctx.resolveUser?.(props.id);
+    ctx.onUserContextMenu(props.id, anchor, { x: event.clientX, y: event.clientY }, u?.name ?? null);
+}
 </script>
 
 <template>
@@ -50,6 +60,7 @@ function onClick(event: MouseEvent) {
         :class="['mention', { clickable: isUser }]"
         :style="display.color ? { color: display.color } : undefined"
         @click="onClick"
+        @contextmenu="onContextMenu"
     >{{ display.text }}</span>
 </template>
 

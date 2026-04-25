@@ -38,6 +38,28 @@
         "roles": "身分組",
         "sendDm": "傳送私訊"
     },
+    "userMenu": {
+        "profile": "開啟個人資料",
+        "sendDm": "傳送私訊",
+        "copyMention": "複製提及",
+        "copyId": "複製使用者 ID",
+        "mute": "伺服器靜音",
+        "unmute": "解除伺服器靜音",
+        "deafen": "伺服器拒聽",
+        "undeafen": "解除伺服器拒聽",
+        "disconnect": "中斷語音連線",
+        "moveTo": "移動到 {name}"
+    },
+    "channelMenu": {
+        "markAsRead": "標記為已讀",
+        "muteMentionsOnly": "靜音（僅提及）",
+        "muteAll": "完全靜音",
+        "unmute": "恢復通知",
+        "copyLink": "複製頻道連結",
+        "copyId": "複製頻道 ID",
+        "openProfile": "開啟使用者資料",
+        "copyUserId": "複製使用者 ID"
+    },
     "profile": {
         "title": "個人資料",
         "userId": "使用者 ID",
@@ -144,6 +166,10 @@
         "copyLinkDone": "已複製",
         "copyText": "複製訊息內容",
         "copyId": "複製訊息 ID",
+        "forward": "轉發",
+        "forwardTitle": "轉發訊息",
+        "forwardEmpty": "沒有可用頻道。",
+        "forwardFailed": "轉發失敗",
         "markUnread": "標記為未讀",
         "viewSource": "檢視原始 Markdown",
         "lightboxPrev": "上一張",

@@ -3,8 +3,11 @@ import { computed, ref, toRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import GuildForumPanel from './GuildForumPanel.vue';
+import GuildForwardPicker from './GuildForwardPicker.vue';
+import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
-import { getGuildPins, type GuildSummary } from '../../../api/guilds';
+import { forwardGuildMessage, getGuildPins, type GuildSummary } from '../../../api/guilds';
+import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
@@ -105,11 +108,36 @@ watch(() => props.guildId, id => {
 // reuse the chat surface because Discord embeds a text chat in each one.
 const isForum = computed(() => selectedChannel.value?.kind === 'forum');
 
+// Voice/stage channels in the current guild — fed to the user context
+// menu so its "Move to ..." submenu reflects this guild's voice tree.
+const voiceChannels = computed(() =>
+    categories.value.flatMap(c => c.channels).filter(c => c.kind === 'voice' || c.kind === 'stage')
+);
+
 function headerTitle() {
     if (!selectedChannel.value) return null;
     const ch = selectedChannel.value;
     if (ch.kind === 'voice' || ch.kind === 'stage') return ch.name;
     return `#${ch.name}`;
+}
+
+// Forward picker — DiscordConversation surfaces the request because it
+// owns the right-click menu, but it doesn't know the guild's channel
+// tree, so destination selection lives here.
+const forwardSource = ref<{ channelId: string; messageId: string } | null>(null);
+function onForwardRequested(message: Message) {
+    if (!selectedChannelId.value) return;
+    forwardSource.value = { channelId: selectedChannelId.value, messageId: message.id };
+}
+async function onForwardPick(targetChannelId: string) {
+    const src = forwardSource.value;
+    if (!src) return;
+    forwardSource.value = null;
+    try {
+        await forwardGuildMessage(props.guildId, targetChannelId, src.channelId, src.messageId);
+    } catch {
+        /* surface via toast in a future change; for now silent */
+    }
 }
 
 watch(() => conversationRef.value?.messagesContainer, (container) => {
@@ -161,6 +189,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :editing-message-id="chat.editingMessageId.value"
             :reply-to="chat.replyTo.value"
             :pin-fetcher="pinFetcher"
+            :can-forward="true"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -171,6 +200,14 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @load-older="chat.loadOlder"
             @react="reactWithSelection"
             @jump-to-message="onJumpToMessage"
+            @forward="onForwardRequested"
         />
+        <GuildForwardPicker
+            :visible="forwardSource !== null"
+            :categories="categories"
+            @pick="onForwardPick"
+            @close="forwardSource = null"
+        />
+        <UserContextMenu :voice-channels="voiceChannels" />
     </SidebarLayout>
 </template>

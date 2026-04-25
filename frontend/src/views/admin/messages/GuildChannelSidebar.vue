@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
     listGuildActiveThreads,
     type GuildActiveThread,
@@ -7,14 +7,93 @@ import {
     type GuildSummary,
     type GuildTextChannel
 } from '../../../api/guilds';
+import { useI18n } from 'vue-i18n';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
+import { useUserContextMenuStore } from '../../../modules/discord-chat/stores/userContextMenuStore';
+import type { VoiceChannelMember } from '../../../api/guilds';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
+import MessageContextMenu, { type ContextMenuAction } from '../../../libs/messages/MessageContextMenu.vue';
 import { Icon } from '@iconify/vue';
+
+const { t: $t } = useI18n();
 
 const unreadStore = useUnreadStore();
 const muteStore = useMuteStore();
+const userMenu = useUserContextMenuStore();
+
+// Channel right-click — surfaces mute/unmute, mark-as-read, and copy
+// helpers per row. Local state (no shared store) because this menu only
+// ever fires from this sidebar.
+const channelMenu = ref<{ x: number; y: number; channelId: string } | null>(null);
+function onChannelContext(event: MouseEvent, channelId: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    channelMenu.value = { x: event.clientX, y: event.clientY, channelId };
+}
+const channelMenuActions = computed<ContextMenuAction[]>(() => {
+    if (!channelMenu.value) return [];
+    const id = channelMenu.value.channelId;
+    const actions: ContextMenuAction[] = [];
+    if (unreadStore.hasChannelUnread(id) || unreadStore.getChannelMentionCount(id) > 0) {
+        actions.push({ key: 'mark-read', label: $t('channelMenu.markAsRead'), icon: 'material-symbols:mark-chat-read-outline-rounded' });
+    }
+    const level = muteStore.getLevel(id);
+    if (level === 'all') {
+        actions.push({ key: 'mute-mentions', label: $t('channelMenu.muteMentionsOnly'), icon: 'material-symbols:notifications-paused-outline-rounded' });
+        actions.push({ key: 'mute-all', label: $t('channelMenu.muteAll'), icon: 'material-symbols:notifications-off-outline-rounded' });
+    } else if (level === 'mentions-only') {
+        actions.push({ key: 'mute-all', label: $t('channelMenu.muteAll'), icon: 'material-symbols:notifications-off-outline-rounded' });
+        actions.push({ key: 'unmute', label: $t('channelMenu.unmute'), icon: 'material-symbols:notifications-active-outline-rounded' });
+    } else {
+        actions.push({ key: 'mute-mentions', label: $t('channelMenu.muteMentionsOnly'), icon: 'material-symbols:notifications-paused-outline-rounded' });
+        actions.push({ key: 'unmute', label: $t('channelMenu.unmute'), icon: 'material-symbols:notifications-active-outline-rounded' });
+    }
+    actions.push({ key: 'copy-link', label: $t('channelMenu.copyLink'), icon: 'material-symbols:link-rounded' });
+    actions.push({ key: 'copy-id', label: $t('channelMenu.copyId'), icon: 'material-symbols:fingerprint-rounded' });
+    return actions;
+});
+async function copyToClipboard(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+}
+function onChannelMenuPick(actionKey: string) {
+    const ctx = channelMenu.value;
+    if (!ctx) return;
+    const id = ctx.channelId;
+    switch (actionKey) {
+        case 'mark-read': unreadStore.markRead(id); break;
+        case 'mute-mentions': muteStore.setLevel(id, 'mentions-only'); break;
+        case 'mute-all': muteStore.setLevel(id, 'none'); break;
+        case 'unmute': muteStore.setLevel(id, 'all'); break;
+        case 'copy-link':
+            // Discord canonical channel link. `props.guildId` may be null
+            // very briefly during guild switches; skip in that case.
+            if (props.guildId) void copyToClipboard(`https://discord.com/channels/${props.guildId}/${id}`);
+            break;
+        case 'copy-id': void copyToClipboard(id); break;
+    }
+}
+
+function onVoiceMemberContext(event: MouseEvent, channelId: string, member: VoiceChannelMember) {
+    if (!props.guildId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.currentTarget as HTMLElement | null;
+    if (!target) return;
+    userMenu.open({
+        userId: member.id,
+        anchor: target,
+        x: event.clientX,
+        y: event.clientY,
+        guildId: props.guildId,
+        displayName: member.nickname ?? member.globalName ?? member.username,
+        // The voice-state flags (server muted/deafened) aren't tracked on
+        // the cached member row yet — passing the channel alone unlocks
+        // mute/deafen/move/disconnect; the toggles act idempotently.
+        voice: { channelId }
+    });
+}
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -119,7 +198,8 @@ watch(() => props.guildId, () => {
                             || (muteStore.showsMention(channel.id) && unreadStore.getChannelMentionCount(channel.id) > 0),
                         muted: muteStore.isMuted(channel.id)
                     }]"
-                    @click="emit('select', channel.id)">
+                    @click="emit('select', channel.id)"
+                    @contextmenu="onChannelContext($event, channel.id)">
                     <span v-if="channel.kind === 'text'" class="hash">#</span>
                     <Icon v-else :icon="channelIcon(channel) ?? ''" width="14" height="14" class="kind-icon" />
                     <span class="name">{{ channel.name }}</span>
@@ -137,7 +217,13 @@ watch(() => props.guildId, () => {
                     class="voice-members-wrap"
                 >
                     <ul class="voice-members">
-                        <li v-for="m in channel.voiceMembers" :key="m.id" class="voice-member" :title="m.username">
+                        <li
+                            v-for="m in channel.voiceMembers"
+                            :key="m.id"
+                            class="voice-member"
+                            :title="m.username"
+                            @contextmenu="onVoiceMemberContext($event, channel.id, m)"
+                        >
                             <img v-if="m.avatarUrl" :src="m.avatarUrl" alt="" class="voice-avatar" />
                             <span class="voice-name">{{ m.nickname ?? m.globalName ?? m.username }}</span>
                         </li>
@@ -148,6 +234,7 @@ watch(() => props.guildId, () => {
                     :key="thread.id"
                     :class="['thread-row', { active: thread.id === selectedId }]"
                     @click="emit('select', thread.id)"
+                    @contextmenu="onChannelContext($event, thread.id)"
                 >
                     <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
                     <span class="name">{{ thread.name }}</span>
@@ -156,6 +243,14 @@ watch(() => props.guildId, () => {
             </ul>
         </div>
     </div>
+    <MessageContextMenu
+        :visible="channelMenu !== null"
+        :x="channelMenu?.x ?? 0"
+        :y="channelMenu?.y ?? 0"
+        :actions="channelMenuActions"
+        @pick="onChannelMenuPick"
+        @close="channelMenu = null"
+    />
 </template>
 
 <style scoped>

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
+import { ChannelType, MessageReferenceType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
@@ -627,6 +627,42 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
         }
     );
 
+    // Forward an existing message into a destination channel using the
+    // native Discord forward primitive (MessageReferenceType.Forward).
+    // Source and destination both live in the same guild so a single
+    // permissions check covers them; cross-guild forward isn't surfaced.
+    server.post<{ Params: { guildId: string; channelId: string }; Body: { sourceChannelId?: unknown; sourceMessageId?: unknown } }>(
+        '/api/guilds/:guildId/text-channels/:channelId/messages/forward',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, channelId } = request.params;
+            const sourceChannelId = typeof request.body?.sourceChannelId === 'string' ? request.body.sourceChannelId : '';
+            const sourceMessageId = typeof request.body?.sourceMessageId === 'string' ? request.body.sourceMessageId : '';
+            if (!isSnowflake(sourceChannelId) || !isSnowflake(sourceMessageId)) {
+                reply.code(400).send({ error: 'sourceChannelId and sourceMessageId required' });
+                return;
+            }
+            const target = fetchTextChannel(bot, guildId, channelId);
+            if (!target) { reply.code(404).send({ error: 'Unknown destination channel' }); return; }
+            const source = fetchTextChannel(bot, guildId, sourceChannelId);
+            if (!source) { reply.code(404).send({ error: 'Unknown source channel' }); return; }
+            try {
+                const sent = await target.send({
+                    messageReference: {
+                        messageId: sourceMessageId,
+                        channelId: sourceChannelId,
+                        guildId,
+                        type: MessageReferenceType.Forward
+                    }
+                });
+                return { message: toApiMessage(sent) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to forward guild message');
+                reply.code(502).send({ error: 'Failed to forward message' });
+            }
+        }
+    );
+
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
@@ -647,6 +683,85 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             } catch (err) {
                 request.log.error({ err }, 'failed to remove reaction from guild message');
                 reply.code(502).send({ error: 'Failed to remove reaction' });
+            }
+        }
+    );
+
+    // Voice-state moderation: server mute / deafen / move-or-disconnect.
+    // All three are scoped to the user being currently in any voice channel
+    // of this guild (Discord rejects voice ops on disconnected members);
+    // the route just forwards the discord.js call, which surfaces a 50013
+    // when the bot lacks MuteMembers / DeafenMembers / MoveMembers.
+    server.patch<{ Params: { guildId: string; userId: string }; Body: { mute?: unknown } }>(
+        '/api/guilds/:guildId/voice-members/:userId/mute',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, userId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (!member) { reply.code(404).send({ error: 'Unknown member' }); return; }
+            const mute = !!request.body?.mute;
+            try {
+                await member.voice.setMute(mute);
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to set voice mute');
+                reply.code(502).send({ error: 'Failed to set mute' });
+            }
+        }
+    );
+
+    server.patch<{ Params: { guildId: string; userId: string }; Body: { deaf?: unknown } }>(
+        '/api/guilds/:guildId/voice-members/:userId/deafen',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, userId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (!member) { reply.code(404).send({ error: 'Unknown member' }); return; }
+            const deaf = !!request.body?.deaf;
+            try {
+                await member.voice.setDeaf(deaf);
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to set voice deafen');
+                reply.code(502).send({ error: 'Failed to set deafen' });
+            }
+        }
+    );
+
+    server.patch<{ Params: { guildId: string; userId: string }; Body: { channelId?: unknown } }>(
+        '/api/guilds/:guildId/voice-members/:userId/move',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, userId } = request.params;
+            const raw = request.body?.channelId;
+            // null disconnects; a snowflake string moves into that channel.
+            const target: string | null = raw === null ? null
+                : (typeof raw === 'string' && isSnowflake(raw) ? raw : undefined as unknown as null);
+            if (target === undefined) {
+                reply.code(400).send({ error: 'channelId must be a snowflake or null' });
+                return;
+            }
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const member = await guild.members.fetch(userId).catch(() => null);
+            if (!member) { reply.code(404).send({ error: 'Unknown member' }); return; }
+            if (target !== null) {
+                const dest = guild.channels.cache.get(target);
+                if (!dest || (dest.type !== ChannelType.GuildVoice && dest.type !== ChannelType.GuildStageVoice)) {
+                    reply.code(400).send({ error: 'destination is not a voice channel' });
+                    return;
+                }
+            }
+            try {
+                await member.voice.setChannel(target);
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to move voice member');
+                reply.code(502).send({ error: 'Failed to move voice member' });
             }
         }
     );

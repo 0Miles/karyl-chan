@@ -332,6 +332,53 @@ export async function editGuildMessage(
     return body.message;
 }
 
+export async function setGuildVoiceMemberMute(guildId: string, userId: string, mute: boolean): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-members/${encodeURIComponent(userId)}/mute`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mute })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to set mute');
+}
+
+export async function setGuildVoiceMemberDeafen(guildId: string, userId: string, deaf: boolean): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-members/${encodeURIComponent(userId)}/deafen`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deaf })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to set deafen');
+}
+
+/** Pass `null` to disconnect the user from voice; a channel id moves them. */
+export async function moveGuildVoiceMember(guildId: string, userId: string, channelId: string | null): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-members/${encodeURIComponent(userId)}/move`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to move voice member');
+}
+
+export async function forwardGuildMessage(
+    guildId: string,
+    targetChannelId: string,
+    sourceChannelId: string,
+    sourceMessageId: string
+): Promise<Message> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(targetChannelId)}/messages/forward`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceChannelId, sourceMessageId })
+    });
+    const body = await jsonOrThrow<{ message: Message }>(response);
+    return body.message;
+}
+
 export async function deleteGuildMessage(
     guildId: string,
     channelId: string,

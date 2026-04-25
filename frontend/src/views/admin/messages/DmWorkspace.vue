@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
+import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
 import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
 import type { GuildSummary } from '../../../api/guilds';
 import { getPins } from '../../../api/dm';
@@ -155,5 +156,6 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @react="reactWithSelection"
             @jump-to-message="onJumpToMessage"
         />
+        <UserContextMenu />
     </SidebarLayout>
 </template>

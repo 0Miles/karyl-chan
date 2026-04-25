@@ -38,6 +38,28 @@
         "roles": "Roles",
         "sendDm": "Send DM"
     },
+    "userMenu": {
+        "profile": "Open profile",
+        "sendDm": "Send DM",
+        "copyMention": "Copy mention",
+        "copyId": "Copy user ID",
+        "mute": "Server mute",
+        "unmute": "Server unmute",
+        "deafen": "Server deafen",
+        "undeafen": "Server undeafen",
+        "disconnect": "Disconnect from voice",
+        "moveTo": "Move to {name}"
+    },
+    "channelMenu": {
+        "markAsRead": "Mark as read",
+        "muteMentionsOnly": "Mute (mentions only)",
+        "muteAll": "Mute completely",
+        "unmute": "Restore notifications",
+        "copyLink": "Copy channel link",
+        "copyId": "Copy channel ID",
+        "openProfile": "Open user profile",
+        "copyUserId": "Copy user ID"
+    },
     "profile": {
         "title": "Profile",
         "userId": "User id",
@@ -144,6 +166,10 @@
         "copyLinkDone": "Copied",
         "copyText": "Copy message text",
         "copyId": "Copy message ID",
+        "forward": "Forward",
+        "forwardTitle": "Forward message",
+        "forwardEmpty": "No channels available.",
+        "forwardFailed": "Failed to forward",
         "markUnread": "Mark unread",
         "viewSource": "View source markdown",
         "lightboxPrev": "Previous",

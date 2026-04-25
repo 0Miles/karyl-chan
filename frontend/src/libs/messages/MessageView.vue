@@ -76,6 +76,20 @@ function onAuthorClick(event: MouseEvent) {
     event.stopPropagation();
     ctx.onUserClick(props.message.author.id, anchor);
 }
+
+function onAuthorContextMenu(event: MouseEvent) {
+    if (!ctx.onUserContextMenu) return;
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    event.preventDefault();
+    event.stopPropagation();
+    ctx.onUserContextMenu(
+        props.message.author.id,
+        anchor,
+        { x: event.clientX, y: event.clientY },
+        displayName.value
+    );
+}
 </script>
 
 <template>
@@ -93,17 +107,20 @@ function onAuthorClick(event: MouseEvent) {
                 alt=""
                 class="avatar author-click"
                 @click="onAuthorClick"
+                @contextmenu="onAuthorContextMenu"
             />
             <div
                 v-else
                 class="avatar avatar-fallback author-click"
                 @click="onAuthorClick"
+                @contextmenu="onAuthorContextMenu"
             >{{ displayName.charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <span
                     class="name author-click"
                     :style="authorColor ? { color: authorColor } : undefined"
                     @click="onAuthorClick"
+                @contextmenu="onAuthorContextMenu"
                 >{{ displayName }}</span>
                 <span v-if="message.author.bot" class="bot-tag">BOT</span>
                 <time class="time" :datetime="message.createdAt">{{ time }}</time>

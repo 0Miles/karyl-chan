@@ -80,6 +80,9 @@ export interface MessageContext {
     onReplyClick?: (messageId: string) => void;
     /** Fired when the user clicks a message avatar, author name, or user mention. */
     onUserClick?: (userId: string, anchor: HTMLElement) => void;
+    /** Fired when the user right-clicks a message avatar / author name / mention.
+     *  When provided, the host is expected to show a per-user context menu. */
+    onUserContextMenu?: (userId: string, anchor: HTMLElement, point: { x: number; y: number }, displayName: string | null) => void;
     onAttachmentOpen?: (attachmentId: string) => void;
     mediaProvider?: MediaProvider;
     /** Providers consulted by the MessageComposer when the user types a trigger char. */

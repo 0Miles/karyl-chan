@@ -40,6 +40,10 @@ const props = defineProps<{
      *  fetch matches its own channelId conventions. Returning a
      *  rejected promise surfaces in the panel as an error. */
     pinFetcher?: ((channelId: string) => Promise<Message[]>) | null;
+    /** When true, the right-click menu shows a "Forward" entry that
+     *  emits `forward(message)` for the host to route. DM surfaces leave
+     *  this off because cross-DM forwarding has no destination picker. */
+    canForward?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -54,6 +58,9 @@ const emit = defineEmits<{
     (e: 'react', messageId: string, selection: MediaSelection): void;
     (e: 'add-files', files: File[]): void;
     (e: 'jump-to-message', messageId: string): void;
+    /** Surfaced so the workspace can show a destination picker — the
+     *  conversation alone doesn't know the guild's channel tree. */
+    (e: 'forward', message: Message): void;
 }>();
 
 const VIRTUAL_THRESHOLD = 64;
@@ -236,15 +243,21 @@ const ctxActions = computed<ContextMenuAction[]>(() => {
     const message = props.messages.find(m => m.id === ctxMenu.value!.messageId);
     if (!message) return [];
     const actions: ContextMenuAction[] = [
-        { key: 'reply', label: $t('messages.reply'), icon: 'material-symbols:reply-rounded' },
-        { key: 'copy-text', label: $t('messages.copyText'), icon: 'material-symbols:content-copy-outline-rounded' },
-        { key: 'copy-link', label: $t('messages.copyLink'), icon: 'material-symbols:link-rounded' },
-        { key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' },
-        { key: 'view-source', label: $t('messages.viewSource'), icon: 'material-symbols:code-rounded' },
-        { key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' }
+        { key: 'react', label: $t('messages.react'), icon: 'material-symbols:add-reaction-outline-rounded' },
+        { key: 'reply', label: $t('messages.reply'), icon: 'material-symbols:reply-rounded' }
     ];
     if (isOwn(message)) {
         actions.push({ key: 'edit', label: $t('messages.edit'), icon: 'material-symbols:edit-rounded' });
+    }
+    if (props.canForward) {
+        actions.push({ key: 'forward', label: $t('messages.forward'), icon: 'material-symbols:forward-rounded' });
+    }
+    actions.push({ key: 'copy-text', label: $t('messages.copyText'), icon: 'material-symbols:content-copy-outline-rounded' });
+    actions.push({ key: 'copy-link', label: $t('messages.copyLink'), icon: 'material-symbols:link-rounded' });
+    actions.push({ key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' });
+    actions.push({ key: 'view-source', label: $t('messages.viewSource'), icon: 'material-symbols:code-rounded' });
+    actions.push({ key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' });
+    if (isOwn(message)) {
         actions.push({ key: 'delete', label: $t('messages.delete'), icon: 'material-symbols:delete-rounded', danger: true });
     }
     return actions;
@@ -260,10 +273,21 @@ function onContextPick(actionKey: string) {
     const message = props.messages.find(m => m.id === ctx.messageId);
     if (!message) return;
     switch (actionKey) {
+        case 'react': {
+            // Anchor the picker on the row the user right-clicked so it
+            // doesn't drift to wherever the inline action button last
+            // landed. The DOM lookup runs inside the same tick the menu
+            // closes, so the row is still mounted.
+            const row = document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(message.id)}"]`);
+            reactingButton.value = (row as HTMLButtonElement | null) ?? null;
+            reactingMessageId.value = message.id;
+            break;
+        }
         case 'reply': emit('reply', message); break;
         case 'copy-text': void copyToClipboard(message.content ?? ''); break;
         case 'copy-link': void copyToClipboard(messageUrl(message)); break;
         case 'copy-id': void copyToClipboard(message.id); break;
+        case 'forward': emit('forward', message); break;
         case 'view-source':
             sourceModalMessage.value = message;
             break;
@@ -748,6 +772,11 @@ const replyToProp = computed(() => props.replyTo);
                         'mentioned-self': mentionsSelf(message)
                     }]"
                     :data-message-id="message.id"
+                    @contextmenu="onMessageContextMenu($event, message)"
+                    @touchstart="onMessageTouchStart($event, message)"
+                    @touchend="onMessageTouchEnd"
+                    @touchmove="onMessageTouchEnd"
+                    @touchcancel="onMessageTouchEnd"
                 >
                     <MessageView
                         :message="message"

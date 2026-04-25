@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../../../modules/discord-chat';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
+import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import type { DmChannelSummary } from '../../../api/dm';
 import type { GuildSummary } from '../../../api/guilds';
 import ModeSelect from './ModeSelect.vue';
+import MessageContextMenu, { type ContextMenuAction } from '../../../libs/messages/MessageContextMenu.vue';
 import { Icon } from '@iconify/vue';
 
+const { t: $t } = useI18n();
 const unreadStore = useUnreadStore();
 const muteStore = useMuteStore();
+const userProfile = useUserProfileStore();
 
 defineProps<{
     guilds: GuildSummary[];
@@ -38,6 +43,57 @@ function rowAvatarSrc(channel: DmChannelSummary): string | null {
     if (!url) return null;
     if (hoveredChannelId.value === channel.id && isAnimatedAvatar(url)) return animatedAvatarUrl(url);
     return url;
+}
+
+// Right-click on a DM row → mute/mark-read/profile/copy actions. Local
+// state because this menu is sidebar-only and never shared.
+const dmMenu = ref<{ x: number; y: number; channel: DmChannelSummary; anchor: HTMLElement } | null>(null);
+function onDmContext(event: MouseEvent, channel: DmChannelSummary) {
+    event.preventDefault();
+    event.stopPropagation();
+    const anchor = event.currentTarget as HTMLElement | null;
+    if (!anchor) return;
+    dmMenu.value = { x: event.clientX, y: event.clientY, channel, anchor };
+}
+const dmMenuActions = computed<ContextMenuAction[]>(() => {
+    if (!dmMenu.value) return [];
+    const ch = dmMenu.value.channel;
+    const actions: ContextMenuAction[] = [];
+    if (unreadStore.hasChannelUnread(ch.id) || unreadStore.getChannelMentionCount(ch.id) > 0) {
+        actions.push({ key: 'mark-read', label: $t('channelMenu.markAsRead'), icon: 'material-symbols:mark-chat-read-outline-rounded' });
+    }
+    const level = muteStore.getLevel(ch.id);
+    if (level === 'all') {
+        actions.push({ key: 'mute-mentions', label: $t('channelMenu.muteMentionsOnly'), icon: 'material-symbols:notifications-paused-outline-rounded' });
+        actions.push({ key: 'mute-all', label: $t('channelMenu.muteAll'), icon: 'material-symbols:notifications-off-outline-rounded' });
+    } else if (level === 'mentions-only') {
+        actions.push({ key: 'mute-all', label: $t('channelMenu.muteAll'), icon: 'material-symbols:notifications-off-outline-rounded' });
+        actions.push({ key: 'unmute', label: $t('channelMenu.unmute'), icon: 'material-symbols:notifications-active-outline-rounded' });
+    } else {
+        actions.push({ key: 'mute-mentions', label: $t('channelMenu.muteMentionsOnly'), icon: 'material-symbols:notifications-paused-outline-rounded' });
+        actions.push({ key: 'unmute', label: $t('channelMenu.unmute'), icon: 'material-symbols:notifications-active-outline-rounded' });
+    }
+    actions.push({ key: 'profile', label: $t('channelMenu.openProfile'), icon: 'material-symbols:account-circle-outline-rounded' });
+    actions.push({ key: 'copy-user', label: $t('channelMenu.copyUserId'), icon: 'material-symbols:alternate-email-rounded' });
+    actions.push({ key: 'copy-id', label: $t('channelMenu.copyId'), icon: 'material-symbols:fingerprint-rounded' });
+    return actions;
+});
+async function copyToClipboard(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+}
+function onDmMenuPick(actionKey: string) {
+    const ctx = dmMenu.value;
+    if (!ctx) return;
+    const ch = ctx.channel;
+    switch (actionKey) {
+        case 'mark-read': unreadStore.markRead(ch.id); break;
+        case 'mute-mentions': muteStore.setLevel(ch.id, 'mentions-only'); break;
+        case 'mute-all': muteStore.setLevel(ch.id, 'none'); break;
+        case 'unmute': muteStore.setLevel(ch.id, 'all'); break;
+        case 'profile': userProfile.openFor(ch.recipient.id, ctx.anchor, null); break;
+        case 'copy-user': void copyToClipboard(ch.recipient.id); break;
+        case 'copy-id': void copyToClipboard(ch.id); break;
+    }
 }
 
 function formatTimestamp(iso: string | null): string {
@@ -75,6 +131,7 @@ function formatTimestamp(iso: string | null): string {
             :key="channel.id"
             :class="{ active: channel.id === selectedId, muted: muteStore.isMuted(channel.id) }"
             @click="emit('select', channel.id)"
+            @contextmenu="onDmContext($event, channel)"
             @mouseenter="hoveredChannelId = channel.id"
             @mouseleave="hoveredChannelId = null"
         >
@@ -95,6 +152,14 @@ function formatTimestamp(iso: string | null): string {
             </div>
         </li>
     </ul>
+    <MessageContextMenu
+        :visible="dmMenu !== null"
+        :x="dmMenu?.x ?? 0"
+        :y="dmMenu?.y ?? 0"
+        :actions="dmMenuActions"
+        @pick="onDmMenuPick"
+        @close="dmMenu = null"
+    />
 </template>
 
 <style scoped>
