@@ -154,7 +154,9 @@
         "placeholder": "訊息…",
         "attach": "附加檔案",
         "picker": "表情與貼圖",
-        "send": "傳送"
+        "send": "傳送",
+        "spoilerOn": "標記為劇透",
+        "spoilerOff": "取消劇透"
     },
     "admin": {
         "title": "後台權限",

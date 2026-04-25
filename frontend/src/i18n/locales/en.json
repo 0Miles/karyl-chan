@@ -154,7 +154,9 @@
         "placeholder": "Message…",
         "attach": "Attach files",
         "picker": "Emoji & stickers",
-        "send": "Send"
+        "send": "Send",
+        "spoilerOn": "Mark as spoiler",
+        "spoilerOff": "Unmark spoiler"
     },
     "admin": {
         "title": "Admin access",

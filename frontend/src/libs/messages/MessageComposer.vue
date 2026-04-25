@@ -49,6 +49,10 @@ const emit = defineEmits<{
 
 const content = ref('');
 const attachments = shallowRef<File[]>([]);
+// Per-attachment spoiler flag — keyed by index. We can't key by File
+// reference because shallowRef triggers a re-paint on the array, but
+// the underlying File instances are stable so position tracks state.
+const attachmentSpoiler = ref<boolean[]>([]);
 const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
@@ -206,7 +210,9 @@ function removeSticker(idx: number) {
 function onAttach(event: Event) {
     const target = event.target as HTMLInputElement;
     if (!target.files) return;
-    attachments.value = [...attachments.value, ...Array.from(target.files)];
+    const incoming = Array.from(target.files);
+    attachments.value = [...attachments.value, ...incoming];
+    attachmentSpoiler.value = [...attachmentSpoiler.value, ...incoming.map(() => false)];
     target.value = '';
 }
 
@@ -231,11 +237,28 @@ function removeAttachment(idx: number) {
     const file = attachments.value[idx];
     if (file) revokePreview(file);
     attachments.value = attachments.value.filter((_, i) => i !== idx);
+    attachmentSpoiler.value = attachmentSpoiler.value.filter((_, i) => i !== idx);
 }
 
 function addFiles(files: File[]) {
     if (files.length === 0) return;
     attachments.value = [...attachments.value, ...files];
+    attachmentSpoiler.value = [...attachmentSpoiler.value, ...files.map(() => false)];
+}
+
+function toggleSpoiler(idx: number) {
+    attachmentSpoiler.value = attachmentSpoiler.value.map((v, i) => i === idx ? !v : v);
+}
+
+/**
+ * Discord renders an attachment as spoilered when the filename starts
+ * with `SPOILER_`. Apply just before send so the chip UI keeps the
+ * original name and the user can toggle without clobbering anything.
+ */
+function applySpoilerPrefix(file: File, spoilered: boolean): File {
+    if (!spoilered) return file;
+    if (file.name.startsWith('SPOILER_')) return file;
+    return new File([file], `SPOILER_${file.name}`, { type: file.type });
 }
 
 defineExpose({ addFiles });
@@ -249,7 +272,9 @@ function send() {
     if (overLimit.value) return;
     emit('send', {
         content: text,
-        attachments: attachments.value.length ? attachments.value : undefined,
+        attachments: attachments.value.length
+            ? attachments.value.map((file, i) => applySpoilerPrefix(file, attachmentSpoiler.value[i] ?? false))
+            : undefined,
         stickerIds: pendingStickers.value.length ? pendingStickers.value.map(s => s.id) : undefined,
         reference: props.replyTo ?? null
     });
@@ -263,6 +288,7 @@ function send() {
     clearDraft(props.channelId);
     for (const file of attachments.value) revokePreview(file);
     attachments.value = [];
+    attachmentSpoiler.value = [];
     pendingStickers.value = [];
 }
 
@@ -327,6 +353,7 @@ function onPaste(event: ClipboardEvent) {
     if (pasted.length > 0) {
         event.preventDefault();
         attachments.value = [...attachments.value, ...pasted];
+        attachmentSpoiler.value = [...attachmentSpoiler.value, ...pasted.map(() => false)];
         return;
     }
     // Plain text paste — strip formatting and let buildEditorFragment turn any
@@ -376,9 +403,18 @@ watch(() => props.channelId, (newId, oldId) => {
             <button type="button" class="link" @click="$emit('cancel-reply')">{{ $t('common.cancel') }}</button>
         </div>
         <div v-if="attachments.length || pendingStickers.length" class="attachments">
-            <div v-for="(file, idx) in attachments" :key="'f' + idx" :class="['chip', { 'image-chip': attachmentPreview(file) }]">
+            <div v-for="(file, idx) in attachments" :key="'f' + idx" :class="['chip', { 'image-chip': attachmentPreview(file), spoilered: attachmentSpoiler[idx] }]">
                 <img v-if="attachmentPreview(file)" :src="attachmentPreview(file) ?? ''" :alt="file.name" class="chip-thumb" />
                 <span class="chip-name">{{ file.name }}</span>
+                <button
+                    type="button"
+                    :class="['chip-spoiler', { active: attachmentSpoiler[idx] }]"
+                    :title="attachmentSpoiler[idx] ? $t('composer.spoilerOff') : $t('composer.spoilerOn')"
+                    :aria-pressed="attachmentSpoiler[idx] || false"
+                    @click="toggleSpoiler(idx)"
+                >
+                    <Icon :icon="attachmentSpoiler[idx] ? 'material-symbols:visibility-off-outline-rounded' : 'material-symbols:visibility-outline-rounded'" width="14" height="14" />
+                </button>
                 <button type="button" @click="removeAttachment(idx)">×</button>
             </div>
             <div v-for="(sticker, idx) in pendingStickers" :key="'s' + sticker.id" class="chip sticker-chip">
@@ -494,6 +530,17 @@ watch(() => props.channelId, (newId, oldId) => {
 .image-chip {
     padding: 3px 6px 3px 3px;
 }
+.chip.spoilered .chip-thumb { filter: blur(6px); }
+.chip-spoiler {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 3px;
+    line-height: 0;
+}
+.chip-spoiler.active { color: var(--accent-text-strong); background: var(--accent-bg); }
 .chip-name {
     max-width: 14ch;
     overflow: hidden;
