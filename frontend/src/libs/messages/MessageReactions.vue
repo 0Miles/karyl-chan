@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useMessageContext } from './context';
 import { twemojiUrl } from './twemoji';
+import MessageContextMenu, { type ContextMenuAction } from './MessageContextMenu.vue';
 import type { MessageEmoji, MessageReaction } from './types';
 
 const props = defineProps<{
@@ -10,6 +12,7 @@ const props = defineProps<{
 }>();
 
 const ctx = useMessageContext();
+const { t: $t } = useI18n();
 
 const items = computed(() =>
     props.reactions.map(r => {
@@ -43,121 +46,165 @@ function onImgError(r: MessageReaction) {
     failed[reactionKey(r)] = true;
 }
 
-// Click-to-open users popover. Holds the active reaction key + the
-// fetched user list; lazy-loads on first open. Toggle is moved off
-// the chip click and into a button inside the popover so the chip
-// becomes a "show details" target — admin clients spend more time
-// observing than reacting, so this trade is worth it.
-interface ReactedUser {
-    id: string;
-    username: string;
-    globalName: string | null;
-    avatarUrl: string;
+// Click → toggle add/remove (the original Discord behavior); the
+// reactor list now lives in the right-click menu instead of a
+// click-popover so a primary tap is always a one-step toggle.
+function onReactionClick(r: MessageReaction) {
+    if (r.me) ctx.onReactionRemove?.(props.messageId, r.emoji);
+    else ctx.onReactionAdd?.(props.messageId, r.emoji);
 }
-const popoverKey = ref<string | null>(null);
-const popoverUsers = ref<ReactedUser[]>([]);
-const popoverLoading = ref(false);
-const popoverError = ref<string | null>(null);
-const popoverEmoji = ref<MessageEmoji | null>(null);
-const popoverIsMine = ref(false);
-const rootRef = ref<HTMLDivElement | null>(null);
 
-async function openPopover(item: { reaction: MessageReaction }) {
-    const key = reactionKey(item.reaction);
-    if (popoverKey.value === key) {
-        popoverKey.value = null;
+// Right-click (long-press on touch) opens the context menu. The list
+// of users who reacted is fetched lazily on open and rendered as menu
+// items below the toggle action — clicking a user opens their profile
+// via MessageContext.onUserClick, matching the avatar/mention flows.
+const ctxMenu = ref<{ x: number; y: number; reaction: MessageReaction } | null>(null);
+const ctxAnchorRef = ref<HTMLElement | null>(null);
+const ctxUsers = ref<Array<{ id: string; username: string; globalName: string | null; avatarUrl: string }>>([]);
+const ctxUsersLoading = ref(false);
+const ctxUsersError = ref<string | null>(null);
+
+const LONG_PRESS_MS = 450;
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function openContextFor(reaction: MessageReaction, x: number, y: number, anchor: HTMLElement | null) {
+    ctxMenu.value = { x, y, reaction };
+    ctxAnchorRef.value = anchor;
+    ctxUsers.value = [];
+    ctxUsersError.value = null;
+    if (!ctx.fetchReactionUsers) return;
+    ctxUsersLoading.value = true;
+    try {
+        const users = await ctx.fetchReactionUsers(props.messageId, reaction.emoji);
+        // Stale-result guard: another reaction may have been opened by
+        // the time this fetch resolves.
+        if (ctxMenu.value?.reaction !== reaction) return;
+        ctxUsers.value = users;
+    } catch (err) {
+        if (ctxMenu.value?.reaction !== reaction) return;
+        ctxUsersError.value = err instanceof Error ? err.message : 'Failed to load reactions';
+    } finally {
+        if (ctxMenu.value?.reaction === reaction) ctxUsersLoading.value = false;
+    }
+}
+
+function onContextMenu(event: MouseEvent, reaction: MessageReaction) {
+    event.preventDefault();
+    event.stopPropagation();
+    void openContextFor(reaction, event.clientX, event.clientY, event.currentTarget as HTMLElement | null);
+}
+
+function onTouchStart(event: TouchEvent, reaction: MessageReaction) {
+    if (event.touches.length !== 1) return;
+    if (longPressTimer) clearTimeout(longPressTimer);
+    const touch = event.touches[0];
+    const anchor = event.currentTarget as HTMLElement | null;
+    longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        void openContextFor(reaction, touch.clientX, touch.clientY, anchor);
+    }, LONG_PRESS_MS);
+}
+function onTouchEnd() {
+    if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+}
+
+const ctxActions = computed<ContextMenuAction[]>(() => {
+    const ctxState = ctxMenu.value;
+    if (!ctxState) return [];
+    const r = ctxState.reaction;
+    const actions: ContextMenuAction[] = [
+        {
+            key: 'toggle',
+            label: r.me ? $t('messages.reactionRemove') : $t('messages.reactionAdd'),
+            icon: r.me ? 'material-symbols:heart-broken-outline-rounded' : 'material-symbols:add-reaction-outline-rounded'
+        },
+        {
+            key: 'copy-emoji',
+            label: $t('messages.reactionCopyEmoji'),
+            icon: 'material-symbols:content-copy-outline-rounded'
+        }
+    ];
+    if (ctxUsersLoading.value) {
+        actions.push({ key: '__loading', label: $t('common.loading'), icon: 'material-symbols:hourglass-empty-rounded' });
+    } else if (ctxUsersError.value) {
+        actions.push({ key: '__error', label: ctxUsersError.value, icon: 'material-symbols:error-outline-rounded', danger: true });
+    } else if (ctxUsers.value.length === 0) {
+        actions.push({ key: '__empty', label: $t('messages.reactionNoUsers'), icon: 'material-symbols:groups-outline-rounded' });
+    } else {
+        for (const u of ctxUsers.value) {
+            actions.push({
+                key: `user:${u.id}`,
+                label: u.globalName ?? u.username,
+                iconUrl: u.avatarUrl
+            });
+        }
+    }
+    return actions;
+});
+
+function onContextPick(actionKey: string) {
+    const state = ctxMenu.value;
+    if (!state) return;
+    if (actionKey === 'toggle') {
+        if (state.reaction.me) ctx.onReactionRemove?.(props.messageId, state.reaction.emoji);
+        else ctx.onReactionAdd?.(props.messageId, state.reaction.emoji);
         return;
     }
-    popoverKey.value = key;
-    popoverEmoji.value = item.reaction.emoji;
-    popoverIsMine.value = item.reaction.me;
-    popoverUsers.value = [];
-    popoverError.value = null;
-    if (!ctx.fetchReactionUsers) return;
-    popoverLoading.value = true;
-    try {
-        popoverUsers.value = await ctx.fetchReactionUsers(props.messageId, item.reaction.emoji);
-    } catch (err) {
-        popoverError.value = err instanceof Error ? err.message : 'Failed to load reactions';
-    } finally {
-        popoverLoading.value = false;
+    if (actionKey === 'copy-emoji') {
+        // Custom emoji → Discord's `<:name:id>` form so it can be
+        // pasted straight back into the composer; unicode → the raw
+        // glyph from `r.emoji.name`.
+        const e = state.reaction.emoji;
+        const text = e.id ? `<${e.animated ? 'a' : ''}:${e.name}:${e.id}>` : e.name;
+        void navigator.clipboard?.writeText(text).catch(() => { /* ignore */ });
+        return;
     }
-}
-
-function closePopover() {
-    popoverKey.value = null;
-}
-
-function onPopoverToggle() {
-    if (!popoverEmoji.value) return;
-    if (popoverIsMine.value) ctx.onReactionRemove?.(props.messageId, popoverEmoji.value);
-    else ctx.onReactionAdd?.(props.messageId, popoverEmoji.value);
-    closePopover();
-}
-
-function onWindowDown(event: MouseEvent) {
-    if (!popoverKey.value) return;
-    if (rootRef.value?.contains(event.target as Node)) return;
-    closePopover();
-}
-function onWindowKey(event: KeyboardEvent) {
-    if (!popoverKey.value) return;
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closePopover();
+    if (actionKey.startsWith('user:')) {
+        const id = actionKey.slice('user:'.length);
+        if (ctx.onUserClick && ctxAnchorRef.value) {
+            ctx.onUserClick(id, ctxAnchorRef.value);
+        }
+        return;
     }
-}
-
-onMounted(() => {
-    window.addEventListener('mousedown', onWindowDown);
-    window.addEventListener('keydown', onWindowKey);
-});
-onUnmounted(() => {
-    window.removeEventListener('mousedown', onWindowDown);
-    window.removeEventListener('keydown', onWindowKey);
-});
-
-function userDisplay(u: ReactedUser): string {
-    return u.globalName ?? u.username;
+    // __loading / __error / __empty: no-op informational entries.
 }
 </script>
 
 <template>
-    <div ref="rootRef" class="reactions">
-        <div v-for="item in items" :key="item.reaction.emoji.id ?? item.reaction.emoji.name" class="reaction-wrap">
-            <button
-                type="button"
-                :class="['reaction', { mine: item.reaction.me, open: popoverKey === reactionKey(item.reaction) }]"
-                @click="openPopover(item)"
-            >
-                <img
-                    v-if="item.url && !failed[reactionKey(item.reaction)]"
-                    :src="item.url"
-                    :alt="item.alt"
-                    class="emoji"
-                    @error="onImgError(item.reaction)"
-                />
-                <span v-else class="emoji-fallback">{{ item.reaction.emoji.name }}</span>
-                <span class="count">{{ item.reaction.count }}</span>
-            </button>
-            <div v-if="popoverKey === reactionKey(item.reaction)" class="reaction-pop">
-                <header class="reaction-pop-head">
-                    <button type="button" :class="['reaction-toggle', { mine: popoverIsMine }]" @click="onPopoverToggle">
-                        {{ popoverIsMine ? $t('messages.reactionRemove') : $t('messages.reactionAdd') }}
-                    </button>
-                </header>
-                <p v-if="popoverLoading" class="reaction-state">{{ $t('common.loading') }}</p>
-                <p v-else-if="popoverError" class="reaction-state error">{{ popoverError }}</p>
-                <p v-else-if="popoverUsers.length === 0" class="reaction-state">{{ $t('messages.reactionNoUsers') }}</p>
-                <ul v-else class="reaction-users">
-                    <li v-for="u in popoverUsers" :key="u.id">
-                        <img v-if="u.avatarUrl" :src="u.avatarUrl" alt="" class="user-avatar" />
-                        <div v-else class="user-avatar avatar-fallback">{{ userDisplay(u).charAt(0).toUpperCase() }}</div>
-                        <span class="user-name">{{ userDisplay(u) }}</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
+    <div class="reactions">
+        <button
+            v-for="item in items"
+            :key="item.reaction.emoji.id ?? item.reaction.emoji.name"
+            type="button"
+            :class="['reaction', { mine: item.reaction.me }]"
+            @click="onReactionClick(item.reaction)"
+            @contextmenu="onContextMenu($event, item.reaction)"
+            @touchstart.passive="onTouchStart($event, item.reaction)"
+            @touchend="onTouchEnd"
+            @touchmove="onTouchEnd"
+            @touchcancel="onTouchEnd"
+        >
+            <img
+                v-if="item.url && !failed[reactionKey(item.reaction)]"
+                :src="item.url"
+                :alt="item.alt"
+                class="emoji"
+                @error="onImgError(item.reaction)"
+            />
+            <span v-else class="emoji-fallback">{{ item.reaction.emoji.name }}</span>
+            <span class="count">{{ item.reaction.count }}</span>
+        </button>
+        <MessageContextMenu
+            :visible="ctxMenu !== null"
+            :x="ctxMenu?.x ?? 0"
+            :y="ctxMenu?.y ?? 0"
+            :actions="ctxActions"
+            @pick="onContextPick"
+            @close="ctxMenu = null"
+        />
     </div>
 </template>
 
@@ -206,69 +253,4 @@ function userDisplay(u: ReactedUser): string {
 .reaction.mine .count {
     color: var(--accent-text-strong);
 }
-.reaction.open { box-shadow: 0 0 0 2px var(--accent); }
-.reaction-wrap { position: relative; }
-.reaction-pop {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    z-index: 8;
-    width: 240px;
-    max-height: 280px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.reaction-pop-head {
-    padding: 0.4rem 0.6rem;
-    border-bottom: 1px solid var(--border);
-}
-.reaction-toggle {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-    border-radius: 4px;
-    padding: 0.3rem 0.6rem;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.85rem;
-    width: 100%;
-}
-.reaction-toggle.mine {
-    background: var(--bg-surface-2);
-    color: var(--text);
-    border: 1px solid var(--border);
-}
-.reaction-toggle:hover { filter: brightness(1.1); }
-.reaction-state { padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; margin: 0; }
-.reaction-state.error { color: var(--danger); }
-.reaction-users { list-style: none; margin: 0; padding: 0.25rem 0; overflow-y: auto; }
-.reaction-users li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.3rem 0.6rem;
-}
-.user-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-    background: var(--bg-surface-2);
-}
-.user-avatar.avatar-fallback {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-on-accent);
-    background: var(--accent);
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-.user-name { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

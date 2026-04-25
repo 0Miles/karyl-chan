@@ -307,6 +307,7 @@
         "noPins": "尚无置顶消息。",
         "reactionAdd": "加入反应",
         "reactionRemove": "移除反应",
+        "reactionCopyEmoji": "复制表情",
         "reactionNoUsers": "没有人对这个反应。",
         "newMessages": "新消息",
         "typingOne": "{name} 正在输入…",

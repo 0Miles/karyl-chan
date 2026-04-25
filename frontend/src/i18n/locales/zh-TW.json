@@ -307,6 +307,7 @@
         "noPins": "尚無釘選訊息。",
         "reactionAdd": "加入反應",
         "reactionRemove": "移除反應",
+        "reactionCopyEmoji": "複製表情符號",
         "reactionNoUsers": "沒有人對這個反應。",
         "newMessages": "新訊息",
         "typingOne": "{name} 正在輸入…",
