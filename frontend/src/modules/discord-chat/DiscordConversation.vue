@@ -948,7 +948,7 @@ const replyToProp = computed(() => props.replyTo);
 .center { text-align: center; margin: 2rem 0; }
 .small { font-size: 0.8rem; margin: 0.5rem 0; }
 .message-wrap { position: relative; }
-.message-wrap.group-start:not(:first-child) { margin-top: 0.4rem; }
+.message-wrap.group-start:not(:first-child) { margin-top: .75rem; }
 /* Mention / reply-to-self — persistent highlight. Inset box-shadow
    draws the left accent without pushing content right. */
 .message-wrap.mentioned-self {
