@@ -123,6 +123,13 @@ export async function listGuildChannelMembers(guildId: string, channelId: string
     return body.members;
 }
 
+export async function getGuildPins(guildId: string, channelId: string): Promise<Message[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/pins`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ messages: Message[] }>(response);
+    return body.messages;
+}
+
 export async function getGuildMessages(
     guildId: string,
     channelId: string,

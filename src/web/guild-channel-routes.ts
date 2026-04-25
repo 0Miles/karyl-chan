@@ -178,6 +178,26 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
         }
     );
 
+    server.get<{ Params: { guildId: string; channelId: string } }>(
+        '/api/guilds/:guildId/text-channels/:channelId/pins',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const { guildId, channelId } = request.params;
+            const channel = fetchTextChannel(bot, guildId, channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
+            try {
+                const pinned = await channel.messages.fetchPinned();
+                const messages = [...pinned.values()]
+                    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+                    .map(toApiMessage);
+                return { messages };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch guild pins');
+                reply.code(502).send({ error: 'Failed to fetch pins' });
+            }
+        }
+    );
+
     server.get<{ Params: { guildId: string; channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages',
         async (request, reply) => {

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import DmSidebar from './DmSidebar.vue';
 import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
 import type { GuildSummary } from '../../../api/guilds';
+import { getPins } from '../../../api/dm';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
@@ -61,6 +62,15 @@ const {
 function handleSelect(id: string) {
     selectChannel(id);
     if (props.isMobile) closeOverlay();
+}
+
+// Pin/jump → seed `?scrollTo=` so the workspace machine performs the
+// scroll once the message lands in the rendered window. Equivalent to
+// clicking a message link from outside the page.
+function onJumpToMessage(messageId: string) {
+    if (!selectedChannelId.value) return;
+    router.replace({ query: { ...route.query, channel: selectedChannelId.value, scrollTo: messageId } });
+    requestScroll(messageId);
 }
 
 // URL → machine. `?channel=` seeds the selection, `?scrollTo=` seeds
@@ -133,6 +143,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :error="chat.error.value ?? channelsError"
             :editing-message-id="chat.editingMessageId.value"
             :reply-to="chat.replyTo.value"
+            :pin-fetcher="getPins"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -142,6 +153,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @delete="chat.confirmDelete"
             @load-older="chat.loadOlder"
             @react="reactWithSelection"
+            @jump-to-message="onJumpToMessage"
         />
     </SidebarLayout>
 </template>

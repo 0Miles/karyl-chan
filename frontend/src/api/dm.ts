@@ -59,6 +59,12 @@ export async function fetchUnreadCounts(
     return body.channels;
 }
 
+export async function getPins(channelId: string): Promise<Message[]> {
+    const response = await authedFetch(`/api/dm/channels/${encodeURIComponent(channelId)}/pins`);
+    const body = await jsonOrThrow<{ messages: Message[] }>(response);
+    return body.messages;
+}
+
 export async function getMessages(channelId: string, opts: { limit?: number; before?: string; around?: string } = {}): Promise<MessagesPage> {
     const params = new URLSearchParams();
     if (opts.limit) params.set('limit', String(opts.limit));

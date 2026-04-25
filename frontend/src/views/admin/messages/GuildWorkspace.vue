@@ -3,7 +3,7 @@ import { ref, toRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
-import type { GuildSummary } from '../../../api/guilds';
+import { getGuildPins, type GuildSummary } from '../../../api/guilds';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
@@ -57,6 +57,14 @@ const {
 function handleSelect(id: string) {
     selectChannel(id);
     if (props.isMobile) closeOverlay();
+}
+
+const pinFetcher = (channelId: string) => getGuildPins(props.guildId, channelId);
+
+function onJumpToMessage(messageId: string) {
+    if (!selectedChannelId.value) return;
+    router.replace({ query: { ...route.query, channel: selectedChannelId.value, scrollTo: messageId } });
+    requestScroll(messageId);
 }
 
 // URL → machine. `?channel=` seeds the selection, `?scrollTo=` seeds
@@ -128,6 +136,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :error="chat.error.value ?? channelsError"
             :editing-message-id="chat.editingMessageId.value"
             :reply-to="chat.replyTo.value"
+            :pin-fetcher="pinFetcher"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -137,6 +146,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @delete="chat.confirmDelete"
             @load-older="chat.loadOlder"
             @react="reactWithSelection"
+            @jump-to-message="onJumpToMessage"
         />
     </SidebarLayout>
 </template>

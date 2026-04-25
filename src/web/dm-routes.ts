@@ -350,6 +350,27 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
         }
     );
 
+    server.get<{ Params: { channelId: string } }>(
+        '/api/dm/channels/:channelId/pins',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.read')) return;
+            const channel = await fetchDmChannel(bot, request.params.channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+            try {
+                // Discord caps pinned messages at 50, so this is always a
+                // single round-trip — no pagination needed.
+                const pinned = await channel.messages.fetchPinned();
+                const messages = [...pinned.values()]
+                    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+                    .map(toApiMessage);
+                return { messages };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch DM pins');
+                reply.code(502).send({ error: 'Failed to fetch pins' });
+            }
+        }
+    );
+
     server.get<{ Params: { stickerId: string } }>(
         '/api/dm/stickers/:stickerId',
         async (request, reply) => {

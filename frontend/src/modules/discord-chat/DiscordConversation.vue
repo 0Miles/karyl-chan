@@ -5,6 +5,7 @@ import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
+import PinnedPanel from './PinnedPanel.vue';
 import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
@@ -32,6 +33,12 @@ const props = defineProps<{
     error?: string | null;
     editingMessageId?: string | null;
     replyTo?: MessageReference | null;
+    /** Optional fetcher for pinned messages. When provided, the header
+     *  shows a pin button that opens a panel listing the response.
+     *  Surface-specific (DM vs guild) so the workspace passes whichever
+     *  fetch matches its own channelId conventions. Returning a
+     *  rejected promise surfaces in the panel as an error. */
+    pinFetcher?: ((channelId: string) => Promise<Message[]>) | null;
 }>();
 
 const emit = defineEmits<{
@@ -45,6 +52,7 @@ const emit = defineEmits<{
     (e: 'load-older'): void;
     (e: 'react', messageId: string, selection: MediaSelection): void;
     (e: 'add-files', files: File[]): void;
+    (e: 'jump-to-message', messageId: string): void;
 }>();
 
 const VIRTUAL_THRESHOLD = 64;
@@ -76,6 +84,56 @@ const isMuted = computed(() => muteStore.isMuted(props.channelId));
 function toggleMute() {
     if (props.channelId) muteStore.toggle(props.channelId);
 }
+
+// Pinned messages panel. State lives here (rather than the workspace)
+// because the trigger and the panel both render inside the conversation
+// header — keeping the open/close + cached list co-located avoids a
+// prop+emit ping-pong. Fetched lazily on first open per channel.
+const pinsOpen = ref(false);
+const pinsLoading = ref(false);
+const pinsError = ref<string | null>(null);
+const pinsList = ref<Message[]>([]);
+const pinsFetchedFor = ref<string | null>(null);
+
+async function loadPins() {
+    if (!props.channelId || !props.pinFetcher) return;
+    if (pinsFetchedFor.value === props.channelId) return;
+    pinsLoading.value = true;
+    pinsError.value = null;
+    const channelId = props.channelId;
+    try {
+        const messages = await props.pinFetcher(channelId);
+        // Guard against a stale response after the user already swapped
+        // channels — without this we'd flash the previous channel's
+        // pins for one frame.
+        if (props.channelId !== channelId) return;
+        pinsList.value = messages;
+        pinsFetchedFor.value = channelId;
+    } catch (err) {
+        if (props.channelId !== channelId) return;
+        pinsError.value = err instanceof Error ? err.message : 'Failed to load pins';
+    } finally {
+        pinsLoading.value = false;
+    }
+}
+
+function togglePins() {
+    pinsOpen.value = !pinsOpen.value;
+    if (pinsOpen.value) void loadPins();
+}
+
+function onPinJump(messageId: string) {
+    pinsOpen.value = false;
+    emit('jump-to-message', messageId);
+}
+
+// New channel? Wipe the cache so the next pin-button click refetches.
+watch(() => props.channelId, () => {
+    pinsOpen.value = false;
+    pinsList.value = [];
+    pinsError.value = null;
+    pinsFetchedFor.value = null;
+});
 
 // Index of the first message strictly newer than the unread divider
 // marker for the current channel. Returns -1 when the channel has no
@@ -481,6 +539,17 @@ const replyToProp = computed(() => props.replyTo);
                 <span v-if="headerSubtitle" class="subtitle">{{ headerSubtitle }}</span>
                 <span class="header-spacer"></span>
                 <button
+                    v-if="pinFetcher"
+                    type="button"
+                    :class="['header-action', { active: pinsOpen }]"
+                    :title="$t('messages.pinnedMessages')"
+                    :aria-label="$t('messages.pinnedMessages')"
+                    data-pins-trigger
+                    @click="togglePins"
+                >
+                    <Icon icon="material-symbols:keep-outline-rounded" width="18" height="18" />
+                </button>
+                <button
                     type="button"
                     :class="['header-action', { active: isMuted }]"
                     :title="isMuted ? $t('messages.unmute') : $t('messages.mute')"
@@ -490,6 +559,14 @@ const replyToProp = computed(() => props.replyTo);
                     <Icon :icon="isMuted ? 'material-symbols:notifications-off-outline-rounded' : 'material-symbols:notifications-outline-rounded'" width="18" height="18" />
                 </button>
             </slot>
+            <PinnedPanel
+                :visible="pinsOpen"
+                :loading="pinsLoading"
+                :error="pinsError"
+                :messages="pinsList"
+                @close="pinsOpen = false"
+                @jump="onPinJump"
+            />
         </header>
         <p v-if="error" class="error">{{ error }}</p>
         <DynamicScroller
@@ -739,6 +816,8 @@ const replyToProp = computed(() => props.replyTo);
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    /* Anchor for the absolutely-positioned PinnedPanel below. */
+    position: relative;
 }
 @media (max-width: 768px) {
     .conv-header {
