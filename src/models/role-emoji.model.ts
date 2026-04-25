@@ -17,8 +17,9 @@ export const RoleEmoji = sequelize.define('RoleEmoji', {
         primaryKey: true
     }
 }, {
-    tableName: 'RoleEmojis',
-    timestamps: false
+    // Default `timestamps: true` is intentional — earlier deployments
+    // created the table with NOT NULL createdAt/updatedAt columns.
+    tableName: 'RoleEmojis'
 });
 
 export const addRoleEmoji = async (guildId: string, roleId: string, emojiChar: string, emojiName: string, emojiId: string) => {

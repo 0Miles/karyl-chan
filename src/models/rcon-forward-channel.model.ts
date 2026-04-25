@@ -17,6 +17,7 @@ export const RconForwardChannel = sequelize.define('RconForwardChannel', {
     port: DataTypes.INTEGER,
     password: DataTypes.STRING
 }, {
-    tableName: 'RconForwardChannels',
-    timestamps: false
+    // Default `timestamps: true` is intentional — earlier deployments
+    // created the table with NOT NULL createdAt/updatedAt columns.
+    tableName: 'RconForwardChannels'
 });

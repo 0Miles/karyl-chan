@@ -83,7 +83,20 @@ export async function exchangeOneTimeToken(token: string): Promise<IssuedTokens>
         body: JSON.stringify({ token })
     });
     if (!response.ok) {
-        throw new ApiError(response.status, response.status === 401 ? 'Invalid or expired token' : 'Exchange failed');
+        // Surface the server's actual error string when present — masking
+        // every non-401 as "Exchange failed" hid the cause (rate-limit /
+        // missing config / body-parse failure) on production hits.
+        let message = response.status === 401 ? 'Invalid or expired token' : `Exchange failed (HTTP ${response.status})`;
+        try {
+            const body = await response.json();
+            if (body && typeof body.error === 'string' && body.error.length > 0) {
+                message = body.error;
+            }
+        } catch {
+            // Non-JSON body (e.g. proxy error page). Keep the generic
+            // status-coded message so the user at least sees the code.
+        }
+        throw new ApiError(response.status, message);
     }
     return (await response.json()) as IssuedTokens;
 }

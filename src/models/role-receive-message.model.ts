@@ -15,8 +15,9 @@ export const RoleReceiveMessage = sequelize.define('RoleReceiveMessage', {
         primaryKey: true
     }
 }, {
-    tableName: 'RoleReceiveMessages',
-    timestamps: false
+    // Default `timestamps: true` is intentional — earlier deployments
+    // created the table with NOT NULL createdAt/updatedAt columns.
+    tableName: 'RoleReceiveMessages'
 });
 
 export const addRoleReceiveMessage = async (guildId: string, channelId: string, messageId: string) => {

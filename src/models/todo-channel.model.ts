@@ -11,8 +11,9 @@ export const TodoChannel = sequelize.define('TodoChannel', {
         primaryKey: true
     }
 }, {
-    tableName: 'TodoChannels',
-    timestamps: false
+    // Default `timestamps: true` is intentional — earlier deployments
+    // created the table with NOT NULL createdAt/updatedAt columns.
+    tableName: 'TodoChannels'
 });
 
 export const findTodoChannel = async (guildId: string, channelId: string) => {

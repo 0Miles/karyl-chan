@@ -12,6 +12,8 @@ export const PictureOnlyChannel = sequelize.define('PictureOnlyChannel', {
         primaryKey: true
     }
 }, {
-    tableName: 'PictureOnlyChannels',
-    timestamps: false
+    // Default `timestamps: true` is intentional — earlier deployments
+    // created the table with NOT NULL createdAt/updatedAt columns; a
+    // `timestamps: false` here would break INSERTs against legacy DBs.
+    tableName: 'PictureOnlyChannels'
 });

@@ -16,7 +16,12 @@ export const RefreshToken = sequelize.define('RefreshToken', {
     }
 }, {
     tableName: 'RefreshTokens',
-    timestamps: false,
+    // Keep Sequelize's default `timestamps: true` — earlier deployments
+    // were created without an explicit option, so the on-disk
+    // `RefreshTokens` table has NOT NULL createdAt/updatedAt columns.
+    // Switching to `timestamps: false` made INSERTs blow up with a
+    // NOT NULL constraint violation, killing every login flow that
+    // depended on RefreshToken.upsert (see auth-store#issueTokens).
     // ownerId is the lookup column for sign-out / global revoke (see
     // refresh-token.repository#deleteByOwner). Without this index every
     // logout walks the whole table.

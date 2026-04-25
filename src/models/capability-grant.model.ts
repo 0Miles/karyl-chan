@@ -17,7 +17,9 @@ export const CapabilityGrant = sequelize.define('CapabilityGrant', {
 }, {
     // Explicit tableName so behaviour doesn't drift if Sequelize ever
     // changes its default pluralization. Matches the long-standing
-    // on-disk name.
-    tableName: 'CapabilityGrants',
-    timestamps: false
+    // on-disk name. Default `timestamps: true` is intentionally kept —
+    // earlier deployments created the table with NOT NULL
+    // createdAt/updatedAt and disabling the timestamps would break
+    // INSERTs against existing DBs.
+    tableName: 'CapabilityGrants'
 });

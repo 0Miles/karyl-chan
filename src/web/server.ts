@@ -258,8 +258,17 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             reply.code(401).send({ error: 'Invalid or expired token' });
             return;
         }
-        const issued = await auth.issueTokens(ownerForToken);
-        return issued;
+        try {
+            return await auth.issueTokens(ownerForToken);
+        } catch (err) {
+            // Most plausible cause is the SQLite refresh-token persistence
+            // throwing — log the full stack at error level so it shows up
+            // in `docker logs` and surface a useful (still non-secret)
+            // message to the client instead of fastify's bare 500.
+            const detail = err instanceof Error ? err.message : String(err);
+            request.log.error({ err }, 'auth.exchange: issueTokens failed');
+            reply.code(500).send({ error: `issueTokens failed: ${detail}` });
+        }
     });
 
     server.post<{ Body: { refreshToken?: unknown } }>('/api/auth/refresh', async (request, reply) => {
