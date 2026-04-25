@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, shallowRef } from 'vue';
+import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
@@ -17,6 +17,7 @@ import {
     readEditorText,
     type ComposerTokenCodec
 } from './composer-editor';
+import { clearDraft, loadDraft, saveDraft } from './composer-draft';
 import type { ComposerSuggestionItem, OutgoingMessage, MessageReference } from './types';
 
 const NOOP_TOKEN_CODEC: ComposerTokenCodec = {
@@ -34,6 +35,11 @@ const props = defineProps<{
     placeholder?: string;
     replyTo?: MessageReference | null;
     disabled?: boolean;
+    /** Used as the localStorage key for draft autosave. When the
+     *  channelId changes, the current draft is persisted under the
+     *  outgoing channel and any saved draft for the incoming channel
+     *  is restored. Omit (or pass null) to disable persistence. */
+    channelId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -65,6 +71,31 @@ let suggestionRequestId = 0;
 function syncContentFromEditor() {
     const root = editorRef.value;
     content.value = root ? readEditorText(root, codec) : '';
+}
+
+// Draft autosave: throttle keystrokes through a single timer so we
+// don't spam localStorage on every input event. Debounce window is
+// short — the cost of writing the same key per keystroke isn't huge,
+// but coalescing reduces churn when the user is typing fast.
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleDraftSave() {
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    const channelId = props.channelId;
+    const text = content.value;
+    draftSaveTimer = setTimeout(() => saveDraft(channelId, text), 250);
+}
+
+function loadDraftIntoEditor(channelId: string | null | undefined) {
+    const root = editorRef.value;
+    if (!root) return;
+    clearEditor(root);
+    const saved = loadDraft(channelId);
+    if (!saved) {
+        content.value = '';
+        return;
+    }
+    insertFragmentAtCursor(root, buildEditorFragment(saved, codec));
+    syncContentFromEditor();
 }
 
 async function refreshSuggestions() {
@@ -211,6 +242,11 @@ function send() {
     if (editorRef.value) clearEditor(editorRef.value);
     content.value = '';
     cancelSuggestions();
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+    }
+    clearDraft(props.channelId);
     for (const file of attachments.value) revokePreview(file);
     attachments.value = [];
     pendingStickers.value = [];
@@ -297,12 +333,25 @@ function stickerPreview(sticker: StickerRecent): string {
 
 function onEditorInput() {
     syncContentFromEditor();
+    scheduleDraftSave();
     refreshSuggestions();
 }
 
 onMounted(() => {
-    // Ensure the editor stays a single block; no initial content needed.
-    syncContentFromEditor();
+    loadDraftIntoEditor(props.channelId);
+});
+
+// Switching channels: flush the in-flight draft for the OLD channel
+// (otherwise the timer fires after we've already moved on and tags it
+// against the new one), then restore whatever we saved last time we
+// were on the new channel.
+watch(() => props.channelId, (newId, oldId) => {
+    if (draftSaveTimer) {
+        clearTimeout(draftSaveTimer);
+        draftSaveTimer = null;
+    }
+    if (oldId !== undefined) saveDraft(oldId, content.value);
+    loadDraftIntoEditor(newId);
 });
 </script>
 

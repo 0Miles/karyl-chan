@@ -541,6 +541,7 @@ const replyToProp = computed(() => props.replyTo);
         <footer v-if="channelId" class="composer-row">
             <MessageComposer
                 ref="composerRef"
+                :channel-id="channelId"
                 :reply-to="replyToProp"
                 :disabled="sending"
                 @send="(payload: OutgoingMessage) => emit('send', payload)"
