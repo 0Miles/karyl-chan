@@ -142,6 +142,8 @@
         "copyId": "Copy message ID",
         "markUnread": "Mark unread",
         "viewSource": "View source markdown",
+        "lightboxPrev": "Previous",
+        "lightboxNext": "Next",
         "mute": "Mute this channel",
         "unmute": "Unmute",
         "pinnedMessages": "Pinned messages",

@@ -18,6 +18,7 @@ import Draggable from './components/Draggable.vue';
 import AppMenu from './components/AppMenu.vue';
 import AppMenuItem from './components/AppMenuItem.vue';
 import QuickSwitcher from './components/QuickSwitcher.vue';
+import ImageLightbox from './modules/discord-chat/ImageLightbox.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -252,6 +253,7 @@ function navigate() {
             </div>
         </Transition>
         <QuickSwitcher :visible="quickSwitcherOpen" @close="quickSwitcherOpen = false" />
+        <ImageLightbox />
     </div>
 </template>
 

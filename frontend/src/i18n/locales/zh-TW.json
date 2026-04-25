@@ -142,6 +142,8 @@
         "copyId": "複製訊息 ID",
         "markUnread": "標記為未讀",
         "viewSource": "檢視原始 Markdown",
+        "lightboxPrev": "上一張",
+        "lightboxNext": "下一張",
         "mute": "靜音此對話",
         "unmute": "解除靜音",
         "pinnedMessages": "已釘選訊息",

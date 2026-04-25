@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useMessageContext } from './context';
+import { useLightboxStore } from '../../modules/discord-chat/stores/lightboxStore';
 import type { MessageAttachment } from './types';
 
-const props = defineProps<{ attachment: MessageAttachment }>();
+const props = defineProps<{
+    attachment: MessageAttachment;
+    /** All attachments on the same message — used to drive the
+     *  lightbox carousel between siblings. Filtered to images on
+     *  open so non-image siblings (video/audio/file) don't sneak
+     *  into the navigation. */
+    siblings?: MessageAttachment[];
+}>();
 
 const ctx = useMessageContext();
+const lightbox = useLightboxStore();
 
 const kind = computed<'image' | 'video' | 'audio' | 'file'>(() => {
     const ct = props.attachment.contentType ?? '';
@@ -23,7 +32,22 @@ const sizeLabel = computed(() => {
 });
 
 function open() {
+    // Existing host hook (e.g. analytics) still fires for any kind.
     ctx.onAttachmentOpen?.(props.attachment.id);
+    if (kind.value !== 'image') return;
+    const all = props.siblings ?? [props.attachment];
+    const images = all
+        .filter(a => (a.contentType ?? '').startsWith('image/'))
+        .map(a => ({
+            url: a.proxyUrl ?? a.url,
+            filename: a.filename,
+            width: a.width ?? null,
+            height: a.height ?? null
+        }));
+    const startIdx = images.findIndex(img =>
+        img.url === (props.attachment.proxyUrl ?? props.attachment.url)
+    );
+    lightbox.open(images, Math.max(0, startIdx));
 }
 </script>
 

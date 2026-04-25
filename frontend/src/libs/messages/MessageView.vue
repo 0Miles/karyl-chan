@@ -126,7 +126,12 @@ function onAuthorClick(event: MouseEvent) {
             </div>
             <template v-else>
                 <MessageContent :nodes="ast" />
-                <MessageAttachment v-for="att in message.attachments ?? []" :key="att.id" :attachment="att" />
+                <MessageAttachment
+                    v-for="att in message.attachments ?? []"
+                    :key="att.id"
+                    :attachment="att"
+                    :siblings="message.attachments ?? []"
+                />
                 <MessageSticker v-for="sticker in message.stickers ?? []" :key="sticker.id" :sticker="sticker" />
                 <MessageEmbed v-for="(embed, idx) in message.embeds ?? []" :key="idx" :embed="embed" />
                 <MessageReactions
