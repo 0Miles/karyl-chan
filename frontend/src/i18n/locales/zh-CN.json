@@ -154,6 +154,8 @@
         "noDms": "还没有私信。在 Discord 向机器人发消息,或从上方发起一条。",
         "noTextChannels": "没有文字频道。",
         "voiceChannels": "语音频道",
+        "forumChannels": "论坛频道",
+        "noForumPosts": "尚无帖子。",
         "recipientId": "接收者用户 ID",
         "linkUnknown": "不明"
     },

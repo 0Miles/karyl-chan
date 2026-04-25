@@ -154,6 +154,8 @@
         "noDms": "尚無私訊。在 Discord 傳訊給機器人,或從上方開始一則。",
         "noTextChannels": "沒有文字頻道。",
         "voiceChannels": "語音頻道",
+        "forumChannels": "論壇頻道",
+        "noForumPosts": "尚無貼文。",
         "recipientId": "收件人使用者 ID",
         "linkUnknown": "不明"
     },

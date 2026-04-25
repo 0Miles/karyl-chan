@@ -2,9 +2,11 @@
 import { onMounted, ref, watch } from 'vue';
 import {
     listGuildActiveThreads,
+    listGuildForums,
     listGuildVoiceChannels,
     type GuildActiveThread,
     type GuildChannelCategory,
+    type GuildForum,
     type GuildSummary,
     type GuildVoiceCategory
 } from '../../../api/guilds';
@@ -102,12 +104,27 @@ function threadsFor(channelId: string): GuildActiveThread[] {
     return threadsByParent.value[channelId] ?? [];
 }
 
-onMounted(() => { void loadVoice(); void loadThreads(); });
+const forums = ref<GuildForum[]>([]);
+async function loadForums() {
+    if (!props.guildId) return;
+    const guildId = props.guildId;
+    try {
+        const result = await listGuildForums(guildId);
+        if (props.guildId !== guildId) return;
+        forums.value = result;
+    } catch {
+        /* forums are a nicety; silently fail */
+    }
+}
+
+onMounted(() => { void loadVoice(); void loadThreads(); void loadForums(); });
 watch(() => props.guildId, () => {
     voiceCategories.value = [];
     threadsByParent.value = {};
+    forums.value = [];
     void loadVoice();
     void loadThreads();
+    void loadForums();
 });
 </script>
 
@@ -153,6 +170,24 @@ watch(() => props.guildId, () => {
                 </template>
             </ul>
         </div>
+        <section v-if="forums.length > 0" class="voice-section">
+            <h4 class="voice-section-title">{{ $t('messages.forumChannels') }}</h4>
+            <div v-for="forum in forums" :key="'fo-' + forum.id" class="category">
+                <h5 class="voice-category-header">{{ forum.name.toUpperCase() }}</h5>
+                <ul v-if="forum.posts.length > 0" class="voice-list">
+                    <li
+                        v-for="post in forum.posts"
+                        :key="post.id"
+                        :class="['thread-row', { active: post.id === selectedId }]"
+                        @click="emit('select', post.id)"
+                    >
+                        <Icon icon="material-symbols:topic-outline-rounded" width="12" height="12" class="thread-icon" />
+                        <span class="name">{{ post.name }}</span>
+                    </li>
+                </ul>
+                <p v-else class="muted forum-empty">{{ $t('messages.noForumPosts') }}</p>
+            </div>
+        </section>
         <section v-if="voiceCategories.length > 0" class="voice-section">
             <h4 class="voice-section-title">{{ $t('messages.voiceChannels') }}</h4>
             <div v-for="cat in voiceCategories" :key="'v-' + (cat.id ?? '__none__')" class="category">
@@ -337,6 +372,7 @@ watch(() => props.guildId, () => {
 }
 .voice-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .voice-error { padding: 0.6rem; font-size: 0.78rem; color: var(--danger); }
+.forum-empty { padding: 0.2rem 0.6rem; font-size: 0.78rem; color: var(--text-muted); }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }
 .loading { padding: 1rem; text-align: center; }

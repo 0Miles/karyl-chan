@@ -154,6 +154,8 @@
         "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",
         "noTextChannels": "No text channels.",
         "voiceChannels": "Voice channels",
+        "forumChannels": "Forum channels",
+        "noForumPosts": "No active posts.",
         "recipientId": "Recipient user id",
         "linkUnknown": "unknown"
     },

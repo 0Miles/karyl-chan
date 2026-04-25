@@ -118,6 +118,26 @@ export interface GuildActiveThread {
     lastMessageId: string | null;
 }
 
+export interface GuildForumPost {
+    id: string;
+    name: string;
+    messageCount: number;
+    archived: boolean;
+}
+
+export interface GuildForum {
+    id: string;
+    name: string;
+    posts: GuildForumPost[];
+}
+
+export async function listGuildForums(guildId: string): Promise<GuildForum[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/forums`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ forums: GuildForum[] }>(response);
+    return body.forums;
+}
+
 export async function listGuildActiveThreads(guildId: string): Promise<GuildActiveThread[]> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/active-threads`;
     const response = await authedFetch(url);

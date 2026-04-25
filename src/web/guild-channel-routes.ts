@@ -90,6 +90,48 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     });
 
     server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/forums',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const { guildId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const forums = [...guild.channels.cache.values()]
+                .filter(c => c.type === ChannelType.GuildForum)
+                .sort((a, b) => ('position' in a && 'position' in b) ? (a.position as number) - (b.position as number) : 0);
+            try {
+                // Per-forum thread fetch is the right abstraction here —
+                // a forum may have archived posts that the global active
+                // sweep misses. We still only return active posts to keep
+                // the payload bounded; archived browsing is a future hop.
+                const result = await Promise.all(forums.map(async forum => {
+                    let posts: Array<{ id: string; name: string; messageCount: number; archived: boolean }> = [];
+                    try {
+                        const fetched = await (forum as unknown as { threads: { fetchActive: () => Promise<{ threads: Map<string, { id: string; name: string; messageCount?: number; archived?: boolean }> }> } }).threads.fetchActive();
+                        posts = [...fetched.threads.values()].map(t => ({
+                            id: t.id,
+                            name: t.name,
+                            messageCount: t.messageCount ?? 0,
+                            archived: !!t.archived
+                        }));
+                    } catch (err) {
+                        request.log.warn({ err, forumId: forum.id }, 'forum.threads.fetchActive failed');
+                    }
+                    return {
+                        id: forum.id,
+                        name: forum.name,
+                        posts
+                    };
+                }));
+                return { forums: result };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch forums');
+                reply.code(502).send({ error: 'Failed to fetch forums' });
+            }
+        }
+    );
+
+    server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/active-threads',
         async (request, reply) => {
             if (!requireCapability(request, reply, 'guild.read')) return;
