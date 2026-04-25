@@ -146,6 +146,7 @@
         "dropFiles": "拖放檔案即可附加",
         "noDms": "尚無私訊。在 Discord 傳訊給機器人,或從上方開始一則。",
         "noTextChannels": "沒有文字頻道。",
+        "voiceChannels": "語音頻道",
         "recipientId": "收件人使用者 ID",
         "linkUnknown": "不明"
     },

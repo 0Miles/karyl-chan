@@ -72,6 +72,68 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     });
 
     server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/voice-channels',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const { guildId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+
+            const all = [...guild.channels.cache.values()];
+            const categoryChannels = (all.filter(c => c.type === ChannelType.GuildCategory) as CategoryChannel[])
+                .sort((a, b) => a.position - b.position);
+            // Voice channels include the standard `GuildVoice` and
+            // `GuildStageVoice` types. Stage isn't fully featured here
+            // (no role distinction), but reading the participant list
+            // works the same way so it's worth including.
+            const voiceChannels = all
+                .filter(c => c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice)
+                .sort((a, b) => ('position' in a && 'position' in b) ? (a.position as number) - (b.position as number) : 0);
+
+            const memberRow = (m: { id: string; user: { username: string; globalName: string | null; avatar: string | null }; nickname: string | null; avatar: string | null }) => ({
+                id: m.id,
+                username: m.user.username,
+                globalName: m.user.globalName ?? null,
+                nickname: m.nickname ?? null,
+                avatarUrl: m.avatar
+                    ? guildAvatarUrlFor(guildId, m.id, m.avatar, 64)
+                    : avatarUrlFor(m.id, m.user.avatar, 64)
+            });
+
+            const toChannel = (c: typeof voiceChannels[number]) => {
+                // `members` is a Collection on VoiceChannel/StageChannel;
+                // its values are GuildMembers currently connected. We
+                // narrow via duck-typing because the union spans two
+                // related but distinct discord.js types.
+                const memberCollection = (c as unknown as { members?: { values?: () => Iterable<unknown> } }).members;
+                const memberArr = memberCollection?.values
+                    ? [...memberCollection.values()]
+                    : [];
+                return {
+                    id: c.id,
+                    name: c.name,
+                    type: c.type === ChannelType.GuildStageVoice ? 'stage' : 'voice',
+                    members: memberArr.map(m => memberRow(m as Parameters<typeof memberRow>[0]))
+                };
+            };
+
+            const categoryIds = new Set(categoryChannels.map(c => c.id));
+            const uncategorized = voiceChannels.filter(c => !c.parentId || !categoryIds.has(c.parentId));
+            const categories: Array<{ id: string | null; name: string | null; channels: ReturnType<typeof toChannel>[] }> = [];
+            if (uncategorized.length > 0) {
+                categories.push({ id: null, name: null, channels: uncategorized.map(toChannel) });
+            }
+            for (const cat of categoryChannels) {
+                const children = voiceChannels.filter(c => c.parentId === cat.id).map(toChannel);
+                if (children.length > 0) {
+                    categories.push({ id: cat.id, name: cat.name, channels: children });
+                }
+            }
+            return { categories };
+        }
+    );
+
+    server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/text-channels',
         async (request, reply) => {
             if (!requireCapability(request, reply, 'guild.read')) return;

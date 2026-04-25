@@ -116,6 +116,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
                 :categories="categories"
                 :selected-id="selectedChannelId"
                 :loading="loadingChannels"
+                :guild-id="props.guildId"
                 @mode-change="emit('mode-change', $event)"
                 @select="handleSelect"
             />

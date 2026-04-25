@@ -146,6 +146,7 @@
         "dropFiles": "Drop files to attach",
         "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",
         "noTextChannels": "No text channels.",
+        "voiceChannels": "Voice channels",
         "recipientId": "Recipient user id",
         "linkUnknown": "unknown"
     },

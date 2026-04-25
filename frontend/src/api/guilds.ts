@@ -86,6 +86,34 @@ export type GuildChannelEvent =
     | { type: 'guild-message-updated'; guildId: string; channelId: string; message: Message }
     | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string };
 
+export interface VoiceChannelMember {
+    id: string;
+    username: string;
+    globalName: string | null;
+    nickname: string | null;
+    avatarUrl: string | null;
+}
+
+export interface GuildVoiceChannel {
+    id: string;
+    name: string;
+    type: 'voice' | 'stage';
+    members: VoiceChannelMember[];
+}
+
+export interface GuildVoiceCategory {
+    id: string | null;
+    name: string | null;
+    channels: GuildVoiceChannel[];
+}
+
+export async function listGuildVoiceChannels(guildId: string): Promise<GuildVoiceCategory[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-channels`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ categories: GuildVoiceCategory[] }>(response);
+    return body.categories;
+}
+
 export async function listGuildTextChannels(guildId: string): Promise<GuildChannelCategory[]> {
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/text-channels`);
     const body = await jsonOrThrow<{ categories: GuildChannelCategory[] }>(response);
