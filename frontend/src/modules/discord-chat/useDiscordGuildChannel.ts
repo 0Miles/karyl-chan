@@ -41,14 +41,23 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId.value ? guildStore.getCategories(guildId.value) : []
     );
     const channels = computed(() => categories.value.flatMap(c => c.channels));
-    // Forum posts (and threads opened from secondary surfaces) aren't part
-    // of the categorised channel tree, but selecting them must still pass
-    // the workspace machine's `selectionLandsInList` guard. Callers that
-    // surface such ids — the forum panel, for example — register them here.
-    const auxSelectableIds = ref<string[]>([]);
+    // Active threads — loaded into the store alongside channels so their
+    // ids participate in the workspace machine's `selectionLandsInList`
+    // guard. Without this, clicking a thread row in the sidebar would be
+    // silently rejected by the machine.
+    const activeThreads = computed(() =>
+        guildId.value ? guildStore.getActiveThreads(guildId.value) : []
+    );
+    // Forum posts (and threads picked from the per-channel browser
+    // modal) aren't part of the categorised channel tree, but selecting
+    // them must still pass the workspace machine's `selectionLandsInList`
+    // guard. Each caller registers under its own source key so concurrent
+    // contributors don't trample each other.
+    const auxSelectableIds = ref<Record<string, string[]>>({});
     const availableChannelIds = computed(() => [
         ...channels.value.map(c => c.id),
-        ...auxSelectableIds.value
+        ...activeThreads.value.map(t => t.id),
+        ...Object.values(auxSelectableIds.value).flat()
     ]);
 
     // Workspace machine owns selection + scroll lifecycle. Side effects
@@ -151,6 +160,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
             currentGuildId: () => guildId.value ?? null,
             unknownLabel: t('messages.linkUnknown')
         })],
+        onThreadClick: (threadId) => workspace.select(threadId),
         resolveUser(id) {
             if (botUserId.value === id) {
                 const name = botDisplayName();
@@ -234,6 +244,10 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         try {
             await guildStore.ensureChannels(id);
             guildStore.ensureRoles(id).catch(() => { /* best-effort mention cache */ });
+            // Active-thread fetch in parallel — needed for both sidebar
+            // rendering AND for the workspace machine's selection guard
+            // to accept thread ids.
+            guildStore.loadActiveThreads(id).catch(() => { /* best-effort */ });
         } catch (err) {
             bailOnAuthError(err);
         }
@@ -252,6 +266,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
     return {
         categories,
         channels,
+        activeThreads,
         selectedChannelId,
         selectedChannel,
         loadingChannels: computed(() => guildId.value ? guildStore.isLoading(guildId.value) : false),
@@ -263,6 +278,8 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         refreshChannels: () => guildId.value ? guildStore.loadChannels(guildId.value) : Promise.resolve(),
         selectChannel: workspace.select,
         requestScroll: workspace.requestScroll,
-        registerAuxSelectableIds: (ids: string[]) => { auxSelectableIds.value = ids; }
+        registerAuxSelectableIds: (source: string, ids: string[]) => {
+            auxSelectableIds.value = { ...auxSelectableIds.value, [source]: ids };
+        }
     };
 }

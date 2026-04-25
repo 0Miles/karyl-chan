@@ -86,6 +86,14 @@
         "kickAction": "Kick",
         "banAction": "Ban"
     },
+    "threads": {
+        "browseTitle": "Threads in #{channel}",
+        "active": "Active",
+        "archived": "Archived",
+        "empty": "No threads.",
+        "view": "View thread",
+        "messageCount": "{count} messages"
+    },
     "messageMgmt": {
         "pin": "Pin",
         "unpin": "Unpin",

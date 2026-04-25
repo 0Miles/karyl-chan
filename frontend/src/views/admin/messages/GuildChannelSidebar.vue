@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import {
-    listGuildActiveThreads,
     type GuildActiveThread,
     type GuildChannelCategory,
     type GuildSummary,
     type GuildTextChannel
 } from '../../../api/guilds';
+import { useGuildChannelStore } from '../../../modules/discord-chat/stores/guildChannelStore';
 import { useI18n } from 'vue-i18n';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
@@ -248,35 +248,41 @@ function isCategoryCollapsed(id: string | null): boolean {
     return collapsed.value.has(id ?? '__none__');
 }
 
-// Active threads — keyed by parent channel id so we can render them
-// inline below their parent. Refetches on guild change. Archived
-// threads are deliberately not loaded; they're a less-common surface
-// and would clutter the sidebar.
-const threadsByParent = ref<Record<string, GuildActiveThread[]>>({});
-
-async function loadThreads() {
-    if (!props.guildId) return;
-    const guildId = props.guildId;
-    try {
-        const result = await listGuildActiveThreads(guildId);
-        if (props.guildId !== guildId) return;
-        const grouped: Record<string, GuildActiveThread[]> = {};
-        for (const t of result) {
-            const key = t.parentId ?? '__none__';
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(t);
-        }
-        for (const key of Object.keys(grouped)) {
-            grouped[key].sort((a, b) => a.name.localeCompare(b.name));
-        }
-        threadsByParent.value = grouped;
-    } catch {
-        /* threads are a nicety; silently fail */
+// Active threads come from the shared store (loaded by
+// useDiscordGuildChannel) so the sidebar, the workspace machine's
+// selection guard, and the message thread chip all see the same set.
+const guildStore = useGuildChannelStore();
+const threadsByParent = computed<Record<string, GuildActiveThread[]>>(() => {
+    if (!props.guildId) return {};
+    const grouped: Record<string, GuildActiveThread[]> = {};
+    for (const t of guildStore.getActiveThreads(props.guildId)) {
+        const key = t.parentId ?? '__none__';
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(t);
     }
-}
+    for (const key of Object.keys(grouped)) {
+        grouped[key].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return grouped;
+});
 
 function threadsFor(channelId: string): GuildActiveThread[] {
     return threadsByParent.value[channelId] ?? [];
+}
+
+// Per-channel thread fold state. Default: expanded (channels with
+// threads show them by default). The chevron next to the channel name
+// flips this without triggering channel selection (handled via
+// @click.stop in the template).
+const collapsedThreads = ref(new Set<string>());
+function toggleChannelThreads(channelId: string) {
+    const next = new Set(collapsedThreads.value);
+    if (next.has(channelId)) next.delete(channelId);
+    else next.add(channelId);
+    collapsedThreads.value = next;
+}
+function areThreadsCollapsed(channelId: string): boolean {
+    return collapsedThreads.value.has(channelId);
 }
 
 // Picks the channel-row glyph from the channel kind. `text` keeps the
@@ -291,11 +297,6 @@ function channelIcon(channel: GuildTextChannel): string | null {
     }
 }
 
-onMounted(() => { void loadThreads(); });
-watch(() => props.guildId, () => {
-    threadsByParent.value = {};
-    void loadThreads();
-});
 </script>
 
 <template>
@@ -334,6 +335,14 @@ watch(() => props.guildId, () => {
                     @touchend="channelLongPress.cancel()"
                     @touchmove="channelLongPress.cancel()"
                     @touchcancel="channelLongPress.cancel()">
+                    <button
+                        v-if="threadsFor(channel.id).length > 0"
+                        type="button"
+                        class="thread-toggle"
+                        :class="{ collapsed: areThreadsCollapsed(channel.id) }"
+                        :aria-label="areThreadsCollapsed(channel.id) ? 'Show threads' : 'Hide threads'"
+                        @click.stop="toggleChannelThreads(channel.id)"
+                    >›</button>
                     <span v-if="channel.kind === 'text'" class="hash">#</span>
                     <Icon v-else :icon="channelIcon(channel) ?? ''" width="14" height="14" class="kind-icon" />
                     <span class="name">{{ channel.name }}</span>
@@ -367,20 +376,23 @@ watch(() => props.guildId, () => {
                         </li>
                     </ul>
                 </li>
-                <li
-                    v-for="thread in threadsFor(channel.id)"
-                    :key="thread.id"
-                    :class="['thread-row', { active: thread.id === selectedId }]"
-                    @click="emit('select', thread.id)"
-                    @contextmenu="onThreadContext($event, thread)"
-                    @touchstart.passive="onThreadTouchStart($event, thread)"
-                    @touchend="threadLongPress.cancel()"
-                    @touchmove="threadLongPress.cancel()"
-                    @touchcancel="threadLongPress.cancel()"
-                >
-                    <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
-                    <span class="name">{{ thread.name }}</span>
-                </li>
+                <template v-if="!areThreadsCollapsed(channel.id)">
+                    <li
+                        v-for="thread in threadsFor(channel.id)"
+                        :key="thread.id"
+                        :class="['thread-row', { active: thread.id === selectedId }]"
+                        @click="emit('select', thread.id)"
+                        @contextmenu="onThreadContext($event, thread)"
+                        @touchstart.passive="onThreadTouchStart($event, thread)"
+                        @touchend="threadLongPress.cancel()"
+                        @touchmove="threadLongPress.cancel()"
+                        @touchcancel="threadLongPress.cancel()"
+                    >
+                        <span class="thread-branch" aria-hidden="true"></span>
+                        <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
+                        <span class="name">{{ thread.name }}</span>
+                    </li>
+                </template>
                 </template>
             </ul>
         </div>
@@ -468,6 +480,9 @@ watch(() => props.guildId, () => {
     cursor: pointer;
     border-radius: 4px;
     margin: 0 0.25rem;
+    /* Required for absolute-positioned descendants like .thread-toggle
+       (the chevron sits in the row's left-padding gutter). */
+    position: relative;
 }
 .channel-list li:hover { background: var(--bg-surface-hover); }
 .channel-list li.active { background: var(--bg-surface-active); }
@@ -494,18 +509,57 @@ watch(() => props.guildId, () => {
 .channel-list li.muted.active { opacity: 1; }
 .channel-pill { margin-left: auto; }
 .mute-icon { margin-left: auto; color: var(--text-muted); }
-.thread-row {
+/* Specificity has to beat `.channel-list li` (which is the wrapping ul's
+   shared row style) so the deeper indent + smaller font stick. */
+.channel-list li.thread-row {
     display: flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.2rem 0.6rem 0.2rem 1.6rem;
+    /* Channels start their content at left padding 1.25rem; threads sit
+       deeper (≈2.5rem) so the indent is unambiguous as "child of the
+       channel above". The inset branch stub provides the corner cue. */
+    padding: 0.2rem 0.6rem 0.2rem 2.5rem;
     color: var(--text-muted);
     font-size: 0.78rem;
     cursor: pointer;
+    position: relative;
 }
-.thread-row:hover { background: var(--bg-surface-hover); color: var(--text); }
-.thread-row.active { background: var(--bg-surface-active); color: var(--text); }
+.channel-list li.thread-row:hover { background: var(--bg-surface-hover); color: var(--text); }
+.channel-list li.thread-row.active { background: var(--bg-surface-active); color: var(--text); }
 .thread-icon { color: var(--text-muted); flex-shrink: 0; }
+.thread-branch {
+    position: absolute;
+    left: 1.7rem;
+    top: 50%;
+    width: 0.5rem;
+    height: 1px;
+    background: var(--border);
+}
+.thread-toggle {
+    /* Sits in the channel row's left-padding gutter (absolute) so it
+       doesn't push the # / channel-icon to the right. The channel
+       row's existing 1.25rem padding leaves room for the chevron. */
+    position: absolute;
+    left: 0.15rem;
+    top: 50%;
+    transform: translateY(-50%) rotate(90deg);
+    width: 1rem;
+    height: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+    line-height: 1;
+    transition: transform 0.15s;
+}
+.thread-toggle.collapsed { transform: translateY(-50%) rotate(0deg); }
+.thread-toggle:hover { color: var(--text); }
 
 .voice-count {
     margin-left: auto;

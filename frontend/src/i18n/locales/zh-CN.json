@@ -86,6 +86,14 @@
         "kickAction": "踢出",
         "banAction": "封禁"
     },
+    "threads": {
+        "browseTitle": "#{channel} 的讨论串",
+        "active": "活跃",
+        "archived": "已归档",
+        "empty": "没有讨论串。",
+        "view": "查看讨论串",
+        "messageCount": "{count} 条消息"
+    },
     "messageMgmt": {
         "pin": "置顶",
         "unpin": "取消置顶",

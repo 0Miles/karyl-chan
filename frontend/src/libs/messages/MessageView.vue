@@ -194,6 +194,18 @@ function onAuthorTouchEnd() {
                 />
                 <MessageSticker v-for="sticker in message.stickers ?? []" :key="sticker.id" :sticker="sticker" />
                 <MessageEmbed v-for="(embed, idx) in message.embeds ?? []" :key="idx" :embed="embed" />
+                <button
+                    v-if="message.thread && ctx.onThreadClick"
+                    type="button"
+                    class="thread-chip"
+                    @click.stop="ctx.onThreadClick?.(message.thread!.id)"
+                >
+                    <span class="thread-chip-icon">›</span>
+                    <span class="thread-chip-name">{{ message.thread.name }}</span>
+                    <span v-if="message.thread.messageCount > 0" class="thread-chip-count">
+                        {{ message.thread.messageCount }}
+                    </span>
+                </button>
                 <MessageReactions
                     v-if="message.reactions?.length"
                     :message-id="message.id"
@@ -322,5 +334,31 @@ div.author-click:hover {
     background: var(--accent);
     color: var(--text-on-accent);
     border-color: var(--accent);
+}
+.thread-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    align-self: flex-start;
+}
+.thread-chip:hover { background: var(--bg-surface-hover); border-color: var(--accent); }
+.thread-chip-icon { color: var(--text-muted); font-weight: 700; }
+.thread-chip-name { font-weight: 500; }
+.thread-chip-count {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
+    border-radius: 999px;
+    padding: 0 0.4rem;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
 }
 </style>

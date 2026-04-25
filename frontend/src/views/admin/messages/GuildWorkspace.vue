@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue';
+import { computed, nextTick, ref, toRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import GuildForumPanel from './GuildForumPanel.vue';
 import GuildForwardPicker from './GuildForwardPicker.vue';
 import GuildBulkDeleteModal from './GuildBulkDeleteModal.vue';
 import GuildChannelMgmtModal from './GuildChannelMgmtModal.vue';
+import GuildChannelThreadsModal from './GuildChannelThreadsModal.vue';
 import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
 import GuildMemberMgmtModal from '../../../modules/discord-chat/GuildMemberMgmtModal.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
@@ -169,6 +170,33 @@ async function onModDeleteMessage(message: Message) {
     try { await deleteGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
 }
 
+// Browse threads — opens the per-channel modal listing active +
+// archived threads. Hidden when the current selection is itself a
+// thread (no nested threads to show).
+const browseThreadsOpen = ref(false);
+function onBrowseThreads() {
+    if (!selectedChannelId.value) return;
+    browseThreadsOpen.value = true;
+}
+async function onBrowseThreadsPick(threadId: string) {
+    // Register the picked thread so the workspace machine's selection
+    // guard accepts it (archived threads aren't in the active-threads
+    // store and wouldn't otherwise pass). nextTick lets the
+    // availableChannelIds watch fire and propagate the new id into the
+    // machine's CHANNELS_UPDATED event before the SELECT_CHANNEL.
+    registerAuxSelectableIds('thread-pick', [threadId]);
+    await nextTick();
+    handleSelect(threadId);
+}
+// `selectedChannel` is `null` when the selected id isn't in the
+// categorised channel tree (i.e. the user is on a thread). We also
+// hide the button for forum channels since their browser already
+// surfaces posts as the main panel.
+const canBrowseThreads = computed(() =>
+    selectedChannel.value !== null
+    && selectedChannel.value.kind !== 'forum'
+);
+
 const bulkDeleteAnchor = ref<Message | null>(null);
 function onBulkDeleteRequested(anchor: Message) {
     bulkDeleteAnchor.value = anchor;
@@ -223,7 +251,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :forum-id="selectedChannel.id"
             :forum-name="selectedChannel.name"
             :header-subtitle="selectedGuild?.name ?? null"
-            @posts-loaded="registerAuxSelectableIds"
+            @posts-loaded="(ids: string[]) => registerAuxSelectableIds('forum-posts', ids)"
             @select-post="handleSelect"
         />
         <DiscordConversation
@@ -244,6 +272,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :pin-fetcher="pinFetcher"
             :can-forward="true"
             :can-moderate="true"
+            :can-browse-threads="canBrowseThreads"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -259,6 +288,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @unpin="onUnpinMessage"
             @mod-delete="onModDeleteMessage"
             @bulk-delete="onBulkDeleteRequested"
+            @browse-threads="onBrowseThreads"
         />
         <GuildForwardPicker
             :visible="forwardSource !== null"
@@ -270,6 +300,14 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :visible="bulkDeleteAnchor !== null"
             @confirm="onBulkDeleteConfirm"
             @close="bulkDeleteAnchor = null"
+        />
+        <GuildChannelThreadsModal
+            :visible="browseThreadsOpen"
+            :guild-id="props.guildId"
+            :channel-id="selectedChannelId"
+            :channel-name="selectedChannel?.name ?? null"
+            @close="browseThreadsOpen = false"
+            @pick="onBrowseThreadsPick"
         />
         <UserContextMenu :voice-channels="voiceChannels" />
         <GuildMemberMgmtModal />

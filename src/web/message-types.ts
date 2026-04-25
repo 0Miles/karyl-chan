@@ -69,6 +69,13 @@ export interface MessageEmbed {
     timestamp?: string | null;
 }
 
+export interface MessageThreadSummary {
+    id: string;
+    name: string;
+    archived: boolean;
+    messageCount: number;
+}
+
 export interface Message {
     id: string;
     channelId: string;
@@ -90,4 +97,8 @@ export interface Message {
     mentionsMe?: boolean;
     pinned?: boolean;
     tts?: boolean;
+    /** Set when the message has a thread attached — i.e. the message
+     *  was used as the starter for a public/private thread. The
+     *  frontend renders this as a "view thread" chip below the body. */
+    thread?: MessageThreadSummary | null;
 }

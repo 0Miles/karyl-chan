@@ -16,6 +16,30 @@ interface ReactionBody {
     emoji?: { id?: string | null; name?: string; animated?: boolean };
 }
 
+interface ThreadLike {
+    id: string;
+    name: string;
+    parentId?: string | null;
+    archived?: boolean | null;
+    locked?: boolean | null;
+    memberCount?: number | null;
+    messageCount?: number | null;
+    lastMessageId?: string | null;
+}
+
+function threadRow(t: ThreadLike) {
+    return {
+        id: t.id,
+        name: t.name,
+        parentId: t.parentId ?? null,
+        archived: !!t.archived,
+        locked: !!t.locked,
+        memberCount: t.memberCount ?? 0,
+        messageCount: t.messageCount ?? 0,
+        lastMessageId: t.lastMessageId ?? null
+    };
+}
+
 function emojiResolvable(emoji: MessageEmoji): EmojiIdentifierResolvable | null {
     if (!emoji.id && !emoji.name) return null;
     if (emoji.id) return `${emoji.name || '_'}:${emoji.id}`;
@@ -162,6 +186,46 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
                 return { threads };
             } catch (err) {
                 request.log.error({ err }, 'failed to fetch active threads');
+                reply.code(502).send({ error: 'Failed to fetch threads' });
+            }
+        }
+    );
+
+    // Per-channel thread browser. Active threads come from the gateway
+    // cache; archived ones require an extra REST call. We expose both
+    // via a single endpoint so the channel-header thread browser only
+    // needs one round-trip per open.
+    server.get<{ Params: { guildId: string; channelId: string }; Querystring: { archived?: string } }>(
+        '/api/guilds/:guildId/text-channels/:channelId/threads',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const { guildId, channelId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const channel = guild.channels.cache.get(channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
+            const wantArchived = request.query.archived === 'true';
+            // discord.js exposes `.threads` on text/forum/news/voice channels.
+            // Stage and category channels don't, so we duck-type and bail
+            // if the manager isn't present rather than narrowing types.
+            const threadsManager = (channel as unknown as {
+                threads?: {
+                    fetchActive: () => Promise<{ threads: Map<string, ThreadLike> }>;
+                    fetchArchived: (opts: { type: 'public' | 'private'; limit: number }) => Promise<{ threads: Map<string, ThreadLike> }>;
+                };
+            }).threads;
+            if (!threadsManager) {
+                reply.code(400).send({ error: 'channel does not support threads' });
+                return;
+            }
+            try {
+                const map = wantArchived
+                    ? await threadsManager.fetchArchived({ type: 'public', limit: 100 })
+                    : await threadsManager.fetchActive();
+                const threads = [...map.threads.values()].map(threadRow);
+                return { threads };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch channel threads');
                 reply.code(502).send({ error: 'Failed to fetch threads' });
             }
         }

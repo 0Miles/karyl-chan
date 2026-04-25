@@ -85,6 +85,17 @@ export interface Message {
     mentionsMe?: boolean;
     pinned?: boolean;
     tts?: boolean;
+    /** Set when the message has a thread attached — i.e. this message
+     *  was used as the starter for a public/private thread. The
+     *  conversation renders this as a "view thread" chip below the body. */
+    thread?: MessageThreadSummary | null;
+}
+
+export interface MessageThreadSummary {
+    id: string;
+    name: string;
+    archived: boolean;
+    messageCount: number;
 }
 
 export interface OutgoingMessage {

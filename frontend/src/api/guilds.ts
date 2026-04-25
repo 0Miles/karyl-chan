@@ -155,6 +155,23 @@ export async function listGuildActiveThreads(guildId: string): Promise<GuildActi
     return body.threads;
 }
 
+/** Active OR archived threads belonging to a single channel. Used by
+ *  the header thread browser, which lets the user see threads that
+ *  aren't surfaced in the sidebar (archived ones, plus all active). */
+export async function listChannelThreads(
+    guildId: string,
+    channelId: string,
+    opts: { archived?: boolean } = {}
+): Promise<GuildActiveThread[]> {
+    const params = new URLSearchParams();
+    if (opts.archived) params.set('archived', 'true');
+    const query = params.toString();
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/threads${query ? `?${query}` : ''}`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ threads: GuildActiveThread[] }>(response);
+    return body.threads;
+}
+
 export async function listGuildVoiceChannels(guildId: string): Promise<GuildVoiceCategory[]> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-channels`;
     const response = await authedFetch(url);

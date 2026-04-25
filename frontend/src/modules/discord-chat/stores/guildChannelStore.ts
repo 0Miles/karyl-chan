@@ -5,12 +5,14 @@ import {
     deleteGuildMessage as apiDeleteMessage,
     editGuildMessage as apiEditMessage,
     getGuildMessages as apiGetMessages,
+    listGuildActiveThreads as apiListActiveThreads,
     listGuildChannelMembers as apiListChannelMembers,
     listGuildRoles as apiListRoles,
     listGuildTextChannels as apiListChannels,
     removeGuildReaction as apiRemoveReaction,
     sendGuildMessage as apiSendMessage,
     subscribeGuildEvents,
+    type GuildActiveThread,
     type GuildChannelCategory,
     type GuildChannelMember,
     type GuildRoleSummary,
@@ -31,6 +33,11 @@ interface GuildEntry {
     rolesPending: Promise<GuildRoleSummary[]> | null;
     channelMembers: Record<string, GuildChannelMember[]>;
     channelMembersPending: Record<string, Promise<GuildChannelMember[]>>;
+    /** Active threads for the guild, indexed by id. The store owns this
+     *  list (rather than the sidebar) so other consumers (the workspace
+     *  machine's selectable-id check, the message thread chip) can reach
+     *  it without each loading independently. */
+    activeThreads: Record<string, GuildActiveThread>;
 }
 
 export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
@@ -48,7 +55,8 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
                 roles: null,
                 rolesPending: null,
                 channelMembers: {},
-                channelMembersPending: {}
+                channelMembersPending: {},
+                activeThreads: {}
             };
         }
         return guilds[guildId];
@@ -186,6 +194,30 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         if (!entry?.loaded && !entry?.loading) await loadChannels(guildId);
     }
 
+    async function loadActiveThreads(guildId: string) {
+        const entry = getOrCreate(guildId);
+        try {
+            const result = await apiListActiveThreads(guildId);
+            const next: Record<string, GuildActiveThread> = {};
+            for (const t of result) next[t.id] = t;
+            entry.activeThreads = next;
+        } catch {
+            /* threads are a nicety; silently fail */
+        }
+    }
+
+    function getActiveThreads(guildId: string): GuildActiveThread[] {
+        const entry = guilds[guildId];
+        if (!entry) return [];
+        return Object.values(entry.activeThreads);
+    }
+
+    function getActiveThreadIds(guildId: string): string[] {
+        const entry = guilds[guildId];
+        if (!entry) return [];
+        return Object.keys(entry.activeThreads);
+    }
+
     async function listMessages(guildId: string, channelId: string, opts: { limit?: number; before?: string }) {
         return apiGetMessages(guildId, channelId, opts);
     }
@@ -267,5 +299,8 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         ensureChannelMembers,
         getRoles,
         getChannelMembers,
+        loadActiveThreads,
+        getActiveThreads,
+        getActiveThreadIds,
     };
 });

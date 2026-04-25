@@ -86,6 +86,14 @@
         "kickAction": "踢出",
         "banAction": "封鎖"
     },
+    "threads": {
+        "browseTitle": "#{channel} 的討論串",
+        "active": "活躍",
+        "archived": "已封存",
+        "empty": "沒有討論串。",
+        "view": "檢視討論串",
+        "messageCount": "{count} 則訊息"
+    },
     "messageMgmt": {
         "pin": "釘選",
         "unpin": "取消釘選",

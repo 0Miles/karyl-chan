@@ -31,6 +31,9 @@ export interface DiscordMessageContextOptions {
     mediaProvider?: MediaProvider;
     /** Override the default "scroll to referenced message" behavior. */
     onReplyClick?: (messageId: string) => void;
+    /** Click handler for the "view thread" chip rendered below messages
+     *  that started a thread. Workspaces wire this to selectChannel. */
+    onThreadClick?: (threadId: string) => void;
     /**
      * URL handlers to register on the generated context. Pass any
      * number of platform-specific handlers (Discord message links,
@@ -62,6 +65,7 @@ export function createDiscordMessageContext(opts: DiscordMessageContextOptions):
         onReactionRemove: opts.onReactionRemove,
         fetchReactionUsers: opts.fetchReactionUsers,
         onReplyClick: opts.onReplyClick ?? defaultScrollToReply,
+        onThreadClick: opts.onThreadClick,
         onUserClick: (userId, anchor) => userCard.openFor(userId, anchor, guildIdRef?.value ?? null),
         onUserContextMenu: (userId, anchor, point, displayName) => userMenu.open({
             userId,

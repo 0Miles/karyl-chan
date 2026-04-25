@@ -78,6 +78,10 @@ export interface MessageContext {
         avatarUrl: string;
     }>>;
     onReplyClick?: (messageId: string) => void;
+    /** Fired when the user clicks the "view thread" chip rendered below
+     *  a message that started a thread. The host navigates the workspace
+     *  to that thread. */
+    onThreadClick?: (threadId: string) => void;
     /** Fired when the user clicks a message avatar, author name, or user mention. */
     onUserClick?: (userId: string, anchor: HTMLElement) => void;
     /** Fired when the user right-clicks a message avatar / author name / mention.

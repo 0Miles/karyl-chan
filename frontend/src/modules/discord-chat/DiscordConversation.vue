@@ -49,6 +49,10 @@ const props = defineProps<{
      *  underlying API still requires the bot to hold ManageMessages on
      *  the channel, so failures surface from the API call. */
     canModerate?: boolean;
+    /** When true, the header shows a "browse threads" button that emits
+     *  `browse-threads`. Hosts (the guild workspace) wire it to a modal
+     *  that lists active + archived threads of the current channel. */
+    canBrowseThreads?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -73,6 +77,8 @@ const emit = defineEmits<{
     (e: 'unpin', message: Message): void;
     (e: 'mod-delete', message: Message): void;
     (e: 'bulk-delete', anchorMessage: Message): void;
+    /** Surfaced when the user clicks the header's threads button. */
+    (e: 'browse-threads'): void;
 }>();
 
 const VIRTUAL_THRESHOLD = 64;
@@ -642,6 +648,16 @@ const replyToProp = computed(() => props.replyTo);
                 <span class="title">{{ headerTitle }}</span>
                 <span v-if="headerSubtitle" class="subtitle">{{ headerSubtitle }}</span>
                 <span class="header-spacer"></span>
+                <button
+                    v-if="canBrowseThreads"
+                    type="button"
+                    class="header-action"
+                    :title="$t('threads.view')"
+                    :aria-label="$t('threads.view')"
+                    @click="emit('browse-threads')"
+                >
+                    <Icon icon="material-symbols:forum-outline-rounded" width="18" height="18" />
+                </button>
                 <button
                     v-if="pinFetcher"
                     type="button"

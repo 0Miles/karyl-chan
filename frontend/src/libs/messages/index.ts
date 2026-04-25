@@ -9,6 +9,7 @@ export type {
     MessageReference,
     MessageEmbed,
     MessageEmbedField,
+    MessageThreadSummary,
     OutgoingMessage,
     ComposerSuggestionItem,
     ComposerSuggestionTrigger,

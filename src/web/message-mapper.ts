@@ -139,7 +139,18 @@ export function toApiMessage(message: DjsMessage): ApiMessage {
         // the optional-chain.
         mentionsMe: message.client?.user ? message.mentions.has(message.client.user) : false,
         pinned: message.pinned,
-        tts: message.tts
+        tts: message.tts,
+        // `message.thread` is populated by discord.js when a thread was
+        // started from this message — the typing is a `ThreadChannel`
+        // but we only forward the summary the chip needs.
+        thread: message.thread
+            ? {
+                id: message.thread.id,
+                name: message.thread.name,
+                archived: !!message.thread.archived,
+                messageCount: message.thread.messageCount ?? 0
+            }
+            : null
     };
 }
 
