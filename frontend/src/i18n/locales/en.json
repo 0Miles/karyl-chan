@@ -380,11 +380,16 @@
             "roleLabel": "Role",
             "noteLabel": "Note (optional)",
             "notePlaceholder": "What is this access for?",
+            "noPlaceholder": "—",
             "add": "Add user",
             "addSubmit": "Authorize",
             "remove": "Remove",
             "removeConfirm": "Remove {user} from the allow list?",
-            "changeRole": "Change role"
+            "changeRole": "Change role",
+            "searchPlaceholder": "Search by name or id…",
+            "filterAll": "All roles",
+            "noMatches": "No users match the current filters.",
+            "matchCount": "{matched} of {total}"
         },
         "roles": {
             "title": "Roles",
@@ -393,6 +398,7 @@
             "descriptionLabel": "Description",
             "descriptionPlaceholder": "Short label describing the role",
             "capabilities": "Capabilities",
+            "capabilitiesGrantedCount": "{granted} of {total} granted",
             "noCapabilities": "No capabilities — users with this role will be unauthorized.",
             "grantCapability": "Grant capability",
             "selectCapability": "Pick a capability…",
@@ -403,6 +409,9 @@
             "remove": "Delete role",
             "removeConfirm": "Delete role {name}?",
             "saveDescription": "Save",
+            "saved": "Saved",
+            "discardChanges": "Discard",
+            "noDescription": "No description set.",
             "ownerOnlyCapability": "admin"
         },
         "capabilitiesCatalog": "Known capability tokens",

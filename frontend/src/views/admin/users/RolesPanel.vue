@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import {
@@ -13,61 +13,49 @@ import {
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
 import { ADMIN_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
+import AppModal from '../../../components/AppModal.vue';
 
 const props = defineProps<{
     roles: AdminRole[];
     /** Authoritative catalog from GET /api/admin/capabilities. Falls
-     *  back to the bundled key list if the parent didn't fetch (e.g.
-     *  the endpoint failed). The hard-coded mirror exists precisely so
-     *  the UI keeps working in that degraded state. */
+     *  back to the bundled key list if the parent fetch failed. */
     capabilityCatalog?: AdminCapabilityCatalogItem[];
+}>();
+
+const emit = defineEmits<{
+    /** Local-state-update events. The parent patches its lists from
+     *  these instead of refetching, so editing doesn't blank the UI. */
+    (e: 'upsert-role', role: AdminRole): void;
+    (e: 'remove-role', name: string): void;
+    (e: 'capability-change', roleName: string, capabilities: string[]): void;
+    (e: 'error', message: string): void;
 }>();
 
 const { t } = useI18n();
 
-interface AdminCapabilityDef {
-    key: string;
-    description: string;
-}
+interface CapabilityDef { key: string; description: string; }
 
-// Prefer the server-provided catalog; fall back to the bundled mirror
-// if the parent didn't fetch (e.g. /api/admin/capabilities errored).
-// Descriptions still resolve through i18n so they match the active
-// locale, with the server's description as a fallback when no i18n key
-// matches (e.g. a new capability was added before translations land).
-const capabilities = computed<AdminCapabilityDef[]>(() => {
+// Prefer the server catalog; fall back to the bundled key list. Each
+// description is resolved via i18n with the server-provided text as a
+// final fallback so a brand-new capability key shows *something*
+// before the translation lands.
+const capabilities = computed<CapabilityDef[]>(() => {
     const source = props.capabilityCatalog?.length
         ? props.capabilityCatalog.map(item => item.key)
-        : ADMIN_CAPABILITY_KEYS as readonly string[];
+        : (ADMIN_CAPABILITY_KEYS as readonly string[]);
     return source.map(key => {
         const i18nKey = `admin.capabilityDesc.${key}`;
         const localized = t(i18nKey);
         const fromServer = props.capabilityCatalog?.find(c => c.key === key)?.description;
         return {
             key,
-            // i18n returns the key itself when no translation exists —
-            // fall back to the server-provided description in that case.
-            description: localized === i18nKey ? (fromServer ?? key) : localized
+            description: localized === i18nKey ? (fromServer ?? '') : localized
         };
     });
 });
 
-const emit = defineEmits<{
-    (e: 'changed'): void;
-    (e: 'error', message: string): void;
-}>();
-
-const formName = ref('');
-const formDescription = ref('');
-const submitting = ref(false);
-
-// Per-role UI state: local description draft + which capability is about
-// to be granted. Keyed by role.name; refreshed implicitly when the roles
-// array prop changes.
-const descDrafts = ref<Record<string, string>>({});
-const capPicks = ref<Record<string, string>>({});
-// Per-role lock so rapid clicks on grant/revoke/save/delete don't fire
-// concurrent mutations against the same role.
+// ── Per-role lock so rapid clicks on different controls of the same
+// role don't fire concurrent mutations.
 const pendingRoles = ref(new Set<string>());
 function isRolePending(name: string) {
     return pendingRoles.value.has(name);
@@ -84,190 +72,252 @@ async function withRoleLock<T>(name: string, fn: () => Promise<T>): Promise<T | 
     }
 }
 
-function descriptionDraft(role: AdminRole): string {
-    return descDrafts.value[role.name] ?? role.description ?? '';
-}
-
-function capPickFor(role: AdminRole): string {
-    return capPicks.value[role.name] ?? '';
-}
-
-function availableCapsFor(role: AdminRole): AdminCapabilityDef[] {
-    const granted = new Set(role.capabilities);
-    return capabilities.value.filter(c => !granted.has(c.key));
-}
-
-const knownCapabilities = computed(() => capabilities.value);
-
-function handleErr(err: unknown) {
+function reportErr(err: unknown) {
     emit('error', err instanceof ApiError ? err.message : String(err));
 }
 
-async function onAddRole() {
-    const name = formName.value.trim();
-    if (!name) return;
-    submitting.value = true;
-    try {
-        await upsertAdminRole({ name, description: formDescription.value.trim() || null });
-        formName.value = '';
-        formDescription.value = '';
-        emit('changed');
-    } catch (err) {
-        handleErr(err);
-    } finally {
-        submitting.value = false;
-    }
-}
+// ── Description editor ────────────────────────────────────────────
+//
+// Local drafts persist while the role is being edited; the input value
+// reads from the draft when present, falling back to the role's saved
+// description. `isDirty` drives the Save / Discard buttons. The drafts
+// outlive a parent re-render because they're keyed by role name.
+const descDrafts = ref<Record<string, string>>({});
+const justSavedRoles = ref(new Set<string>());
 
-async function onSaveDescription(role: AdminRole) {
-    const draft = descriptionDraft(role).trim();
-    if (draft === (role.description ?? '')) return;
+function descValue(role: AdminRole): string {
+    return descDrafts.value[role.name] ?? role.description ?? '';
+}
+function isDescDirty(role: AdminRole): boolean {
+    if (!(role.name in descDrafts.value)) return false;
+    return descDrafts.value[role.name] !== (role.description ?? '');
+}
+function onDescInput(roleName: string, value: string) {
+    descDrafts.value = { ...descDrafts.value, [roleName]: value };
+}
+function onDescDiscard(roleName: string) {
+    const next = { ...descDrafts.value };
+    delete next[roleName];
+    descDrafts.value = next;
+}
+async function onDescSave(role: AdminRole) {
+    if (!isDescDirty(role)) return;
+    const draft = descValue(role).trim();
     await withRoleLock(role.name, async () => {
         try {
-            await patchAdminRole(role.name, { description: draft || null });
-            delete descDrafts.value[role.name];
-            emit('changed');
+            const updated = await patchAdminRole(role.name, { description: draft || null });
+            emit('upsert-role', updated);
+            // Drop the draft so descValue falls back to the persisted
+            // value (now matched by what the server returned).
+            const nextDrafts = { ...descDrafts.value };
+            delete nextDrafts[role.name];
+            descDrafts.value = nextDrafts;
+            // Brief "Saved" indicator next to the field.
+            justSavedRoles.value = new Set([...justSavedRoles.value, role.name]);
+            setTimeout(() => {
+                const s = new Set(justSavedRoles.value);
+                s.delete(role.name);
+                justSavedRoles.value = s;
+            }, 1500);
         } catch (err) {
-            handleErr(err);
+            reportErr(err);
         }
     });
 }
 
+// ── Capability toggle ────────────────────────────────────────────
+//
+// Optimistic — the click flips the checkbox immediately via an emit
+// to the parent, then fires the API in the background. On failure we
+// emit again with the rollback set so the UI reflects reality.
+async function onToggleCapability(role: AdminRole, capKey: string, want: boolean) {
+    const granted = role.capabilities.includes(capKey);
+    if (granted === want) return;
+    const next = want
+        ? [...role.capabilities, capKey]
+        : role.capabilities.filter(c => c !== capKey);
+    emit('capability-change', role.name, next);
+    await withRoleLock(role.name, async () => {
+        try {
+            if (want) await grantRoleCapability(role.name, capKey);
+            else await revokeRoleCapability(role.name, capKey);
+        } catch (err) {
+            // Roll back on failure.
+            emit('capability-change', role.name, role.capabilities);
+            reportErr(err);
+        }
+    });
+}
+
+// ── Role delete ──────────────────────────────────────────────────
 async function onDeleteRole(role: AdminRole) {
-    if (isRolePending(role.name)) return;
     if (!window.confirm(t('admin.roles.removeConfirm', { name: role.name }))) return;
     await withRoleLock(role.name, async () => {
         try {
             await deleteAdminRole(role.name);
-            emit('changed');
+            emit('remove-role', role.name);
         } catch (err) {
-            handleErr(err);
+            reportErr(err);
         }
     });
 }
 
-async function onGrantCap(role: AdminRole) {
-    const cap = capPickFor(role);
-    if (!cap) return;
-    await withRoleLock(role.name, async () => {
-        try {
-            await grantRoleCapability(role.name, cap);
-            capPicks.value[role.name] = '';
-            emit('changed');
-        } catch (err) {
-            handleErr(err);
-        }
-    });
+// ── Add-role modal ──────────────────────────────────────────────
+const addOpen = ref(false);
+const addForm = ref({ name: '', description: '' });
+const adding = ref(false);
+
+watch(addOpen, (open) => {
+    if (open) addForm.value = { name: '', description: '' };
+});
+
+async function submitAdd() {
+    const name = addForm.value.name.trim();
+    if (!name) return;
+    adding.value = true;
+    try {
+        const created = await upsertAdminRole({
+            name,
+            description: addForm.value.description.trim() || null
+        });
+        emit('upsert-role', created);
+        addOpen.value = false;
+    } catch (err) {
+        reportErr(err);
+    } finally {
+        adding.value = false;
+    }
 }
 
-async function onRevokeCap(role: AdminRole, capability: string) {
-    await withRoleLock(role.name, async () => {
-        try {
-            await revokeRoleCapability(role.name, capability);
-            emit('changed');
-        } catch (err) {
-            handleErr(err);
-        }
-    });
+function grantedCountFor(role: AdminRole): { granted: number; total: number } {
+    return { granted: role.capabilities.length, total: capabilities.value.length };
 }
 </script>
 
 <template>
     <div class="panel">
-        <form class="add-form" @submit.prevent="onAddRole">
-            <h3>{{ $t('admin.roles.add') }}</h3>
-            <div class="fields">
-                <label>
-                    <span>{{ $t('admin.roles.nameLabel') }}</span>
-                    <input v-model="formName" type="text" required />
-                </label>
-                <label class="desc-field">
-                    <span>{{ $t('admin.roles.descriptionLabel') }}</span>
-                    <input v-model="formDescription" type="text" :placeholder="$t('admin.roles.descriptionPlaceholder')" />
-                </label>
-            </div>
-            <button type="submit" class="primary" :disabled="submitting">
-                {{ $t('admin.roles.addSubmit') }}
+        <header class="toolbar">
+            <button type="button" class="primary" @click="addOpen = true">
+                <Icon icon="material-symbols:add-rounded" width="16" height="16" />
+                {{ $t('admin.roles.add') }}
             </button>
-        </form>
+        </header>
 
-        <section class="catalog">
-            <h3>{{ $t('admin.capabilitiesCatalog') }}</h3>
-            <ul>
-                <li v-for="c in knownCapabilities" :key="c.key">
-                    <code>{{ c.key }}</code>
-                    <span class="muted"> — {{ c.description }}</span>
-                </li>
-            </ul>
-        </section>
-
-        <h3 class="list-heading">{{ $t('admin.roles.title') }}</h3>
         <p v-if="roles.length === 0" class="muted empty">{{ $t('admin.roles.empty') }}</p>
+
         <ul v-else class="role-list">
             <li v-for="role in roles" :key="role.name" class="role-card">
                 <header class="role-head">
-                    <h4>{{ role.name }}</h4>
+                    <h3 class="role-name">{{ role.name }}</h3>
+                    <span class="role-meta">{{ $t('admin.roles.capabilitiesGrantedCount', grantedCountFor(role)) }}</span>
                     <button
                         type="button"
-                        class="danger"
+                        class="icon-btn danger"
                         :disabled="isRolePending(role.name)"
                         :title="$t('admin.roles.remove')"
+                        :aria-label="$t('admin.roles.remove')"
                         @click="onDeleteRole(role)"
                     >
-                        <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
+                        <Icon icon="material-symbols:delete-outline-rounded" width="18" height="18" />
                     </button>
                 </header>
+
                 <div class="desc-row">
                     <input
                         type="text"
-                        :value="descriptionDraft(role)"
+                        class="desc-input"
+                        :value="descValue(role)"
                         :disabled="isRolePending(role.name)"
                         :placeholder="$t('admin.roles.descriptionPlaceholder')"
-                        @input="descDrafts[role.name] = ($event.target as HTMLInputElement).value"
-                        @blur="onSaveDescription(role)"
-                        @keydown.enter.prevent="onSaveDescription(role)"
+                        @input="onDescInput(role.name, ($event.target as HTMLInputElement).value)"
+                        @keydown.enter.prevent="onDescSave(role)"
                     />
-                </div>
-
-                <div class="caps-row">
-                    <span class="caps-label">{{ $t('admin.roles.capabilities') }}:</span>
-                    <span v-if="role.capabilities.length === 0" class="muted">{{ $t('admin.roles.noCapabilities') }}</span>
-                    <span
-                        v-for="cap in role.capabilities"
-                        :key="cap"
-                        class="cap-chip"
-                    >
-                        <code>{{ cap }}</code>
-                        <button
-                            type="button"
-                            class="chip-remove"
-                            :disabled="isRolePending(role.name)"
-                            :title="$t('admin.roles.revoke')"
-                            @click="onRevokeCap(role, cap)"
-                        >×</button>
-                    </span>
-                </div>
-
-                <div v-if="availableCapsFor(role).length > 0" class="grant-row">
-                    <select
-                        :value="capPickFor(role)"
+                    <button
+                        v-if="isDescDirty(role)"
+                        type="button"
+                        class="ghost"
                         :disabled="isRolePending(role.name)"
-                        @change="capPicks[role.name] = ($event.target as HTMLSelectElement).value"
-                    >
-                        <option value="" disabled>{{ $t('admin.roles.selectCapability') }}</option>
-                        <option v-for="c in availableCapsFor(role)" :key="c.key" :value="c.key">{{ c.key }}</option>
-                    </select>
+                        @click="onDescDiscard(role.name)"
+                    >{{ $t('admin.roles.discardChanges') }}</button>
                     <button
                         type="button"
                         class="primary small"
-                        :disabled="!capPickFor(role) || isRolePending(role.name)"
-                        @click="onGrantCap(role)"
-                    >
-                        {{ $t('admin.roles.grant') }}
-                    </button>
+                        :disabled="!isDescDirty(role) || isRolePending(role.name)"
+                        @click="onDescSave(role)"
+                    >{{ $t('admin.roles.saveDescription') }}</button>
+                    <span v-if="justSavedRoles.has(role.name)" class="saved-flash">
+                        <Icon icon="material-symbols:check-rounded" width="14" height="14" />
+                        {{ $t('admin.roles.saved') }}
+                    </span>
                 </div>
+
+                <fieldset class="cap-grid">
+                    <legend class="cap-legend">{{ $t('admin.roles.capabilities') }}</legend>
+                    <label
+                        v-for="cap in capabilities"
+                        :key="cap.key"
+                        :class="['cap', { granted: role.capabilities.includes(cap.key) }]"
+                    >
+                        <input
+                            type="checkbox"
+                            :checked="role.capabilities.includes(cap.key)"
+                            :disabled="isRolePending(role.name)"
+                            @change="onToggleCapability(role, cap.key, ($event.target as HTMLInputElement).checked)"
+                        />
+                        <div class="cap-text">
+                            <code class="cap-key">{{ cap.key }}</code>
+                            <span v-if="cap.description" class="cap-desc">{{ cap.description }}</span>
+                        </div>
+                    </label>
+                    <!-- Capabilities the server still has on this role
+                         but our catalog doesn't know about (e.g. one
+                         that was removed from the spec). Render so
+                         the user can revoke them — without rendering
+                         the unknown set, they'd be invisible-but-active. -->
+                    <label
+                        v-for="cap in role.capabilities.filter(c => !capabilities.some(known => known.key === c))"
+                        :key="`unknown-${cap}`"
+                        class="cap granted unknown"
+                    >
+                        <input
+                            type="checkbox"
+                            checked
+                            :disabled="isRolePending(role.name)"
+                            @change="onToggleCapability(role, cap, false)"
+                        />
+                        <div class="cap-text">
+                            <code class="cap-key">{{ cap }}</code>
+                            <span class="cap-desc">unknown capability</span>
+                        </div>
+                    </label>
+                </fieldset>
+
+                <p v-if="role.capabilities.length === 0" class="muted no-caps">
+                    {{ $t('admin.roles.noCapabilities') }}
+                </p>
             </li>
         </ul>
+
+        <AppModal :visible="addOpen" :title="$t('admin.roles.add')" @close="addOpen = false">
+            <form class="add-body" @submit.prevent="submitAdd">
+                <label class="field">
+                    <span>{{ $t('admin.roles.nameLabel') }}</span>
+                    <input v-model="addForm.name" type="text" required autofocus />
+                </label>
+                <label class="field">
+                    <span>{{ $t('admin.roles.descriptionLabel') }}</span>
+                    <input
+                        v-model="addForm.description"
+                        type="text"
+                        :placeholder="$t('admin.roles.descriptionPlaceholder')"
+                    />
+                </label>
+                <footer class="actions">
+                    <button type="button" class="ghost" @click="addOpen = false">{{ $t('common.cancel') }}</button>
+                    <button type="submit" class="primary" :disabled="adding">{{ $t('admin.roles.addSubmit') }}</button>
+                </footer>
+            </form>
+        </AppModal>
     </div>
 </template>
 
@@ -275,160 +325,204 @@ async function onRevokeCap(role: AdminRole, capability: string) {
 .panel {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
 }
-.add-form,
-.catalog {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-    background: var(--bg-surface);
+.toolbar {
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+    justify-content: flex-end;
 }
-.add-form h3,
-.catalog h3 { margin: 0; font-size: 0.9rem; }
-.catalog ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.85rem;
-}
-.fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.6rem;
-}
-.fields label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-.fields input {
-    padding: 0.35rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.9rem;
-}
-.desc-field { grid-column: span 2; }
-@media (max-width: 520px) { .desc-field { grid-column: span 1; } }
 .primary {
-    align-self: flex-start;
-    padding: 0.4rem 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font: inherit;
+    font-size: 0.88rem;
+    font-weight: 500;
 }
 .primary.small { padding: 0.3rem 0.7rem; font-size: 0.85rem; }
-.primary:disabled { opacity: 0.5; cursor: default; }
-.list-heading { margin: 0; font-size: 0.95rem; }
+.primary:disabled { opacity: 0.55; cursor: default; }
+.ghost {
+    padding: 0.3rem 0.7rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.85rem;
+}
+.ghost:hover { background: var(--bg-surface-hover); }
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-surface);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.icon-btn:hover { background: var(--bg-surface-hover); }
+.icon-btn.danger { color: var(--danger); }
+.icon-btn.danger:hover { background: rgba(239, 68, 68, 0.12); }
+.icon-btn:disabled { opacity: 0.55; cursor: default; }
+
 .role-list {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.7rem;
 }
 .role-card {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.65rem 0.85rem;
     background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.7rem;
 }
 .role-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
+    gap: 0.6rem;
 }
-.role-head h4 {
+.role-name {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: 1rem;
     color: var(--text-strong);
 }
-.desc-row input {
-    width: 100%;
-    padding: 0.3rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.85rem;
-}
-.caps-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.85rem;
-}
-.caps-label { color: var(--text-muted); }
-.cap-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.15rem 0.35rem 0.15rem 0.5rem;
-    background: var(--accent-bg);
-    color: var(--accent-text-strong);
-    border-radius: 999px;
+.role-meta {
+    margin-left: auto;
     font-size: 0.78rem;
+    color: var(--text-muted);
+    background: var(--bg-surface-2);
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
 }
-.cap-chip code { background: transparent; padding: 0; }
-.chip-remove {
-    background: none;
-    border: none;
-    color: inherit;
-    cursor: pointer;
-    padding: 0 2px;
-    font-size: 1rem;
-    line-height: 1;
-}
-.chip-remove:hover { color: var(--danger); }
-.grant-row {
+
+.desc-row {
     display: flex;
-    gap: 0.4rem;
     align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
 }
-.grant-row select {
-    flex: 1;
-    padding: 0.3rem 0.45rem;
+.desc-input {
+    flex: 1 1 200px;
+    min-width: 0;
+    padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-surface);
+    border-radius: 6px;
+    background: var(--bg);
     color: var(--text);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: 0.88rem;
 }
-.danger {
+.saved-flash {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
+    gap: 0.2rem;
+    color: var(--accent-text-strong);
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.cap-grid {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 0;
+    padding: 0.5rem 0.7rem 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.4rem 0.6rem;
+}
+.cap-legend {
+    padding: 0 0.3rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.cap {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.cap:hover { background: var(--bg-surface-hover); }
+.cap input[type="checkbox"] {
+    margin-top: 0.15rem;
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.cap.granted {
+    background: var(--accent-bg);
+}
+.cap.granted:hover {
+    background: color-mix(in srgb, var(--accent-bg) 80%, var(--bg-surface-hover) 20%);
+}
+.cap-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.cap-key {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-strong);
+    background: transparent;
+    padding: 0;
+}
+.cap-desc {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+.cap.unknown { opacity: 0.75; }
+
+.no-caps {
+    margin: 0;
+    color: var(--danger);
+    font-size: 0.82rem;
+}
+.muted { color: var(--text-muted); font-size: 0.85rem; }
+.empty { padding: 1.2rem; text-align: center; }
+
+.add-body {
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}
+.field span { color: var(--text-muted); }
+.field input {
+    padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg-surface);
-    color: var(--danger);
-    cursor: pointer;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
 }
-.danger:hover { background: rgba(239, 68, 68, 0.15); }
-.muted { color: var(--text-muted); }
-.empty { padding: 1rem; text-align: center; }
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+}
 </style>

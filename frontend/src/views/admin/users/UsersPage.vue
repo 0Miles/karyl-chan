@@ -7,7 +7,8 @@ import {
     listAdminUsers,
     type AdminCapabilityCatalogItem,
     type AdminRole,
-    type AdminUserList
+    type AdminUserList,
+    type AuthorizedUser
 } from '../../../api/admin';
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import { useApiError } from '../../../composables/use-api-error';
@@ -23,19 +24,17 @@ const activeTab = ref<Tab>('users');
 
 const roles = ref<AdminRole[]>([]);
 const users = ref<AdminUserList>({ ownerId: null, users: [] });
-// Catalog comes from the server so the UI can't drift from the
-// authoritative set of capability tokens. Defaults to an empty list and
-// RolesPanel falls back to its hard-coded mirror if this fetch fails.
 const capabilities = ref<AdminCapabilityCatalogItem[]>([]);
-const loading = ref(true);
+// Distinguish first-mount loading (needs the global spinner) from
+// background reloads (silent — local state already covers the change).
+// The previous design re-emitted `changed` after every mutation and
+// flashed the entire panel through "Loading…" on each save, eating
+// focus on whichever input the user was editing.
+const initialLoading = ref(true);
 const error = ref<string | null>(null);
 
-async function refresh() {
-    loading.value = true;
+async function loadAll() {
     try {
-        // Refresh the nav-level identity cache in parallel — the admin
-        // surface is exactly where self-role / capability changes happen,
-        // and a stale avatar/menu after a successful mutation is confusing.
         const [roleList, userList, capList] = await Promise.all([
             listAdminRoles(),
             listAdminUsers(),
@@ -51,15 +50,66 @@ async function refresh() {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
-        loading.value = false;
+        initialLoading.value = false;
     }
 }
 
 function setError(message: string) {
     error.value = message;
 }
+function clearError() {
+    error.value = null;
+}
 
-onMounted(refresh);
+// ── Granular mutation handlers ────────────────────────────────────
+//
+// Children call API → on success → emit one of these to patch the
+// in-memory list. No re-fetch, no flash, no lost focus.
+
+function onUpsertUser(user: AuthorizedUser) {
+    const idx = users.value.users.findIndex(u => u.userId === user.userId);
+    const next = [...users.value.users];
+    if (idx >= 0) next[idx] = user;
+    else next.push(user);
+    users.value = { ...users.value, users: next };
+}
+function onRemoveUser(userId: string) {
+    users.value = {
+        ...users.value,
+        users: users.value.users.filter(u => u.userId !== userId)
+    };
+}
+function onUpsertRole(role: AdminRole) {
+    const idx = roles.value.findIndex(r => r.name === role.name);
+    if (idx >= 0) {
+        const next = [...roles.value];
+        next[idx] = role;
+        roles.value = next;
+    } else {
+        roles.value = [...roles.value, role];
+    }
+}
+function onRemoveRole(name: string) {
+    roles.value = roles.value.filter(r => r.name !== name);
+    // A role going away can leave authorized users pointing at a stale
+    // name; the list still renders them with the unknown-role fallback
+    // until the user re-assigns. Refresh self-identity so the nav
+    // capability set stays in sync.
+    void currentUser.refresh();
+}
+// Capability grant/revoke is the highest-frequency mutation — we patch
+// the role's capability array in place to keep the checkbox grid
+// instant. Rollbacks live in the panel itself if the API fails.
+function onCapabilityChange(roleName: string, nextCaps: string[]) {
+    const idx = roles.value.findIndex(r => r.name === roleName);
+    if (idx < 0) return;
+    const next = [...roles.value];
+    next[idx] = { ...next[idx], capabilities: nextCaps };
+    roles.value = next;
+    void currentUser.refresh();
+}
+
+onMounted(loadAll);
 </script>
 
 <template>
@@ -81,22 +131,28 @@ onMounted(refresh);
             >{{ $t('admin.tabs.roles') }}</button>
         </nav>
 
-        <p v-if="loading" class="muted">{{ $t('common.loading') }}</p>
+        <p v-if="initialLoading" class="muted">{{ $t('common.loading') }}</p>
         <AccessDeniedView v-else-if="accessDenied" />
-        <p v-else-if="error" class="error">{{ error }}</p>
         <template v-else>
+            <p v-if="error" class="error" role="alert">
+                {{ error }}
+                <button type="button" class="error-close" @click="clearError" :aria-label="$t('common.close')">×</button>
+            </p>
             <UsersPanel
                 v-if="activeTab === 'users'"
                 :data="users"
                 :roles="roles"
-                @changed="refresh"
+                @upsert-user="onUpsertUser"
+                @remove-user="onRemoveUser"
                 @error="setError"
             />
             <RolesPanel
                 v-else
                 :roles="roles"
                 :capability-catalog="capabilities"
-                @changed="refresh"
+                @upsert-role="onUpsertRole"
+                @remove-role="onRemoveRole"
+                @capability-change="onCapabilityChange"
                 @error="setError"
             />
         </template>
@@ -109,16 +165,18 @@ onMounted(refresh);
     gap: 0.4rem;
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.4rem;
+    margin-bottom: 0.8rem;
 }
 .tab {
     background: var(--bg-surface-2);
     border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 0.35rem 0.9rem;
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
     cursor: pointer;
     color: var(--text);
     font: inherit;
     font-size: 0.9rem;
+    font-weight: 500;
 }
 .tab.active {
     background: var(--accent-bg);
@@ -127,10 +185,24 @@ onMounted(refresh);
 }
 .muted { color: var(--text-muted); }
 .error {
+    margin: 0 0 0.8rem;
     color: var(--danger);
-    padding: 0.6rem 0.75rem;
+    padding: 0.55rem 0.75rem;
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.error-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0 0.3rem;
 }
 </style>

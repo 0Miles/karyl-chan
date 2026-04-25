@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import {
@@ -10,6 +10,7 @@ import {
     type AuthorizedUser
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
+import AppModal from '../../../components/AppModal.vue';
 
 const props = defineProps<{
     data: AdminUserList;
@@ -17,176 +18,240 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'changed'): void;
+    /** Mutation succeeded — patch the parent's local list with the
+     *  returned entity. The parent never refetches the whole list, so
+     *  no inputs lose focus and the panel never flashes. */
+    (e: 'upsert-user', user: AuthorizedUser): void;
+    (e: 'remove-user', userId: string): void;
     (e: 'error', message: string): void;
 }>();
 
 const { t } = useI18n();
 
-const formUserId = ref('');
-const formRole = ref('');
-const formNote = ref('');
-const submitting = ref(false);
-// Per-user lock: a user being mutated (role change / removal) shouldn't
-// accept another mutation until the in-flight one settles. Keyed by
-// userId so concurrent edits to different users still work.
-const pendingUserIds = ref(new Set<string>());
-function isUserPending(userId: string) {
-    return pendingUserIds.value.has(userId);
-}
+const search = ref('');
+const roleFilter = ref<string>('');
 
-function resetForm() {
-    formUserId.value = '';
-    formRole.value = props.roles[0]?.name ?? '';
-    formNote.value = '';
-}
+const ownerEntry = computed(() => props.data.users.find(u => u.isOwner) ?? null);
+const manageableUsers = computed(() => props.data.users.filter(u => !u.isOwner));
+
+const filtered = computed(() => {
+    const q = search.value.trim().toLowerCase();
+    const role = roleFilter.value;
+    return manageableUsers.value.filter(u => {
+        if (role && u.role !== role) return false;
+        if (!q) return true;
+        const name = (u.profile?.globalName ?? u.profile?.username ?? '').toLowerCase();
+        return name.includes(q) || u.userId.includes(q);
+    });
+});
 
 function displayNameFor(user: AuthorizedUser): string {
     return user.profile?.globalName
         ?? user.profile?.username
         ?? t('admin.users.unknownProfile');
 }
-
+function handleFor(user: AuthorizedUser): string | null {
+    return user.profile?.username ? `@${user.profile.username}` : null;
+}
 function initialFor(user: AuthorizedUser): string {
     const name = user.profile?.globalName ?? user.profile?.username;
     return (name ?? user.userId).trim().charAt(0).toUpperCase() || '?';
 }
 
-const manageableUsers = computed(() => props.data.users.filter(u => !u.isOwner));
-const ownerEntry = computed(() => props.data.users.find(u => u.isOwner) ?? null);
-
-async function onAdd() {
-    const userId = formUserId.value.trim();
-    const role = formRole.value.trim();
-    if (!userId || !role) return;
-    submitting.value = true;
+// ── Per-user lock so a slow API can't stack mutations on the same row.
+const pendingUserIds = ref(new Set<string>());
+function isUserPending(userId: string) {
+    return pendingUserIds.value.has(userId);
+}
+async function withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T | undefined> {
+    if (pendingUserIds.value.has(userId)) return undefined;
+    pendingUserIds.value = new Set([...pendingUserIds.value, userId]);
     try {
-        await upsertAdminUser({ userId, role, note: formNote.value.trim() || null });
-        resetForm();
-        emit('changed');
-    } catch (err) {
-        emit('error', err instanceof ApiError ? err.message : String(err));
+        return await fn();
     } finally {
-        submitting.value = false;
+        const next = new Set(pendingUserIds.value);
+        next.delete(userId);
+        pendingUserIds.value = next;
     }
 }
 
+function reportErr(err: unknown) {
+    emit('error', err instanceof ApiError ? err.message : String(err));
+}
+
+// Inline role change → optimistic, with rollback on error.
 async function onChangeRole(user: AuthorizedUser, role: string) {
     if (role === user.role) return;
-    if (isUserPending(user.userId)) return;
-    pendingUserIds.value = new Set([...pendingUserIds.value, user.userId]);
-    try {
-        await upsertAdminUser({ userId: user.userId, role, note: user.note });
-        emit('changed');
-    } catch (err) {
-        emit('error', err instanceof ApiError ? err.message : String(err));
-    } finally {
-        const next = new Set(pendingUserIds.value);
-        next.delete(user.userId);
-        pendingUserIds.value = next;
-    }
+    await withUserLock(user.userId, async () => {
+        try {
+            const updated = await upsertAdminUser({ userId: user.userId, role, note: user.note });
+            emit('upsert-user', updated);
+        } catch (err) {
+            reportErr(err);
+        }
+    });
 }
 
 async function onRemove(user: AuthorizedUser) {
-    if (isUserPending(user.userId)) return;
     if (!window.confirm(t('admin.users.removeConfirm', { user: displayNameFor(user) }))) return;
-    pendingUserIds.value = new Set([...pendingUserIds.value, user.userId]);
+    await withUserLock(user.userId, async () => {
+        try {
+            await deleteAdminUser(user.userId);
+            emit('remove-user', user.userId);
+        } catch (err) {
+            reportErr(err);
+        }
+    });
+}
+
+// ── Add-user modal ────────────────────────────────────────────────
+const addOpen = ref(false);
+const addForm = ref({ userId: '', role: '', note: '' });
+const adding = ref(false);
+
+watch(addOpen, (open) => {
+    if (open) {
+        addForm.value = {
+            userId: '',
+            role: props.roles[0]?.name ?? '',
+            note: ''
+        };
+    }
+});
+
+async function submitAdd() {
+    const userId = addForm.value.userId.trim();
+    const role = addForm.value.role.trim();
+    if (!userId || !role) return;
+    adding.value = true;
     try {
-        await deleteAdminUser(user.userId);
-        emit('changed');
+        const created = await upsertAdminUser({
+            userId,
+            role,
+            note: addForm.value.note.trim() || null
+        });
+        emit('upsert-user', created);
+        addOpen.value = false;
     } catch (err) {
-        emit('error', err instanceof ApiError ? err.message : String(err));
+        reportErr(err);
     } finally {
-        const next = new Set(pendingUserIds.value);
-        next.delete(user.userId);
-        pendingUserIds.value = next;
+        adding.value = false;
     }
 }
+
+const matchSummary = computed(() =>
+    t('admin.users.matchCount', { matched: filtered.value.length, total: manageableUsers.value.length })
+);
 </script>
 
 <template>
     <div class="panel">
-        <form class="add-form" @submit.prevent="onAdd">
-            <h3>{{ $t('admin.users.add') }}</h3>
-            <div class="fields">
-                <label>
-                    <span>{{ $t('admin.users.userIdLabel') }}</span>
-                    <input v-model="formUserId" type="text" required pattern="\d+" inputmode="numeric" />
-                </label>
-                <label>
-                    <span>{{ $t('admin.users.roleLabel') }}</span>
-                    <select v-model="formRole" required>
-                        <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-                    </select>
-                </label>
-                <label class="note-field">
-                    <span>{{ $t('admin.users.noteLabel') }}</span>
-                    <input v-model="formNote" type="text" :placeholder="$t('admin.users.notePlaceholder')" />
-                </label>
+        <header class="toolbar">
+            <div class="search-wrap">
+                <Icon icon="material-symbols:search-rounded" width="18" height="18" class="search-icon" />
+                <input
+                    v-model="search"
+                    type="search"
+                    class="search-input"
+                    :placeholder="$t('admin.users.searchPlaceholder')"
+                />
             </div>
-            <button type="submit" class="primary" :disabled="submitting || roles.length === 0">
-                {{ $t('admin.users.addSubmit') }}
+            <select v-model="roleFilter" class="role-filter">
+                <option value="">{{ $t('admin.users.filterAll') }}</option>
+                <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
+            </select>
+            <button type="button" class="primary" @click="addOpen = true">
+                <Icon icon="material-symbols:person-add-outline-rounded" width="16" height="16" />
+                {{ $t('admin.users.add') }}
             </button>
-        </form>
+        </header>
 
-        <h3 class="list-heading">{{ $t('admin.users.title') }}</h3>
+        <p class="muted match-count">{{ matchSummary }}</p>
 
-        <div class="card-grid">
-            <!-- Owner card is always pinned first, never editable. -->
-            <article v-if="ownerEntry" class="user-card owner-card">
+        <ul class="user-list">
+            <li v-if="ownerEntry" class="user-row owner-row">
                 <img v-if="ownerEntry.profile?.avatarUrl" :src="ownerEntry.profile.avatarUrl" alt="" class="avatar" />
                 <div v-else class="avatar avatar-fallback">{{ initialFor(ownerEntry) }}</div>
-                <div class="card-body">
+                <div class="identity">
                     <div class="display-name">
                         {{ displayNameFor(ownerEntry) }}
-                        <span class="owner-pill">{{ $t('admin.users.ownerBadge') }}</span>
+                        <span class="owner-badge">{{ $t('admin.users.ownerBadge') }}</span>
                     </div>
-                    <code class="user-id">{{ ownerEntry.userId }}</code>
+                    <code class="handle">{{ handleFor(ownerEntry) ?? ownerEntry.userId }}</code>
                 </div>
-            </article>
-
-            <article
-                v-for="user in manageableUsers"
+            </li>
+            <li
+                v-for="user in filtered"
                 :key="user.userId"
-                class="user-card"
+                class="user-row"
+                :class="{ pending: isUserPending(user.userId) }"
             >
                 <img v-if="user.profile?.avatarUrl" :src="user.profile.avatarUrl" alt="" class="avatar" />
                 <div v-else class="avatar avatar-fallback">{{ initialFor(user) }}</div>
-                <div class="card-body">
+                <div class="identity">
                     <div class="display-name">{{ displayNameFor(user) }}</div>
-                    <code class="user-id">{{ user.userId }}</code>
-                    <p v-if="user.note" class="user-note">{{ user.note }}</p>
-                    <div class="card-controls">
-                        <label class="role-wrap">
-                            <span class="role-caption">{{ $t('admin.users.roleLabel') }}</span>
-                            <select
-                                class="role-select"
-                                :value="user.role"
-                                :disabled="isUserPending(user.userId)"
-                                :title="$t('admin.users.changeRole')"
-                                @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
-                            >
-                                <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-                                <option v-if="!roles.some(r => r.name === user.role)" :value="user.role">
-                                    {{ user.role }} (unknown)
-                                </option>
-                            </select>
-                        </label>
-                        <button
-                            type="button"
-                            class="danger"
-                            :disabled="isUserPending(user.userId)"
-                            :title="$t('admin.users.remove')"
-                            @click="onRemove(user)"
-                        >
-                            <Icon icon="material-symbols:delete-rounded" width="18" height="18" />
-                        </button>
-                    </div>
+                    <code class="handle">{{ handleFor(user) ?? user.userId }}</code>
+                    <p v-if="user.note" class="note">{{ user.note }}</p>
                 </div>
-            </article>
-        </div>
+                <select
+                    class="role-select"
+                    :value="user.role"
+                    :disabled="isUserPending(user.userId)"
+                    :title="$t('admin.users.changeRole')"
+                    @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
+                >
+                    <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
+                    <option v-if="!roles.some(r => r.name === user.role)" :value="user.role">
+                        {{ user.role }} (unknown)
+                    </option>
+                </select>
+                <button
+                    type="button"
+                    class="icon-btn danger"
+                    :disabled="isUserPending(user.userId)"
+                    :title="$t('admin.users.remove')"
+                    :aria-label="$t('admin.users.remove')"
+                    @click="onRemove(user)"
+                >
+                    <Icon icon="material-symbols:delete-outline-rounded" width="18" height="18" />
+                </button>
+            </li>
+        </ul>
 
-        <p v-if="manageableUsers.length === 0 && !ownerEntry" class="muted empty">{{ $t('admin.users.empty') }}</p>
+        <p v-if="filtered.length === 0 && !ownerEntry" class="muted empty">{{ $t('admin.users.empty') }}</p>
+        <p v-else-if="filtered.length === 0" class="muted empty">{{ $t('admin.users.noMatches') }}</p>
+
+        <AppModal :visible="addOpen" :title="$t('admin.users.add')" @close="addOpen = false">
+            <form class="add-body" @submit.prevent="submitAdd">
+                <label class="field">
+                    <span>{{ $t('admin.users.userIdLabel') }}</span>
+                    <input
+                        v-model="addForm.userId"
+                        type="text"
+                        required
+                        pattern="\d+"
+                        inputmode="numeric"
+                        autofocus
+                    />
+                </label>
+                <label class="field">
+                    <span>{{ $t('admin.users.roleLabel') }}</span>
+                    <select v-model="addForm.role" required>
+                        <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span>{{ $t('admin.users.noteLabel') }}</span>
+                    <input v-model="addForm.note" type="text" :placeholder="$t('admin.users.notePlaceholder')" />
+                </label>
+                <footer class="actions">
+                    <button type="button" class="ghost" @click="addOpen = false">{{ $t('common.cancel') }}</button>
+                    <button type="submit" class="primary" :disabled="adding || !roles.length">
+                        {{ $t('admin.users.addSubmit') }}
+                    </button>
+                </footer>
+            </form>
+        </AppModal>
     </div>
 </template>
 
@@ -194,77 +259,95 @@ async function onRemove(user: AuthorizedUser) {
 .panel {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
 }
-.add-form {
+.toolbar {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.search-wrap {
+    flex: 1 1 220px;
+    min-width: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-icon {
+    position: absolute;
+    left: 0.55rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.45rem 0.65rem 0.45rem 2rem;
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 0.75rem 1rem;
-    background: var(--bg-surface);
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-}
-.add-form h3 { margin: 0; font-size: 0.9rem; }
-.fields {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.6rem;
-}
-.fields label {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-.fields input,
-.fields select {
-    padding: 0.35rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.9rem;
 }
-.note-field { grid-column: span 2; }
-@media (max-width: 520px) { .note-field { grid-column: span 1; } }
+.role-filter {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+}
 .primary {
-    align-self: flex-start;
-    padding: 0.4rem 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.9rem;
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
     font: inherit;
+    font-size: 0.88rem;
+    font-weight: 500;
 }
-.primary:disabled { opacity: 0.5; cursor: default; }
-.list-heading { margin: 0; font-size: 0.95rem; }
-.card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 0.7rem;
+.primary:disabled { opacity: 0.55; cursor: default; }
+.match-count {
+    margin: 0;
+    font-size: 0.78rem;
 }
-.user-card {
+
+.user-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.user-row {
+    display: grid;
+    grid-template-columns: 44px 1fr auto auto;
+    align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem;
+    padding: 0.6rem 0.85rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    align-items: flex-start;
+    transition: opacity 0.15s;
 }
-.owner-card {
+.user-row.pending { opacity: 0.55; }
+.owner-row {
     background: var(--accent-bg);
     border-color: var(--accent);
 }
 .avatar {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    flex-shrink: 0;
     object-fit: cover;
     background: var(--bg-surface-2);
 }
@@ -277,12 +360,11 @@ async function onRemove(user: AuthorizedUser) {
     font-weight: 600;
     font-size: 1.1rem;
 }
-.card-body {
-    flex: 1;
+.identity {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.15rem;
 }
 .display-name {
     font-weight: 600;
@@ -292,68 +374,113 @@ async function onRemove(user: AuthorizedUser) {
     gap: 0.4rem;
     flex-wrap: wrap;
 }
-.owner-pill {
+.owner-badge {
     display: inline-flex;
     align-items: center;
     padding: 0.05rem 0.5rem;
     background: var(--accent);
     color: var(--text-on-accent);
     border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
 }
-.user-id {
+.handle {
     font-size: 0.78rem;
     color: var(--text-muted);
     word-break: break-all;
 }
-.user-note {
+.note {
     margin: 0;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
 }
-.card-controls {
-    margin-top: auto;
-    padding-top: 0.3rem;
-    display: flex;
-    gap: 0.4rem;
-    align-items: flex-end;
-}
-.role-wrap {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-.role-caption { font-size: 0.7rem; }
 .role-select {
-    padding: 0.3rem 0.45rem;
+    padding: 0.35rem 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.85rem;
-    width: 100%;
+    min-width: 140px;
 }
-.danger {
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-surface);
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+}
+.icon-btn:hover { background: var(--bg-surface-hover); }
+.icon-btn.danger { color: var(--danger); }
+.icon-btn.danger:hover { background: rgba(239, 68, 68, 0.12); }
+.icon-btn:disabled { opacity: 0.55; cursor: default; }
+.muted { color: var(--text-muted); font-size: 0.85rem; }
+.empty { padding: 1.2rem; text-align: center; }
+
+.add-body {
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}
+.field span { color: var(--text-muted); }
+.field input,
+.field select {
+    padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg-surface);
-    color: var(--danger);
-    cursor: pointer;
-    flex-shrink: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
 }
-.danger:hover { background: rgba(239, 68, 68, 0.15); }
-.muted { color: var(--text-muted); font-size: 0.9rem; }
-.empty { padding: 1rem; text-align: center; }
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+}
+.ghost {
+    padding: 0.45rem 0.9rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.88rem;
+}
+.ghost:hover { background: var(--bg-surface-hover); }
+
+@media (max-width: 600px) {
+    .user-row {
+        grid-template-columns: 40px 1fr auto;
+        grid-template-rows: auto auto;
+        column-gap: 0.55rem;
+        row-gap: 0.4rem;
+    }
+    .role-select {
+        grid-column: 2 / -1;
+        grid-row: 2;
+        min-width: 0;
+    }
+    .icon-btn {
+        grid-column: 3;
+        grid-row: 1;
+    }
+    .avatar { width: 40px; height: 40px; }
+}
 </style>
