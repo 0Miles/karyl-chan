@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
@@ -16,6 +16,7 @@ import { useMuteStore } from './modules/discord-chat/stores/muteStore';
 import Draggable from './components/Draggable.vue';
 import AppMenu from './components/AppMenu.vue';
 import AppMenuItem from './components/AppMenuItem.vue';
+import QuickSwitcher from './components/QuickSwitcher.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -86,7 +87,36 @@ onMounted(() => {
     dragBounds.value = document.documentElement;
     if (isAuthenticated.value && !currentUser.user) void currentUser.refresh();
     ensureUnreadSSE();
+    window.addEventListener('keydown', onGlobalKeydown);
 });
+
+onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown));
+
+// Cmd/Ctrl+K opens the quick switcher. Bound at window level so the
+// shortcut works from any page; ignored when the user is typing into
+// a text input or the contenteditable composer (the OS native "find"
+// dialog isn't a thing here, so the lack of override is fine).
+const quickSwitcherOpen = ref(false);
+function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+function onGlobalKeydown(event: KeyboardEvent) {
+    if (!isAuthenticated.value) return;
+    if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+        // Even when focus is inside an input, override — Discord's
+        // Cmd+K is universal, and the user expects it to win over the
+        // text field. Browser default for Cmd+K is "open URL bar with
+        // search" which we don't want either.
+        event.preventDefault();
+        quickSwitcherOpen.value = true;
+    }
+}
+// Pull `void` to silence "isEditableTarget unused" until we extend
+// the handler to honour text-edit-only shortcuts in future tasks.
+void isEditableTarget;
 
 async function signOut() {
     closeOverlay();
@@ -218,6 +248,7 @@ function navigate() {
                 ></div>
             </div>
         </Transition>
+        <QuickSwitcher :visible="quickSwitcherOpen" @close="quickSwitcherOpen = false" />
     </div>
 </template>
 

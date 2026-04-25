@@ -107,6 +107,14 @@
         "roleReactionMessage": "· 訊息 {id}",
         "capabilityGrants": "權限授予"
     },
+    "quickSwitcher": {
+        "placeholder": "搜尋頻道與 DM…",
+        "empty": "找不到符合的對話。",
+        "directMessage": "私訊",
+        "navigate": "切換",
+        "open": "開啟",
+        "close": "關閉"
+    },
     "messages": {
         "modeDm": "私人訊息",
         "modePickerTitle": "選擇訊息來源",

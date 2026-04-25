@@ -107,6 +107,14 @@
         "roleReactionMessage": "· 消息 {id}",
         "capabilityGrants": "权限授予"
     },
+    "quickSwitcher": {
+        "placeholder": "搜索频道与 DM…",
+        "empty": "没有匹配的对话。",
+        "directMessage": "私信",
+        "navigate": "切换",
+        "open": "打开",
+        "close": "关闭"
+    },
     "messages": {
         "modeDm": "私信",
         "modePickerTitle": "选择消息来源",

@@ -107,6 +107,14 @@
         "roleReactionMessage": "· message {id}",
         "capabilityGrants": "Capability grants"
     },
+    "quickSwitcher": {
+        "placeholder": "Search channels and DMs…",
+        "empty": "No matches.",
+        "directMessage": "Direct message",
+        "navigate": "navigate",
+        "open": "open",
+        "close": "close"
+    },
     "messages": {
         "modeDm": "Direct messages",
         "modePickerTitle": "Pick a conversation source",
