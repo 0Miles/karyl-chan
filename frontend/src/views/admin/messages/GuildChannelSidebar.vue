@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import {
+    listGuildActiveThreads,
     listGuildVoiceChannels,
+    type GuildActiveThread,
     type GuildChannelCategory,
     type GuildSummary,
     type GuildVoiceCategory
@@ -69,8 +71,44 @@ async function loadVoice() {
     }
 }
 
-onMounted(() => { void loadVoice(); });
-watch(() => props.guildId, () => { voiceCategories.value = []; void loadVoice(); });
+// Active threads — keyed by parent channel id so we can render them
+// inline below their parent. Refetches on guild change. Archived
+// threads are deliberately not loaded; they're a less-common surface
+// and would clutter the sidebar.
+const threadsByParent = ref<Record<string, GuildActiveThread[]>>({});
+
+async function loadThreads() {
+    if (!props.guildId) return;
+    const guildId = props.guildId;
+    try {
+        const result = await listGuildActiveThreads(guildId);
+        if (props.guildId !== guildId) return;
+        const grouped: Record<string, GuildActiveThread[]> = {};
+        for (const t of result) {
+            const key = t.parentId ?? '__none__';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(t);
+        }
+        for (const key of Object.keys(grouped)) {
+            grouped[key].sort((a, b) => a.name.localeCompare(b.name));
+        }
+        threadsByParent.value = grouped;
+    } catch {
+        /* threads are a nicety; silently fail */
+    }
+}
+
+function threadsFor(channelId: string): GuildActiveThread[] {
+    return threadsByParent.value[channelId] ?? [];
+}
+
+onMounted(() => { void loadVoice(); void loadThreads(); });
+watch(() => props.guildId, () => {
+    voiceCategories.value = [];
+    threadsByParent.value = {};
+    void loadVoice();
+    void loadThreads();
+});
 </script>
 
 <template>
@@ -90,9 +128,8 @@ watch(() => props.guildId, () => { voiceCategories.value = []; void loadVoice();
                 {{ cat.name.toUpperCase() }}
             </button>
             <ul v-if="!isCategoryCollapsed(cat.id)" class="channel-list">
+                <template v-for="channel in cat.channels" :key="channel.id">
                 <li
-                    v-for="channel in cat.channels"
-                    :key="channel.id"
                     :class="{
                         active: channel.id === selectedId,
                         unread: unreadStore.hasChannelUnread(channel.id) && !muteStore.isMuted(channel.id),
@@ -104,6 +141,16 @@ watch(() => props.guildId, () => { voiceCategories.value = []; void loadVoice();
                     <Icon v-if="muteStore.isMuted(channel.id)" icon="material-symbols:notifications-off-outline-rounded" width="14" height="14" class="mute-icon" />
                     <UnreadPill v-if="!muteStore.isMuted(channel.id)" class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
                 </li>
+                <li
+                    v-for="thread in threadsFor(channel.id)"
+                    :key="thread.id"
+                    :class="['thread-row', { active: thread.id === selectedId }]"
+                    @click="emit('select', thread.id)"
+                >
+                    <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
+                    <span class="name">{{ thread.name }}</span>
+                </li>
+                </template>
             </ul>
         </div>
         <section v-if="voiceCategories.length > 0" class="voice-section">
@@ -223,6 +270,18 @@ watch(() => props.guildId, () => { voiceCategories.value = []; void loadVoice();
 .channel-list li.muted.active { opacity: 1; }
 .channel-pill { margin-left: auto; }
 .mute-icon { margin-left: auto; color: var(--text-muted); }
+.thread-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem 0.2rem 1.6rem;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.thread-row:hover { background: var(--bg-surface-hover); color: var(--text); }
+.thread-row.active { background: var(--bg-surface-active); color: var(--text); }
+.thread-icon { color: var(--text-muted); flex-shrink: 0; }
 
 .voice-section { margin-top: 0.4rem; padding: 0.4rem 0; border-top: 1px solid var(--border); }
 .voice-section-title {

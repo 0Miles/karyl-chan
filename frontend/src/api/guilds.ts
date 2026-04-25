@@ -107,6 +107,24 @@ export interface GuildVoiceCategory {
     channels: GuildVoiceChannel[];
 }
 
+export interface GuildActiveThread {
+    id: string;
+    name: string;
+    parentId: string | null;
+    archived: boolean;
+    locked: boolean;
+    memberCount: number;
+    messageCount: number;
+    lastMessageId: string | null;
+}
+
+export async function listGuildActiveThreads(guildId: string): Promise<GuildActiveThread[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/active-threads`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ threads: GuildActiveThread[] }>(response);
+    return body.threads;
+}
+
 export async function listGuildVoiceChannels(guildId: string): Promise<GuildVoiceCategory[]> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-channels`;
     const response = await authedFetch(url);

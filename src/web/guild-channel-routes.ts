@@ -27,12 +27,30 @@ function emojiCacheKey(emoji: MessageEmoji): string | null {
     return emoji.name || null;
 }
 
+/**
+ * Resolve a "writable text-like channel" by id. Accepts the standard
+ * text channel plus all thread variants — threads are first-class
+ * message containers in discord.js so the existing send/edit/delete/
+ * pinned routes work against them with no further changes once the
+ * type filter here is widened.
+ */
 function fetchTextChannel(bot: Client, guildId: string, channelId: string): TextChannel | null {
     const guild = bot.guilds.cache.get(guildId);
     if (!guild) return null;
     const channel = guild.channels.cache.get(channelId);
-    if (!channel || channel.type !== ChannelType.GuildText) return null;
-    return channel as TextChannel;
+    if (!channel) return null;
+    if (
+        channel.type === ChannelType.GuildText
+        || channel.type === ChannelType.PublicThread
+        || channel.type === ChannelType.PrivateThread
+        || channel.type === ChannelType.AnnouncementThread
+    ) {
+        // The Message-API surface is the same on TextChannel and ThreadChannel
+        // (`.messages.fetch`, `.send`, etc.) — narrowing to TextChannel is a
+        // typing convenience; the runtime methods we use exist on both.
+        return channel as unknown as TextChannel;
+    }
+    return null;
 }
 
 export async function registerGuildChannelRoutes(server: FastifyInstance, options: GuildChannelRoutesOptions): Promise<void> {
@@ -70,6 +88,38 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             unsubscribe();
         });
     });
+
+    server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/active-threads',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const { guildId } = request.params;
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            try {
+                // `fetchActiveThreads` returns ALL active threads visible
+                // to the bot in one round-trip — much cheaper than calling
+                // `.threads.fetchActive()` per channel. Archived threads are
+                // intentionally excluded; they're a separate fetch that
+                // requires manage-threads in some guilds.
+                const fetched = await guild.channels.fetchActiveThreads();
+                const threads = [...fetched.threads.values()].map(t => ({
+                    id: t.id,
+                    name: t.name,
+                    parentId: t.parentId ?? null,
+                    archived: !!t.archived,
+                    locked: !!t.locked,
+                    memberCount: t.memberCount ?? 0,
+                    messageCount: t.messageCount ?? 0,
+                    lastMessageId: t.lastMessageId ?? null
+                }));
+                return { threads };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch active threads');
+                reply.code(502).send({ error: 'Failed to fetch threads' });
+            }
+        }
+    );
 
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/voice-channels',
