@@ -146,47 +146,72 @@ export class RoleEmojiCommands {
         }) messageId: string,
         command: CommandInteraction): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        // Reacting with N emoji is N REST round-trips and easily blows
+        // past Discord's 3-second interaction window — defer up front so
+        // the user sees a "thinking…" spinner instead of "interaction
+        // failed" while the bot grinds through reactions.
+        await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
         try {
-            const message = await command.channel?.messages.fetch({ message: messageId });
-            if (message) {
-                const recordedRoleReceiveMessage = await findRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
-                const allRoleEmojis = await findGuildAllRoleEmojis(command.guildId as string);
-                for (const emojiIdOrChar of allRoleEmojis.map(x => x.getDataValue('emojiChar') ? x.getDataValue('emojiChar') : x.getDataValue('emojiId'))) {
-                    const emoji = command.guild?.emojis.resolve(emojiIdOrChar);
-                    await message.react(emoji ?? emojiIdOrChar);
-                }
-                if (!recordedRoleReceiveMessage) {
-                    await addRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
-                    await command.reply({
-                        embeds: [{
-                            color: SUCCEEDED_COLOR,
-                            title: `Succeeded`,
-                            description: `Message \`\`${messageId}\`\` is being watched.`
-                        }],
-                        flags: 'Ephemeral'
-                    });
-                } else {
-                    await command.reply({
-                        embeds: [{
-                            color: SUCCEEDED_COLOR,
-                            title: `No action`,
-                            description: `Message \`\`${messageId}\`\` is already in the watch list.`
-                        }],
-                        flags: 'Ephemeral'
-                    });
-                }
-            } else {
-                await command.reply({
+            const message = await command.channel?.messages.fetch({ message: messageId }).catch(() => null);
+            if (!message) {
+                await command.editReply({
                     embeds: [{
                         color: FAILED_COLOR,
                         title: `Failed`,
-                        description: `Message \`\`${messageId}\`\` does not exist.`
-                    }],
-                    flags: 'Ephemeral'
+                        description: `Message \`\`${messageId}\`\` does not exist or isn't accessible in this channel.`
+                    }]
                 });
+                return;
             }
+            const recordedRoleReceiveMessage = await findRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
+            const allRoleEmojis = await findGuildAllRoleEmojis(command.guildId as string);
+            // Each react can fail independently (custom emoji from another
+            // guild that the bot can't access, deleted custom emoji,
+            // missing AddReactions perms on the channel, …) — we collect
+            // failures so the user sees what worked and what didn't,
+            // instead of one broken row killing the whole watch.
+            const failed: string[] = [];
+            for (const re of allRoleEmojis) {
+                const emojiChar = re.getDataValue('emojiChar') as string;
+                const emojiId = re.getDataValue('emojiId') as string;
+                const emojiName = re.getDataValue('emojiName') as string;
+                const resolvable = resolveReactable(command, emojiChar, emojiId, emojiName);
+                if (!resolvable) {
+                    failed.push(emojiChar || emojiId);
+                    continue;
+                }
+                try {
+                    await message.react(resolvable);
+                } catch (err) {
+                    console.error(`role-emoji watch-message: react failed for ${String(resolvable)}:`, err);
+                    failed.push(emojiChar || emojiId);
+                }
+            }
+            if (!recordedRoleReceiveMessage) {
+                await addRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
+            }
+            const baseDesc = recordedRoleReceiveMessage
+                ? `Message \`\`${messageId}\`\` is already in the watch list.`
+                : `Message \`\`${messageId}\`\` is being watched.`;
+            const failedSuffix = failed.length
+                ? `\n\nCould not react with: ${failed.map(f => `\`${f}\``).join(', ')}`
+                : '';
+            await command.editReply({
+                embeds: [{
+                    color: failed.length ? FAILED_COLOR : SUCCEEDED_COLOR,
+                    title: recordedRoleReceiveMessage ? 'No action' : 'Succeeded',
+                    description: baseDesc + failedSuffix
+                }]
+            });
         } catch (ex) {
             console.error(ex);
+            await command.editReply({
+                embeds: [{
+                    color: FAILED_COLOR,
+                    title: 'Failed',
+                    description: ex instanceof Error ? ex.message : String(ex)
+                }]
+            }).catch(() => { /* the reply may have failed mid-flight */ });
         }
     }
 
@@ -200,42 +225,64 @@ export class RoleEmojiCommands {
         }) messageId: string,
         command: CommandInteraction): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
         try {
-            const message = await command.channel?.messages.fetch({ message: messageId });
-            if (message) {
-                const recordedRoleReceiveMessage = await findRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
-                if (recordedRoleReceiveMessage) {
-                    await removeRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
-                    await command.reply({
-                        embeds: [{
-                            color: SUCCEEDED_COLOR,
-                            title: `Succeeded`,
-                            description: `Message \`\`${messageId}\`\` is no longer being watched.`
-                        }],
-                        flags: 'Ephemeral'
-                    });
-                } else {
-                    await command.reply({
-                        embeds: [{
-                            color: SUCCEEDED_COLOR,
-                            title: `No action`,
-                            description: `Message \`\`${messageId}\`\`  is not being watched.`
-                        }],
-                        flags: 'Ephemeral'
-                    });
-                }
-            } else {
-                await command.reply({
+            const recordedRoleReceiveMessage = await findRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
+            if (recordedRoleReceiveMessage) {
+                await removeRoleReceiveMessage(command.guildId as string, command.channelId, messageId);
+                await command.editReply({
                     embeds: [{
-                        color: FAILED_COLOR,
-                        title: `Failed`,
-                        description: `Message \`\`${messageId}\`\` does not exist.`
-                    }],
-                    flags: 'Ephemeral'
+                        color: SUCCEEDED_COLOR,
+                        title: `Succeeded`,
+                        description: `Message \`\`${messageId}\`\` is no longer being watched.`
+                    }]
+                });
+            } else {
+                await command.editReply({
+                    embeds: [{
+                        color: SUCCEEDED_COLOR,
+                        title: `No action`,
+                        description: `Message \`\`${messageId}\`\` is not being watched.`
+                    }]
                 });
             }
         } catch (ex) {
             console.error(ex);
+            await command.editReply({
+                embeds: [{
+                    color: FAILED_COLOR,
+                    title: 'Failed',
+                    description: ex instanceof Error ? ex.message : String(ex)
+                }]
+            }).catch(() => { /* noop */ });
         }
     }
+}
+
+/**
+ * Build something `message.react()` accepts from a stored role-emoji
+ * row. Returns null when the row's emoji can't be turned into anything
+ * valid (e.g., a custom emoji whose id we have but whose `name` we
+ * never recorded — Discord requires `name:id` for non-cached customs).
+ */
+function resolveReactable(
+    command: CommandInteraction,
+    emojiChar: string,
+    emojiId: string,
+    emojiName: string
+): string | null {
+    if (emojiChar) return emojiChar;
+    if (!emojiId) return null;
+    // Prefer the live GuildEmoji object — discord.js can resolve every
+    // detail it needs (animated flag, current name) from the cache.
+    const cached = command.guild?.emojis.resolve(emojiId);
+    if (cached) return cached.toString();
+    // Off-guild / deleted custom emoji — fall back to the `name:id`
+    // string that Discord's REST endpoint accepts. emojiName is stored
+    // with surrounding colons (and an optional leading `a` for animated)
+    // — strip them and rebuild the canonical form.
+    const nameOnly = (emojiName ?? '').replace(/^a?:/, '').replace(/:$/, '');
+    const animated = (emojiName ?? '').startsWith('a:');
+    if (!nameOnly) return null;
+    return `${animated ? 'a:' : ''}${nameOnly}:${emojiId}`;
 }
