@@ -2,38 +2,53 @@ import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 
 /**
- * Per-channel mute state. A muted channel is excluded from the
- * global "attention" indicator and (in tandem with the desktop
- * notification dispatcher) doesn't ping. Sidebar entries also fade so
- * the user has a visual cue.
+ * Per-channel mute level. Three states modelled after Discord:
+ *   'all'           — default, no mute (channel not in the map).
+ *   'mentions-only' — sidebar fades, unread pill suppressed, but
+ *                     @mentions still light it up and notify.
+ *   'none'          — completely silent: no unread surface, no
+ *                     desktop ping, even on a direct mention.
  *
- * State is persisted to localStorage as a flat string[] of channel
- * ids. We could store it server-side later (so a phone and a laptop
- * see the same mutes), but a single-device default keeps the surface
- * minimal.
+ * State persists to localStorage as `Record<channelId, MuteLevel>`.
+ * `isMuted` returns true for either silenced level so existing
+ * callers (sidebar fade, dot suppression) keep working without
+ * changes; finer-grained checks call `getLevel` directly.
  */
 
-const STORAGE_KEY = 'karyl-mutes-v1';
+export type MuteLevel = 'mentions-only' | 'none';
+
+const STORAGE_KEY = 'karyl-mutes-v2';
 const PERSIST_DEBOUNCE_MS = 200;
 
-function loadIds(): string[] {
+function loadInitial(): Record<string, MuteLevel> {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : [];
-    } catch {
-        return [];
-    }
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const out: Record<string, MuteLevel> = {};
+            if (parsed && typeof parsed === 'object') {
+                for (const [k, v] of Object.entries(parsed)) {
+                    if (v === 'mentions-only' || v === 'none') out[k] = v;
+                }
+            }
+            return out;
+        }
+        // Migration from v1 (flat string[] of muted ids → level 'none').
+        const v1 = localStorage.getItem('karyl-mutes-v1');
+        if (v1) {
+            const arr = JSON.parse(v1);
+            const out: Record<string, MuteLevel> = {};
+            if (Array.isArray(arr)) for (const id of arr) {
+                if (typeof id === 'string') out[id] = 'none';
+            }
+            return out;
+        }
+    } catch { /* ignore */ }
+    return {};
 }
 
 export const useMuteStore = defineStore('discord-mute', () => {
-    // reactive Set isn't a thing in Vue, so we keep a reactive lookup
-    // map (channelId → true). Slightly more memory than a Set, but
-    // dependency tracking on `muted[channelId]` is tighter than a Set
-    // membership check would be.
-    const muted = reactive<Record<string, true>>({});
-    for (const id of loadIds()) muted[id] = true;
+    const levels = reactive<Record<string, MuteLevel>>(loadInitial());
 
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
     function schedulePersist() {
@@ -41,39 +56,60 @@ export const useMuteStore = defineStore('discord-mute', () => {
         persistTimer = setTimeout(() => {
             persistTimer = null;
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.keys(muted)));
-            } catch {
-                /* ignore */
-            }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(levels));
+            } catch { /* ignore */ }
         }, PERSIST_DEBOUNCE_MS);
     }
 
-    function isMuted(channelId: string | null | undefined): boolean {
-        if (!channelId) return false;
-        return !!muted[channelId];
+    function getLevel(channelId: string | null | undefined): MuteLevel | 'all' {
+        if (!channelId) return 'all';
+        return levels[channelId] ?? 'all';
     }
 
-    function setMuted(channelId: string, value: boolean): void {
+    function isMuted(channelId: string | null | undefined): boolean {
+        return getLevel(channelId) !== 'all';
+    }
+
+    /** True when an unread COUNT (live or stale, ignoring mention-ness)
+     *  should still surface for this channel. False for both
+     *  'mentions-only' (counts hidden, only mentions surface) and
+     *  'none' (silenced entirely). */
+    function showsCount(channelId: string | null | undefined): boolean {
+        return getLevel(channelId) === 'all';
+    }
+
+    /** True when an @mention should still highlight / notify. False
+     *  only for 'none' (full silence). */
+    function showsMention(channelId: string | null | undefined): boolean {
+        return getLevel(channelId) !== 'none';
+    }
+
+    function setLevel(channelId: string, level: MuteLevel | 'all'): void {
         if (!channelId) return;
-        if (value) {
-            if (muted[channelId]) return;
-            muted[channelId] = true;
+        if (level === 'all') {
+            if (!(channelId in levels)) return;
+            delete levels[channelId];
         } else {
-            if (!muted[channelId]) return;
-            delete muted[channelId];
+            if (levels[channelId] === level) return;
+            levels[channelId] = level;
         }
         schedulePersist();
     }
 
-    function toggle(channelId: string): void {
-        setMuted(channelId, !muted[channelId]);
+    /** Cycle through all → mentions-only → none → all. Used by the
+     *  conversation header bell toggle so a single tap advances state
+     *  predictably without an explicit picker. */
+    function cycle(channelId: string): void {
+        const current = getLevel(channelId);
+        if (current === 'all') setLevel(channelId, 'mentions-only');
+        else if (current === 'mentions-only') setLevel(channelId, 'none');
+        else setLevel(channelId, 'all');
     }
 
-    /** Wipe on sign-out so the next user doesn't inherit mutes. */
     function clear(): void {
-        for (const k of Object.keys(muted)) delete muted[k];
+        for (const k of Object.keys(levels)) delete levels[k];
         try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
     }
 
-    return { muted, isMuted, setMuted, toggle, clear };
+    return { levels, isMuted, getLevel, showsCount, showsMention, setLevel, cycle, clear };
 });

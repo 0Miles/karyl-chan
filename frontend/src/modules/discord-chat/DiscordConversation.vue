@@ -81,9 +81,24 @@ const drop = useFileDrop((files) => {
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
 
 const muteStore = useMuteStore();
-const isMuted = computed(() => muteStore.isMuted(props.channelId));
+const muteLevel = computed(() => props.channelId ? muteStore.getLevel(props.channelId) : 'all');
+const isMuted = computed(() => muteLevel.value !== 'all');
+const muteIcon = computed(() => {
+    switch (muteLevel.value) {
+        case 'none': return 'material-symbols:notifications-off-outline-rounded';
+        case 'mentions-only': return 'material-symbols:alternate-email-rounded';
+        default: return 'material-symbols:notifications-outline-rounded';
+    }
+});
+const muteTooltip = computed(() => {
+    switch (muteLevel.value) {
+        case 'none': return $t('messages.muteCycleHintFromNone');
+        case 'mentions-only': return $t('messages.muteCycleHintFromMentions');
+        default: return $t('messages.muteCycleHintFromAll');
+    }
+});
 function toggleMute() {
-    if (props.channelId) muteStore.toggle(props.channelId);
+    if (props.channelId) muteStore.cycle(props.channelId);
 }
 
 // Pinned messages panel. State lives here (rather than the workspace)
@@ -591,11 +606,11 @@ const replyToProp = computed(() => props.replyTo);
                 <button
                     type="button"
                     :class="['header-action', { active: isMuted }]"
-                    :title="isMuted ? $t('messages.unmute') : $t('messages.mute')"
-                    :aria-label="isMuted ? $t('messages.unmute') : $t('messages.mute')"
+                    :title="muteTooltip"
+                    :aria-label="muteTooltip"
                     @click="toggleMute"
                 >
-                    <Icon :icon="isMuted ? 'material-symbols:notifications-off-outline-rounded' : 'material-symbols:notifications-outline-rounded'" width="18" height="18" />
+                    <Icon :icon="muteIcon" width="18" height="18" />
                 </button>
             </slot>
             <PinnedPanel

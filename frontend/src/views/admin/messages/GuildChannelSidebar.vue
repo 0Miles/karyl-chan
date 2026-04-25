@@ -149,14 +149,17 @@ watch(() => props.guildId, () => {
                 <li
                     :class="{
                         active: channel.id === selectedId,
-                        unread: unreadStore.hasChannelUnread(channel.id) && !muteStore.isMuted(channel.id),
+                        unread: (muteStore.showsCount(channel.id) && unreadStore.hasChannelUnread(channel.id))
+                            || (muteStore.showsMention(channel.id) && unreadStore.getChannelMentionCount(channel.id) > 0),
                         muted: muteStore.isMuted(channel.id)
                     }"
                     @click="emit('select', channel.id)">
                     <span class="hash">#</span>
                     <span class="name">{{ channel.name }}</span>
                     <Icon v-if="muteStore.isMuted(channel.id)" icon="material-symbols:notifications-off-outline-rounded" width="14" height="14" class="mute-icon" />
-                    <UnreadPill v-if="!muteStore.isMuted(channel.id)" class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
+                    <!-- Mention pill stays visible when 'mentions-only';
+                         only hidden in the fully-silent 'none' level. -->
+                    <UnreadPill v-if="muteStore.showsMention(channel.id)" class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
                 </li>
                 <li
                     v-for="thread in threadsFor(channel.id)"

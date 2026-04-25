@@ -67,8 +67,12 @@ export function maybeNotify(ctx: NotificationContext): void {
     const settings = useSettingsStore();
     if (!settings.desktopNotifications) return;
 
+    // Three-level mute: 'all' allows everything, 'mentions-only' blocks
+    // non-mention pings, 'none' blocks everything (even mentions).
     const muteStore = useMuteStore();
-    if (muteStore.isMuted(ctx.channelId) && !ctx.isMention) return;
+    const level = muteStore.getLevel(ctx.channelId);
+    if (level === 'none') return;
+    if (level === 'mentions-only' && !ctx.isMention) return;
 
     try {
         // `tag` collapses repeats from the same channel into a single

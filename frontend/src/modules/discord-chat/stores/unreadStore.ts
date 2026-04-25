@@ -251,17 +251,20 @@ export const useUnreadStore = defineStore('discord-unread', () => {
     // never populate `mentions` (noteMessage is called with isMention=false
     // for DMs), so a positive mention count implies a guild channel.
     // Muted channels (per muteStore) are excluded — that's the whole
-    // point of muting them.
+    // point of muting them. Three-level mutes refine the rule:
+    // - 'mentions-only': non-mention unreads stop surfacing, mentions
+    //   still do.
+    // - 'none': nothing surfaces.
     const muteStore = useMuteStore();
     const hasAttention = computed<boolean>(() => {
         for (const cid in counts) {
-            if (counts[cid] > 0 && scope[cid] === 'dm' && !muteStore.isMuted(cid)) return true;
+            if (counts[cid] > 0 && scope[cid] === 'dm' && muteStore.showsCount(cid)) return true;
         }
         for (const cid in stale) {
-            if (stale[cid] && scope[cid] === 'dm' && !muteStore.isMuted(cid)) return true;
+            if (stale[cid] && scope[cid] === 'dm' && muteStore.showsCount(cid)) return true;
         }
         for (const cid in mentions) {
-            if (mentions[cid] > 0 && !muteStore.isMuted(cid)) return true;
+            if (mentions[cid] > 0 && muteStore.showsMention(cid)) return true;
         }
         return false;
     });
