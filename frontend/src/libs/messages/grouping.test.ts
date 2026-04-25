@@ -12,7 +12,6 @@ const author = (id: string): MessageAuthor => ({
 
 function msg(overrides: Partial<Message> & { id: string; authorId: string; ts: string }): Message {
     return {
-        id: overrides.id,
         channelId: 'c-1',
         guildId: null,
         author: author(overrides.authorId),
