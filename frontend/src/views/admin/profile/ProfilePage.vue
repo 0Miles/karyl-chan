@@ -4,9 +4,11 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { DashboardLayout } from '../../../layouts';
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
+import { useSettingsStore } from '../../../stores/settingsStore';
 
 const { t } = useI18n();
 const store = useCurrentUserStore();
+const settings = useSettingsStore();
 
 onMounted(() => {
     // Guard: if the cached user is missing (hard refresh, expired cache,
@@ -75,6 +77,17 @@ const roleLabel = computed(() => {
             <Icon icon="material-symbols:info-outline-rounded" width="16" height="16" />
             {{ $t('profile.hint') }}
         </p>
+
+        <section v-if="user" class="settings-card">
+            <h3>{{ $t('profile.settings.title') }}</h3>
+            <label class="setting-row">
+                <span class="setting-label">
+                    <strong>{{ $t('profile.settings.animatedEmoji.label') }}</strong>
+                    <small class="muted">{{ $t('profile.settings.animatedEmoji.help') }}</small>
+                </span>
+                <input type="checkbox" v-model="settings.animatedEmojiAutoplay" />
+            </label>
+        </section>
     </DashboardLayout>
 </template>
 
@@ -169,4 +182,34 @@ const roleLabel = computed(() => {
     font-size: 0.85rem;
 }
 .muted { color: var(--text-muted); }
+.settings-card {
+    margin-top: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.settings-card h3 {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    color: var(--text-strong);
+}
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0;
+}
+.setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.setting-label small { font-size: 0.78rem; }
+.setting-row input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+}
 </style>

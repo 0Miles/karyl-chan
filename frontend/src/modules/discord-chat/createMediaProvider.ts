@@ -3,6 +3,7 @@ import { listEmojis, listStickers, loadStickerLottie } from '../../api/discord';
 import { stickerImageUrl } from './sticker-url';
 import { animatedAvatarUrl, isAnimatedAvatar } from './avatar';
 import { useMediaCacheStore } from './stores/mediaCacheStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 export interface MediaProviderFetchers {
     listEmojis: () => Promise<GuildBucket<CustomEmoji>[]>;
@@ -14,13 +15,23 @@ export interface MediaProviderFetchers {
 }
 
 export function createDiscordMediaProvider(fetchers: MediaProviderFetchers): MediaProvider {
+    // Read once at provider construction. The settings store is reactive,
+    // so we read at call time inside the lambda below — that way toggling
+    // the preference takes effect on the next render without rebuilding
+    // the provider. Avoids stale closures.
+    const settings = useSettingsStore();
     return {
         listEmojis: fetchers.listEmojis,
         listStickers: fetchers.listStickers,
         loadLottieSticker: fetchers.loadLottieSticker,
         stickerUrl: (sticker, size) => stickerImageUrl(sticker.id, sticker.formatType, size),
-        customEmojiUrl: (emoji, size = 64) =>
-            `https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'webp'}?size=${size}&quality=lossless`,
+        customEmojiUrl: (emoji, size = 64) => {
+            // Animated emojis fall back to the static `.webp` frame when
+            // the user has autoplay disabled. Discord CDN serves this
+            // automatically — no separate render call needed.
+            const ext = emoji.animated && settings.animatedEmojiAutoplay ? 'gif' : 'webp';
+            return `https://cdn.discordapp.com/emojis/${emoji.id}.${ext}?size=${size}&quality=lossless`;
+        },
         avatarHoverUrl: (url) => (isAnimatedAvatar(url) ? animatedAvatarUrl(url) : null),
         cachedEmojis: fetchers.cachedEmojis,
         cachedStickers: fetchers.cachedStickers

@@ -44,7 +44,14 @@
         "capabilities": "权限词条",
         "note": "备注",
         "unavailable": "无法获取个人资料。",
-        "hint": "再次私信机器人「login」可刷新登录状态。"
+        "hint": "再次私信机器人「login」可刷新登录状态。",
+        "settings": {
+            "title": "偏好设置",
+            "animatedEmoji": {
+                "label": "自动播放动画表情",
+                "help": "关闭后动画 emoji 显示为静止帧,可在移动网络节省流量。"
+            }
+        }
     },
     "auth": {
         "title": "登录",

@@ -44,7 +44,14 @@
         "capabilities": "Capabilities",
         "note": "Note",
         "unavailable": "Profile is not available.",
-        "hint": "DM the bot with \"login\" again to refresh your session."
+        "hint": "DM the bot with \"login\" again to refresh your session.",
+        "settings": {
+            "title": "Preferences",
+            "animatedEmoji": {
+                "label": "Autoplay animated emoji",
+                "help": "Off shows a static frame for animated emoji — useful on mobile data."
+            }
+        }
     },
     "auth": {
         "title": "Sign in",

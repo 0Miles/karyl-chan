@@ -44,7 +44,14 @@
         "capabilities": "權限詞條",
         "note": "備註",
         "unavailable": "無法取得個人資料。",
-        "hint": "再次私訊機器人「login」可重新整理登入狀態。"
+        "hint": "再次私訊機器人「login」可重新整理登入狀態。",
+        "settings": {
+            "title": "偏好設定",
+            "animatedEmoji": {
+                "label": "自動播放動畫表情",
+                "help": "關閉後動畫 emoji 顯示為靜止幀,可在行動網路節省流量。"
+            }
+        }
     },
     "auth": {
         "title": "登入",
