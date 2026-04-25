@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ApiError, exchangeOneTimeToken } from '../../../api/client';
-import { setTokens } from '../../../auth';
+import { isAuthenticated, setTokens } from '../../../auth';
 
 const route = useRoute();
 const router = useRouter();
@@ -14,6 +14,13 @@ onMounted(async () => {
     const tokenParam = route.query.token;
     const token = typeof tokenParam === 'string' ? tokenParam.trim() : '';
     if (!token) {
+        // Already-logged-in user landed on /admin/auth without a token
+        // (typed URL, browser history, etc.). Skip the "send login to
+        // bot" instructions and go straight to where they were headed.
+        if (isAuthenticated.value) {
+            router.replace({ name: 'dashboard' });
+            return;
+        }
         state.value = 'no-token';
         return;
     }
@@ -24,6 +31,15 @@ onMounted(async () => {
         state.value = 'success';
         router.replace({ name: 'dashboard' });
     } catch (err) {
+        // Stale / already-consumed link but the user still has a live
+        // session in localStorage — silently bail to the dashboard
+        // instead of showing an error. If the cached session turns out
+        // to be dead too, the dashboard's own 401 handler will bring
+        // them back here for a fresh login.
+        if (err instanceof ApiError && err.status === 401 && isAuthenticated.value) {
+            router.replace({ name: 'dashboard' });
+            return;
+        }
         state.value = 'error';
         errorMessage.value = err instanceof ApiError
             ? err.message
