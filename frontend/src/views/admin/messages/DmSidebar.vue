@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { animatedAvatarUrl, isAnimatedAvatar } from '../../../modules/discord-chat';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
+import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import type { DmChannelSummary } from '../../../api/dm';
 import type { GuildSummary } from '../../../api/guilds';
@@ -9,6 +10,7 @@ import ModeSelect from './ModeSelect.vue';
 import { Icon } from '@iconify/vue';
 
 const unreadStore = useUnreadStore();
+const muteStore = useMuteStore();
 
 defineProps<{
     guilds: GuildSummary[];
@@ -71,7 +73,7 @@ function formatTimestamp(iso: string | null): string {
         <li
             v-for="channel in channels"
             :key="channel.id"
-            :class="{ active: channel.id === selectedId }"
+            :class="{ active: channel.id === selectedId, muted: muteStore.isMuted(channel.id) }"
             @click="emit('select', channel.id)"
             @mouseenter="hoveredChannelId = channel.id"
             @mouseleave="hoveredChannelId = null"
@@ -80,14 +82,15 @@ function formatTimestamp(iso: string | null): string {
             <div v-else class="avatar avatar-fallback">{{ (channel.recipient.globalName ?? channel.recipient.username).charAt(0).toUpperCase() }}</div>
             <div class="meta">
                 <div class="row">
-                    <span class="name" :class="{ 'has-unread': unreadStore.hasChannelUnread(channel.id) }">
+                    <span class="name" :class="{ 'has-unread': unreadStore.hasChannelUnread(channel.id) && !muteStore.isMuted(channel.id) }">
                         {{ channel.recipient.globalName ?? channel.recipient.username }}
                     </span>
+                    <Icon v-if="muteStore.isMuted(channel.id)" icon="material-symbols:notifications-off-outline-rounded" width="14" height="14" class="mute-icon" />
                     <span class="timestamp">{{ formatTimestamp(channel.lastMessageAt) }}</span>
                 </div>
                 <div class="preview-row">
                     <span class="preview">{{ channel.lastMessagePreview ?? '' }}</span>
-                    <UnreadPill :count="unreadStore.getChannelCount(channel.id)" />
+                    <UnreadPill v-if="!muteStore.isMuted(channel.id)" :count="unreadStore.getChannelCount(channel.id)" />
                 </div>
             </div>
         </li>
@@ -190,10 +193,16 @@ function formatTimestamp(iso: string | null): string {
     font-weight: 600;
 }
 .meta { flex: 1; min-width: 0; }
-.row { display: flex; justify-content: space-between; align-items: baseline; }
-.name { font-weight: 500; color: var(--text-strong); }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.25rem; }
+.name { font-weight: 500; color: var(--text-strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .name.has-unread { font-weight: 700; }
-.timestamp { font-size: 0.75rem; color: var(--text-muted); }
+.mute-icon { color: var(--text-muted); flex-shrink: 0; }
+.timestamp { font-size: 0.75rem; color: var(--text-muted); flex-shrink: 0; }
+/* Muted DMs: fade the row so the user sees they're explicitly silenced
+   without removing them from the list. */
+.channel-list li.muted { opacity: 0.55; }
+.channel-list li.muted:hover { opacity: 0.85; }
+.channel-list li.muted.active { opacity: 1; }
 .preview-row {
     display: flex;
     align-items: center;

@@ -12,6 +12,7 @@ import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
+import { useMuteStore } from './stores/muteStore';
 import { Icon } from '@iconify/vue';
 
 const props = defineProps<{
@@ -65,6 +66,12 @@ const drop = useFileDrop((files) => {
 });
 
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
+
+const muteStore = useMuteStore();
+const isMuted = computed(() => muteStore.isMuted(props.channelId));
+function toggleMute() {
+    if (props.channelId) muteStore.toggle(props.channelId);
+}
 
 /**
  * Whether `message` targets the current bot user — directly (@mention),
@@ -365,6 +372,16 @@ const replyToProp = computed(() => props.replyTo);
             <slot name="header">
                 <span class="title">{{ headerTitle }}</span>
                 <span v-if="headerSubtitle" class="subtitle">{{ headerSubtitle }}</span>
+                <span class="header-spacer"></span>
+                <button
+                    type="button"
+                    :class="['header-action', { active: isMuted }]"
+                    :title="isMuted ? $t('messages.unmute') : $t('messages.mute')"
+                    :aria-label="isMuted ? $t('messages.unmute') : $t('messages.mute')"
+                    @click="toggleMute"
+                >
+                    <Icon :icon="isMuted ? 'material-symbols:notifications-off-outline-rounded' : 'material-symbols:notifications-outline-rounded'" width="18" height="18" />
+                </button>
             </slot>
         </header>
         <p v-if="error" class="error">{{ error }}</p>
@@ -598,6 +615,19 @@ const replyToProp = computed(() => props.replyTo);
     font-size: 0.8rem;
     font-family: ui-monospace, SFMono-Regular, monospace;
 }
+.header-spacer { flex: 1; }
+.header-action {
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    line-height: 0;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.header-action:hover { background: var(--bg-surface-hover); color: var(--text); }
+.header-action.active { color: var(--accent-text-strong); border-color: var(--accent); }
 .error { color: var(--danger); margin: 0.5rem 1rem; }
 .messages { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
 .center { text-align: center; margin: 2rem 0; }

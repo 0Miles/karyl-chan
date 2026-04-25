@@ -118,6 +118,8 @@
         "deleteShiftConfirm": "Delete (shift to skip confirm)",
         "copyLink": "Copy message link",
         "copyLinkDone": "Copied",
+        "mute": "Mute this channel",
+        "unmute": "Unmute",
         "replying": "Replying",
         "dropFiles": "Drop files to attach",
         "noDms": "No DMs yet. Send the bot a message in Discord, or start one above.",

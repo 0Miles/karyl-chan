@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
+import { useMuteStore } from './muteStore';
 
 // Two-layer unread tracking:
 //   counts/mentions — live counters incremented by SSE while the app is open.
@@ -199,15 +200,18 @@ export const useUnreadStore = defineStore('discord-unread', () => {
     // any DM unread (live or stale) or any guild @-mention. DM channels
     // never populate `mentions` (noteMessage is called with isMention=false
     // for DMs), so a positive mention count implies a guild channel.
+    // Muted channels (per muteStore) are excluded — that's the whole
+    // point of muting them.
+    const muteStore = useMuteStore();
     const hasAttention = computed<boolean>(() => {
         for (const cid in counts) {
-            if (counts[cid] > 0 && scope[cid] === 'dm') return true;
+            if (counts[cid] > 0 && scope[cid] === 'dm' && !muteStore.isMuted(cid)) return true;
         }
         for (const cid in stale) {
-            if (stale[cid] && scope[cid] === 'dm') return true;
+            if (stale[cid] && scope[cid] === 'dm' && !muteStore.isMuted(cid)) return true;
         }
         for (const cid in mentions) {
-            if (mentions[cid] > 0) return true;
+            if (mentions[cid] > 0 && !muteStore.isMuted(cid)) return true;
         }
         return false;
     });

@@ -2,10 +2,13 @@
 import { ref } from 'vue';
 import type { GuildChannelCategory, GuildSummary } from '../../../api/guilds';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
+import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
+import { Icon } from '@iconify/vue';
 
 const unreadStore = useUnreadStore();
+const muteStore = useMuteStore();
 
 defineProps<{
     guilds: GuildSummary[];
@@ -56,12 +59,14 @@ function isCategoryCollapsed(id: string | null): boolean {
                     :key="channel.id"
                     :class="{
                         active: channel.id === selectedId,
-                        unread: unreadStore.hasChannelUnread(channel.id)
+                        unread: unreadStore.hasChannelUnread(channel.id) && !muteStore.isMuted(channel.id),
+                        muted: muteStore.isMuted(channel.id)
                     }"
                     @click="emit('select', channel.id)">
                     <span class="hash">#</span>
                     <span class="name">{{ channel.name }}</span>
-                    <UnreadPill class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
+                    <Icon v-if="muteStore.isMuted(channel.id)" icon="material-symbols:notifications-off-outline-rounded" width="14" height="14" class="mute-icon" />
+                    <UnreadPill v-if="!muteStore.isMuted(channel.id)" class="channel-pill" :count="unreadStore.getChannelMentionCount(channel.id)" />
                 </li>
             </ul>
         </div>
@@ -151,7 +156,11 @@ function isCategoryCollapsed(id: string | null): boolean {
     font-weight: 700;
 }
 .channel-list li.unread .hash { color: var(--text-strong); }
+.channel-list li.muted { opacity: 0.55; }
+.channel-list li.muted:hover { opacity: 0.85; }
+.channel-list li.muted.active { opacity: 1; }
 .channel-pill { margin-left: auto; }
+.mute-icon { margin-left: auto; color: var(--text-muted); }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .empty { padding: 1rem; }
 .loading { padding: 1rem; text-align: center; }
