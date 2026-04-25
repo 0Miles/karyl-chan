@@ -106,7 +106,14 @@
         "roleEmoji": "Role emoji",
         "roleReactions": "Role reaction messages",
         "roleReactionMessage": "· message {id}",
-        "capabilityGrants": "Capability grants"
+        "capabilityGrants": "Capability grants",
+        "invites": {
+            "title": "Invite links",
+            "create": "Create 24h invite",
+            "created": "Created:",
+            "uses": "{uses}/{max} used",
+            "expires": "expires {date}"
+        }
     },
     "quickSwitcher": {
         "placeholder": "Search channels and DMs…",

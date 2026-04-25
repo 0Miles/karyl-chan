@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import { getGuildDetail, listGuilds, type GuildDetail, type GuildSummary } from '../../../api/guilds';
+import {
+    createGuildInvite,
+    getGuildDetail,
+    listGuildInvites,
+    listGuilds,
+    type GuildDetail,
+    type GuildInvite,
+    type GuildSummary
+} from '../../../api/guilds';
 import { SidebarLayout } from '../../../layouts';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
@@ -41,12 +49,52 @@ async function loadDetail(id: string) {
     try {
         detail.value = await getGuildDetail(id);
         error.value = null;
+        void loadInvites(id);
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'Failed to load guild detail';
     } finally {
         loadingDetail.value = false;
     }
+}
+
+// Invites — list refreshes when the selected guild changes; create
+// pushes one row at the top so users see their action without an
+// extra round-trip.
+const invites = ref<GuildInvite[]>([]);
+const invitesError = ref<string | null>(null);
+const creatingInvite = ref(false);
+const createdInviteUrl = ref<string | null>(null);
+
+async function loadInvites(guildId: string) {
+    invites.value = [];
+    invitesError.value = null;
+    try {
+        invites.value = await listGuildInvites(guildId);
+    } catch (err) {
+        if (handleApiError(err) !== 'unhandled') return;
+        invitesError.value = err instanceof Error ? err.message : 'Failed to load invites';
+    }
+}
+
+async function onCreateInvite() {
+    if (!selectedId.value || creatingInvite.value) return;
+    creatingInvite.value = true;
+    createdInviteUrl.value = null;
+    try {
+        const result = await createGuildInvite(selectedId.value, { maxAge: 86400, maxUses: 0 });
+        createdInviteUrl.value = result.url;
+        await loadInvites(selectedId.value);
+    } catch (err) {
+        if (handleApiError(err) !== 'unhandled') return;
+        invitesError.value = err instanceof Error ? err.message : 'Failed to create invite';
+    } finally {
+        creatingInvite.value = false;
+    }
+}
+
+async function copyInvite(url: string) {
+    try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
 }
 
 watch(selectedId, (id) => { if (id) loadDetail(id); });
@@ -182,6 +230,34 @@ function customEmojiUrl(id: string, char: string): string {
                     </ul>
                     <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
+
+                <section class="card">
+                    <h3>
+                        {{ $t('guilds.invites.title') }}
+                        <span class="count-pill">{{ invites.length }}</span>
+                        <button type="button" class="invite-create" :disabled="creatingInvite" @click="onCreateInvite">
+                            {{ creatingInvite ? $t('common.loading') : $t('guilds.invites.create') }}
+                        </button>
+                    </h3>
+                    <p v-if="createdInviteUrl" class="invite-fresh">
+                        {{ $t('guilds.invites.created') }}
+                        <code>{{ createdInviteUrl }}</code>
+                        <button type="button" class="link" @click="copyInvite(createdInviteUrl)">{{ $t('messages.copyLink') }}</button>
+                    </p>
+                    <p v-if="invitesError" class="error">{{ invitesError }}</p>
+                    <ul v-if="invites.length" class="bare invite-list">
+                        <li v-for="inv in invites" :key="inv.code" class="invite-row">
+                            <code class="invite-code">{{ inv.code }}</code>
+                            <span class="muted invite-meta">
+                                {{ inv.channelName ? `#${inv.channelName}` : '—' }}
+                                · {{ $t('guilds.invites.uses', { uses: inv.uses, max: inv.maxUses || '∞' }) }}
+                                <template v-if="inv.expiresAt">· {{ $t('guilds.invites.expires', { date: new Date(inv.expiresAt).toLocaleString() }) }}</template>
+                            </span>
+                            <button type="button" class="link" @click="copyInvite(inv.url)">{{ $t('messages.copyLink') }}</button>
+                        </li>
+                    </ul>
+                    <p v-else-if="!invitesError" class="muted">{{ $t('common.none') }}</p>
+                </section>
             </article>
             </template>
         </div>
@@ -206,6 +282,50 @@ function customEmojiUrl(id: string, char: string): string {
     border-radius: 999px;
     padding: 0 0.5rem;
     font-size: 0.8rem;
+}
+.invite-create {
+    margin-left: auto;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.7rem;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+.invite-create:disabled { opacity: 0.6; cursor: default; }
+.invite-fresh {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.invite-fresh code { background: transparent; padding: 0; }
+.invite-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.invite-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+}
+.invite-code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-weight: 600;
+}
+.invite-meta { font-size: 0.78rem; }
+.link {
+    background: none;
+    border: none;
+    color: var(--link-mask);
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
 }
 .guild-list {
     list-style: none;

@@ -106,7 +106,14 @@
         "roleEmoji": "身份组表情",
         "roleReactions": "身份组反应消息",
         "roleReactionMessage": "· 消息 {id}",
-        "capabilityGrants": "权限授予"
+        "capabilityGrants": "权限授予",
+        "invites": {
+            "title": "邀请链接",
+            "create": "创建 24h 邀请",
+            "created": "已创建:",
+            "uses": "{uses}/{max} 已使用",
+            "expires": "{date} 失效"
+        }
     },
     "quickSwitcher": {
         "placeholder": "搜索频道与 DM…",

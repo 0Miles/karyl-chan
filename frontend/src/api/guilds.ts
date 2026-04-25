@@ -173,6 +173,41 @@ export async function getGuildReactionUsers(
     return body.users;
 }
 
+export interface GuildInvite {
+    code: string;
+    url: string;
+    channelId: string | null;
+    channelName: string | null;
+    inviterId: string | null;
+    inviterName: string | null;
+    uses: number;
+    maxUses: number;
+    maxAge: number;
+    temporary: boolean;
+    expiresAt: string | null;
+    createdAt: string | null;
+}
+
+export async function listGuildInvites(guildId: string): Promise<GuildInvite[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/invites`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ invites: GuildInvite[] }>(response);
+    return body.invites;
+}
+
+export async function createGuildInvite(
+    guildId: string,
+    options: { channelId?: string; maxAge?: number; maxUses?: number; temporary?: boolean } = {}
+): Promise<{ code: string; url: string; expiresAt: string | null }> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/invites`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(options)
+    });
+    return jsonOrThrow<{ code: string; url: string; expiresAt: string | null }>(response);
+}
+
 export async function getGuildPins(guildId: string, channelId: string): Promise<Message[]> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/pins`;
     const response = await authedFetch(url);

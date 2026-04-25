@@ -106,7 +106,14 @@
         "roleEmoji": "身分組表情",
         "roleReactions": "身分組反應訊息",
         "roleReactionMessage": "· 訊息 {id}",
-        "capabilityGrants": "權限授予"
+        "capabilityGrants": "權限授予",
+        "invites": {
+            "title": "邀請連結",
+            "create": "新增 24h 邀請",
+            "created": "已建立:",
+            "uses": "{uses}/{max} 已使用",
+            "expires": "{date} 失效"
+        }
     },
     "quickSwitcher": {
         "placeholder": "搜尋頻道與 DM…",
