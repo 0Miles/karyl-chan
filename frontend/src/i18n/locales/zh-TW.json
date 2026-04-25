@@ -268,6 +268,16 @@
         "selectGuild": "請選擇一個伺服器。",
         "members": "{count} 位成員",
         "joined": "加入於 {date}",
+        "tabs": {
+            "overview": "總覽",
+            "settings": "伺服器設定",
+            "features": "Bot 功能"
+        },
+        "dashboard": {
+            "members": "成員",
+            "roles": "身分組",
+            "featureUsage": "功能使用狀況"
+        },
         "idLabel": "ID",
         "todoChannels": "待辦頻道",
         "pictureOnly": "純圖片頻道",
