@@ -25,6 +25,7 @@
         "close": "關閉",
         "start": "開始",
         "refresh": "重新整理",
+        "archived": "已封存",
         "updated": "已於 {time} 更新",
         "failedToLoad": "載入失敗:{error}"
     },

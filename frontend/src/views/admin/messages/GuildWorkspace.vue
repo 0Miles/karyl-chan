@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, toRef, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
+import GuildForumPanel from './GuildForumPanel.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
 import { getGuildPins, type GuildSummary } from '../../../api/guilds';
 import { useAppShell } from '../../../composables/use-app-shell';
@@ -46,7 +47,8 @@ const {
     send,
     reactWithSelection,
     selectChannel,
-    requestScroll
+    requestScroll,
+    registerAuxSelectableIds
 } = useDiscordGuildChannel(guildIdRef, {
     onAuthError: () => router.replace({ name: 'auth' }),
     onForbidden: () => { accessDenied.value = true; },
@@ -98,6 +100,18 @@ watch(() => props.guildId, id => {
     selectedGuild.value = props.guilds.find(g => g.id === id) ?? null;
 });
 
+// Channel kind drives the main-panel switch: forum channels swap in
+// the post browser instead of the chat surface. Voice + stage channels
+// reuse the chat surface because Discord embeds a text chat in each one.
+const isForum = computed(() => selectedChannel.value?.kind === 'forum');
+
+function headerTitle() {
+    if (!selectedChannel.value) return null;
+    const ch = selectedChannel.value;
+    if (ch.kind === 'voice' || ch.kind === 'stage') return ch.name;
+    return `#${ch.name}`;
+}
+
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
     chat.bindContainers({
@@ -122,11 +136,20 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             />
         </template>
         <AccessDeniedView v-if="accessDenied" />
+        <GuildForumPanel
+            v-else-if="isForum && selectedChannel"
+            :guild-id="props.guildId"
+            :forum-id="selectedChannel.id"
+            :forum-name="selectedChannel.name"
+            :header-subtitle="selectedGuild?.name ?? null"
+            @posts-loaded="registerAuxSelectableIds"
+            @select-post="handleSelect"
+        />
         <DiscordConversation
             v-else
             ref="conversationRef"
             :channel-id="selectedChannelId"
-            :header-title="selectedChannel ? `#${selectedChannel.name}` : null"
+            :header-title="headerTitle()"
             :header-subtitle="selectedGuild?.name ?? null"
             :messages="chat.messages.value"
             :bot-user-id="botUserId"

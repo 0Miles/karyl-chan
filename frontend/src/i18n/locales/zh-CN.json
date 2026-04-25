@@ -25,6 +25,7 @@
         "close": "关闭",
         "start": "开始",
         "refresh": "刷新",
+        "archived": "已存档",
         "updated": "已于 {time} 更新",
         "failedToLoad": "加载失败:{error}"
     },

@@ -25,6 +25,7 @@
         "close": "Close",
         "start": "Start",
         "refresh": "Refresh",
+        "archived": "Archived",
         "updated": "Updated {time}",
         "failedToLoad": "Failed to load: {error}"
     },

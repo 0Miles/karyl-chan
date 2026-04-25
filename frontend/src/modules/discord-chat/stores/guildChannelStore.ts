@@ -66,6 +66,24 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         return guilds[guildId]?.error ?? null;
     }
 
+    /** Patch in-place voice/stage participant lists on the cached
+     *  categories. Channels not currently in the cache (e.g. user is
+     *  on a different guild) are ignored — they'll pick up the fresh
+     *  list on the next `loadChannels`. */
+    function applyVoiceStateUpdate(guildId: string, updates: Array<{ channelId: string; members: { id: string; username: string; globalName: string | null; nickname: string | null; avatarUrl: string | null }[] }>): void {
+        const entry = guilds[guildId];
+        if (!entry) return;
+        const byId = new Map(updates.map(u => [u.channelId, u.members]));
+        for (const cat of entry.categories) {
+            for (const ch of cat.channels) {
+                const next = byId.get(ch.id);
+                if (!next) continue;
+                if (ch.kind !== 'voice' && ch.kind !== 'stage') continue;
+                ch.voiceMembers = next;
+            }
+        }
+    }
+
     /** Look up a channel's display name from cached categories. Returns
      *  null if the guild hasn't been loaded yet (hot SSE event) — the
      *  notification falls back to a channel-id title in that case. */
@@ -90,6 +108,10 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
             onEvent(event) {
                 if (event.type === 'guild-typing-start') {
                     typing.note(event.channelId, event.userId, event.userName);
+                    return;
+                }
+                if (event.type === 'guild-voice-state-updated') {
+                    applyVoiceStateUpdate(event.guildId, event.channels);
                     return;
                 }
                 if (event.type === 'guild-message-deleted') {

@@ -32,7 +32,8 @@ function emojiCacheKey(emoji: MessageEmoji): string | null {
  * text channel plus all thread variants — threads are first-class
  * message containers in discord.js so the existing send/edit/delete/
  * pinned routes work against them with no further changes once the
- * type filter here is widened.
+ * type filter here is widened. Voice + stage channels are included
+ * because Discord embeds a text chat in each one with the same id.
  */
 function fetchTextChannel(bot: Client, guildId: string, channelId: string): TextChannel | null {
     const guild = bot.guilds.cache.get(guildId);
@@ -44,10 +45,13 @@ function fetchTextChannel(bot: Client, guildId: string, channelId: string): Text
         || channel.type === ChannelType.PublicThread
         || channel.type === ChannelType.PrivateThread
         || channel.type === ChannelType.AnnouncementThread
+        || channel.type === ChannelType.GuildVoice
+        || channel.type === ChannelType.GuildStageVoice
     ) {
-        // The Message-API surface is the same on TextChannel and ThreadChannel
-        // (`.messages.fetch`, `.send`, etc.) — narrowing to TextChannel is a
-        // typing convenience; the runtime methods we use exist on both.
+        // The Message-API surface is the same on TextChannel, ThreadChannel
+        // and VoiceChannel (`.messages.fetch`, `.send`, etc.) — narrowing to
+        // TextChannel is a typing convenience; the runtime methods we use
+        // exist on all of them.
         return channel as unknown as TextChannel;
     }
     return null;
@@ -236,23 +240,64 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             const all = [...guild.channels.cache.values()];
             const categoryChannels = (all.filter(c => c.type === ChannelType.GuildCategory) as CategoryChannel[])
                 .sort((a, b) => a.position - b.position);
-            const textChannels = (all.filter(c => c.type === ChannelType.GuildText) as TextChannel[])
-                .sort((a, b) => a.position - b.position);
+            // Voice and forum channels are returned alongside text channels in
+            // the same Discord category — matching the native client's tree —
+            // with a `kind` discriminator so the sidebar can render the right
+            // icon and the workspace can switch panels (forum browser vs chat).
+            const listed = all
+                .filter(c =>
+                    c.type === ChannelType.GuildText
+                    || c.type === ChannelType.GuildVoice
+                    || c.type === ChannelType.GuildStageVoice
+                    || c.type === ChannelType.GuildForum
+                )
+                .sort((a, b) => ('position' in a && 'position' in b) ? (a.position as number) - (b.position as number) : 0);
+
+            const memberRow = (m: { id: string; user: { username: string; globalName: string | null; avatar: string | null }; nickname: string | null; avatar: string | null }) => ({
+                id: m.id,
+                username: m.user.username,
+                globalName: m.user.globalName ?? null,
+                nickname: m.nickname ?? null,
+                avatarUrl: m.avatar
+                    ? guildAvatarUrlFor(guildId, m.id, m.avatar, 64)
+                    : avatarUrlFor(m.id, m.user.avatar, 64)
+            });
+
+            type ChannelRow = {
+                id: string;
+                name: string;
+                kind: 'text' | 'voice' | 'stage' | 'forum';
+                lastMessageId: string | null;
+                voiceMembers?: ReturnType<typeof memberRow>[];
+            };
+            const toChannel = (c: typeof listed[number]): ChannelRow => {
+                const lastMessageId = (c as unknown as { lastMessageId?: string | null }).lastMessageId ?? null;
+                if (c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice) {
+                    const memberCollection = (c as unknown as { members?: { values?: () => Iterable<unknown> } }).members;
+                    const memberArr = memberCollection?.values ? [...memberCollection.values()] : [];
+                    return {
+                        id: c.id,
+                        name: c.name,
+                        kind: c.type === ChannelType.GuildStageVoice ? 'stage' : 'voice',
+                        lastMessageId,
+                        voiceMembers: memberArr.map(m => memberRow(m as Parameters<typeof memberRow>[0]))
+                    };
+                }
+                if (c.type === ChannelType.GuildForum) {
+                    return { id: c.id, name: c.name, kind: 'forum', lastMessageId: null };
+                }
+                return { id: c.id, name: c.name, kind: 'text', lastMessageId };
+            };
 
             const categoryIds = new Set(categoryChannels.map(c => c.id));
-            const uncategorized = textChannels.filter(c => !c.parentId || !categoryIds.has(c.parentId));
-            // `lastMessageId` is kept in sync by discord.js from the
-            // gateway cache — free for us to forward; the client diffs
-            // it against its persisted `lastSeen` marker to surface
-            // unreads that accumulated while the app was closed.
-            const toChannel = (c: TextChannel) => ({ id: c.id, name: c.name, lastMessageId: c.lastMessageId ?? null });
-            const categories: Array<{ id: string | null; name: string | null; channels: { id: string; name: string; lastMessageId: string | null }[] }> = [];
+            const uncategorized = listed.filter(c => !c.parentId || !categoryIds.has(c.parentId));
+            const categories: Array<{ id: string | null; name: string | null; channels: ChannelRow[] }> = [];
 
             if (uncategorized.length > 0) {
                 categories.push({ id: null, name: null, channels: uncategorized.map(toChannel) });
             }
             for (const cat of categoryChannels) {
-                const children = textChannels.filter(c => c.parentId === cat.id).map(toChannel);
+                const children = listed.filter(c => c.parentId === cat.id).map(toChannel);
                 if (children.length > 0) {
                     categories.push({ id: cat.id, name: cat.name, channels: children });
                 }

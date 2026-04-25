@@ -1,4 +1,4 @@
-import { computed, onMounted, provide, watch, type Ref } from 'vue';
+import { computed, onMounted, provide, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { MessageContextKey, type ComposerSuggestionItem } from '../../libs/messages';
@@ -41,7 +41,15 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         guildId.value ? guildStore.getCategories(guildId.value) : []
     );
     const channels = computed(() => categories.value.flatMap(c => c.channels));
-    const availableChannelIds = computed(() => channels.value.map(c => c.id));
+    // Forum posts (and threads opened from secondary surfaces) aren't part
+    // of the categorised channel tree, but selecting them must still pass
+    // the workspace machine's `selectionLandsInList` guard. Callers that
+    // surface such ids — the forum panel, for example — register them here.
+    const auxSelectableIds = ref<string[]>([]);
+    const availableChannelIds = computed(() => [
+        ...channels.value.map(c => c.id),
+        ...auxSelectableIds.value
+    ]);
 
     // Workspace machine owns selection + scroll lifecycle. Side effects
     // (save localStorage, ensureChannelMembers) are surfaced here where
@@ -254,6 +262,7 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         reactWithSelection: chat.reactWithSelection,
         refreshChannels: () => guildId.value ? guildStore.loadChannels(guildId.value) : Promise.resolve(),
         selectChannel: workspace.select,
-        requestScroll: workspace.requestScroll
+        requestScroll: workspace.requestScroll,
+        registerAuxSelectableIds: (ids: string[]) => { auxSelectableIds.value = ids; }
     };
 }

@@ -69,10 +69,18 @@ export async function getGuildDetail(guildId: string): Promise<GuildDetail> {
 
 // ── Guild text-channel messaging ───────────────────────────────────────────
 
+export type GuildChannelKind = 'text' | 'voice' | 'stage' | 'forum';
+
 export interface GuildTextChannel {
     id: string;
     name: string;
+    /** Discriminator: `text` is a regular text channel, `voice`/`stage` are
+     *  voice channels (with an embedded text chat — same id), `forum` opens
+     *  the forum-post browser instead of a chat panel. */
+    kind: GuildChannelKind;
     lastMessageId: string | null;
+    /** Populated only for `voice`/`stage` — the connected participants. */
+    voiceMembers?: VoiceChannelMember[];
 }
 
 export interface GuildChannelCategory {
@@ -85,7 +93,8 @@ export type GuildChannelEvent =
     | { type: 'guild-message-created'; guildId: string; channelId: string; message: Message }
     | { type: 'guild-message-updated'; guildId: string; channelId: string; message: Message }
     | { type: 'guild-message-deleted'; guildId: string; channelId: string; messageId: string }
-    | { type: 'guild-typing-start'; guildId: string; channelId: string; userId: string; userName: string; startedAt: number };
+    | { type: 'guild-typing-start'; guildId: string; channelId: string; userId: string; userName: string; startedAt: number }
+    | { type: 'guild-voice-state-updated'; guildId: string; channels: Array<{ channelId: string; members: VoiceChannelMember[] }> };
 
 export interface VoiceChannelMember {
     id: string;
@@ -385,6 +394,7 @@ export function subscribeGuildEvents(handlers: GuildEventStreamHandlers): () => 
             source.addEventListener('guild-message-updated', dispatch as EventListener);
             source.addEventListener('guild-message-deleted', dispatch as EventListener);
             source.addEventListener('guild-typing-start', dispatch as EventListener);
+            source.addEventListener('guild-voice-state-updated', dispatch as EventListener);
         }
     });
 }
