@@ -44,6 +44,11 @@ const props = defineProps<{
      *  emits `forward(message)` for the host to route. DM surfaces leave
      *  this off because cross-DM forwarding has no destination picker. */
     canForward?: boolean;
+    /** When true, the menu surfaces moderation entries (pin / unpin /
+     *  delete-any-author / bulk-delete). Guild surfaces enable this; the
+     *  underlying API still requires the bot to hold ManageMessages on
+     *  the channel, so failures surface from the API call. */
+    canModerate?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -61,6 +66,13 @@ const emit = defineEmits<{
     /** Surfaced so the workspace can show a destination picker — the
      *  conversation alone doesn't know the guild's channel tree. */
     (e: 'forward', message: Message): void;
+    /** Pin / unpin / bulk-delete are routed through the host so it can
+     *  surface a confirmation modal (bulk delete) or refresh ancillary
+     *  views (pin panel). */
+    (e: 'pin', message: Message): void;
+    (e: 'unpin', message: Message): void;
+    (e: 'mod-delete', message: Message): void;
+    (e: 'bulk-delete', anchorMessage: Message): void;
 }>();
 
 const VIRTUAL_THRESHOLD = 64;
@@ -257,8 +269,18 @@ const ctxActions = computed<ContextMenuAction[]>(() => {
     actions.push({ key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' });
     actions.push({ key: 'view-source', label: $t('messages.viewSource'), icon: 'material-symbols:code-rounded' });
     actions.push({ key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' });
+    if (props.canModerate) {
+        actions.push({
+            key: message.pinned ? 'unpin' : 'pin',
+            label: $t(message.pinned ? 'messageMgmt.unpin' : 'messageMgmt.pin'),
+            icon: 'material-symbols:keep-outline-rounded'
+        });
+        actions.push({ key: 'bulk-delete', label: $t('messageMgmt.bulkDelete'), icon: 'material-symbols:delete-sweep-outline-rounded', danger: true });
+    }
     if (isOwn(message)) {
         actions.push({ key: 'delete', label: $t('messages.delete'), icon: 'material-symbols:delete-rounded', danger: true });
+    } else if (props.canModerate) {
+        actions.push({ key: 'mod-delete', label: $t('messageMgmt.deleteAny'), icon: 'material-symbols:delete-rounded', danger: true });
     }
     return actions;
 });
@@ -301,6 +323,10 @@ function onContextPick(actionKey: string) {
         }
         case 'edit': emit('request-edit', message); break;
         case 'delete': emit('delete', message); break;
+        case 'pin': emit('pin', message); break;
+        case 'unpin': emit('unpin', message); break;
+        case 'mod-delete': emit('mod-delete', message); break;
+        case 'bulk-delete': emit('bulk-delete', message); break;
     }
 }
 

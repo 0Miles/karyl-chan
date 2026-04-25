@@ -332,6 +332,388 @@ export async function editGuildMessage(
     return body.message;
 }
 
+// ── Role CRUD ─────────────────────────────────────────────────────────
+
+export interface RoleEditPayload {
+    name?: string;
+    /** "#RRGGBB" or a 24-bit integer. */
+    color?: string | number;
+    hoist?: boolean;
+    mentionable?: boolean;
+    /** Bitfield as decimal string — Discord permissions are 64-bit so we
+     *  stringify them on the wire to avoid JSON precision loss. */
+    permissions?: string;
+    reason?: string;
+}
+
+export async function createGuildRole(guildId: string, payload: RoleEditPayload): Promise<{ id: string }> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/roles`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return jsonOrThrow<{ id: string }>(response);
+}
+
+export async function editGuildRole(guildId: string, roleId: string, payload: RoleEditPayload): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/roles/${encodeURIComponent(roleId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to edit role');
+}
+
+export async function deleteGuildRole(guildId: string, roleId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/roles/${encodeURIComponent(roleId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete role');
+}
+
+// ── Invite revocation ─────────────────────────────────────────────────
+
+export async function deleteGuildInvite(guildId: string, code: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/invites/${encodeURIComponent(code)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete invite');
+}
+
+// ── Emoji + sticker management ────────────────────────────────────────
+
+export interface GuildEmojiRow {
+    id: string;
+    name: string | null;
+    animated: boolean;
+    url: string;
+}
+
+export async function listGuildEmojis(guildId: string): Promise<GuildEmojiRow[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/emojis`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ emojis: GuildEmojiRow[] }>(response);
+    return body.emojis;
+}
+
+export async function createGuildEmoji(guildId: string, name: string, file: File): Promise<{ id: string }> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/emojis`;
+    const form = new FormData();
+    form.set('name', name);
+    form.append('file', file, file.name);
+    const response = await authedFetch(url, { method: 'POST', body: form });
+    return jsonOrThrow<{ id: string }>(response);
+}
+
+export async function renameGuildEmoji(guildId: string, emojiId: string, name: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/emojis/${encodeURIComponent(emojiId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to rename emoji');
+}
+
+export async function deleteGuildEmoji(guildId: string, emojiId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/emojis/${encodeURIComponent(emojiId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete emoji');
+}
+
+export interface GuildStickerRow {
+    id: string;
+    name: string;
+    description: string | null;
+    tags: string;
+    format: number;
+    url: string;
+}
+
+export async function listGuildStickers(guildId: string): Promise<GuildStickerRow[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/stickers`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ stickers: GuildStickerRow[] }>(response);
+    return body.stickers;
+}
+
+export async function createGuildSticker(
+    guildId: string,
+    payload: { name: string; tags: string; description: string; file: File }
+): Promise<{ id: string }> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/stickers`;
+    const form = new FormData();
+    form.set('name', payload.name);
+    form.set('tags', payload.tags);
+    form.set('description', payload.description);
+    form.append('file', payload.file, payload.file.name);
+    const response = await authedFetch(url, { method: 'POST', body: form });
+    return jsonOrThrow<{ id: string }>(response);
+}
+
+export async function editGuildSticker(
+    guildId: string,
+    stickerId: string,
+    edit: { name?: string; tags?: string; description?: string; reason?: string }
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/stickers/${encodeURIComponent(stickerId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(edit)
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to edit sticker');
+}
+
+export async function deleteGuildSticker(guildId: string, stickerId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/stickers/${encodeURIComponent(stickerId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete sticker');
+}
+
+// ── Channel CRUD ──────────────────────────────────────────────────────
+
+export type CreatableChannelKind = 'text' | 'voice' | 'category' | 'announcement' | 'forum';
+
+export async function createGuildChannel(
+    guildId: string,
+    opts: {
+        name: string;
+        type: CreatableChannelKind;
+        parentId?: string;
+        topic?: string;
+        rateLimitPerUser?: number;
+        nsfw?: boolean;
+        reason?: string;
+    }
+): Promise<{ id: string }> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/channels`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts)
+    });
+    return jsonOrThrow<{ id: string }>(response);
+}
+
+export async function deleteGuildChannel(guildId: string, channelId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/channels/${encodeURIComponent(channelId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete channel');
+}
+
+export async function editGuildChannel(
+    guildId: string,
+    channelId: string,
+    edit: {
+        name?: string;
+        topic?: string;
+        parentId?: string | null;
+        rateLimitPerUser?: number;
+        nsfw?: boolean;
+        archived?: boolean;
+        locked?: boolean;
+        autoArchiveDuration?: 60 | 1440 | 4320 | 10080;
+        reason?: string;
+    }
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/channels/${encodeURIComponent(channelId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(edit)
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to edit channel');
+}
+
+export interface ThreadMemberRow {
+    userId: string;
+    joinedAt: string | null;
+}
+
+export async function listThreadMembers(guildId: string, threadId: string): Promise<ThreadMemberRow[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/threads/${encodeURIComponent(threadId)}/members`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ members: ThreadMemberRow[] }>(response);
+    return body.members;
+}
+
+export async function addThreadMember(guildId: string, threadId: string, userId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/threads/${encodeURIComponent(threadId)}/members/${encodeURIComponent(userId)}`;
+    const response = await authedFetch(url, { method: 'POST' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add thread member');
+}
+
+export async function removeThreadMember(guildId: string, threadId: string, userId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/threads/${encodeURIComponent(threadId)}/members/${encodeURIComponent(userId)}`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove thread member');
+}
+
+// ── Member moderation ──────────────────────────────────────────────────
+
+export async function kickGuildMember(guildId: string, userId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/kick`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to kick member');
+}
+
+export async function banGuildMember(
+    guildId: string,
+    userId: string,
+    opts: { reason?: string; deleteMessageSeconds?: number } = {}
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/ban`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts)
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to ban member');
+}
+
+export async function unbanGuildUser(guildId: string, userId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/bans/${encodeURIComponent(userId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to unban user');
+}
+
+export interface GuildBanEntry {
+    userId: string;
+    username: string;
+    globalName: string | null;
+    avatar: string | null;
+    reason: string | null;
+}
+
+export async function listGuildBans(guildId: string): Promise<GuildBanEntry[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/bans`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ bans: GuildBanEntry[] }>(response);
+    return body.bans;
+}
+
+/** Pass `null` to clear an existing timeout, or an ISO string ≤28 days
+ *  in the future to apply one. */
+export async function timeoutGuildMember(
+    guildId: string,
+    userId: string,
+    until: string | null,
+    reason?: string
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/timeout`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ until, reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to set timeout');
+}
+
+export async function setGuildMemberNickname(
+    guildId: string,
+    userId: string,
+    nickname: string | null,
+    reason?: string
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/nickname`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname, reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to set nickname');
+}
+
+export async function addGuildMemberRole(
+    guildId: string,
+    userId: string,
+    roleId: string,
+    reason?: string
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role');
+}
+
+export async function removeGuildMemberRole(
+    guildId: string,
+    userId: string,
+    roleId: string,
+    reason?: string
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove role');
+}
+
+// ── Message moderation ────────────────────────────────────────────────
+
+export async function pinGuildMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/pin`;
+    const response = await authedFetch(url, { method: 'POST' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to pin message');
+}
+
+export async function unpinGuildMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/pin`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to unpin message');
+}
+
+export async function crosspostGuildMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/crosspost`;
+    const response = await authedFetch(url, { method: 'POST' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to crosspost message');
+}
+
+export async function bulkDeleteGuildMessages(guildId: string, channelId: string, messageIds: string[]): Promise<number> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/text-channels/${encodeURIComponent(channelId)}/messages/bulk-delete`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageIds })
+    });
+    const body = await jsonOrThrow<{ deletedCount: number }>(response);
+    return body.deletedCount;
+}
+
 export async function setGuildVoiceMemberMute(guildId: string, userId: string, mute: boolean): Promise<void> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/voice-members/${encodeURIComponent(userId)}/mute`;
     const response = await authedFetch(url, {

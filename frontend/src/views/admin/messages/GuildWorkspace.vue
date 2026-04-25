@@ -4,9 +4,20 @@ import { useRoute, useRouter } from 'vue-router';
 import GuildChannelSidebar from './GuildChannelSidebar.vue';
 import GuildForumPanel from './GuildForumPanel.vue';
 import GuildForwardPicker from './GuildForwardPicker.vue';
+import GuildBulkDeleteModal from './GuildBulkDeleteModal.vue';
+import GuildChannelMgmtModal from './GuildChannelMgmtModal.vue';
 import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
+import GuildMemberMgmtModal from '../../../modules/discord-chat/GuildMemberMgmtModal.vue';
 import { DiscordConversation, useDiscordGuildChannel } from '../../../modules/discord-chat';
-import { forwardGuildMessage, getGuildPins, type GuildSummary } from '../../../api/guilds';
+import {
+    bulkDeleteGuildMessages,
+    deleteGuildMessage,
+    forwardGuildMessage,
+    getGuildPins,
+    pinGuildMessage,
+    unpinGuildMessage,
+    type GuildSummary
+} from '../../../api/guilds';
 import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
@@ -140,6 +151,48 @@ async function onForwardPick(targetChannelId: string) {
     }
 }
 
+// Mod actions on individual messages. The conversation emits these so
+// the workspace owns the network calls + any required modal flow.
+async function onPinMessage(message: Message) {
+    if (!selectedChannelId.value) return;
+    try { await pinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+}
+async function onUnpinMessage(message: Message) {
+    if (!selectedChannelId.value) return;
+    try { await unpinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+}
+async function onModDeleteMessage(message: Message) {
+    if (!selectedChannelId.value) return;
+    // Confirm via native confirm() — keeps the moderation deletion path
+    // a single click from the menu while still preventing accidents.
+    if (!confirm('Delete this message?')) return;
+    try { await deleteGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+}
+
+const bulkDeleteAnchor = ref<Message | null>(null);
+function onBulkDeleteRequested(anchor: Message) {
+    bulkDeleteAnchor.value = anchor;
+}
+async function onBulkDeleteConfirm(count: number) {
+    const anchor = bulkDeleteAnchor.value;
+    bulkDeleteAnchor.value = null;
+    if (!anchor || !selectedChannelId.value) return;
+    // Take the `count` newest messages at-or-before the anchor in the
+    // currently-loaded list. The backend rejects messages older than
+    // 14 days via filterOld; we trust that filter rather than checking
+    // timestamps client-side.
+    const idx = chat.messages.value.findIndex(m => m.id === anchor.id);
+    if (idx < 0) return;
+    const start = Math.max(0, idx - count + 1);
+    const ids = chat.messages.value.slice(start, idx + 1).map(m => m.id);
+    if (ids.length < 2) return;
+    try {
+        await bulkDeleteGuildMessages(props.guildId, selectedChannelId.value, ids);
+    } catch {
+        /* ignore */
+    }
+}
+
 watch(() => conversationRef.value?.messagesContainer, (container) => {
     if (!container) return;
     chat.bindContainers({
@@ -190,6 +243,7 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :reply-to="chat.replyTo.value"
             :pin-fetcher="pinFetcher"
             :can-forward="true"
+            :can-moderate="true"
             @send="send"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
@@ -201,6 +255,10 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @react="reactWithSelection"
             @jump-to-message="onJumpToMessage"
             @forward="onForwardRequested"
+            @pin="onPinMessage"
+            @unpin="onUnpinMessage"
+            @mod-delete="onModDeleteMessage"
+            @bulk-delete="onBulkDeleteRequested"
         />
         <GuildForwardPicker
             :visible="forwardSource !== null"
@@ -208,6 +266,13 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             @pick="onForwardPick"
             @close="forwardSource = null"
         />
+        <GuildBulkDeleteModal
+            :visible="bulkDeleteAnchor !== null"
+            @confirm="onBulkDeleteConfirm"
+            @close="bulkDeleteAnchor = null"
+        />
         <UserContextMenu :voice-channels="voiceChannels" />
+        <GuildMemberMgmtModal />
+        <GuildChannelMgmtModal :categories="categories" />
     </SidebarLayout>
 </template>

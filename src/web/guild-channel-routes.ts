@@ -560,10 +560,9 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
             try {
                 const message = await channel.messages.fetch(messageId);
-                if (message.author.id !== bot.user?.id) {
-                    reply.code(403).send({ error: 'Can only delete messages sent by the bot' });
-                    return;
-                }
+                // No author check — Discord enforces that non-own deletion
+                // requires ManageMessages on the bot. We forward the call and
+                // let it surface a 50013 if the bot lacks the permission.
                 await message.delete();
                 events.publish({ type: 'guild-message-deleted', guildId, channelId: channel.id, messageId });
                 reply.code(204).send();

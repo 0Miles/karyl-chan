@@ -52,6 +52,7 @@ import { registerDiscordRoutes } from './discord-routes.js';
 import { avatarUrlFor } from './message-mapper.js';
 import { registerGuildsRoutes } from './guilds-routes.js';
 import { registerGuildChannelRoutes } from './guild-channel-routes.js';
+import { registerGuildManagementRoutes } from './guild-management-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { registerSystemRoutes } from './system-routes.js';
 import { registerAdminManagementRoutes } from './admin-management-routes.js';
@@ -364,6 +365,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
         await registerDiscordRoutes(server, { bot });
         await registerGuildsRoutes(server, { bot });
         await registerGuildChannelRoutes(server, { bot });
+        await registerGuildManagementRoutes(server, { bot });
         await registerSystemRoutes(server, { bot, dmInbox: options.dmInbox });
     } else {
         await registerSystemRoutes(server, { dmInbox: options.dmInbox });

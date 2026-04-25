@@ -2,6 +2,8 @@
 import { onMounted, ref, watch } from 'vue';
 import {
     createGuildInvite,
+    deleteGuildInvite,
+    deleteGuildRole,
     getGuildDetail,
     listGuildInvites,
     listGuildRoles,
@@ -15,7 +17,12 @@ import { SidebarLayout } from '../../../layouts';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { useApiError } from '../../../composables/use-api-error';
+import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
+import GuildRoleEditModal from './GuildRoleEditModal.vue';
+import GuildEmojiStickerPanel from './GuildEmojiStickerPanel.vue';
+
+const { t: $t } = useI18n();
 
 const { closeOverlay } = useAppShell();
 const { isMobile } = useBreakpoint();
@@ -108,6 +115,44 @@ async function onCreateInvite() {
 
 async function copyInvite(url: string) {
     try { await navigator.clipboard.writeText(url); } catch { /* ignore */ }
+}
+
+// ── Role management ────────────────────────────────────────────────
+const roleModalVisible = ref(false);
+const roleEditingTarget = ref<GuildRoleSummary | null>(null);
+function openCreateRole() {
+    roleEditingTarget.value = null;
+    roleModalVisible.value = true;
+}
+function openEditRole(role: GuildRoleSummary) {
+    roleEditingTarget.value = role;
+    roleModalVisible.value = true;
+}
+async function onRoleSaved() {
+    if (selectedId.value) await loadRoles(selectedId.value);
+}
+async function onDeleteRole(role: GuildRoleSummary) {
+    if (!selectedId.value) return;
+    if (!confirm($t('roleMgmt.deleteConfirm', { name: role.name }))) return;
+    try {
+        await deleteGuildRole(selectedId.value, role.id);
+        await loadRoles(selectedId.value);
+    } catch (err) {
+        if (handleApiError(err) !== 'unhandled') return;
+    }
+}
+
+// ── Invite revocation ──────────────────────────────────────────────
+async function onRevokeInvite(inv: GuildInvite) {
+    if (!selectedId.value) return;
+    if (!confirm($t('inviteMgmt.revokeConfirm', { code: inv.code }))) return;
+    try {
+        await deleteGuildInvite(selectedId.value, inv.code);
+        await loadInvites(selectedId.value);
+    } catch (err) {
+        if (handleApiError(err) !== 'unhandled') return;
+        invitesError.value = err instanceof Error ? err.message : 'Failed to revoke invite';
+    }
 }
 
 watch(selectedId, (id) => { if (id) loadDetail(id); });
@@ -244,9 +289,16 @@ function customEmojiUrl(id: string, char: string): string {
                     <p v-else class="muted">{{ $t('common.none') }}</p>
                 </section>
 
-                <section class="card" v-if="roles.length > 0">
-                    <h3>{{ $t('guilds.rolesTitle') }} <span class="count-pill">{{ roles.length }}</span></h3>
-                    <ul class="bare role-list">
+                <section class="card">
+                    <h3>
+                        {{ $t('guilds.rolesTitle') }}
+                        <span class="count-pill">{{ roles.length }}</span>
+                        <button type="button" class="invite-create" @click="openCreateRole">
+                            {{ $t('roleMgmt.createButton') }}
+                        </button>
+                    </h3>
+                    <p v-if="roles.length === 0" class="muted">{{ $t('common.none') }}</p>
+                    <ul v-else class="bare role-list">
                         <li v-for="r in roles" :key="r.id" class="role-row">
                             <span class="role-swatch" :style="{ background: r.color ?? 'var(--bg-surface-2)' }"></span>
                             <span class="role-name" :style="r.color ? { color: r.color } : undefined">@{{ r.name }}</span>
@@ -254,6 +306,14 @@ function customEmojiUrl(id: string, char: string): string {
                                 {{ $t('guilds.roleMembers', { count: r.memberCount }) }}
                             </span>
                             <span v-if="r.managed" class="role-flag">{{ $t('guilds.roleManaged') }}</span>
+                            <template v-else>
+                                <button type="button" class="link role-action" @click="openEditRole(r)">
+                                    {{ $t('roleMgmt.edit') }}
+                                </button>
+                                <button type="button" class="link role-action danger" @click="onDeleteRole(r)">
+                                    {{ $t('roleMgmt.delete') }}
+                                </button>
+                            </template>
                         </li>
                     </ul>
                 </section>
@@ -281,13 +341,23 @@ function customEmojiUrl(id: string, char: string): string {
                                 <template v-if="inv.expiresAt">· {{ $t('guilds.invites.expires', { date: new Date(inv.expiresAt).toLocaleString() }) }}</template>
                             </span>
                             <button type="button" class="link" @click="copyInvite(inv.url)">{{ $t('messages.copyLink') }}</button>
+                            <button type="button" class="link danger" @click="onRevokeInvite(inv)">{{ $t('inviteMgmt.revoke') }}</button>
                         </li>
                     </ul>
                     <p v-else-if="!invitesError" class="muted">{{ $t('common.none') }}</p>
                 </section>
+
+                <GuildEmojiStickerPanel :guild-id="selectedId" />
             </article>
             </template>
         </div>
+        <GuildRoleEditModal
+            :visible="roleModalVisible"
+            :guild-id="selectedId"
+            :role="roleEditingTarget"
+            @close="roleModalVisible = false"
+            @saved="onRoleSaved"
+        />
     </SidebarLayout>
 </template>
 
@@ -379,6 +449,8 @@ function customEmojiUrl(id: string, char: string): string {
     font: inherit;
     padding: 0;
 }
+.link.danger { color: var(--danger); }
+.role-action { font-size: 0.78rem; }
 .guild-list {
     list-style: none;
     margin: 0;

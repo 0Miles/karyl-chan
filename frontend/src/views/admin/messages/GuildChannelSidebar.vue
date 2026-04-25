@@ -11,7 +11,8 @@ import { useI18n } from 'vue-i18n';
 import { useUnreadStore } from '../../../modules/discord-chat/stores/unreadStore';
 import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import { useUserContextMenuStore } from '../../../modules/discord-chat/stores/userContextMenuStore';
-import type { VoiceChannelMember } from '../../../api/guilds';
+import { useChannelMgmtStore } from '../../../modules/discord-chat/stores/channelMgmtStore';
+import { deleteGuildChannel, editGuildChannel, type VoiceChannelMember } from '../../../api/guilds';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../../libs/messages/MessageContextMenu.vue';
@@ -22,19 +23,30 @@ const { t: $t } = useI18n();
 const unreadStore = useUnreadStore();
 const muteStore = useMuteStore();
 const userMenu = useUserContextMenuStore();
+const channelMgmt = useChannelMgmtStore();
 
-// Channel right-click — surfaces mute/unmute, mark-as-read, and copy
-// helpers per row. Local state (no shared store) because this menu only
-// ever fires from this sidebar.
-const channelMenu = ref<{ x: number; y: number; channelId: string } | null>(null);
-function onChannelContext(event: MouseEvent, channelId: string) {
+// Channel right-click — surfaces mute/unmute, mark-as-read, copy helpers
+// AND moderation entries (edit / delete / thread archive+lock). The
+// `kind` field decides which moderation entries surface so we don't have
+// to look up the row again at dispatch time.
+type ChannelMenuCtx =
+    | { x: number; y: number; kind: 'channel'; channel: GuildTextChannel }
+    | { x: number; y: number; kind: 'thread'; thread: GuildActiveThread };
+const channelMenu = ref<ChannelMenuCtx | null>(null);
+function onChannelContext(event: MouseEvent, channel: GuildTextChannel) {
     event.preventDefault();
     event.stopPropagation();
-    channelMenu.value = { x: event.clientX, y: event.clientY, channelId };
+    channelMenu.value = { x: event.clientX, y: event.clientY, kind: 'channel', channel };
+}
+function onThreadContext(event: MouseEvent, thread: GuildActiveThread) {
+    event.preventDefault();
+    event.stopPropagation();
+    channelMenu.value = { x: event.clientX, y: event.clientY, kind: 'thread', thread };
 }
 const channelMenuActions = computed<ContextMenuAction[]>(() => {
-    if (!channelMenu.value) return [];
-    const id = channelMenu.value.channelId;
+    const ctx = channelMenu.value;
+    if (!ctx) return [];
+    const id = ctx.kind === 'channel' ? ctx.channel.id : ctx.thread.id;
     const actions: ContextMenuAction[] = [];
     if (unreadStore.hasChannelUnread(id) || unreadStore.getChannelMentionCount(id) > 0) {
         actions.push({ key: 'mark-read', label: $t('channelMenu.markAsRead'), icon: 'material-symbols:mark-chat-read-outline-rounded' });
@@ -52,26 +64,100 @@ const channelMenuActions = computed<ContextMenuAction[]>(() => {
     }
     actions.push({ key: 'copy-link', label: $t('channelMenu.copyLink'), icon: 'material-symbols:link-rounded' });
     actions.push({ key: 'copy-id', label: $t('channelMenu.copyId'), icon: 'material-symbols:fingerprint-rounded' });
+    if (props.guildId) {
+        if (ctx.kind === 'channel') {
+            // Editing a category from the same modal would require a
+            // pile of category-only fields; the modal currently only
+            // handles channel-shaped rows, so we hide edit on categories.
+            if (ctx.channel.kind !== 'forum') {
+                actions.push({ key: 'edit', label: $t('channelMenu.editChannel'), icon: 'material-symbols:settings-outline-rounded' });
+            }
+            actions.push({ key: 'delete', label: $t('channelMenu.deleteChannel'), icon: 'material-symbols:delete-outline-rounded', danger: true });
+        } else {
+            // Active threads list doesn't carry archived/locked flags
+            // (server returns archived=false for the active sweep); we
+            // still expose archive + lock as toggles since the API is
+            // idempotent.
+            actions.push({ key: 'thread-archive', label: $t('channelMenu.archiveThread'), icon: 'material-symbols:archive-outline-rounded' });
+            actions.push({
+                key: 'thread-lock',
+                label: $t(ctx.thread.locked ? 'channelMenu.unlockThread' : 'channelMenu.lockThread'),
+                icon: 'material-symbols:lock-outline-rounded'
+            });
+            actions.push({ key: 'edit', label: $t('channelMenu.editChannel'), icon: 'material-symbols:settings-outline-rounded' });
+            actions.push({ key: 'delete', label: $t('channelMenu.deleteChannel'), icon: 'material-symbols:delete-outline-rounded', danger: true });
+        }
+    }
     return actions;
 });
 async function copyToClipboard(text: string) {
     try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
 }
-function onChannelMenuPick(actionKey: string) {
+async function onChannelMenuPick(actionKey: string) {
     const ctx = channelMenu.value;
     if (!ctx) return;
-    const id = ctx.channelId;
+    const id = ctx.kind === 'channel' ? ctx.channel.id : ctx.thread.id;
+    const name = ctx.kind === 'channel' ? ctx.channel.name : ctx.thread.name;
     switch (actionKey) {
         case 'mark-read': unreadStore.markRead(id); break;
         case 'mute-mentions': muteStore.setLevel(id, 'mentions-only'); break;
         case 'mute-all': muteStore.setLevel(id, 'none'); break;
         case 'unmute': muteStore.setLevel(id, 'all'); break;
         case 'copy-link':
-            // Discord canonical channel link. `props.guildId` may be null
-            // very briefly during guild switches; skip in that case.
             if (props.guildId) void copyToClipboard(`https://discord.com/channels/${props.guildId}/${id}`);
             break;
         case 'copy-id': void copyToClipboard(id); break;
+        case 'edit':
+            if (!props.guildId) break;
+            if (ctx.kind === 'channel') {
+                channelMgmt.open({ mode: 'edit', guildId: props.guildId, channel: ctx.channel });
+            } else {
+                channelMgmt.open({
+                    mode: 'edit',
+                    guildId: props.guildId,
+                    channel: { id: ctx.thread.id, name: ctx.thread.name, kind: 'text', lastMessageId: ctx.thread.lastMessageId },
+                    isThread: true,
+                    threadLocked: ctx.thread.locked,
+                    threadArchived: ctx.thread.archived
+                });
+            }
+            break;
+        case 'delete':
+            if (!props.guildId) break;
+            if (!confirm($t('channelMgmt.deleteConfirm', { name }))) break;
+            try { await deleteGuildChannel(props.guildId, id); } catch { /* ignore */ }
+            break;
+        case 'thread-archive':
+            if (!props.guildId) break;
+            try { await editGuildChannel(props.guildId, id, { archived: true }); } catch { /* ignore */ }
+            break;
+        case 'thread-lock':
+            if (!props.guildId || ctx.kind !== 'thread') break;
+            try { await editGuildChannel(props.guildId, id, { locked: !ctx.thread.locked }); } catch { /* ignore */ }
+            break;
+    }
+}
+
+// Right-click on the category header → "Create channel" anchored to
+// that category. A separate menu state slot keeps it isolated from the
+// per-channel menu so they never compete for the visible flag.
+const categoryMenu = ref<{ x: number; y: number; categoryId: string | null } | null>(null);
+function onCategoryContext(event: MouseEvent, categoryId: string | null) {
+    event.preventDefault();
+    event.stopPropagation();
+    categoryMenu.value = { x: event.clientX, y: event.clientY, categoryId };
+}
+const categoryMenuActions = computed<ContextMenuAction[]>(() => {
+    if (!categoryMenu.value || !props.guildId) return [];
+    return [
+        { key: 'create', label: $t('channelMenu.createChannel'), icon: 'material-symbols:add-rounded' }
+    ];
+});
+function onCategoryMenuPick(actionKey: string) {
+    const ctx = categoryMenu.value;
+    if (!ctx || !props.guildId) return;
+    if (actionKey === 'create') {
+        channelMgmt.open({ mode: 'create', guildId: props.guildId, parentId: ctx.categoryId });
     }
 }
 
@@ -185,7 +271,8 @@ watch(() => props.guildId, () => {
                     v-if="cat.name"
                     type="button"
                     class="category-header"
-                    @click="toggleCategory(cat.id)">
+                    @click="toggleCategory(cat.id)"
+                    @contextmenu="onCategoryContext($event, cat.id)">
                 <span class="chevron" :class="{ collapsed: isCategoryCollapsed(cat.id) }">›</span>
                 {{ cat.name.toUpperCase() }}
             </button>
@@ -199,7 +286,7 @@ watch(() => props.guildId, () => {
                         muted: muteStore.isMuted(channel.id)
                     }]"
                     @click="emit('select', channel.id)"
-                    @contextmenu="onChannelContext($event, channel.id)">
+                    @contextmenu="onChannelContext($event, channel)">
                     <span v-if="channel.kind === 'text'" class="hash">#</span>
                     <Icon v-else :icon="channelIcon(channel) ?? ''" width="14" height="14" class="kind-icon" />
                     <span class="name">{{ channel.name }}</span>
@@ -234,7 +321,7 @@ watch(() => props.guildId, () => {
                     :key="thread.id"
                     :class="['thread-row', { active: thread.id === selectedId }]"
                     @click="emit('select', thread.id)"
-                    @contextmenu="onChannelContext($event, thread.id)"
+                    @contextmenu="onThreadContext($event, thread)"
                 >
                     <Icon icon="material-symbols:forum-outline-rounded" width="12" height="12" class="thread-icon" />
                     <span class="name">{{ thread.name }}</span>
@@ -250,6 +337,14 @@ watch(() => props.guildId, () => {
         :actions="channelMenuActions"
         @pick="onChannelMenuPick"
         @close="channelMenu = null"
+    />
+    <MessageContextMenu
+        :visible="categoryMenu !== null"
+        :x="categoryMenu?.x ?? 0"
+        :y="categoryMenu?.y ?? 0"
+        :actions="categoryMenuActions"
+        @pick="onCategoryMenuPick"
+        @close="categoryMenu = null"
     />
 </template>
 
