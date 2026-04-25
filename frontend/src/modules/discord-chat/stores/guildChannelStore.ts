@@ -19,6 +19,7 @@ import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore } from './messageCacheStore';
 import { useBotStore } from './botStore';
 import { useUnreadStore } from './unreadStore';
+import { maybeNotify } from '../notifications';
 
 interface GuildEntry {
     categories: GuildChannelCategory[];
@@ -64,6 +65,20 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         return guilds[guildId]?.error ?? null;
     }
 
+    /** Look up a channel's display name from cached categories. Returns
+     *  null if the guild hasn't been loaded yet (hot SSE event) — the
+     *  notification falls back to a channel-id title in that case. */
+    function findChannelName(guildId: string, channelId: string): string | null {
+        const entry = guilds[guildId];
+        if (!entry) return null;
+        for (const cat of entry.categories) {
+            for (const ch of cat.channels) {
+                if (ch.id === channelId) return ch.name;
+            }
+        }
+        return null;
+    }
+
     function startSSE() {
         if (stopSSE) return;
         const messageCache = useMessageCacheStore();
@@ -85,6 +100,25 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
                     });
                     if (event.type === 'guild-message-created' && event.message.author.id !== botStore.userId) {
                         unread.noteMessage(event.channelId, event.guildId, !!event.message.mentionsMe, event.message.id);
+                        // Only notify when the user is elsewhere AND the
+                        // message either mentions us or arrives in a
+                        // non-muted channel. maybeNotify enforces the
+                        // muted-but-mention escape hatch on its own.
+                        if (unread.currentChannelId !== event.channelId) {
+                            const channelName = findChannelName(event.guildId, event.channelId);
+                            const author = event.message.author;
+                            const senderName = author.globalName ?? author.username ?? 'Someone';
+                            const body = event.message.content?.slice(0, 140)
+                                || (event.message.attachments?.length ? '📎 attachment' : 'New message');
+                            maybeNotify({
+                                channelId: event.channelId,
+                                surface: event.guildId,
+                                title: channelName ? `${senderName} · #${channelName}` : senderName,
+                                body,
+                                iconUrl: author.avatarUrl,
+                                isMention: !!event.message.mentionsMe
+                            });
+                        }
                     }
                 }
             },

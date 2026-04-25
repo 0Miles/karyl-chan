@@ -50,6 +50,10 @@
             "animatedEmoji": {
                 "label": "自动播放动画表情",
                 "help": "关闭后动画 emoji 显示为静止帧,可在移动网络节省流量。"
+            },
+            "desktopNotifications": {
+                "label": "桌面通知",
+                "help": "窗口未在前台时,新 DM 与公会中提及你的消息会弹出系统通知。被静音的对话不会推送。"
             }
         }
     },

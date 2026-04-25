@@ -5,10 +5,29 @@ import { useI18n } from 'vue-i18n';
 import { DashboardLayout } from '../../../layouts';
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
+import { ensureNotificationPermission } from '../../../modules/discord-chat/notifications';
 
 const { t } = useI18n();
 const store = useCurrentUserStore();
 const settings = useSettingsStore();
+
+async function onToggleDesktopNotifications(event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (!checked) {
+        settings.desktopNotifications = false;
+        return;
+    }
+    // Request permission BEFORE flipping the bit so a denial leaves the
+    // toggle off — otherwise the user thinks notifications work but
+    // nothing ever fires.
+    const granted = await ensureNotificationPermission();
+    settings.desktopNotifications = granted;
+    if (!granted) {
+        // Reset the input visually since v-model would have flipped it
+        // optimistically.
+        (event.target as HTMLInputElement).checked = false;
+    }
+}
 
 onMounted(() => {
     // Guard: if the cached user is missing (hard refresh, expired cache,
@@ -86,6 +105,17 @@ const roleLabel = computed(() => {
                     <small class="muted">{{ $t('profile.settings.animatedEmoji.help') }}</small>
                 </span>
                 <input type="checkbox" v-model="settings.animatedEmojiAutoplay" />
+            </label>
+            <label class="setting-row">
+                <span class="setting-label">
+                    <strong>{{ $t('profile.settings.desktopNotifications.label') }}</strong>
+                    <small class="muted">{{ $t('profile.settings.desktopNotifications.help') }}</small>
+                </span>
+                <input
+                    type="checkbox"
+                    :checked="settings.desktopNotifications"
+                    @change="onToggleDesktopNotifications"
+                />
             </label>
         </section>
     </DashboardLayout>

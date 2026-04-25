@@ -50,6 +50,10 @@
             "animatedEmoji": {
                 "label": "Autoplay animated emoji",
                 "help": "Off shows a static frame for animated emoji — useful on mobile data."
+            },
+            "desktopNotifications": {
+                "label": "Desktop notifications",
+                "help": "Pop a system notification for new DMs and guild @mentions when this window isn't focused. Muted channels don't notify."
             }
         }
     },

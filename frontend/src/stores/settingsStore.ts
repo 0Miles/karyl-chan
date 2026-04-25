@@ -44,7 +44,15 @@ export const useSettingsStore = defineStore('settings', () => {
     const animatedEmojiAutoplay = ref(readBool('animatedEmojiAutoplay', true));
     watch(animatedEmojiAutoplay, v => writeBool('animatedEmojiAutoplay', v));
 
+    // OS desktop notifications for new DMs and guild mentions when the
+    // window isn't focused. Off by default — opt-in keeps us off the
+    // permission-popup-on-first-load path. The actual permission prompt
+    // happens lazily the first time an enabled user receives a ping.
+    const desktopNotifications = ref(readBool('desktopNotifications', false));
+    watch(desktopNotifications, v => writeBool('desktopNotifications', v));
+
     return {
-        animatedEmojiAutoplay
+        animatedEmojiAutoplay,
+        desktopNotifications
     };
 });

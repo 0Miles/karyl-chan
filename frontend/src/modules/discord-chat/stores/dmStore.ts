@@ -17,6 +17,7 @@ import type { MessageEmoji } from '../../../libs/messages';
 import { useMessageCacheStore, type ChannelMessageEvent } from './messageCacheStore';
 import { useBotStore } from './botStore';
 import { useUnreadStore } from './unreadStore';
+import { maybeNotify } from '../notifications';
 
 export const useDmStore = defineStore('discord-dm', () => {
     const channels = ref<DmChannelSummary[]>([]);
@@ -51,6 +52,28 @@ export const useDmStore = defineStore('discord-dm', () => {
                     messageCache.applyEvent(event satisfies ChannelMessageEvent);
                     if (event.type === 'message-created' && event.message.author.id !== botStore.userId) {
                         unread.noteMessage(event.channelId, 'dm', false, event.message.id);
+                        // Skip the notification if the user is actively
+                        // viewing this DM — they don't need an OS-level
+                        // ping for content already on their screen.
+                        if (unread.currentChannelId !== event.channelId) {
+                            const channel = channels.value.find(c => c.id === event.channelId);
+                            const author = event.message.author;
+                            const senderName = author.globalName ?? author.username ?? 'Someone';
+                            const recipientName = channel?.recipient.globalName ?? channel?.recipient.username;
+                            // Title is the conversation, not the sender, so
+                            // a flurry of replies in one DM collapses to a
+                            // single OS notification (tag = channelId).
+                            const title = recipientName ?? senderName;
+                            const body = event.message.content?.slice(0, 140)
+                                || (event.message.attachments?.length ? '📎 attachment' : 'New message');
+                            maybeNotify({
+                                channelId: event.channelId,
+                                surface: 'dm',
+                                title: `${senderName} · ${title}`,
+                                body,
+                                iconUrl: author.avatarUrl
+                            });
+                        }
                     }
                 }
             },
