@@ -153,6 +153,16 @@ function cancelSuggestions() {
 
 const stickerLimitReached = computed(() => pendingStickers.value.length >= 3);
 
+// Discord rejects bot messages over 2000 chars. We'd rather refuse
+// before the network round-trip than show a confusing 400 from the
+// server, and we surface the count once the user is in the danger zone
+// so it's clear why the send button locked up.
+const MESSAGE_MAX = 2000;
+const COUNT_WARN_AT = 1750;
+const charCount = computed(() => content.value.length);
+const overLimit = computed(() => charCount.value > MESSAGE_MAX);
+const showCharCount = computed(() => charCount.value >= COUNT_WARN_AT);
+
 function onMediaSelect(selection: MediaSelection) {
     const root = editorRef.value;
     if (selection.type === 'sticker') {
@@ -233,6 +243,10 @@ defineExpose({ addFiles });
 function send() {
     const text = content.value.trim();
     if (!text && attachments.value.length === 0 && pendingStickers.value.length === 0) return;
+    // Stop the send rather than letting the server bounce it with a 400
+    // — saves a round-trip and keeps the UX symmetric with the visual
+    // counter that's already shouting at the user.
+    if (overLimit.value) return;
     emit('send', {
         content: text,
         attachments: attachments.value.length ? attachments.value : undefined,
@@ -412,9 +426,16 @@ watch(() => props.channelId, (newId, oldId) => {
                     </button>
                 </template>
             </MediaPickerPopover>
-            <button type="button" class="icon-button" :disabled="disabled" @click="send" :title="$t('composer.send')" :aria-label="$t('composer.send')">
+            <button type="button" class="icon-button" :disabled="disabled || overLimit" @click="send" :title="$t('composer.send')" :aria-label="$t('composer.send')">
                 <Icon icon="material-symbols:send-rounded" width="20" height="20" />
             </button>
+        </div>
+        <div
+            v-if="showCharCount"
+            :class="['char-count', { warn: !overLimit, over: overLimit }]"
+            :aria-live="overLimit ? 'polite' : 'off'"
+        >
+            {{ charCount }}/{{ MESSAGE_MAX }}
         </div>
     </div>
 </template>
@@ -567,4 +588,14 @@ watch(() => props.channelId, (newId, oldId) => {
 .hidden {
     display: none;
 }
+.char-count {
+    align-self: flex-end;
+    font-size: 0.72rem;
+    margin-top: 0.15rem;
+    padding-right: 0.25rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.char-count.warn { color: var(--text-muted); }
+.char-count.over { color: var(--danger); font-weight: 600; }
 </style>
