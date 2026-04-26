@@ -1,10 +1,22 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { vi, afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
+
+// Pin the shared sequelize singleton to in-memory SQLite *before* any
+// import below pulls db.ts into the module graph. Without this, the
+// auth-enabled exchange test below queries authorized_users on whatever
+// database the env points at — locally it works because data/database.sqlite
+// happens to exist with the right schema, but CI starts clean and the
+// missing table surfaces as a 500 instead of the expected 401.
+vi.hoisted(() => {
+    process.env.SQLITE_DB_PATH = ':memory:';
+});
+
+import { sequelize } from '../src/models/db.js';
 import { createWebServer } from '../src/web/server.js';
 import { AuthStore } from '../src/web/auth-store.service.js';
 import { JwtService, type JwtClaims } from '../src/web/jwt.service.js';
@@ -201,6 +213,10 @@ describe('web server', () => {
 
         beforeAll(async () => {
             process.env.BOT_OWNER_ID = OWNER_ID;
+            // resolveLoginRole hits authorized_users for any non-owner
+            // userId; the table needs to exist even though the test only
+            // expects to find it empty.
+            await sequelize.sync({ force: true });
             store = new AuthStore();
             jwt = new JwtService(randomBytes(64));
             server = await createWebServer({ staticRoot: undefined, authStore: store, jwtService: jwt });
@@ -211,6 +227,7 @@ describe('web server', () => {
             await server.close();
             store.stop();
             delete process.env.BOT_OWNER_ID;
+            await sequelize.close();
         });
 
         it('rejects /api requests without an Authorization header', async () => {
