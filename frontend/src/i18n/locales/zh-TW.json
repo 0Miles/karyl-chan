@@ -558,11 +558,8 @@
             "roleEmojiHint": "成員在被監看的訊息上以表情反應時,會獲得對應身分組。每筆對應都歸屬於一個群組。",
             "mappingsCount": "{n} 筆對應",
             "roleReceiveTitle": "被監看的訊息",
-            "roleReceiveHint": "監看這些訊息以接收身分組表情反應。可指定套用的表情群組,留空則套用本伺服器所有群組。",
-            "roleReceiveGroupsLabel": "套用群組：",
-            "roleReceiveGroupsAllHint": "留空表示套用全部群組。",
-            "roleReceiveGroupsAllActive": "（未指定 — 套用所有群組）",
-            "roleReceiveGroupsNone": "{name}",
+            "roleReceiveHint": "監看這些訊息以接收身分組表情反應。每則被監看的訊息綁定一個表情群組,bot 收到反應時只會以該群組的對應來決定身分組。",
+            "roleReceiveGroupLabel": "套用群組：",
             "capabilityTitle": "權限授予",
             "capabilityHint": "授予某身分組一項伺服器內權限,該身分組成員即可使用對應的斜線指令。"
         },

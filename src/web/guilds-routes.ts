@@ -6,7 +6,6 @@ import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
 import { RoleEmoji } from '../models/role-emoji.model.js';
 import { RoleEmojiGroup } from '../models/role-emoji-group.model.js';
 import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
-import { RoleReceiveMessageGroup } from '../models/role-receive-message-group.model.js';
 import { ChannelType } from 'discord.js';
 import { CapabilityGrant } from '../models/capability-grant.model.js';
 import { guildAccessFilter, requireAnyGuildCapability, requireGuildCapability } from './route-guards.js';
@@ -73,7 +72,6 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
             rconForwardChannels,
             roleEmojiGroups,
             roleReceiveMessages,
-            roleReceiveMessageGroups,
             capabilityGrants
         ] = await Promise.all([
             TodoChannel.findAll({ where: { guildId: guild.id } }),
@@ -81,7 +79,6 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
             RconForwardChannel.findAll({ where: { guildId: guild.id } }),
             RoleEmojiGroup.findAll({ where: { guildId: guild.id }, order: [['name', 'ASC']] }),
             RoleReceiveMessage.findAll({ where: { guildId: guild.id } }),
-            RoleReceiveMessageGroup.findAll({ where: { guildId: guild.id } }),
             CapabilityGrant.findAll({ where: { guildId: guild.id } })
         ]);
         // Mappings depend on which groups belong to this guild — pull
@@ -90,7 +87,10 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
         const groupIds = roleEmojiGroups.map(g => g.getDataValue('id') as number);
         const roleEmojis = groupIds.length === 0
             ? []
-            : await RoleEmoji.findAll({ where: { groupId: groupIds } });
+            : await RoleEmoji.findAll({
+                where: { groupId: groupIds },
+                order: [['groupId', 'ASC'], ['sortOrder', 'ASC'], ['createdAt', 'ASC']]
+            });
 
         const channelName = (id: string) => guild.channels.cache.get(id)?.name ?? null;
         const roleName = (id: string) => guild.roles.cache.get(id)?.name ?? null;
@@ -139,19 +139,12 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
                 emojiId: r.getDataValue('emojiId') as string,
                 emojiChar: r.getDataValue('emojiChar') as string
             })),
-            roleReceiveMessages: roleReceiveMessages.map(r => {
-                const channelId = r.getDataValue('channelId') as string;
-                const messageId = r.getDataValue('messageId') as string;
-                const groupIds = roleReceiveMessageGroups
-                    .filter(j => j.getDataValue('channelId') === channelId && j.getDataValue('messageId') === messageId)
-                    .map(j => j.getDataValue('groupId') as number);
-                return {
-                    channelId,
-                    channelName: channelName(channelId),
-                    messageId,
-                    groupIds
-                };
-            }),
+            roleReceiveMessages: roleReceiveMessages.map(r => ({
+                channelId: r.getDataValue('channelId') as string,
+                channelName: channelName(r.getDataValue('channelId') as string),
+                messageId: r.getDataValue('messageId') as string,
+                groupId: r.getDataValue('groupId') as number
+            })),
             capabilityGrants: capabilityGrants.map(r => ({
                 capability: r.getDataValue('capability') as string,
                 roleId: r.getDataValue('roleId') as string,

@@ -38,8 +38,8 @@ export interface RoleEmojiEntry {
 
 export interface RoleReceiveMessageEntry extends GuildChannelRef {
     messageId: string;
-    /** Pinned group ids; empty array means "every group in the guild applies". */
-    groupIds: number[];
+    /** The single emoji group bound to this watched message. */
+    groupId: number;
 }
 
 export interface CapabilityGrantEntry {
@@ -975,26 +975,26 @@ export async function addRoleReceiveMessage(
     guildId: string,
     channelId: string,
     messageId: string,
-    groupIds: number[] = []
+    groupId: number
 ): Promise<void> {
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId, messageId, groupIds })
+        body: JSON.stringify({ channelId, messageId, groupId })
     });
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role-receive message');
 }
-export async function setRoleReceiveMessageGroups(
+export async function setRoleReceiveMessageGroup(
     guildId: string,
     channelId: string,
     messageId: string,
-    groupIds: number[]
+    groupId: number
 ): Promise<void> {
-    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}/groups`;
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}/group`;
     const response = await authedFetch(url, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupIds })
+        body: JSON.stringify({ groupId })
     });
-    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to update message groups');
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to update message group');
 }
 export async function removeRoleReceiveMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}`;

@@ -558,11 +558,8 @@
             "roleEmojiHint": "When a member reacts with the emoji on a watched message, they receive the role. Each mapping lives inside one group.",
             "mappingsCount": "{n} mapping(s)",
             "roleReceiveTitle": "Watched messages",
-            "roleReceiveHint": "Watch these messages for role-emoji reactions. Pin specific groups, or leave empty to honour every group in this guild.",
-            "roleReceiveGroupsLabel": "Pinned groups:",
-            "roleReceiveGroupsAllHint": "Leave empty to use every group.",
-            "roleReceiveGroupsAllActive": "(none pinned — every group applies)",
-            "roleReceiveGroupsNone": "{name}",
+            "roleReceiveHint": "Watch these messages for role-emoji reactions. Each watched message is bound to one emoji group; reactions only resolve to a role when the emoji belongs to that group.",
+            "roleReceiveGroupLabel": "Group:",
             "capabilityTitle": "Capability grants",
             "capabilityHint": "Grant a per-server capability to a role, so members of that role can use a slash command."
         },

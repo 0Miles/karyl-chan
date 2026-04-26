@@ -8,10 +8,9 @@ import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel
 import { TodoChannel } from '../models/todo-channel.model.js';
 import { PictureOnlyChannel } from '../models/picture-only-channel.model.js';
 import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
-import { RoleEmoji } from '../models/role-emoji.model.js';
+import { RoleEmoji, addRoleEmoji } from '../models/role-emoji.model.js';
 import { RoleEmojiGroup } from '../models/role-emoji-group.model.js';
 import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
-import { setMessageGroups, removeAllMessageGroups } from '../models/role-receive-message-group.model.js';
 import { CapabilityGrant } from '../models/capability-grant.model.js';
 
 export interface GuildManagementRoutesOptions {
@@ -1438,23 +1437,14 @@ export async function registerGuildManagementRoutes(
         }
     );
 
-    // Reject groupIds that aren't a number array, or that reference a
-    // group from a different guild. Returns null on validation failure
-    // so the caller can short-circuit with a 400; an empty array is a
-    // valid input meaning "no pin".
-    async function validateGroupIds(raw: unknown, guildId: string): Promise<number[] | null> {
-        if (raw === undefined || raw === null) return [];
-        if (!Array.isArray(raw)) return null;
-        const ids: number[] = [];
-        for (const v of raw) {
-            const n = typeof v === 'number' ? v : Number(v);
-            if (!Number.isFinite(n)) return null;
-            ids.push(n);
-        }
-        if (ids.length === 0) return [];
-        const owned = await RoleEmojiGroup.findAll({ where: { guildId, id: ids } });
-        if (owned.length !== new Set(ids).size) return null;
-        return ids;
+    // Resolve a posted groupId, rejecting non-numbers and cross-guild
+    // ids. Returns the validated number on success, or null when the
+    // caller should respond with a 400.
+    async function validateGroupId(raw: unknown, guildId: string): Promise<number | null> {
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        if (!Number.isFinite(n)) return null;
+        const owned = await RoleEmojiGroup.findOne({ where: { guildId, id: n } });
+        return owned ? n : null;
     }
 
     // Role-emoji mapping ────────────────────────────────────────────────
@@ -1486,13 +1476,7 @@ export async function registerGuildManagementRoutes(
             const m = EMOJI_REGEX.exec(b.emoji);
             if (!m) { reply.code(400).send({ error: 'unparseable emoji' }); return; }
             try {
-                await RoleEmoji.create({
-                    groupId,
-                    roleId: b.roleId,
-                    emojiChar: m[1] ?? '',
-                    emojiName: m[2] ?? '',
-                    emojiId: m[3] ?? ''
-                });
+                await addRoleEmoji(groupId, b.roleId, m[1] ?? '', m[2] ?? '', m[3] ?? '');
                 reply.code(204).send();
             } catch (err) {
                 request.log.error({ err }, 'failed to add role-emoji');
@@ -1518,7 +1502,7 @@ export async function registerGuildManagementRoutes(
     );
 
     // Role-receive messages ─────────────────────────────────────────────
-    server.post<{ Params: { guildId: string }; Body: { channelId?: unknown; messageId?: unknown; groupIds?: unknown } }>(
+    server.post<{ Params: { guildId: string }; Body: { channelId?: unknown; messageId?: unknown; groupId?: unknown } }>(
         '/api/guilds/:guildId/feature/role-receive-messages',
         async (request, reply) => {
             if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
@@ -1530,28 +1514,25 @@ export async function registerGuildManagementRoutes(
             if (typeof b.messageId !== 'string' || !isSnowflake(b.messageId)) {
                 reply.code(400).send({ error: 'messageId required' }); return;
             }
-            // Optional pin set — when omitted the message resolves
-            // against every group in the guild at runtime.
-            const groupIds = await validateGroupIds(b.groupIds, guildId);
-            if (groupIds === null) { reply.code(400).send({ error: 'invalid groupIds' }); return; }
-            await RoleReceiveMessage.upsert({ guildId, channelId: b.channelId, messageId: b.messageId });
-            await setMessageGroups(guildId, b.channelId, b.messageId, groupIds);
+            const groupId = await validateGroupId(b.groupId, guildId);
+            if (groupId === null) { reply.code(400).send({ error: 'invalid groupId' }); return; }
+            await RoleReceiveMessage.upsert({ guildId, channelId: b.channelId, messageId: b.messageId, groupId });
             reply.code(204).send();
         }
     );
     server.put<{
         Params: { guildId: string; channelId: string; messageId: string };
-        Body: { groupIds?: unknown }
+        Body: { groupId?: unknown }
     }>(
-        '/api/guilds/:guildId/feature/role-receive-messages/:channelId/:messageId/groups',
+        '/api/guilds/:guildId/feature/role-receive-messages/:channelId/:messageId/group',
         async (request, reply) => {
             if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             const existing = await RoleReceiveMessage.findOne({ where: { guildId, channelId, messageId } });
             if (!existing) { reply.code(404).send({ error: 'watched message not found' }); return; }
-            const groupIds = await validateGroupIds(request.body?.groupIds, guildId);
-            if (groupIds === null) { reply.code(400).send({ error: 'invalid groupIds' }); return; }
-            await setMessageGroups(guildId, channelId, messageId, groupIds);
+            const groupId = await validateGroupId(request.body?.groupId, guildId);
+            if (groupId === null) { reply.code(400).send({ error: 'invalid groupId' }); return; }
+            await RoleReceiveMessage.update({ groupId }, { where: { guildId, channelId, messageId } });
             reply.code(204).send();
         }
     );
@@ -1561,7 +1542,6 @@ export async function registerGuildManagementRoutes(
             if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             await RoleReceiveMessage.destroy({ where: { guildId, channelId, messageId } });
-            await removeAllMessageGroups(guildId, channelId, messageId);
             reply.code(204).send();
         }
     );

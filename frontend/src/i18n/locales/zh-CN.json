@@ -558,11 +558,8 @@
             "roleEmojiHint": "成员在被监视消息上用表情反应时,会获得对应身份组。每条对应都归属于一个分组。",
             "mappingsCount": "{n} 条对应",
             "roleReceiveTitle": "被监视的消息",
-            "roleReceiveHint": "监视这些消息以接收身份组表情反应。可指定使用的表情分组,留空则使用本服务器所有分组。",
-            "roleReceiveGroupsLabel": "使用分组：",
-            "roleReceiveGroupsAllHint": "留空表示使用全部分组。",
-            "roleReceiveGroupsAllActive": "（未指定 — 使用所有分组）",
-            "roleReceiveGroupsNone": "{name}",
+            "roleReceiveHint": "监视这些消息以接收身份组表情反应。每条被监视的消息绑定一个表情分组,bot 收到反应时只会用该分组的对应来决定身份组。",
+            "roleReceiveGroupLabel": "使用分组：",
             "capabilityTitle": "权限授予",
             "capabilityHint": "授予某身份组一项服务器内权限,该身份组成员即可使用对应的斜杠指令。"
         },

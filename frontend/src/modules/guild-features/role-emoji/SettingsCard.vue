@@ -7,7 +7,7 @@ import {
     removeRoleEmoji,
     removeRoleEmojiGroup,
     removeRoleReceiveMessage,
-    setRoleReceiveMessageGroups,
+    setRoleReceiveMessageGroup,
     type GuildDetail
 } from '../../../api/guilds';
 import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
@@ -63,16 +63,16 @@ const mappingsInSelectedGroup = computed(() => {
 });
 
 // ── Watched-message form state ─────────────────────────────────────────
+//
+// Each watched message is bound to exactly one group (matching the
+// /role-emoji watch slash command's single-group design). The schema
+// enforces this — a NOT NULL groupId column on RoleReceiveMessage.
 const watchChannel = ref<string>('');
 const watchMessage = ref<string>('');
-const watchGroupIds = ref<number[]>([]);
+const watchGroupId = ref<number | ''>('');
 
 function customEmojiUrl(id: string): string {
     return `https://cdn.discordapp.com/emojis/${id}.webp?size=32&quality=lossless`;
-}
-
-function groupName(id: number): string {
-    return detailLocal.value.roleEmojiGroups.find(g => g.id === id)?.name ?? `#${id}`;
 }
 
 // ── Group actions ──────────────────────────────────────────────────────
@@ -108,40 +108,31 @@ async function removeMapping(groupId: number, emojiChar: string, emojiId: string
 
 // ── Watched-message actions ────────────────────────────────────────────
 async function addWatchedMessage() {
-    if (!watchChannel.value || !watchMessage.value) return;
+    if (!watchChannel.value || !watchMessage.value || watchGroupId.value === '') return;
+    const groupId = watchGroupId.value;
     const ok = await action('add-rrm', () => addRoleReceiveMessage(
         detailLocal.value.guild.id,
         watchChannel.value,
         watchMessage.value,
-        [...watchGroupIds.value]
+        groupId
     ));
     if (ok !== undefined) {
         watchChannel.value = '';
         watchMessage.value = '';
-        watchGroupIds.value = [];
+        watchGroupId.value = '';
     }
 }
 async function removeWatchedMessage(channelId: string, messageId: string) {
     await action('rm-rrm', () => removeRoleReceiveMessage(detailLocal.value.guild.id, channelId, messageId));
 }
-async function toggleWatchedGroup(channelId: string, messageId: string, groupId: number) {
-    const entry = detailLocal.value.roleReceiveMessages.find(
-        m => m.channelId === channelId && m.messageId === messageId
-    );
-    if (!entry) return;
-    const set = new Set(entry.groupIds);
-    if (set.has(groupId)) set.delete(groupId);
-    else set.add(groupId);
-    await action('set-rrm-groups', () => setRoleReceiveMessageGroups(
+async function changeWatchedGroup(channelId: string, messageId: string, groupId: number | '') {
+    if (groupId === '') return;
+    await action('set-rrm-group', () => setRoleReceiveMessageGroup(
         detailLocal.value.guild.id,
         channelId,
         messageId,
-        [...set]
+        groupId
     ));
-}
-
-function isPicked(entry: { groupIds: number[] }, groupId: number): boolean {
-    return entry.groupIds.includes(groupId);
 }
 </script>
 
@@ -244,55 +235,48 @@ function isPicked(entry: { groupIds: number[] }, groupId: number): boolean {
                 </h3>
             </header>
             <p class="hint">{{ $t('guilds.feature.roleReceiveHint') }}</p>
-            <div class="form-row">
-                <AppSelectField
-                    v-model="watchChannel"
-                    :options="channelPickerOptions"
-                    :placeholder="$t('guilds.feature.channelPlaceholder')"
-                    :drawer-title="$t('guilds.feature.roleReceiveTitle')"
-                />
-                <input v-model="watchMessage" type="text" inputmode="numeric" :placeholder="$t('guilds.feature.messageId')" />
-                <div v-if="detailLocal.roleEmojiGroups.length" class="group-pins">
-                    <span class="muted small">{{ $t('guilds.feature.roleReceiveGroupsLabel') }}</span>
-                    <label v-for="g in detailLocal.roleEmojiGroups" :key="g.id" class="group-chip">
-                        <input
-                            type="checkbox"
-                            :checked="watchGroupIds.includes(g.id)"
-                            @change="watchGroupIds = ($event.target as HTMLInputElement).checked
-                                ? [...watchGroupIds, g.id]
-                                : watchGroupIds.filter(id => id !== g.id)"
-                        />
-                        {{ g.name }}
-                    </label>
-                    <small class="muted small">{{ $t('guilds.feature.roleReceiveGroupsAllHint') }}</small>
-                </div>
-                <button type="button" class="primary submit" :disabled="!watchChannel || !watchMessage" @click="addWatchedMessage">
-                    {{ $t('guilds.feature.addBtn') }}
-                </button>
+            <div v-if="detailLocal.roleEmojiGroups.length === 0" class="muted">
+                {{ $t('guilds.feature.roleEmojiCreateGroupFirst') }}
             </div>
+            <template v-else>
+                <div class="form-row">
+                    <AppSelectField
+                        v-model="watchChannel"
+                        :options="channelPickerOptions"
+                        :placeholder="$t('guilds.feature.channelPlaceholder')"
+                        :drawer-title="$t('guilds.feature.roleReceiveTitle')"
+                    />
+                    <input v-model="watchMessage" type="text" inputmode="numeric" :placeholder="$t('guilds.feature.messageId')" />
+                    <AppSelectField
+                        v-model="watchGroupId"
+                        :options="groupPickerOptions"
+                        :placeholder="$t('guilds.feature.roleEmojiGroupPickerPlaceholder')"
+                        :drawer-title="$t('guilds.feature.roleEmojiGroupPickerPlaceholder')"
+                    />
+                    <button
+                        type="button"
+                        class="primary submit"
+                        :disabled="!watchChannel || !watchMessage || watchGroupId === ''"
+                        @click="addWatchedMessage"
+                    >
+                        {{ $t('guilds.feature.addBtn') }}
+                    </button>
+                </div>
+            </template>
             <ul v-if="detailLocal.roleReceiveMessages.length" class="bare">
                 <li v-for="(m, idx) in detailLocal.roleReceiveMessages" :key="idx" class="row watched">
                     <div class="row-meta">
                         <span class="channel">#{{ m.channelName ?? m.channelId }}</span>
                         <span class="muted small"> {{ $t('guilds.roleReactionMessage', { id: m.messageId }) }}</span>
                         <div class="watched-groups">
-                            <span class="muted small">{{ $t('guilds.feature.roleReceiveGroupsLabel') }}</span>
-                            <template v-if="detailLocal.roleEmojiGroups.length">
-                                <label v-for="g in detailLocal.roleEmojiGroups" :key="g.id" class="group-chip small">
-                                    <input
-                                        type="checkbox"
-                                        :checked="isPicked(m, g.id)"
-                                        @change="toggleWatchedGroup(m.channelId, m.messageId, g.id)"
-                                    />
-                                    {{ g.name }}
-                                </label>
-                                <span v-if="m.groupIds.length === 0" class="muted small">
-                                    {{ $t('guilds.feature.roleReceiveGroupsAllActive') }}
-                                </span>
-                            </template>
-                            <span v-else class="muted small">
-                                {{ $t('guilds.feature.roleReceiveGroupsNone', { name: m.groupIds.map(groupName).join(', ') || '—' }) }}
-                            </span>
+                            <span class="muted small">{{ $t('guilds.feature.roleReceiveGroupLabel') }}</span>
+                            <AppSelectField
+                                :model-value="m.groupId"
+                                :options="groupPickerOptions"
+                                :placeholder="$t('guilds.feature.roleEmojiGroupPickerPlaceholder')"
+                                :drawer-title="$t('guilds.feature.roleEmojiGroupPickerPlaceholder')"
+                                @update:model-value="changeWatchedGroup(m.channelId, m.messageId, $event as number | '')"
+                            />
                         </div>
                     </div>
                     <button type="button" class="ghost danger small" @click="removeWatchedMessage(m.channelId, m.messageId)">
@@ -315,30 +299,6 @@ function isPicked(entry: { groupIds: number[] }, groupId: number): boolean {
 
 .group-name {
     font-weight: 600;
-}
-
-.group-pins {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    width: 100%;
-    margin-top: 0.2rem;
-}
-
-.group-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.15rem 0.45rem;
-    border: 1px solid var(--border-color, #ccc);
-    border-radius: 999px;
-    font-size: 0.85em;
-    cursor: pointer;
-}
-
-.group-chip.small {
-    font-size: 0.78em;
 }
 
 .watched-groups {

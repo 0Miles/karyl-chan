@@ -5,71 +5,32 @@ import {
     addRoleEmoji,
     removeRoleEmoji,
     findRoleEmojiInGroup,
-    findAllRoleEmojisInGroup,
-    findAllRoleEmojisInGroups
+    findAllRoleEmojisInGroup
 } from '../models/role-emoji.model.js';
-import { findRoleReceiveMessage, addRoleReceiveMessage, removeRoleReceiveMessage } from '../models/role-receive-message.model.js';
+import {
+    findRoleReceiveMessage,
+    upsertRoleReceiveMessage,
+    removeRoleReceiveMessage
+} from '../models/role-receive-message.model.js';
 import {
     addRoleEmojiGroup,
     findAllRoleEmojiGroups,
     findRoleEmojiGroupByName,
     removeRoleEmojiGroup
 } from '../models/role-emoji-group.model.js';
-import {
-    findMessageGroupIds,
-    setMessageGroups,
-    removeAllMessageGroups
-} from '../models/role-receive-message-group.model.js';
 import { requireCapability } from '../permission/permission-check.js';
 
 const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/;
 
-/**
- * Resolve a comma-separated list of group names to their ids. Returns
- * `null` (and replies to the interaction) when any of the names can't
- * be matched, so the caller can bail without further side effects.
- *
- * An empty input string resolves to an empty array — callers that
- * treat "no groups" as "all groups" can rely on that without us
- * pre-expanding the wildcard here.
- */
-async function resolveGroupNames(
-    command: CommandInteraction,
-    guildId: string,
-    raw: string | undefined
-): Promise<number[] | null> {
-    const trimmed = (raw ?? '').trim();
-    if (!trimmed) return [];
-    const names = trimmed.split(',').map(s => s.trim()).filter(Boolean);
-    const ids: number[] = [];
-    for (const name of names) {
-        const group = await findRoleEmojiGroupByName(guildId, name);
-        if (!group) {
-            await command.editReply({
-                embeds: [{
-                    color: FAILED_COLOR,
-                    title: 'Failed',
-                    description: `Group \`\`${name}\`\` does not exist.`
-                }]
-            });
-            return null;
-        }
-        ids.push(group.getDataValue('id') as number);
-    }
-    return ids;
-}
-
 @Discord()
-@SlashGroup({ description: 'Manage role emoji', name: 'role-emoji', defaultMemberPermissions: '268435456' })
+@SlashGroup({ description: 'Manage role-emoji', name: 'role-emoji', defaultMemberPermissions: '268435456' })
 @SlashGroup({ description: 'Manage emoji groups', name: 'group', root: 'role-emoji' })
-@SlashGroup({ description: 'Manage emoji-role mappings', name: 'mapping', root: 'role-emoji' })
-@SlashGroup({ description: 'Manage watched messages', name: 'watch', root: 'role-emoji' })
 export class RoleEmojiCommands {
     // ── group ────────────────────────────────────────────────────────────
 
-    @Slash({ name: 'create', description: 'Create a new emoji group' })
+    @Slash({ name: 'add', description: 'Create a new emoji group' })
     @SlashGroup('group', 'role-emoji')
-    async groupCreate(
+    async groupAdd(
         @SlashOption({
             description: 'group name',
             name: 'name',
@@ -104,9 +65,9 @@ export class RoleEmojiCommands {
         }
     }
 
-    @Slash({ name: 'delete', description: 'Delete an emoji group (and its mappings)' })
+    @Slash({ name: 'remove', description: 'Delete an emoji group (and its mappings)' })
     @SlashGroup('group', 'role-emoji')
-    async groupDelete(
+    async groupRemove(
         @SlashOption({
             description: 'group name',
             name: 'name',
@@ -136,22 +97,39 @@ export class RoleEmojiCommands {
         }
     }
 
-    @Slash({ name: 'list', description: 'List all emoji groups' })
+    @Slash({ name: 'list', description: 'List emoji groups and their mappings' })
     @SlashGroup('group', 'role-emoji')
     async groupList(command: CommandInteraction): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
             const groups = await findAllRoleEmojiGroups(guildId);
+            if (groups.length === 0) {
+                await command.reply({
+                    embeds: [{ color: SUCCEEDED_COLOR, description: 'No groups defined.' }],
+                    flags: 'Ephemeral'
+                });
+                return;
+            }
+            const fields = await Promise.all(groups.map(async g => {
+                const groupId = g.getDataValue('id') as number;
+                const groupName = g.getDataValue('name') as string;
+                const mappings = await findAllRoleEmojisInGroup(groupId);
+                const lines = mappings.map(m => {
+                    const emojiChar = m.getDataValue('emojiChar') as string;
+                    const emojiId = m.getDataValue('emojiId') as string;
+                    const emojiName = m.getDataValue('emojiName') as string;
+                    const role = command.guild?.roles.cache.find(r => r.id === m.getDataValue('roleId'));
+                    const display = emojiChar ? emojiChar : `<${emojiName}${emojiId}>`;
+                    return `${display} → \`${role?.name ?? m.getDataValue('roleId')}\``;
+                });
+                return {
+                    name: groupName,
+                    value: lines.length ? lines.join('\n') : '_no mappings_'
+                };
+            }));
             await command.reply({
-                embeds: [{
-                    color: SUCCEEDED_COLOR,
-                    description: groups.length ? undefined : 'No groups defined.',
-                    fields: groups.map(g => ({
-                        name: g.getDataValue('name') as string,
-                        value: `id: \`${g.getDataValue('id')}\``
-                    }))
-                }],
+                embeds: [{ color: SUCCEEDED_COLOR, fields }],
                 flags: 'Ephemeral'
             });
         } catch (ex) {
@@ -159,10 +137,10 @@ export class RoleEmojiCommands {
         }
     }
 
-    // ── mapping ──────────────────────────────────────────────────────────
+    // ── mappings (top-level) ─────────────────────────────────────────────
 
-    @Slash({ name: 'add', description: 'Add an emoji→role mapping inside a group' })
-    @SlashGroup('mapping', 'role-emoji')
+    @Slash({ name: 'add', description: 'Add an emoji→role mapping into a group' })
+    @SlashGroup('role-emoji')
     async mappingAdd(
         @SlashOption({
             description: 'group name',
@@ -232,7 +210,7 @@ export class RoleEmojiCommands {
     }
 
     @Slash({ name: 'remove', description: 'Remove an emoji→role mapping from a group' })
-    @SlashGroup('mapping', 'role-emoji')
+    @SlashGroup('role-emoji')
     async mappingRemove(
         @SlashOption({
             description: 'group name',
@@ -285,58 +263,11 @@ export class RoleEmojiCommands {
         }
     }
 
-    @Slash({ name: 'list', description: 'List emoji→role mappings in a group' })
-    @SlashGroup('mapping', 'role-emoji')
-    async mappingList(
-        @SlashOption({
-            description: 'group name',
-            name: 'group',
-            required: true,
-            type: ApplicationCommandOptionType.String
-        }) groupName: string,
-        command: CommandInteraction
-    ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
-        const guildId = command.guildId as string;
-        try {
-            const group = await findRoleEmojiGroupByName(guildId, groupName.trim());
-            if (!group) {
-                await command.reply({
-                    embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${groupName}\`\` does not exist.` }],
-                    flags: 'Ephemeral'
-                });
-                return;
-            }
-            const groupId = group.getDataValue('id') as number;
-            const mappings = await findAllRoleEmojisInGroup(groupId);
-            const fields = mappings.map(x => {
-                const emojiChar = x.getDataValue('emojiChar') as string;
-                const emojiId = x.getDataValue('emojiId') as string;
-                const emojiName = x.getDataValue('emojiName') as string;
-                const mappedRole = command.guild?.roles.cache.find(r => r.id === x.getDataValue('roleId'));
-                return {
-                    name: emojiChar ? emojiChar : `<${emojiName}${emojiId}>`,
-                    value: mappedRole?.name ?? ''
-                };
-            });
-            await command.reply({
-                embeds: [{
-                    color: SUCCEEDED_COLOR,
-                    description: fields.length ? undefined : 'No mappings in this group.',
-                    fields
-                }],
-                flags: 'Ephemeral'
-            });
-        } catch (ex) {
-            console.error(ex);
-        }
-    }
-
     // ── watch ────────────────────────────────────────────────────────────
 
-    @Slash({ name: 'start', description: 'Start watching a message for reactions' })
-    @SlashGroup('watch', 'role-emoji')
-    async watchStart(
+    @Slash({ name: 'watch', description: 'Watch a message and apply a group\'s emoji→role mappings to it' })
+    @SlashGroup('role-emoji')
+    async watch(
         @SlashOption({
             description: 'Message ID',
             name: 'message-id',
@@ -344,11 +275,11 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.String
         }) messageId: string,
         @SlashOption({
-            description: 'comma-separated group names (omit for all groups)',
-            name: 'groups',
-            required: false,
+            description: 'group name to apply',
+            name: 'group',
+            required: true,
             type: ApplicationCommandOptionType.String
-        }) groups: string | undefined,
+        }) groupName: string,
         command: CommandInteraction
     ): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
@@ -359,6 +290,15 @@ export class RoleEmojiCommands {
         await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
         const guildId = command.guildId as string;
         try {
+            const group = await findRoleEmojiGroupByName(guildId, groupName.trim());
+            if (!group) {
+                await command.editReply({
+                    embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${groupName}\`\` does not exist.` }]
+                });
+                return;
+            }
+            const groupId = group.getDataValue('id') as number;
+
             const message = await command.channel?.messages.fetch({ message: messageId }).catch(() => null);
             if (!message) {
                 await command.editReply({
@@ -371,24 +311,15 @@ export class RoleEmojiCommands {
                 return;
             }
 
-            const explicitGroupIds = await resolveGroupNames(command, guildId, groups);
-            if (explicitGroupIds === null) return;
+            const previouslyWatched = await findRoleReceiveMessage(guildId, command.channelId, messageId);
+            // Upsert binds (or rebinds) the message to the chosen group
+            // — single-group-per-watch is enforced at the schema level.
+            await upsertRoleReceiveMessage(guildId, command.channelId, messageId, groupId);
 
-            // Resolve which groups' emoji to react with. Empty input
-            // → react with every group's emoji in this guild, mirroring
-            // the runtime "no pin = all groups" rule.
-            let reactionGroupIds = explicitGroupIds;
-            if (reactionGroupIds.length === 0) {
-                const allGroups = await findAllRoleEmojiGroups(guildId);
-                reactionGroupIds = allGroups.map(g => g.getDataValue('id') as number);
-            }
-
-            const recordedRoleReceiveMessage = await findRoleReceiveMessage(guildId, command.channelId, messageId);
-            const mappings = await findAllRoleEmojisInGroups(reactionGroupIds);
-
+            const mappings = await findAllRoleEmojisInGroup(groupId);
             // Each react can fail independently (custom emoji from another
             // guild that the bot can't access, deleted custom emoji,
-            // missing AddReactions perms on the channel, …) — we collect
+            // missing AddReactions perms on the channel, …) — collect
             // failures so the user sees what worked and what didn't,
             // instead of one broken row killing the whole watch.
             const failed: string[] = [];
@@ -404,22 +335,14 @@ export class RoleEmojiCommands {
                 try {
                     await message.react(resolvable);
                 } catch (err) {
-                    console.error(`role-emoji watch start: react failed for ${String(resolvable)}:`, err);
+                    console.error(`role-emoji watch: react failed for ${String(resolvable)}:`, err);
                     failed.push(emojiChar || emojiId);
                 }
             }
 
-            if (!recordedRoleReceiveMessage) {
-                await addRoleReceiveMessage(guildId, command.channelId, messageId);
-            }
-            // Pin the explicit group set when one was provided; an empty
-            // input keeps the message in "use all groups" mode by
-            // clearing any previous pins.
-            await setMessageGroups(guildId, command.channelId, messageId, explicitGroupIds);
-
-            const baseDesc = recordedRoleReceiveMessage
-                ? `Message \`\`${messageId}\`\` watch settings updated.`
-                : `Message \`\`${messageId}\`\` is being watched.`;
+            const baseDesc = previouslyWatched
+                ? `Message \`\`${messageId}\`\` is now bound to group \`${groupName}\`.`
+                : `Message \`\`${messageId}\`\` is being watched with group \`${groupName}\`.`;
             const failedSuffix = failed.length
                 ? `\n\nCould not react with: ${failed.map(f => `\`${f}\``).join(', ')}`
                 : '';
@@ -442,9 +365,9 @@ export class RoleEmojiCommands {
         }
     }
 
-    @Slash({ name: 'stop', description: 'Stop watching a message\'s reactions' })
-    @SlashGroup('watch', 'role-emoji')
-    async watchStop(
+    @Slash({ name: 'stop-watch', description: 'Stop watching a message\'s reactions' })
+    @SlashGroup('role-emoji')
+    async stopWatch(
         @SlashOption({
             description: 'Message ID',
             name: 'message-id',
@@ -460,7 +383,6 @@ export class RoleEmojiCommands {
             const recorded = await findRoleReceiveMessage(guildId, command.channelId, messageId);
             if (recorded) {
                 await removeRoleReceiveMessage(guildId, command.channelId, messageId);
-                await removeAllMessageGroups(guildId, command.channelId, messageId);
                 await command.editReply({
                     embeds: [{
                         color: SUCCEEDED_COLOR,
@@ -486,106 +408,6 @@ export class RoleEmojiCommands {
                     description: ex instanceof Error ? ex.message : String(ex)
                 }]
             }).catch(() => { /* noop */ });
-        }
-    }
-
-    @Slash({ name: 'set-groups', description: 'Set which emoji groups apply to a watched message' })
-    @SlashGroup('watch', 'role-emoji')
-    async watchSetGroups(
-        @SlashOption({
-            description: 'Message ID',
-            name: 'message-id',
-            required: true,
-            type: ApplicationCommandOptionType.String
-        }) messageId: string,
-        @SlashOption({
-            description: 'comma-separated group names (omit to clear pins → use all groups)',
-            name: 'groups',
-            required: false,
-            type: ApplicationCommandOptionType.String
-        }) groups: string | undefined,
-        command: CommandInteraction
-    ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
-        await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
-        const guildId = command.guildId as string;
-        try {
-            const recorded = await findRoleReceiveMessage(guildId, command.channelId, messageId);
-            if (!recorded) {
-                await command.editReply({
-                    embeds: [{
-                        color: FAILED_COLOR,
-                        title: 'Failed',
-                        description: `Message \`\`${messageId}\`\` is not being watched.`
-                    }]
-                });
-                return;
-            }
-            const groupIds = await resolveGroupNames(command, guildId, groups);
-            if (groupIds === null) return;
-            await setMessageGroups(guildId, command.channelId, messageId, groupIds);
-            const desc = groupIds.length === 0
-                ? `Cleared group pins for \`\`${messageId}\`\` — every group in this guild now applies.`
-                : `Pinned ${groupIds.length} group(s) to \`\`${messageId}\`\`.`;
-            await command.editReply({
-                embeds: [{ color: SUCCEEDED_COLOR, title: 'Succeeded', description: desc }]
-            });
-        } catch (ex) {
-            console.error(ex);
-            await command.editReply({
-                embeds: [{
-                    color: FAILED_COLOR,
-                    title: 'Failed',
-                    description: ex instanceof Error ? ex.message : String(ex)
-                }]
-            }).catch(() => { /* noop */ });
-        }
-    }
-
-    @Slash({ name: 'show', description: 'Show watch settings (pinned groups) for a message' })
-    @SlashGroup('watch', 'role-emoji')
-    async watchShow(
-        @SlashOption({
-            description: 'Message ID',
-            name: 'message-id',
-            required: true,
-            type: ApplicationCommandOptionType.String
-        }) messageId: string,
-        command: CommandInteraction
-    ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
-        const guildId = command.guildId as string;
-        try {
-            const recorded = await findRoleReceiveMessage(guildId, command.channelId, messageId);
-            if (!recorded) {
-                await command.reply({
-                    embeds: [{
-                        color: FAILED_COLOR,
-                        title: 'Not watched',
-                        description: `Message \`\`${messageId}\`\` is not being watched in this channel.`
-                    }],
-                    flags: 'Ephemeral'
-                });
-                return;
-            }
-            const ids = await findMessageGroupIds(guildId, command.channelId, messageId);
-            const allGroups = await findAllRoleEmojiGroups(guildId);
-            const named = ids.length === 0
-                ? '(none — using all groups)'
-                : allGroups
-                    .filter(g => ids.includes(g.getDataValue('id') as number))
-                    .map(g => `\`${g.getDataValue('name')}\``)
-                    .join(', ');
-            await command.reply({
-                embeds: [{
-                    color: SUCCEEDED_COLOR,
-                    title: `Watching \`\`${messageId}\`\``,
-                    description: `Pinned groups: ${named}`
-                }],
-                flags: 'Ephemeral'
-            });
-        } catch (ex) {
-            console.error(ex);
         }
     }
 }
