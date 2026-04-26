@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { addPictureOnlyChannel, removePictureOnlyChannel, type GuildDetail } from '../../api/guilds';
-import AppSelectField from '../../components/AppSelectField.vue';
+import { addPictureOnlyChannel, removePictureOnlyChannel, type GuildDetail } from '../../../api/guilds';
+import AppSelectField from '../../../components/AppSelectField.vue';
 import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
 import { useChannelPicker } from '../_shared/use-feature-pickers';
 

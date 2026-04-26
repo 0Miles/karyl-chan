@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { addCapabilityGrant, removeCapabilityGrant, type GuildDetail } from '../../api/guilds';
-import AppSelectField, { type SelectOption } from '../../components/AppSelectField.vue';
+import { addCapabilityGrant, removeCapabilityGrant, type GuildDetail } from '../../../api/guilds';
+import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
 import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
 import { useRolePicker } from '../_shared/use-feature-pickers';
 

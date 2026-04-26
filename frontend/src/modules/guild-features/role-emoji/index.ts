@@ -1,7 +1,7 @@
 import { defineAsyncComponent } from 'vue';
-import type { BotPlugin } from '../types';
+import type { GuildFeature } from '../types';
 
-export const roleEmojiPlugin: BotPlugin = {
+export const roleEmojiFeature: GuildFeature = {
     name: 'role-emoji',
     capabilityPrefix: 'role-emoji',
     labelKey: 'guilds.subtabs.features.reactionRoles',

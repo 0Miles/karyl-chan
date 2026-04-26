@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { isAuthenticated } from './auth';
-import { pluginRoutes } from './plugins/routes';
+import { guildFeatureRoutes } from './modules/guild-features/routes';
 import { useCurrentUserStore } from './stores/currentUserStore';
 import { accessibleGuildIds, hasAdminCapability, type GlobalCapability } from './libs/admin-capabilities';
 
@@ -66,9 +66,10 @@ const routes: RouteRecordRaw[] = [
         name: 'auth',
         component: () => import('./views/admin/auth/AuthPage.vue')
     },
-    // Plugin-supplied routes (only plugins with a `FrontComponent` add
-    // entries here). Each lives at `/<plugin-name>`.
-    ...pluginRoutes()
+    // Routes auto-generated from the guild-feature registry — only
+    // entries that ship a `FrontComponent` produce a route. Each
+    // lives at `/<feature-name>`.
+    ...guildFeatureRoutes()
 ];
 
 export const router = createRouter({

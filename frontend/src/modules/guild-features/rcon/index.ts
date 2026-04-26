@@ -1,7 +1,7 @@
 import { defineAsyncComponent } from 'vue';
-import type { BotPlugin } from '../types';
+import type { GuildFeature } from '../types';
 
-export const rconPlugin: BotPlugin = {
+export const rconFeature: GuildFeature = {
     name: 'rcon',
     capabilityPrefix: 'rcon',
     labelKey: 'guilds.subtabs.features.rcon',

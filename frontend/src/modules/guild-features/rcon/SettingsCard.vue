@@ -4,8 +4,8 @@ import {
     removeRconForward,
     upsertRconForward,
     type GuildDetail
-} from '../../api/guilds';
-import AppSelectField from '../../components/AppSelectField.vue';
+} from '../../../api/guilds';
+import AppSelectField from '../../../components/AppSelectField.vue';
 import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
 import { useChannelPicker } from '../_shared/use-feature-pickers';
 

@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { GuildDetail, GuildRoleSummary } from '../../../../api/guilds';
-import { plugins } from '../../../../plugins/registry';
+import { guildFeatures } from '../../../../modules/guild-features/registry';
 
 const props = defineProps<{
     detail: GuildDetail;
@@ -54,9 +54,9 @@ const rolesCount = computed(() => props.roles.length);
         <h3 class="section-title">{{ $t('guilds.dashboard.featureUsage') }}</h3>
         <div class="feature-grid">
             <component
-                :is="plugin.OverviewCard"
-                v-for="plugin in plugins"
-                :key="plugin.name"
+                :is="feature.OverviewCard"
+                v-for="feature in guildFeatures"
+                :key="feature.name"
                 :detail="detail"
             />
         </div>

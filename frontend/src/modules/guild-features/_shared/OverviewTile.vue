@@ -5,10 +5,10 @@ import { useRoute } from 'vue-router';
 import type { LocationQueryRaw } from 'vue-router';
 
 /**
- * Standard overview-grid tile reused by most plugin OverviewCards.
+ * Standard overview-grid tile reused by most feature OverviewCards.
  * Renders icon + count + label, links to a `<AppTabs name>`-sub-tab.
  *
- * Plugins that need a custom layout (e.g., dual counts) can build
+ * Features that need a custom layout (e.g., dual counts) can build
  * their own tile from scratch — this is just a convenience.
  */
 const props = defineProps<{
@@ -17,7 +17,7 @@ const props = defineProps<{
     count: number;
     /** Guild ID to deep-link to. */
     guildId: string;
-    /** Sub-tab key inside the features primary tab — usually the plugin name. */
+    /** Sub-tab key inside the features primary tab — usually the feature name. */
     sub: string;
     /**
      * AppTabs `name` prop on the consumer page; controls the URL key

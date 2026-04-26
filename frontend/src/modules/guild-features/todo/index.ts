@@ -1,7 +1,7 @@
 import { defineAsyncComponent } from 'vue';
-import type { BotPlugin } from '../types';
+import type { GuildFeature } from '../types';
 
-export const todoPlugin: BotPlugin = {
+export const todoFeature: GuildFeature = {
     name: 'todo',
     capabilityPrefix: 'todo',
     labelKey: 'guilds.subtabs.features.todo',

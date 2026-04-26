@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { GuildDetail } from '../../api/guilds';
+import type { GuildDetail } from '../../../api/guilds';
 import OverviewTile from '../_shared/OverviewTile.vue';
 import { useI18n } from 'vue-i18n';
 
@@ -9,10 +9,10 @@ const { t } = useI18n();
 
 <template>
     <OverviewTile
-        icon="material-symbols:terminal-rounded"
-        :label="t('guilds.rconForward')"
-        :count="props.detail.rconForwardChannels.length"
+        icon="material-symbols:image-outline-rounded"
+        :label="t('guilds.pictureOnly')"
+        :count="props.detail.pictureOnlyChannels.length"
         :guild-id="props.detail.guild.id"
-        sub="rcon"
+        sub="picture-only"
     />
 </template>

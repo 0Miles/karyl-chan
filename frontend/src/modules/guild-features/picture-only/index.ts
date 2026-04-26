@@ -1,7 +1,7 @@
 import { defineAsyncComponent } from 'vue';
-import type { BotPlugin } from '../types';
+import type { GuildFeature } from '../types';
 
-export const pictureOnlyPlugin: BotPlugin = {
+export const pictureOnlyFeature: GuildFeature = {
     name: 'picture-only',
     capabilityPrefix: 'picture-only',
     labelKey: 'guilds.subtabs.features.picture',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { GuildDetail } from '../../api/guilds';
+import type { GuildDetail } from '../../../api/guilds';
 import OverviewTile from '../_shared/OverviewTile.vue';
 import { useI18n } from 'vue-i18n';
 

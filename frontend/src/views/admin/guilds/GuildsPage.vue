@@ -33,7 +33,7 @@ import GuildMembersSection from './people/GuildMembersSection.vue';
 import GuildBansSection from './people/GuildBansSection.vue';
 import GuildAutoModSection from './people/GuildAutoModSection.vue';
 import GuildAuditLogSection from './people/GuildAuditLogSection.vue';
-import { plugins } from '../../../plugins/registry';
+import { guildFeatures } from '../../../modules/guild-features/registry';
 import { useGuildsRoute } from './use-guilds-route';
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import { hasGuildCapability } from '../../../libs/admin-capabilities';
@@ -59,12 +59,12 @@ const error = ref<string | null>(null);
 type Tab = 'overview' | 'settings' | 'people' | 'features';
 const { selectedId } = useGuildsRoute();
 const activeTab = ref<Tab>('overview');
-// Default features sub = first plugin's name; updates if plugins list changes.
+// Default features sub = first feature's name; updates if registry changes.
 const activeSub = ref<Record<Tab, string>>({
     overview: '',
     settings: 'general',
     people: 'members',
-    features: plugins[0]?.name ?? ''
+    features: guildFeatures[0]?.name ?? ''
 });
 
 // Per-guild capability gating: settings/people/features all live behind
@@ -113,9 +113,10 @@ const peopleSubs = computed(() => [
     { key: 'automod', label: $t('guilds.subtabs.people.automod') },
     { key: 'audit', label: $t('guilds.subtabs.people.audit') }
 ]);
-// Features sub-tabs are derived from the plugin registry — adding a new
-// plugin folder + entry there is enough to surface it here.
-const featuresSubs = computed(() => plugins.map(p => ({
+// Features sub-tabs are derived from the guild-feature registry —
+// adding a new feature folder + entry there is enough to surface it
+// here.
+const featuresSubs = computed(() => guildFeatures.map(p => ({
     key: p.name,
     label: $t(p.labelKey)
 })));
@@ -372,15 +373,15 @@ onMounted(refresh);
                             <GuildAuditLogSection v-else-if="currentSub === 'audit'" :guild-id="selectedId!" />
                         </template>
 
-                        <!-- Bot features sub-tabs — driven by the plugin
-                             registry; whichever plugin's name matches the
-                             current sub-tab key gets its SettingsCard
-                             mounted. -->
+                        <!-- Bot features sub-tabs — driven by the guild-
+                             feature registry; whichever feature's name
+                             matches the current sub-tab key gets its
+                             SettingsCard mounted. -->
                         <template v-else-if="activeTab === 'features'">
-                            <template v-for="plugin in plugins" :key="plugin.name">
+                            <template v-for="feature in guildFeatures" :key="feature.name">
                                 <component
-                                    :is="plugin.SettingsCard"
-                                    v-if="currentSub === plugin.name"
+                                    :is="feature.SettingsCard"
+                                    v-if="currentSub === feature.name"
                                     :detail="detail"
                                     @changed="selectedId && loadDetail(selectedId)"
                                 />
