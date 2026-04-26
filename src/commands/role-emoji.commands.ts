@@ -332,6 +332,11 @@ export class RoleEmojiCommands {
                     failed.push(emojiChar || emojiId);
                     continue;
                 }
+                // discord.js keys reactions by emoji id (custom) or the
+                // unicode char itself; skip when the bot already reacted
+                // so re-watching an existing message doesn't surface a
+                // bogus failure for a reaction that's actually present.
+                if (message.reactions.cache.get(emojiId || emojiChar)?.me) continue;
                 try {
                     await message.react(resolvable);
                 } catch (err) {
