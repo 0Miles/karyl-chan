@@ -25,6 +25,7 @@ import GuildOverviewSection from './sections/GuildOverviewSection.vue';
 import GuildBotConfigSection from './sections/GuildBotConfigSection.vue';
 import GuildRolesSection from './sections/GuildRolesSection.vue';
 import GuildInvitesSection from './sections/GuildInvitesSection.vue';
+import GuildSettingsSection from './sections/GuildSettingsSection.vue';
 
 const { t: $t } = useI18n();
 
@@ -238,6 +239,7 @@ onMounted(refresh);
                     />
 
                     <div v-else-if="activeTab === 'settings'" class="stack">
+                        <GuildSettingsSection :guild-id="selectedId!" />
                         <GuildRolesSection
                             :roles="roles"
                             @create="openCreateRole"

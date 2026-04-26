@@ -278,6 +278,68 @@
             "roles": "身分組",
             "featureUsage": "功能使用狀況"
         },
+        "settings": {
+            "general": "一般",
+            "moderation": "管理",
+            "system": "系統與歡迎",
+            "name": "伺服器名稱",
+            "description": "簡介",
+            "descriptionPlaceholder": "在伺服器探索頁顯示的簡短說明",
+            "verificationLevel": "驗證等級",
+            "verification": {
+                "0": "無 — 無任何要求",
+                "1": "低 — 需驗證 Email",
+                "2": "中 — 註冊超過 5 分鐘",
+                "3": "高 — 加入此伺服器超過 10 分鐘",
+                "4": "非常高 — 需驗證手機號碼"
+            },
+            "explicitContentFilter": "敏感內容過濾",
+            "explicitContentFilterOpt": {
+                "0": "不掃描",
+                "1": "掃描沒有身分組的成員",
+                "2": "掃描所有成員的訊息"
+            },
+            "defaultNotifications": "預設通知",
+            "defaultNotificationsOpt": {
+                "0": "所有訊息",
+                "1": "僅 @ 提及"
+            },
+            "mfaLevel": "兩步驟驗證要求",
+            "mfaLevelOpt": {
+                "0": "關閉",
+                "1": "管理員必須啟用"
+            },
+            "mfaOwnerOnly": "僅伺服器擁有者可變更此設定。",
+            "systemChannel": "系統訊息頻道",
+            "systemChannelNone": "(停用)",
+            "systemFlags": "系統訊息類型",
+            "flagJoin": "成員加入訊息",
+            "flagPremium": "伺服器加成訊息",
+            "flagReminder": "設定提示提醒",
+            "flagJoinReply": "可以對加入訊息回應「打招呼」",
+            "afkChannel": "AFK 語音頻道",
+            "afkChannelNone": "(無)",
+            "afkTimeout": "AFK 逾時",
+            "afkTimeoutOpt": {
+                "60": "1 分鐘",
+                "300": "5 分鐘",
+                "900": "15 分鐘",
+                "1800": "30 分鐘",
+                "3600": "1 小時"
+            },
+            "rulesChannel": "規則頻道",
+            "publicUpdatesChannel": "公開更新頻道",
+            "communityOnly": "僅社群伺服器可用。",
+            "premiumProgressBar": "顯示伺服器加成進度條",
+            "save": "儲存變更",
+            "saved": "已儲存",
+            "saveFailed": "儲存失敗",
+            "discard": "捨棄",
+            "loading": "載入設定中⋯",
+            "premiumTier": "加成等級",
+            "premiumSubs": "加成數",
+            "ownerLabel": "擁有者"
+        },
         "idLabel": "ID",
         "todoChannels": "待辦頻道",
         "pictureOnly": "純圖片頻道",

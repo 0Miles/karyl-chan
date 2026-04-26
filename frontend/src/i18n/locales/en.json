@@ -278,6 +278,68 @@
             "roles": "Roles",
             "featureUsage": "Feature usage"
         },
+        "settings": {
+            "general": "General",
+            "moderation": "Moderation",
+            "system": "System & welcome",
+            "name": "Server name",
+            "description": "Description",
+            "descriptionPlaceholder": "Short tagline shown to discoverers",
+            "verificationLevel": "Verification level",
+            "verification": {
+                "0": "None — no requirements",
+                "1": "Low — verified email",
+                "2": "Medium — registered for >5 minutes",
+                "3": "High — member of this server for >10 minutes",
+                "4": "Very high — verified phone number"
+            },
+            "explicitContentFilter": "Explicit content filter",
+            "explicitContentFilterOpt": {
+                "0": "Don't scan",
+                "1": "Scan members without a role",
+                "2": "Scan messages from all members"
+            },
+            "defaultNotifications": "Default notifications",
+            "defaultNotificationsOpt": {
+                "0": "All messages",
+                "1": "Only @mentions"
+            },
+            "mfaLevel": "Two-factor requirement",
+            "mfaLevelOpt": {
+                "0": "Off",
+                "1": "Required for moderators"
+            },
+            "mfaOwnerOnly": "Only the server owner can change this.",
+            "systemChannel": "System messages channel",
+            "systemChannelNone": "(disabled)",
+            "systemFlags": "System message types",
+            "flagJoin": "Member join messages",
+            "flagPremium": "Server boost messages",
+            "flagReminder": "Setup-tip reminders",
+            "flagJoinReply": "Wave-to-greet replies on joins",
+            "afkChannel": "AFK voice channel",
+            "afkChannelNone": "(none)",
+            "afkTimeout": "AFK timeout",
+            "afkTimeoutOpt": {
+                "60": "1 minute",
+                "300": "5 minutes",
+                "900": "15 minutes",
+                "1800": "30 minutes",
+                "3600": "1 hour"
+            },
+            "rulesChannel": "Rules channel",
+            "publicUpdatesChannel": "Public updates channel",
+            "communityOnly": "Community servers only.",
+            "premiumProgressBar": "Show server boost progress bar",
+            "save": "Save changes",
+            "saved": "Saved",
+            "saveFailed": "Save failed",
+            "discard": "Discard",
+            "loading": "Loading settings…",
+            "premiumTier": "Premium tier",
+            "premiumSubs": "Boosts",
+            "ownerLabel": "Owner"
+        },
         "idLabel": "id",
         "todoChannels": "Todo channels",
         "pictureOnly": "Picture-only channels",

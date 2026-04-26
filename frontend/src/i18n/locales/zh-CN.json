@@ -278,6 +278,68 @@
             "roles": "身份组",
             "featureUsage": "功能使用状况"
         },
+        "settings": {
+            "general": "常规",
+            "moderation": "管理",
+            "system": "系统与欢迎",
+            "name": "服务器名称",
+            "description": "简介",
+            "descriptionPlaceholder": "在服务器发现页显示的简短说明",
+            "verificationLevel": "验证等级",
+            "verification": {
+                "0": "无 — 无任何要求",
+                "1": "低 — 需验证 Email",
+                "2": "中 — 注册超过 5 分钟",
+                "3": "高 — 加入此服务器超过 10 分钟",
+                "4": "非常高 — 需验证手机号码"
+            },
+            "explicitContentFilter": "敏感内容过滤",
+            "explicitContentFilterOpt": {
+                "0": "不扫描",
+                "1": "扫描没有身份组的成员",
+                "2": "扫描所有成员的消息"
+            },
+            "defaultNotifications": "默认通知",
+            "defaultNotificationsOpt": {
+                "0": "所有消息",
+                "1": "仅 @ 提及"
+            },
+            "mfaLevel": "两步验证要求",
+            "mfaLevelOpt": {
+                "0": "关闭",
+                "1": "管理员必须启用"
+            },
+            "mfaOwnerOnly": "仅服务器所有者可更改此设置。",
+            "systemChannel": "系统消息频道",
+            "systemChannelNone": "(停用)",
+            "systemFlags": "系统消息类型",
+            "flagJoin": "成员加入消息",
+            "flagPremium": "服务器加成消息",
+            "flagReminder": "设置提示提醒",
+            "flagJoinReply": "可对加入消息回应「打招呼」",
+            "afkChannel": "AFK 语音频道",
+            "afkChannelNone": "(无)",
+            "afkTimeout": "AFK 超时",
+            "afkTimeoutOpt": {
+                "60": "1 分钟",
+                "300": "5 分钟",
+                "900": "15 分钟",
+                "1800": "30 分钟",
+                "3600": "1 小时"
+            },
+            "rulesChannel": "规则频道",
+            "publicUpdatesChannel": "公开更新频道",
+            "communityOnly": "仅社群服务器可用。",
+            "premiumProgressBar": "显示服务器加成进度条",
+            "save": "保存更改",
+            "saved": "已保存",
+            "saveFailed": "保存失败",
+            "discard": "放弃",
+            "loading": "加载设置中…",
+            "premiumTier": "加成等级",
+            "premiumSubs": "加成数",
+            "ownerLabel": "所有者"
+        },
         "idLabel": "ID",
         "todoChannels": "待办频道",
         "pictureOnly": "仅图片频道",
