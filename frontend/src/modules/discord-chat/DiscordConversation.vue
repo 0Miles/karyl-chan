@@ -81,9 +81,6 @@ const emit = defineEmits<{
     (e: 'browse-threads'): void;
 }>();
 
-const VIRTUAL_THRESHOLD = 64;
-const useVirtual = computed(() => props.messages.length > VIRTUAL_THRESHOLD);
-
 const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
 const scrollerRef = ref<ComponentPublicInstance | null>(null);
 const plainListRef = ref<HTMLDivElement | null>(null);
@@ -404,7 +401,7 @@ function scrollToMessage(messageId: string): boolean {
         flashMessage(messageId);
         return true;
     }
-    if (useVirtual.value && scrollerRef.value) {
+    if (scrollerRef.value) {
         const idx = props.messages.findIndex(m => m.id === messageId);
         if (idx >= 0) {
             (scrollerRef.value as unknown as { scrollToItem?: (i: number) => void }).scrollToItem?.(idx);
@@ -488,13 +485,13 @@ function applyRestore(restore: PendingRestore, attempt = 0): void {
         const containerRect = el.getBoundingClientRect();
         el.scrollTop += (rect.top - containerRect.top) - position.offset;
         // Virtual scroller re-measures after paint — one follow-up lands precisely.
-        if (useVirtual.value && attempt < 2) {
+        if (attempt < 2) {
             requestAnimationFrame(() => applyRestore(restore, attempt + 1));
         }
         return;
     }
     // Anchor not rendered yet (virtual scroller window). Nudge it in and retry.
-    if (useVirtual.value && scrollerRef.value) {
+    if (scrollerRef.value) {
         const idx = props.messages.findIndex(m => m.id === position.messageId);
         if (idx >= 0) {
             (scrollerRef.value as unknown as { scrollToItem?: (i: number) => void }).scrollToItem?.(idx);
@@ -690,7 +687,6 @@ const replyToProp = computed(() => props.replyTo);
         </header>
         <p v-if="error" class="error">{{ error }}</p>
         <DynamicScroller
-            v-if="useVirtual"
             ref="scrollerRef"
             :key="channelId ?? 'empty'"
             class="messages"
@@ -795,85 +791,6 @@ const replyToProp = computed(() => props.replyTo);
                 <p v-else class="muted center">{{ $t('messages.noMessages') }}</p>
             </template>
         </DynamicScroller>
-        <div v-else ref="plainListRef" class="messages">
-            <p v-if="loadingOlder" class="muted center small">{{ $t('messages.loadingOlder') }}</p>
-            <p v-else-if="!hasMore && messages.length > 0" class="muted center small">{{ $t('messages.beginningOfConversation') }}</p>
-            <template v-if="messages.length > 0">
-                <template v-for="(message, idx) in messages" :key="message.id">
-                    <div
-                        v-if="idx === unreadDividerIndex"
-                        class="unread-divider"
-                        role="separator"
-                        :aria-label="$t('messages.newMessages')"
-                    >
-                        <span class="unread-divider-label">{{ $t('messages.newMessages') }}</span>
-                    </div>
-                <div
-                    :class="['message-wrap', {
-                        'group-start': !isContinuation(messages[idx - 1], message),
-                        'mentioned-self': mentionsSelf(message)
-                    }]"
-                    :data-message-id="message.id"
-                    @contextmenu="onMessageContextMenu($event, message)"
-                    @touchstart="onMessageTouchStart($event, message)"
-                    @touchend="onMessageTouchEnd"
-                    @touchmove="onMessageTouchEnd"
-                    @touchcancel="onMessageTouchEnd"
-                >
-                    <MessageView
-                        :message="message"
-                        :compact="isContinuation(messages[idx - 1], message)"
-                        :editing="editingMessageId === message.id"
-                        @submit-edit="(content: string) => emit('submit-edit', message, content)"
-                        @cancel-edit="emit('cancel-edit')"
-                    />
-                    <div class="message-actions">
-                        <button
-                            :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
-                            type="button"
-                            :class="['action', { active: reactingMessageId === message.id }]"
-                            :title="$t('messages.react')"
-                            @click="startReact(message.id)"
-                        >
-                            <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
-                        </button>
-                        <button type="button" class="action" :title="$t('messages.reply')" @click="emit('reply', message)">
-                            <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
-                        </button>
-                        <template v-if="isOwn(message)">
-                            <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
-                                <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
-                            </button>
-                        </template>
-                        <button
-                            type="button"
-                            :class="['action', { copied: copiedMessageId === message.id }]"
-                            :title="copiedMessageId === message.id ? $t('messages.copyLinkDone') : $t('messages.copyLink')"
-                            @click="copyMessageLink(message)"
-                        >
-                            <Icon :icon="copiedMessageId === message.id ? 'material-symbols:check-rounded' : 'material-symbols:link-rounded'" width="16" height="16" />
-                        </button>
-                        <template v-if="isOwn(message)">
-                            <button
-                                type="button"
-                                :class="['action', { danger: shiftHeld }]"
-                                :title="shiftHeld ? $t('messages.deleteNoConfirm') : $t('messages.deleteShiftConfirm')"
-                                @click="emit('delete', message, $event)"
-                            >
-                                <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
-                            </button>
-                        </template>
-                    </div>
-                </div>
-                </template>
-            </template>
-            <template v-else>
-                <p v-if="!channelId" class="muted center">{{ $t('messages.selectChat') }}</p>
-                <p v-else-if="loadingMessages" class="muted center">{{ $t('common.loading') }}</p>
-                <p v-else class="muted center">{{ $t('messages.noMessages') }}</p>
-            </template>
-            <div ref="messagesEnd" />
-        </div>
         <MediaPickerPopover
             :reference-el="reactingButton"
             :visible="reactingMessageId !== null"
