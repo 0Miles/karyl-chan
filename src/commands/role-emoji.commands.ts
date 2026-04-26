@@ -21,6 +21,7 @@ import {
 import { requireCapability } from '../permission/permission-check.js';
 
 const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/;
+const DEFAULT_GROUP_NAME = 'default';
 
 @Discord()
 @SlashGroup({ description: 'Manage role-emoji', name: 'role-emoji', defaultMemberPermissions: '268435456' })
@@ -143,12 +144,6 @@ export class RoleEmojiCommands {
     @SlashGroup('role-emoji')
     async mappingAdd(
         @SlashOption({
-            description: 'group name',
-            name: 'group',
-            required: true,
-            type: ApplicationCommandOptionType.String
-        }) groupName: string,
-        @SlashOption({
             description: 'emoji',
             name: 'emoji',
             required: true,
@@ -160,18 +155,29 @@ export class RoleEmojiCommands {
             required: true,
             type: ApplicationCommandOptionType.Role
         }) role: Role,
+        @SlashOption({
+            description: `group name (defaults to "${DEFAULT_GROUP_NAME}", auto-created if missing)`,
+            name: 'group',
+            required: false,
+            type: ApplicationCommandOptionType.String
+        }) groupName: string | undefined,
         command: CommandInteraction
     ): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
-            const group = await findRoleEmojiGroupByName(guildId, groupName.trim());
+            const resolvedName = (groupName ?? '').trim() || DEFAULT_GROUP_NAME;
+            let group = await findRoleEmojiGroupByName(guildId, resolvedName);
             if (!group) {
-                await command.reply({
-                    embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${groupName}\`\` does not exist.` }],
-                    flags: 'Ephemeral'
-                });
-                return;
+                if (resolvedName === DEFAULT_GROUP_NAME) {
+                    group = await addRoleEmojiGroup(guildId, DEFAULT_GROUP_NAME);
+                } else {
+                    await command.reply({
+                        embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${resolvedName}\`\` does not exist.` }],
+                        flags: 'Ephemeral'
+                    });
+                    return;
+                }
             }
             const groupId = group.getDataValue('id') as number;
             const emojiMatch = EMOJI_REGEX.exec(emoji);
@@ -200,7 +206,7 @@ export class RoleEmojiCommands {
                 embeds: [{
                     color: SUCCEEDED_COLOR,
                     title: 'Succeeded',
-                    description: `${emoji} = \`\`${role.name}\`\` (group: \`${groupName}\`)`
+                    description: `${emoji} = \`\`${role.name}\`\` (group: \`${resolvedName}\`)`
                 }],
                 flags: 'Ephemeral'
             });
@@ -275,11 +281,11 @@ export class RoleEmojiCommands {
             type: ApplicationCommandOptionType.String
         }) messageId: string,
         @SlashOption({
-            description: 'group name to apply',
+            description: `group name to apply (defaults to "${DEFAULT_GROUP_NAME}")`,
             name: 'group',
-            required: true,
+            required: false,
             type: ApplicationCommandOptionType.String
-        }) groupName: string,
+        }) groupName: string | undefined,
         command: CommandInteraction
     ): Promise<void> {
         if (!(await requireCapability(command, 'role-emoji.manage'))) return;
@@ -289,11 +295,12 @@ export class RoleEmojiCommands {
         // failed" while the bot grinds through reactions.
         await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
         const guildId = command.guildId as string;
+        const resolvedName = (groupName ?? '').trim() || DEFAULT_GROUP_NAME;
         try {
-            const group = await findRoleEmojiGroupByName(guildId, groupName.trim());
+            const group = await findRoleEmojiGroupByName(guildId, resolvedName);
             if (!group) {
                 await command.editReply({
-                    embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${groupName}\`\` does not exist.` }]
+                    embeds: [{ color: FAILED_COLOR, title: 'Failed', description: `Group \`\`${resolvedName}\`\` does not exist.` }]
                 });
                 return;
             }
@@ -327,16 +334,17 @@ export class RoleEmojiCommands {
                 const emojiChar = re.getDataValue('emojiChar') as string;
                 const emojiId = re.getDataValue('emojiId') as string;
                 const emojiName = re.getDataValue('emojiName') as string;
+                // Already on the message? Skip silently — the reaction
+                // is what we care about, so we don't fail even if the
+                // emoji is now unresolvable (deleted, off-guild without
+                // name). discord.js keys reactions by id for customs
+                // and by the unicode char itself for unicode.
+                if (message.reactions.cache.get(emojiId || emojiChar)?.me) continue;
                 const resolvable = resolveReactable(command, emojiChar, emojiId, emojiName);
                 if (!resolvable) {
                     failed.push(emojiChar || emojiId);
                     continue;
                 }
-                // discord.js keys reactions by emoji id (custom) or the
-                // unicode char itself; skip when the bot already reacted
-                // so re-watching an existing message doesn't surface a
-                // bogus failure for a reaction that's actually present.
-                if (message.reactions.cache.get(emojiId || emojiChar)?.me) continue;
                 try {
                     await message.react(resolvable);
                 } catch (err) {
@@ -346,8 +354,8 @@ export class RoleEmojiCommands {
             }
 
             const baseDesc = previouslyWatched
-                ? `Message \`\`${messageId}\`\` is now bound to group \`${groupName}\`.`
-                : `Message \`\`${messageId}\`\` is being watched with group \`${groupName}\`.`;
+                ? `Message \`\`${messageId}\`\` is now bound to group \`${resolvedName}\`.`
+                : `Message \`\`${messageId}\`\` is being watched with group \`${resolvedName}\`.`;
             const failedSuffix = failed.length
                 ? `\n\nCould not react with: ${failed.map(f => `\`${f}\``).join(', ')}`
                 : '';
