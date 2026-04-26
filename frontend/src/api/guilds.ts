@@ -638,6 +638,205 @@ export async function listGuildBans(guildId: string): Promise<GuildBanEntry[]> {
     return body.bans;
 }
 
+// ── Guild settings (general / moderation / system) ────────────────────
+
+export interface GuildSystemChannelFlagsPayload {
+    suppressJoinNotifications: boolean;
+    suppressPremiumSubscriptions: boolean;
+    suppressGuildReminderNotifications: boolean;
+    suppressJoinNotificationReplies: boolean;
+}
+
+export interface GuildSettings {
+    id: string;
+    name: string;
+    description: string | null;
+    iconUrl: string | null;
+    bannerUrl: string | null;
+    ownerId: string | null;
+    afkChannelId: string | null;
+    afkTimeout: number;
+    systemChannelId: string | null;
+    systemChannelFlags: GuildSystemChannelFlagsPayload;
+    verificationLevel: number;
+    explicitContentFilter: number;
+    defaultMessageNotifications: number;
+    mfaLevel: number;
+    rulesChannelId: string | null;
+    publicUpdatesChannelId: string | null;
+    premiumTier: number;
+    premiumSubscriptionCount: number;
+    premiumProgressBarEnabled: boolean;
+    features: string[];
+}
+
+export type GuildSettingsPatch = Partial<{
+    name: string;
+    description: string | null;
+    afkChannelId: string | null;
+    afkTimeout: number;
+    systemChannelId: string | null;
+    systemChannelFlags: Partial<GuildSystemChannelFlagsPayload>;
+    verificationLevel: number;
+    explicitContentFilter: number;
+    defaultMessageNotifications: number;
+    rulesChannelId: string | null;
+    publicUpdatesChannelId: string | null;
+    premiumProgressBarEnabled: boolean;
+    reason: string;
+}>;
+
+export async function getGuildSettings(guildId: string): Promise<GuildSettings> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/settings`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ settings: GuildSettings }>(response);
+    return body.settings;
+}
+
+export async function patchGuildSettings(guildId: string, patch: GuildSettingsPatch): Promise<GuildSettings> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/settings`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch)
+    });
+    const body = await jsonOrThrow<{ settings: GuildSettings }>(response);
+    return body.settings;
+}
+
+/** Owner-only — surfaces a 502 from non-owner bots. */
+export async function setGuildMfaLevel(guildId: string, level: 0 | 1): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/settings/mfa-level`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to set MFA level');
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────
+
+export interface AuditLogChange {
+    key: string;
+    oldValue: unknown;
+    newValue: unknown;
+}
+
+export interface AuditLogExecutor {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
+export interface AuditLogEntry {
+    id: string;
+    actionType: number;
+    actionTypeName: string;
+    targetId: string | null;
+    executor: AuditLogExecutor | null;
+    reason: string | null;
+    createdAt: string;
+    changes: AuditLogChange[];
+}
+
+export async function listGuildAuditLogs(
+    guildId: string,
+    opts: { limit?: number; before?: string; type?: number; user?: string } = {}
+): Promise<AuditLogEntry[]> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.before) params.set('before', opts.before);
+    if (opts.type !== undefined) params.set('type', String(opts.type));
+    if (opts.user) params.set('user', opts.user);
+    const query = params.toString();
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/audit-logs${query ? `?${query}` : ''}`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ entries: AuditLogEntry[] }>(response);
+    return body.entries;
+}
+
+// ── AutoMod rules ─────────────────────────────────────────────────────
+
+export interface AutoModTriggerMetadata {
+    keywordFilter?: string[];
+    regexPatterns?: string[];
+    presets?: number[];
+    allowList?: string[];
+    mentionTotalLimit?: number | null;
+    mentionRaidProtectionEnabled?: boolean | null;
+}
+
+export interface AutoModAction {
+    type: number;          // 1=BlockMessage, 2=SendAlertMessage, 3=Timeout
+    metadata?: { channelId?: string; durationSeconds?: number; customMessage?: string } | null;
+}
+
+export interface AutoModRule {
+    id: string;
+    name: string;
+    enabled: boolean;
+    eventType: number;     // 1=MessageSend, 2=MemberUpdate
+    triggerType: number;   // 1=Keyword, 3=Spam, 4=KeywordPreset, 5=MentionSpam, 6=MemberProfile
+    triggerMetadata: AutoModTriggerMetadata;
+    actions: AutoModAction[];
+    exemptRoles: string[];
+    exemptChannels: string[];
+    creatorId: string | null;
+}
+
+export interface AutoModRulePayload {
+    name?: string;
+    enabled?: boolean;
+    eventType?: number;
+    triggerType?: number;
+    triggerMetadata?: AutoModTriggerMetadata;
+    actions?: AutoModAction[];
+    exemptRoles?: string[];
+    exemptChannels?: string[];
+    reason?: string;
+}
+
+export async function listAutoModRules(guildId: string): Promise<AutoModRule[]> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/automod/rules`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ rules: AutoModRule[] }>(response);
+    return body.rules;
+}
+
+export async function createAutoModRule(guildId: string, payload: AutoModRulePayload): Promise<AutoModRule> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/automod/rules`;
+    const response = await authedFetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const body = await jsonOrThrow<{ rule: AutoModRule }>(response);
+    return body.rule;
+}
+
+export async function editAutoModRule(guildId: string, ruleId: string, payload: AutoModRulePayload): Promise<AutoModRule> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/automod/rules/${encodeURIComponent(ruleId)}`;
+    const response = await authedFetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const body = await jsonOrThrow<{ rule: AutoModRule }>(response);
+    return body.rule;
+}
+
+export async function deleteAutoModRule(guildId: string, ruleId: string, reason?: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/automod/rules/${encodeURIComponent(ruleId)}`;
+    const response = await authedFetch(url, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete AutoMod rule');
+}
+
 /** Pass `null` to clear an existing timeout, or an ISO string ≤28 days
  *  in the future to apply one. */
 export async function timeoutGuildMember(

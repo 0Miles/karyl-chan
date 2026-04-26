@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { ChannelType, PermissionsBitField } from 'discord.js';
+import { AuditLogEvent, ChannelType, GuildSystemChannelFlags, PermissionsBitField } from 'discord.js';
 import { requireCapability } from './route-guards.js';
 import { isSnowflake } from './validators.js';
+import { avatarUrlFor } from './message-mapper.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 
 export interface GuildManagementRoutesOptions {
@@ -21,6 +22,166 @@ export interface GuildManagementRoutesOptions {
  * ManageRoles / ManageMessages). We don't pre-check those because Discord
  * is the source of truth and double-checking just creates drift.
  */
+// ── Settings helpers ──────────────────────────────────────────────────
+
+interface SystemChannelFlagsPayload {
+    suppressJoinNotifications?: boolean;
+    suppressPremiumSubscriptions?: boolean;
+    suppressGuildReminderNotifications?: boolean;
+    suppressJoinNotificationReplies?: boolean;
+}
+
+interface GuildSettingsPatchBody {
+    name?: unknown;
+    description?: unknown;
+    afkChannelId?: unknown;
+    afkTimeout?: number;
+    systemChannelId?: unknown;
+    systemChannelFlags?: SystemChannelFlagsPayload;
+    verificationLevel?: number;
+    explicitContentFilter?: number;
+    defaultMessageNotifications?: number;
+    rulesChannelId?: unknown;
+    publicUpdatesChannelId?: unknown;
+    premiumProgressBarEnabled?: boolean;
+    reason?: unknown;
+}
+
+function serializeGuildSettings(guild: import('discord.js').Guild) {
+    const flags = guild.systemChannelFlags;
+    return {
+        id: guild.id,
+        name: guild.name,
+        description: guild.description ?? null,
+        iconUrl: guild.iconURL({ size: 256 }) ?? null,
+        bannerUrl: guild.bannerURL({ size: 600 }) ?? null,
+        ownerId: guild.ownerId ?? null,
+        afkChannelId: guild.afkChannelId,
+        afkTimeout: guild.afkTimeout,
+        systemChannelId: guild.systemChannelId,
+        systemChannelFlags: {
+            suppressJoinNotifications: flags.has(GuildSystemChannelFlags.SuppressJoinNotifications),
+            suppressPremiumSubscriptions: flags.has(GuildSystemChannelFlags.SuppressPremiumSubscriptions),
+            suppressGuildReminderNotifications: flags.has(GuildSystemChannelFlags.SuppressGuildReminderNotifications),
+            suppressJoinNotificationReplies: flags.has(GuildSystemChannelFlags.SuppressJoinNotificationReplies)
+        },
+        verificationLevel: Number(guild.verificationLevel),
+        explicitContentFilter: Number(guild.explicitContentFilter),
+        defaultMessageNotifications: Number(guild.defaultMessageNotifications),
+        mfaLevel: Number(guild.mfaLevel),
+        rulesChannelId: guild.rulesChannelId,
+        publicUpdatesChannelId: guild.publicUpdatesChannelId,
+        premiumTier: Number(guild.premiumTier),
+        premiumSubscriptionCount: guild.premiumSubscriptionCount ?? 0,
+        premiumProgressBarEnabled: guild.premiumProgressBarEnabled,
+        features: [...guild.features]
+    };
+}
+
+function encodeSystemChannelFlags(payload: SystemChannelFlagsPayload): number {
+    let bits = 0;
+    if (payload.suppressJoinNotifications) bits |= GuildSystemChannelFlags.SuppressJoinNotifications;
+    if (payload.suppressPremiumSubscriptions) bits |= GuildSystemChannelFlags.SuppressPremiumSubscriptions;
+    if (payload.suppressGuildReminderNotifications) bits |= GuildSystemChannelFlags.SuppressGuildReminderNotifications;
+    if (payload.suppressJoinNotificationReplies) bits |= GuildSystemChannelFlags.SuppressJoinNotificationReplies;
+    return bits;
+}
+
+// ── AutoMod helpers ───────────────────────────────────────────────────
+
+interface AutoModRuleBody {
+    name?: unknown;
+    enabled?: unknown;
+    eventType?: unknown;       // discord.js AutoModerationRuleEventType (1 = MessageSend)
+    triggerType?: unknown;     // 1=Keyword, 3=Spam, 4=KeywordPreset, 5=MentionSpam, 6=MemberProfile
+    triggerMetadata?: {
+        keywordFilter?: unknown;     // string[]
+        regexPatterns?: unknown;     // string[]
+        presets?: unknown;           // number[] (1=Profanity, 2=SexualContent, 3=Slurs)
+        allowList?: unknown;         // string[]
+        mentionTotalLimit?: unknown; // number
+        mentionRaidProtectionEnabled?: unknown; // boolean
+    };
+    actions?: unknown;         // array of { type, metadata? }
+    exemptRoles?: unknown;     // string[]
+    exemptChannels?: unknown;  // string[]
+    reason?: unknown;
+}
+
+function asStringArray(input: unknown): string[] | undefined {
+    if (!Array.isArray(input)) return undefined;
+    return input.filter((s): s is string => typeof s === 'string');
+}
+function asNumberArray(input: unknown): number[] | undefined {
+    if (!Array.isArray(input)) return undefined;
+    return input.filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+}
+
+function parseAutoModBody(body: AutoModRuleBody, partial = false): { value: Record<string, unknown> } | { error: string } {
+    const out: Record<string, unknown> = {};
+    if (typeof body.name === 'string' && body.name.trim()) out.name = body.name.slice(0, 100);
+    else if (!partial) return { error: 'name required' };
+    if (typeof body.enabled === 'boolean') out.enabled = body.enabled;
+    if (typeof body.eventType === 'number' && Number.isFinite(body.eventType)) out.eventType = body.eventType;
+    else if (!partial) out.eventType = 1; // MessageSend
+    if (typeof body.triggerType === 'number' && Number.isFinite(body.triggerType)) out.triggerType = body.triggerType;
+    else if (!partial) return { error: 'triggerType required' };
+    if (body.triggerMetadata) {
+        const meta: Record<string, unknown> = {};
+        const m = body.triggerMetadata;
+        const kw = asStringArray(m.keywordFilter);
+        if (kw) meta.keywordFilter = kw;
+        const re = asStringArray(m.regexPatterns);
+        if (re) meta.regexPatterns = re;
+        const pr = asNumberArray(m.presets);
+        if (pr) meta.presets = pr;
+        const al = asStringArray(m.allowList);
+        if (al) meta.allowList = al;
+        if (typeof m.mentionTotalLimit === 'number') meta.mentionTotalLimit = m.mentionTotalLimit;
+        if (typeof m.mentionRaidProtectionEnabled === 'boolean') meta.mentionRaidProtectionEnabled = m.mentionRaidProtectionEnabled;
+        if (Object.keys(meta).length > 0) out.triggerMetadata = meta;
+    }
+    if (Array.isArray(body.actions)) {
+        const actions = (body.actions as Array<{ type?: unknown; metadata?: Record<string, unknown> }>).filter(a =>
+            typeof a.type === 'number' && Number.isFinite(a.type)
+        ).map(a => ({ type: a.type as number, metadata: a.metadata }));
+        if (actions.length > 0) out.actions = actions;
+    } else if (!partial) {
+        return { error: 'actions required (1+ entry)' };
+    }
+    const exemptRoles = asStringArray(body.exemptRoles);
+    if (exemptRoles) out.exemptRoles = exemptRoles;
+    const exemptChannels = asStringArray(body.exemptChannels);
+    if (exemptChannels) out.exemptChannels = exemptChannels;
+    if (typeof body.reason === 'string') out.reason = body.reason;
+    return { value: out };
+}
+
+function serializeAutoModRule(rule: import('discord.js').AutoModerationRule) {
+    return {
+        id: rule.id,
+        name: rule.name,
+        enabled: rule.enabled,
+        eventType: Number(rule.eventType),
+        triggerType: Number(rule.triggerType),
+        triggerMetadata: {
+            keywordFilter: rule.triggerMetadata.keywordFilter,
+            regexPatterns: rule.triggerMetadata.regexPatterns,
+            presets: rule.triggerMetadata.presets.map(p => Number(p)),
+            allowList: rule.triggerMetadata.allowList,
+            mentionTotalLimit: rule.triggerMetadata.mentionTotalLimit,
+            mentionRaidProtectionEnabled: rule.triggerMetadata.mentionRaidProtectionEnabled
+        },
+        actions: rule.actions.map(a => ({
+            type: Number(a.type),
+            metadata: a.metadata
+        })),
+        exemptRoles: [...rule.exemptRoles.keys()],
+        exemptChannels: [...rule.exemptChannels.keys()],
+        creatorId: rule.creatorId
+    };
+}
+
 export async function registerGuildManagementRoutes(
     server: FastifyInstance,
     options: GuildManagementRoutesOptions
@@ -630,6 +791,230 @@ export async function registerGuildManagementRoutes(
             } catch (err) {
                 request.log.error({ err }, 'failed to delete sticker');
                 reply.code(502).send({ error: 'Failed to delete sticker' });
+            }
+        }
+    );
+
+    // ── Guild settings (general / moderation / system) ───────────────────
+
+    server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/settings',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            return { settings: serializeGuildSettings(guild) };
+        }
+    );
+
+    server.patch<{ Params: { guildId: string }; Body: GuildSettingsPatchBody }>(
+        '/api/guilds/:guildId/settings',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const body = request.body ?? {};
+            const edit: Record<string, unknown> = {};
+            if (typeof body.name === 'string' && body.name.trim()) edit.name = body.name.slice(0, 100);
+            if (body.description === null) edit.description = null;
+            else if (typeof body.description === 'string') edit.description = body.description.slice(0, 300);
+            if ('afkChannelId' in body) {
+                const v = body.afkChannelId;
+                if (v === null) edit.afkChannel = null;
+                else if (typeof v === 'string' && isSnowflake(v)) edit.afkChannel = v;
+            }
+            if (typeof body.afkTimeout === 'number') {
+                // Discord only accepts these specific values.
+                const allowed = new Set([60, 300, 900, 1800, 3600]);
+                if (allowed.has(body.afkTimeout)) edit.afkTimeout = body.afkTimeout;
+            }
+            if ('systemChannelId' in body) {
+                const v = body.systemChannelId;
+                if (v === null) edit.systemChannel = null;
+                else if (typeof v === 'string' && isSnowflake(v)) edit.systemChannel = v;
+            }
+            if (body.systemChannelFlags) {
+                edit.systemChannelFlags = encodeSystemChannelFlags(body.systemChannelFlags);
+            }
+            if (typeof body.verificationLevel === 'number') {
+                if (body.verificationLevel >= 0 && body.verificationLevel <= 4) edit.verificationLevel = body.verificationLevel;
+            }
+            if (typeof body.explicitContentFilter === 'number') {
+                if (body.explicitContentFilter >= 0 && body.explicitContentFilter <= 2) edit.explicitContentFilter = body.explicitContentFilter;
+            }
+            if (typeof body.defaultMessageNotifications === 'number') {
+                if (body.defaultMessageNotifications === 0 || body.defaultMessageNotifications === 1) {
+                    edit.defaultMessageNotifications = body.defaultMessageNotifications;
+                }
+            }
+            if ('rulesChannelId' in body) {
+                const v = body.rulesChannelId;
+                if (v === null) edit.rulesChannel = null;
+                else if (typeof v === 'string' && isSnowflake(v)) edit.rulesChannel = v;
+            }
+            if ('publicUpdatesChannelId' in body) {
+                const v = body.publicUpdatesChannelId;
+                if (v === null) edit.publicUpdatesChannel = null;
+                else if (typeof v === 'string' && isSnowflake(v)) edit.publicUpdatesChannel = v;
+            }
+            if (typeof body.premiumProgressBarEnabled === 'boolean') {
+                edit.premiumProgressBarEnabled = body.premiumProgressBarEnabled;
+            }
+            if (Object.keys(edit).length === 0) {
+                reply.code(400).send({ error: 'no editable fields supplied' });
+                return;
+            }
+            const reason = typeof body.reason === 'string' ? body.reason : undefined;
+            try {
+                const updated = await guild.edit({ ...edit, reason });
+                return { settings: serializeGuildSettings(updated) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to edit guild settings');
+                reply.code(502).send({ error: 'Failed to edit guild settings' });
+            }
+        }
+    );
+
+    // MFA level lives on its own endpoint — Discord requires the guild
+    // owner to make this call, so it commonly returns 403 even for the
+    // bot. Surface it separately so a normal settings save doesn't fail
+    // the whole transaction when only MFA was rejected.
+    server.patch<{ Params: { guildId: string }; Body: { level?: unknown } }>(
+        '/api/guilds/:guildId/settings/mfa-level',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const level = request.body?.level;
+            if (level !== 0 && level !== 1) {
+                reply.code(400).send({ error: 'level must be 0 or 1' });
+                return;
+            }
+            try {
+                await guild.setMFALevel(level);
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to set MFA level');
+                reply.code(502).send({ error: 'Failed to set MFA level (owner-only)' });
+            }
+        }
+    );
+
+    // ── Audit log ──────────────────────────────────────────────────────
+
+    server.get<{ Params: { guildId: string }; Querystring: { limit?: string; before?: string; type?: string; user?: string } }>(
+        '/api/guilds/:guildId/audit-logs',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const limit = Math.min(Math.max(Number(request.query.limit ?? 50) || 50, 1), 100);
+            const before = typeof request.query.before === 'string' && isSnowflake(request.query.before) ? request.query.before : undefined;
+            const userId = typeof request.query.user === 'string' && isSnowflake(request.query.user) ? request.query.user : undefined;
+            const typeNum = request.query.type ? Number(request.query.type) : undefined;
+            const type = typeof typeNum === 'number' && Number.isFinite(typeNum) ? typeNum : undefined;
+            try {
+                const logs = await guild.fetchAuditLogs({ limit, before, user: userId, type });
+                const entries = [...logs.entries.values()].map(e => ({
+                    id: e.id,
+                    actionType: Number(e.action),
+                    actionTypeName: AuditLogEvent[e.action] ?? `Action ${e.action}`,
+                    targetId: e.targetId,
+                    executor: e.executor
+                        ? {
+                            id: e.executor.id,
+                            username: e.executor.username,
+                            globalName: e.executor.globalName ?? null,
+                            avatarUrl: avatarUrlFor(e.executor.id, e.executor.avatar, 64)
+                        }
+                        : null,
+                    reason: e.reason ?? null,
+                    createdAt: e.createdAt.toISOString(),
+                    changes: (e.changes ?? []).map(c => ({
+                        key: c.key,
+                        oldValue: c.old ?? null,
+                        newValue: c.new ?? null
+                    }))
+                }));
+                return { entries };
+            } catch (err) {
+                request.log.error({ err }, 'failed to fetch audit logs');
+                reply.code(502).send({ error: 'Failed to fetch audit logs' });
+            }
+        }
+    );
+
+    // ── AutoMod rules ──────────────────────────────────────────────────
+
+    server.get<{ Params: { guildId: string } }>(
+        '/api/guilds/:guildId/automod/rules',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            try {
+                const rules = await guild.autoModerationRules.fetch();
+                return { rules: [...rules.values()].map(serializeAutoModRule) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to list automod rules');
+                reply.code(502).send({ error: 'Failed to list AutoMod rules' });
+            }
+        }
+    );
+
+    server.post<{ Params: { guildId: string }; Body: AutoModRuleBody }>(
+        '/api/guilds/:guildId/automod/rules',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const opts = parseAutoModBody(request.body ?? {});
+            if ('error' in opts) { reply.code(400).send({ error: opts.error }); return; }
+            try {
+                const rule = await guild.autoModerationRules.create(opts.value as unknown as Parameters<typeof guild.autoModerationRules.create>[0]);
+                return { rule: serializeAutoModRule(rule) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to create automod rule');
+                reply.code(502).send({ error: 'Failed to create AutoMod rule' });
+            }
+        }
+    );
+
+    server.patch<{ Params: { guildId: string; ruleId: string }; Body: AutoModRuleBody }>(
+        '/api/guilds/:guildId/automod/rules/:ruleId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, ruleId } = request.params;
+            if (!isSnowflake(ruleId)) { reply.code(400).send({ error: 'invalid ruleId' }); return; }
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const opts = parseAutoModBody(request.body ?? {}, true);
+            if ('error' in opts) { reply.code(400).send({ error: opts.error }); return; }
+            try {
+                const rule = await guild.autoModerationRules.edit(ruleId, opts.value as Parameters<typeof guild.autoModerationRules.edit>[1]);
+                return { rule: serializeAutoModRule(rule) };
+            } catch (err) {
+                request.log.error({ err }, 'failed to edit automod rule');
+                reply.code(502).send({ error: 'Failed to edit AutoMod rule' });
+            }
+        }
+    );
+
+    server.delete<{ Params: { guildId: string; ruleId: string }; Body: { reason?: unknown } }>(
+        '/api/guilds/:guildId/automod/rules/:ruleId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, ruleId } = request.params;
+            if (!isSnowflake(ruleId)) { reply.code(400).send({ error: 'invalid ruleId' }); return; }
+            const guild = bot.guilds.cache.get(guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const reason = typeof request.body?.reason === 'string' ? request.body.reason : undefined;
+            try {
+                await guild.autoModerationRules.delete(ruleId, reason);
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to delete automod rule');
+                reply.code(502).send({ error: 'Failed to delete AutoMod rule' });
             }
         }
     );
