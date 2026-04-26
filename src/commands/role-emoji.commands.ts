@@ -1,5 +1,5 @@
 import { FAILED_COLOR, SUCCEEDED_COLOR } from './../utils/constant.js';
-import { CommandInteraction, ApplicationCommandOptionType, Role } from 'discord.js';
+import { CommandInteraction, ApplicationCommandOptionType, Role, DiscordAPIError, RESTJSONErrorCodes } from 'discord.js';
 import { Discord, Slash, SlashGroup, SlashOption } from 'discordx';
 import {
     addRoleEmoji,
@@ -306,7 +306,11 @@ export class RoleEmojiCommands {
             }
             const groupId = group.getDataValue('id') as number;
 
-            const message = await command.channel?.messages.fetch({ message: messageId }).catch(() => null);
+            // force: true bypasses the discord.js message cache — a cached
+            // message keeps its reactions cache only as gateway events
+            // arrive, so without forcing we may see an empty reactions
+            // cache for a message that already has reactions on Discord.
+            const message = await command.channel?.messages.fetch({ message: messageId, force: true }).catch(() => null);
             if (!message) {
                 await command.editReply({
                     embeds: [{
@@ -350,6 +354,15 @@ export class RoleEmojiCommands {
                 try {
                     await message.react(resolvable);
                 } catch (err) {
+                    // 10014 Unknown Emoji = bot can't access this custom
+                    // emoji (off-guild / deleted). The mapping still works
+                    // for users who CAN react with it; the bot just can't
+                    // seed the reaction itself. Treat as benign — don't
+                    // surface it as a user-visible failure.
+                    if (err instanceof DiscordAPIError && err.code === RESTJSONErrorCodes.UnknownEmoji) {
+                        console.warn(`role-emoji watch: skipping inaccessible emoji ${String(resolvable)} (10014)`);
+                        continue;
+                    }
                     console.error(`role-emoji watch: react failed for ${String(resolvable)}:`, err);
                     failed.push(emojiChar || emojiId);
                 }
