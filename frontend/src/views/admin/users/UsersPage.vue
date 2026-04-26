@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { DashboardLayout } from '../../../layouts';
 import {
     listAdminCapabilities,
@@ -13,14 +14,20 @@ import {
 import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import { useApiError } from '../../../composables/use-api-error';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
+import AppTabs from '../../../components/AppTabs.vue';
 import UsersPanel from './UsersPanel.vue';
 import RolesPanel from './RolesPanel.vue';
 
+const { t } = useI18n();
 const currentUser = useCurrentUserStore();
 const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
 type Tab = 'users' | 'roles';
 const activeTab = ref<Tab>('users');
+const tabs = computed(() => [
+    { key: 'users', label: t('admin.tabs.users'), icon: 'material-symbols:person-rounded' },
+    { key: 'roles', label: t('admin.tabs.roles'), icon: 'material-symbols:shield-person-outline-rounded' }
+]);
 
 const roles = ref<AdminRole[]>([]);
 const users = ref<AdminUserList>({ ownerId: null, users: [] });
@@ -114,23 +121,6 @@ onMounted(loadAll);
 
 <template>
     <DashboardLayout :title="$t('admin.title')">
-        <nav class="tabs" role="tablist">
-            <button
-                type="button"
-                role="tab"
-                :class="['tab', { active: activeTab === 'users' }]"
-                :aria-selected="activeTab === 'users'"
-                @click="activeTab = 'users'"
-            >{{ $t('admin.tabs.users') }}</button>
-            <button
-                type="button"
-                role="tab"
-                :class="['tab', { active: activeTab === 'roles' }]"
-                :aria-selected="activeTab === 'roles'"
-                @click="activeTab = 'roles'"
-            >{{ $t('admin.tabs.roles') }}</button>
-        </nav>
-
         <p v-if="initialLoading" class="muted">{{ $t('common.loading') }}</p>
         <AccessDeniedView v-else-if="accessDenied" />
         <template v-else>
@@ -138,51 +128,30 @@ onMounted(loadAll);
                 {{ error }}
                 <button type="button" class="error-close" @click="clearError" :aria-label="$t('common.close')">×</button>
             </p>
-            <UsersPanel
-                v-if="activeTab === 'users'"
-                :data="users"
-                :roles="roles"
-                @upsert-user="onUpsertUser"
-                @remove-user="onRemoveUser"
-                @error="setError"
-            />
-            <RolesPanel
-                v-else
-                :roles="roles"
-                :capability-catalog="capabilities"
-                @upsert-role="onUpsertRole"
-                @remove-role="onRemoveRole"
-                @capability-change="onCapabilityChange"
-                @error="setError"
-            />
+            <AppTabs v-model="activeTab" :tabs="tabs" routed name="admin">
+                <UsersPanel
+                    v-if="activeTab === 'users'"
+                    :data="users"
+                    :roles="roles"
+                    @upsert-user="onUpsertUser"
+                    @remove-user="onRemoveUser"
+                    @error="setError"
+                />
+                <RolesPanel
+                    v-else
+                    :roles="roles"
+                    :capability-catalog="capabilities"
+                    @upsert-role="onUpsertRole"
+                    @remove-role="onRemoveRole"
+                    @capability-change="onCapabilityChange"
+                    @error="setError"
+                />
+            </AppTabs>
         </template>
     </DashboardLayout>
 </template>
 
 <style scoped>
-.tabs {
-    display: flex;
-    gap: 0.4rem;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.4rem;
-    margin-bottom: 0.8rem;
-}
-.tab {
-    background: var(--bg-surface-2);
-    border: 1px solid transparent;
-    border-radius: 6px;
-    padding: 0.4rem 1rem;
-    cursor: pointer;
-    color: var(--text);
-    font: inherit;
-    font-size: 0.9rem;
-    font-weight: 500;
-}
-.tab.active {
-    background: var(--accent-bg);
-    border-color: var(--accent);
-    color: var(--accent-text-strong);
-}
 .muted { color: var(--text-muted); }
 .error {
     margin: 0 0 0.8rem;

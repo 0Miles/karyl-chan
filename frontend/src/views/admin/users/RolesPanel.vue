@@ -12,13 +12,14 @@ import {
     type AdminRole
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
-import { ADMIN_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
+import { GLOBAL_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
 import AppModal from '../../../components/AppModal.vue';
+import RoleCapabilityModal from './RoleCapabilityModal.vue';
 
 const props = defineProps<{
     roles: AdminRole[];
-    /** Authoritative catalog from GET /api/admin/capabilities. Falls
-     *  back to the bundled key list if the parent fetch failed. */
+    /** Authoritative catalog from GET /api/admin/capabilities. Used by
+     *  the per-role modal for capability descriptions. */
     capabilityCatalog?: AdminCapabilityCatalogItem[];
 }>();
 
@@ -32,27 +33,6 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-interface CapabilityDef { key: string; description: string; }
-
-// Prefer the server catalog; fall back to the bundled key list. Each
-// description is resolved via i18n with the server-provided text as a
-// final fallback so a brand-new capability key shows *something*
-// before the translation lands.
-const capabilities = computed<CapabilityDef[]>(() => {
-    const source = props.capabilityCatalog?.length
-        ? props.capabilityCatalog.map(item => item.key)
-        : (ADMIN_CAPABILITY_KEYS as readonly string[]);
-    return source.map(key => {
-        const i18nKey = `admin.capabilityDesc.${key}`;
-        const localized = t(i18nKey);
-        const fromServer = props.capabilityCatalog?.find(c => c.key === key)?.description;
-        return {
-            key,
-            description: localized === i18nKey ? (fromServer ?? '') : localized
-        };
-    });
-});
 
 // ── Per-role lock so rapid clicks on different controls of the same
 // role don't fire concurrent mutations.
@@ -76,12 +56,11 @@ function reportErr(err: unknown) {
     emit('error', err instanceof ApiError ? err.message : String(err));
 }
 
-// ── Description editor ────────────────────────────────────────────
+// ── Description editor ───────────────────────────────────────────────
 //
 // Local drafts persist while the role is being edited; the input value
 // reads from the draft when present, falling back to the role's saved
-// description. `isDirty` drives the Save / Discard buttons. The drafts
-// outlive a parent re-render because they're keyed by role name.
+// description. `isDirty` drives the Save / Discard buttons.
 const descDrafts = ref<Record<string, string>>({});
 const justSavedRoles = ref(new Set<string>());
 
@@ -107,12 +86,9 @@ async function onDescSave(role: AdminRole) {
         try {
             const updated = await patchAdminRole(role.name, { description: draft || null });
             emit('upsert-role', updated);
-            // Drop the draft so descValue falls back to the persisted
-            // value (now matched by what the server returned).
             const nextDrafts = { ...descDrafts.value };
             delete nextDrafts[role.name];
             descDrafts.value = nextDrafts;
-            // Brief "Saved" indicator next to the field.
             justSavedRoles.value = new Set([...justSavedRoles.value, role.name]);
             setTimeout(() => {
                 const s = new Set(justSavedRoles.value);
@@ -125,11 +101,13 @@ async function onDescSave(role: AdminRole) {
     });
 }
 
-// ── Capability toggle ────────────────────────────────────────────
+// ── Capability toggle (called from the modal) ───────────────────────
 //
-// Optimistic — the click flips the checkbox immediately via an emit
+// Optimistic — the click flips the local state immediately via an emit
 // to the parent, then fires the API in the background. On failure we
-// emit again with the rollback set so the UI reflects reality.
+// emit again with the rollback set so the UI reflects reality. The
+// modal stays open across grants so users can edit several tokens in
+// one session.
 async function onToggleCapability(role: AdminRole, capKey: string, want: boolean) {
     const granted = role.capabilities.includes(capKey);
     if (granted === want) return;
@@ -149,7 +127,33 @@ async function onToggleCapability(role: AdminRole, capKey: string, want: boolean
     });
 }
 
-// ── Role delete ──────────────────────────────────────────────────
+// ── Capability modal wiring ─────────────────────────────────────────
+//
+// The modal stays bound to the role *by name*, not by snapshot — so
+// when the parent patches the roles list (after grant/revoke), the
+// modal sees the latest capability set without needing to be torn
+// down + remounted on every toggle.
+const editingRoleName = ref<string | null>(null);
+const editingRole = computed(() =>
+    props.roles.find(r => r.name === editingRoleName.value) ?? null
+);
+
+function openCapsModal(role: AdminRole) {
+    editingRoleName.value = role.name;
+}
+function closeCapsModal() {
+    editingRoleName.value = null;
+}
+async function onModalGrant(token: string) {
+    if (!editingRole.value) return;
+    await onToggleCapability(editingRole.value, token, true);
+}
+async function onModalRevoke(token: string) {
+    if (!editingRole.value) return;
+    await onToggleCapability(editingRole.value, token, false);
+}
+
+// ── Role delete ─────────────────────────────────────────────────────
 async function onDeleteRole(role: AdminRole) {
     if (!window.confirm(t('admin.roles.removeConfirm', { name: role.name }))) return;
     await withRoleLock(role.name, async () => {
@@ -162,7 +166,7 @@ async function onDeleteRole(role: AdminRole) {
     });
 }
 
-// ── Add-role modal ──────────────────────────────────────────────
+// ── Add-role modal ──────────────────────────────────────────────────
 const addOpen = ref(false);
 const addForm = ref({ name: '', description: '' });
 const adding = ref(false);
@@ -189,8 +193,30 @@ async function submitAdd() {
     }
 }
 
-function grantedCountFor(role: AdminRole): { granted: number; total: number } {
-    return { granted: role.capabilities.length, total: capabilities.value.length };
+// ── Capability summary ─────────────────────────────────────────────
+//
+// The role card shows a one-glance summary instead of the full grid —
+// the modal now owns the granular editing surface. Splits the role's
+// stored capabilities into global tokens + per-guild grant counts.
+const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
+
+interface CapSummary {
+    global: string[];
+    perGuildCount: number;
+    unknown: string[];
+}
+
+function summariseCaps(role: AdminRole): CapSummary {
+    const global: string[] = [];
+    let perGuild = 0;
+    const unknown: string[] = [];
+    const knownGlobal = new Set<string>(GLOBAL_CAPABILITY_KEYS);
+    for (const cap of role.capabilities) {
+        if (knownGlobal.has(cap)) global.push(cap);
+        else if (SCOPED_GUILD_RE.test(cap)) perGuild += 1;
+        else unknown.push(cap);
+    }
+    return { global, perGuildCount: perGuild, unknown };
 }
 </script>
 
@@ -209,7 +235,6 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
             <li v-for="role in roles" :key="role.name" class="role-card">
                 <header class="role-head">
                     <h3 class="role-name">{{ role.name }}</h3>
-                    <span class="role-meta">{{ $t('admin.roles.capabilitiesGrantedCount', grantedCountFor(role)) }}</span>
                     <button
                         type="button"
                         class="icon-btn danger"
@@ -251,52 +276,63 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
                     </span>
                 </div>
 
-                <fieldset class="cap-grid">
-                    <legend class="cap-legend">{{ $t('admin.roles.capabilities') }}</legend>
-                    <label
-                        v-for="cap in capabilities"
-                        :key="cap.key"
-                        :class="['cap', { granted: role.capabilities.includes(cap.key) }]"
+                <!-- Capability summary + edit entry point. The full grid
+                     moved into RoleCapabilityModal for headroom — both
+                     the global tokens and the per-guild scopes need
+                     more space than the inline checkbox list could
+                     afford. -->
+                <div class="cap-summary">
+                    <div class="summary-tags">
+                        <span
+                            v-for="key in summariseCaps(role).global"
+                            :key="key"
+                            class="cap-tag"
+                        >{{ key }}</span>
+                        <span
+                            v-if="summariseCaps(role).perGuildCount > 0"
+                            class="cap-tag scoped"
+                        >
+                            <Icon icon="material-symbols:groups-outline-rounded" width="14" height="14" />
+                            {{ $t('admin.roles.perGuildSummary', { count: summariseCaps(role).perGuildCount }) }}
+                        </span>
+                        <span
+                            v-for="cap in summariseCaps(role).unknown"
+                            :key="cap"
+                            class="cap-tag unknown"
+                            :title="cap"
+                        >?  {{ cap }}</span>
+                        <span
+                            v-if="summariseCaps(role).global.length === 0
+                                && summariseCaps(role).perGuildCount === 0
+                                && summariseCaps(role).unknown.length === 0"
+                            class="muted"
+                        >{{ $t('admin.roles.noGlobalCaps') }}</span>
+                    </div>
+                    <button
+                        type="button"
+                        class="ghost"
+                        :disabled="isRolePending(role.name)"
+                        @click="openCapsModal(role)"
                     >
-                        <input
-                            type="checkbox"
-                            :checked="role.capabilities.includes(cap.key)"
-                            :disabled="isRolePending(role.name)"
-                            @change="onToggleCapability(role, cap.key, ($event.target as HTMLInputElement).checked)"
-                        />
-                        <div class="cap-text">
-                            <code class="cap-key">{{ cap.key }}</code>
-                            <span v-if="cap.description" class="cap-desc">{{ cap.description }}</span>
-                        </div>
-                    </label>
-                    <!-- Capabilities the server still has on this role
-                         but our catalog doesn't know about (e.g. one
-                         that was removed from the spec). Render so
-                         the user can revoke them — without rendering
-                         the unknown set, they'd be invisible-but-active. -->
-                    <label
-                        v-for="cap in role.capabilities.filter(c => !capabilities.some(known => known.key === c))"
-                        :key="`unknown-${cap}`"
-                        class="cap granted unknown"
-                    >
-                        <input
-                            type="checkbox"
-                            checked
-                            :disabled="isRolePending(role.name)"
-                            @change="onToggleCapability(role, cap, false)"
-                        />
-                        <div class="cap-text">
-                            <code class="cap-key">{{ cap }}</code>
-                            <span class="cap-desc">unknown capability</span>
-                        </div>
-                    </label>
-                </fieldset>
+                        <Icon icon="material-symbols:edit-outline-rounded" width="16" height="16" />
+                        {{ $t('admin.roles.editCapabilities') }}
+                    </button>
+                </div>
 
                 <p v-if="role.capabilities.length === 0" class="muted no-caps">
                     {{ $t('admin.roles.noCapabilities') }}
                 </p>
             </li>
         </ul>
+
+        <RoleCapabilityModal
+            :role="editingRole"
+            :capability-catalog="capabilityCatalog"
+            :pending="editingRole ? isRolePending(editingRole.name) : false"
+            @close="closeCapsModal"
+            @grant="onModalGrant"
+            @revoke="onModalRevoke"
+        />
 
         <AppModal :visible="addOpen" :title="$t('admin.roles.add')" @close="addOpen = false">
             <form class="add-body" @submit.prevent="submitAdd">
@@ -348,6 +384,9 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
 .primary.small { padding: 0.3rem 0.7rem; font-size: 0.85rem; }
 .primary:disabled { opacity: 0.55; cursor: default; }
 .ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.3rem 0.7rem;
     background: none;
     border: 1px solid var(--border);
@@ -358,6 +397,7 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
     font-size: 0.85rem;
 }
 .ghost:hover { background: var(--bg-surface-hover); }
+.ghost:disabled { opacity: 0.55; cursor: default; }
 .icon-btn {
     width: 36px;
     height: 36px;
@@ -378,9 +418,14 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
+    /* Responsive grid — fits one wide card on narrow screens, two or
+       more side-by-side on wide screens. The 380px floor is the
+       smallest card layout that doesn't force the description input
+       below the role name. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 0.7rem;
+    align-items: start;
 }
 .role-card {
     background: var(--bg-surface);
@@ -390,6 +435,7 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
     display: flex;
     flex-direction: column;
     gap: 0.7rem;
+    min-height: 12rem;
 }
 .role-head {
     display: flex;
@@ -400,14 +446,8 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
     margin: 0;
     font-size: 1rem;
     color: var(--text-strong);
-}
-.role-meta {
-    margin-left: auto;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    background: var(--bg-surface-2);
-    border-radius: 999px;
-    padding: 0.15rem 0.55rem;
+    flex: 1;
+    min-width: 0;
 }
 
 .desc-row {
@@ -436,58 +476,39 @@ function grantedCountFor(role: AdminRole): { granted: number; total: number } {
     font-weight: 500;
 }
 
-.cap-grid {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    margin: 0;
-    padding: 0.5rem 0.7rem 0.7rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.4rem 0.6rem;
-}
-.cap-legend {
-    padding: 0 0.3rem;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-}
-.cap {
+.cap-summary {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 0.5rem;
-    padding: 0.45rem 0.55rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.12s;
+    flex-wrap: wrap;
 }
-.cap:hover { background: var(--bg-surface-hover); }
-.cap input[type="checkbox"] {
-    margin-top: 0.15rem;
-    accent-color: var(--accent);
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    flex-shrink: 0;
+.summary-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
 }
-.cap.granted {
+.cap-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.55rem;
     background: var(--accent-bg);
+    color: var(--accent-text-strong);
+    border-radius: 999px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
 }
-.cap.granted:hover {
-    background: color-mix(in srgb, var(--accent-bg) 80%, var(--bg-surface-hover) 20%);
+.cap-tag.scoped {
+    background: var(--bg-surface-2);
+    color: var(--text);
+    font-family: inherit;
 }
-.cap-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.cap-key {
-    font-size: 0.82rem;
-    font-weight: 500;
-    color: var(--text-strong);
-    background: transparent;
-    padding: 0;
+.cap-tag.unknown {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--danger);
 }
-.cap-desc {
-    font-size: 0.74rem;
-    color: var(--text-muted);
-    line-height: 1.3;
-}
-.cap.unknown { opacity: 0.75; }
 
 .no-caps {
     margin: 0;

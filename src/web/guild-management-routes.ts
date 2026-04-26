@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { AuditLogEvent, ChannelType, GuildSystemChannelFlags, PermissionsBitField } from 'discord.js';
-import { requireCapability } from './route-guards.js';
+import { requireGuildCapability } from './route-guards.js';
 import { isSnowflake } from './validators.js';
 import { avatarUrlFor, guildAvatarUrlFor } from './message-mapper.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
@@ -200,7 +200,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; userId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/kick',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -220,7 +220,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; userId: string }; Body: { reason?: unknown; deleteMessageSeconds?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/ban',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -245,7 +245,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; userId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/bans/:userId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -264,7 +264,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/bans',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -293,7 +293,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string; userId: string }; Body: { until?: unknown; reason?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/timeout',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -336,7 +336,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string; userId: string }; Body: { nickname?: unknown; reason?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/nickname',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -369,7 +369,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; userId: string; roleId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/roles/:roleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId, roleId } = request.params;
             if (!isSnowflake(roleId)) { reply.code(400).send({ error: 'invalid roleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -390,7 +390,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; userId: string; roleId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/members/:userId/roles/:roleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, userId, roleId } = request.params;
             if (!isSnowflake(roleId)) { reply.code(400).send({ error: 'invalid roleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -413,7 +413,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/pin',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextLike(bot, guildId, channelId);
@@ -432,7 +432,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/pin',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextLike(bot, guildId, channelId);
@@ -451,7 +451,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/crosspost',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextLike(bot, guildId, channelId);
@@ -483,7 +483,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/roles',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -512,7 +512,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/roles/:roleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, roleId } = request.params;
             if (!isSnowflake(roleId)) { reply.code(400).send({ error: 'invalid roleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -541,7 +541,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; roleId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/roles/:roleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, roleId } = request.params;
             if (!isSnowflake(roleId)) { reply.code(400).send({ error: 'invalid roleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -562,7 +562,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; code: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/invites/:code',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, code } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -582,7 +582,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/emojis',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             return {
@@ -599,7 +599,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/emojis',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             if (!request.isMultipart()) {
@@ -633,7 +633,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string; emojiId: string }; Body: { name?: unknown; reason?: unknown } }>(
         '/api/guilds/:guildId/emojis/:emojiId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, emojiId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -656,7 +656,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; emojiId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/emojis/:emojiId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, emojiId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -676,7 +676,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/stickers',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             try {
@@ -703,7 +703,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/stickers',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             if (!request.isMultipart()) {
@@ -759,7 +759,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/stickers/:stickerId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, stickerId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -786,7 +786,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; stickerId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/stickers/:stickerId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, stickerId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -806,7 +806,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/settings',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             return { settings: serializeGuildSettings(guild) };
@@ -816,7 +816,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string }; Body: GuildSettingsPatchBody }>(
         '/api/guilds/:guildId/settings',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             const body = request.body ?? {};
@@ -888,7 +888,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string }; Body: { level?: unknown } }>(
         '/api/guilds/:guildId/settings/mfa-level',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             const level = request.body?.level;
@@ -917,7 +917,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string }; Querystring: { limit?: string; query?: string } }>(
         '/api/guilds/:guildId/members',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             const limit = Math.min(Math.max(Number(request.query.limit ?? 200) || 200, 1), 1000);
@@ -956,7 +956,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string }; Querystring: { limit?: string; before?: string; type?: string; user?: string } }>(
         '/api/guilds/:guildId/audit-logs',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             const limit = Math.min(Math.max(Number(request.query.limit ?? 50) || 50, 1), 100);
@@ -1000,7 +1000,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/automod/rules',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             try {
@@ -1016,7 +1016,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: AutoModRuleBody }>(
         '/api/guilds/:guildId/automod/rules',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const guild = bot.guilds.cache.get(request.params.guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
             const opts = parseAutoModBody(request.body ?? {});
@@ -1034,7 +1034,7 @@ export async function registerGuildManagementRoutes(
     server.patch<{ Params: { guildId: string; ruleId: string }; Body: AutoModRuleBody }>(
         '/api/guilds/:guildId/automod/rules/:ruleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, ruleId } = request.params;
             if (!isSnowflake(ruleId)) { reply.code(400).send({ error: 'invalid ruleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -1054,7 +1054,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; ruleId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/automod/rules/:ruleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, ruleId } = request.params;
             if (!isSnowflake(ruleId)) { reply.code(400).send({ error: 'invalid ruleId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -1078,7 +1078,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -1132,7 +1132,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string }; Body: { reason?: unknown } }>(
         '/api/guilds/:guildId/channels/:channelId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -1157,7 +1157,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/channels/:channelId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -1206,7 +1206,7 @@ export async function registerGuildManagementRoutes(
     server.get<{ Params: { guildId: string; threadId: string } }>(
         '/api/guilds/:guildId/threads/:threadId/members',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, threadId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -1233,7 +1233,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; threadId: string; userId: string } }>(
         '/api/guilds/:guildId/threads/:threadId/members/:userId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, threadId, userId } = request.params;
             if (!isSnowflake(userId)) { reply.code(400).send({ error: 'invalid userId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -1256,7 +1256,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; threadId: string; userId: string } }>(
         '/api/guilds/:guildId/threads/:threadId/members/:userId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, threadId, userId } = request.params;
             if (!isSnowflake(userId)) { reply.code(400).send({ error: 'invalid userId' }); return; }
             const guild = bot.guilds.cache.get(guildId);
@@ -1279,7 +1279,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string; channelId: string }; Body: { messageIds?: unknown } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/bulk-delete',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             const ids = Array.isArray(request.body?.messageIds)
                 ? (request.body!.messageIds as unknown[]).filter((id): id is string => typeof id === 'string' && isSnowflake(id))
@@ -1319,7 +1319,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
         '/api/guilds/:guildId/feature/todo-channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const channelId = request.body?.channelId;
             if (typeof channelId !== 'string' || !isSnowflake(channelId)) {
@@ -1332,7 +1332,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/feature/todo-channels/:channelId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             await TodoChannel.destroy({ where: { guildId, channelId } });
             reply.code(204).send();
@@ -1343,7 +1343,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
         '/api/guilds/:guildId/feature/picture-only-channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const channelId = request.body?.channelId;
             if (typeof channelId !== 'string' || !isSnowflake(channelId)) {
@@ -1356,7 +1356,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/feature/picture-only-channels/:channelId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             await PictureOnlyChannel.destroy({ where: { guildId, channelId } });
             reply.code(204).send();
@@ -1370,7 +1370,7 @@ export async function registerGuildManagementRoutes(
     } }>(
         '/api/guilds/:guildId/feature/rcon-channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const b = request.body ?? {};
             if (typeof b.channelId !== 'string' || !isSnowflake(b.channelId)) {
@@ -1391,7 +1391,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/feature/rcon-channels/:channelId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId } = request.params;
             await RconForwardChannel.destroy({ where: { guildId, channelId } });
             reply.code(204).send();
@@ -1408,7 +1408,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: { roleId?: unknown; emoji?: unknown } }>(
         '/api/guilds/:guildId/feature/role-emoji',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const b = request.body ?? {};
             if (typeof b.roleId !== 'string' || !isSnowflake(b.roleId)) {
@@ -1437,7 +1437,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string }; Querystring: { emojiChar?: string; emojiId?: string } }>(
         '/api/guilds/:guildId/feature/role-emoji',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const emojiChar = typeof request.query.emojiChar === 'string' ? request.query.emojiChar : '';
             const emojiId = typeof request.query.emojiId === 'string' ? request.query.emojiId : '';
@@ -1451,7 +1451,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: { channelId?: unknown; messageId?: unknown } }>(
         '/api/guilds/:guildId/feature/role-receive-messages',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const b = request.body ?? {};
             if (typeof b.channelId !== 'string' || !isSnowflake(b.channelId)) {
@@ -1467,7 +1467,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/feature/role-receive-messages/:channelId/:messageId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, channelId, messageId } = request.params;
             await RoleReceiveMessage.destroy({ where: { guildId, channelId, messageId } });
             reply.code(204).send();
@@ -1478,7 +1478,7 @@ export async function registerGuildManagementRoutes(
     server.post<{ Params: { guildId: string }; Body: { capability?: unknown; roleId?: unknown } }>(
         '/api/guilds/:guildId/feature/capability-grants',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId } = request.params;
             const b = request.body ?? {};
             if (typeof b.capability !== 'string' || !b.capability.trim()) {
@@ -1494,7 +1494,7 @@ export async function registerGuildManagementRoutes(
     server.delete<{ Params: { guildId: string; capability: string; roleId: string } }>(
         '/api/guilds/:guildId/feature/capability-grants/:capability/:roleId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
             const { guildId, capability, roleId } = request.params;
             await CapabilityGrant.destroy({ where: { guildId, capability, roleId } });
             reply.code(204).send();

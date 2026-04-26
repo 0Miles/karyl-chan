@@ -65,13 +65,13 @@ describe('GET /api/admin/capabilities', () => {
             expect(r.statusCode).toBe(200);
             const body = r.json() as { capabilities: { key: string; description: string }[] };
             expect(body.capabilities.find(c => c.key === 'admin')).toBeDefined();
-            expect(body.capabilities.find(c => c.key === 'dm.read')).toBeDefined();
+            expect(body.capabilities.find(c => c.key === 'dm.message')).toBeDefined();
             expect(body.capabilities.every(c => typeof c.description === 'string' && c.description.length > 0)).toBe(true);
         } finally { await server.close(); }
     });
 
     it('returns 403 without admin capability', async () => {
-        const server = await buildServer({ userId: ADMIN_USER_ID, caps: ['dm.read'] });
+        const server = await buildServer({ userId: ADMIN_USER_ID, caps: ['dm.message'] });
         try {
             const r = await server.inject({ method: 'GET', url: '/api/admin/capabilities' });
             expect(r.statusCode).toBe(403);
@@ -147,7 +147,7 @@ describe('POST /api/admin/users', () => {
 
     it('refuses to move yourself to a role without the admin capability (self-lockout)', async () => {
         await createAdminRole('mod');
-        await grantRoleCapability('mod', 'dm.read');
+        await grantRoleCapability('mod', 'dm.message');
         await addAuthorizedUser(ADMIN_USER_ID, 'admin');
         const server = await buildServer({ userId: ADMIN_USER_ID, caps: ['admin'] });
         try {
@@ -311,7 +311,7 @@ describe('role capability grants', () => {
             const r = await server.inject({
                 method: 'POST',
                 url: '/api/admin/roles/ghost/capabilities',
-                payload: { capability: 'dm.read' }
+                payload: { capability: 'dm.message' }
             });
             expect(r.statusCode).toBe(404);
         } finally { await server.close(); }
@@ -337,12 +337,12 @@ describe('role capability grants', () => {
             const grant = await server.inject({
                 method: 'POST',
                 url: '/api/admin/roles/mod/capabilities',
-                payload: { capability: 'dm.read' }
+                payload: { capability: 'dm.message' }
             });
             expect(grant.statusCode).toBe(204);
             const revoke = await server.inject({
                 method: 'DELETE',
-                url: '/api/admin/roles/mod/capabilities/dm.read'
+                url: '/api/admin/roles/mod/capabilities/dm.message'
             });
             expect(revoke.statusCode).toBe(204);
         } finally { await server.close(); }
@@ -381,7 +381,7 @@ describe('GET /api/admin/audit', () => {
     });
 
     it('refuses without admin capability', async () => {
-        const server = await buildServer({ userId: ADMIN_USER_ID, caps: ['dm.read'] });
+        const server = await buildServer({ userId: ADMIN_USER_ID, caps: ['dm.message'] });
         try {
             const r = await server.inject({ method: 'GET', url: '/api/admin/audit' });
             expect(r.statusCode).toBe(403);

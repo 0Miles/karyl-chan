@@ -4,7 +4,7 @@
         "nav": {
             "dashboard": "Dashboard",
             "messages": "Messages",
-            "guilds": "Guilds",
+            "guilds": "Servers",
             "admin": "Admin access",
             "profile": "Profile",
             "signOut": "Sign out",
@@ -287,7 +287,7 @@
             },
             "desktopNotifications": {
                 "label": "Desktop notifications",
-                "help": "Pop a system notification for new DMs and guild @mentions when this window isn't focused. Muted channels don't notify."
+                "help": "Pop a system notification for new DMs and server @mentions when this window isn't focused. Muted channels don't notify."
             }
         }
     },
@@ -310,7 +310,7 @@
         "ready": "ready",
         "connecting": "connecting",
         "identity": "Identity",
-        "guildsCount": "Guilds",
+        "guildsCount": "Servers",
         "botStatusUnavailable": "Bot status endpoint not available on this server.",
         "system": "System",
         "database": "Database",
@@ -321,14 +321,14 @@
         "dmChannels": "DM channels",
         "dmActivity": "DM activity",
         "past7Days": "past 7 days",
-        "guilds": "Guilds",
-        "manageGuilds": "Manage guilds →",
+        "guilds": "Servers",
+        "manageGuilds": "Manage servers →",
         "systemEvents": "System events"
     },
     "guilds": {
-        "title": "Guilds",
-        "empty": "Bot isn't in any guild.",
-        "selectGuild": "Select a guild.",
+        "title": "Servers",
+        "empty": "Bot isn't in any server.",
+        "selectGuild": "Select a server.",
         "memberCount": "{count} members",
         "joined": "joined {date}",
         "tabs": {
@@ -554,7 +554,7 @@
             "roleReceiveTitle": "Role-receive messages",
             "roleReceiveHint": "Watch these messages for role-emoji reactions.",
             "capabilityTitle": "Capability grants",
-            "capabilityHint": "Grant a per-guild capability to a role, so members of that role can use a slash command."
+            "capabilityHint": "Grant a per-server capability to a role, so members of that role can use a slash command."
         },
         "automod": {
             "title": "AutoMod rules",
@@ -737,16 +737,33 @@
             "saved": "Saved",
             "discardChanges": "Discard",
             "noDescription": "No description set.",
-            "ownerOnlyCapability": "admin"
+            "ownerOnlyCapability": "admin",
+            "editCapabilities": "Edit capabilities",
+            "capabilityModalTitle": "Capabilities · {name}",
+            "capabilityTabs": {
+                "global": "Global",
+                "globalHint": "Apply to every server and surface the bot reaches.",
+                "perGuild": "Per-server",
+                "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them."
+            },
+            "searchGuilds": "Search servers…",
+            "noGuilds": "No servers match this filter.",
+            "noGlobalCaps": "No global capabilities granted.",
+            "perGuildSummary": "{count} per-server grant(s)",
+            "pendingChanges": "{count} change(s) pending",
+            "confirmChanges": "Confirm"
         },
         "capabilitiesCatalog": "Known capability tokens",
         "capabilityDesc": {
             "admin": "Full admin access (bypasses every other capability check)",
-            "dm.read": "Read DM channel list, messages, and unread counts",
-            "dm.write": "Send, edit, delete DM messages and reactions",
-            "guild.read": "Read guild channels, messages, members, and roles",
-            "guild.write": "Send, edit, delete guild messages and reactions",
-            "system.read": "View system event log and runtime stats"
+            "dm.message": "Read + write DM channels, messages, reactions, and unread counts",
+            "guild.message": "Read + write messages and reactions in every server's channels",
+            "guild.manage": "Manage members, roles, settings, and bot features in every server",
+            "system.read": "View system event log and runtime stats",
+            "guildScoped": {
+                "message": "Read + write messages and reactions in this server only.",
+                "manage": "Manage members, roles, settings, and bot features in this server only."
+            }
         }
     },
     "picker": {
@@ -763,6 +780,6 @@
         "noMatches": "No matches.",
         "nothingRecent": "Nothing recent yet.",
         "noCustomEmoji": "No custom emoji available.",
-        "noGuildStickers": "No guild stickers available."
+        "noGuildStickers": "No server stickers available."
     }
 }

@@ -4,7 +4,9 @@ import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdent
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
-import { requireCapability } from './route-guards.js';
+import { guildAccessFilter, requireGuildCapability } from './route-guards.js';
+import { hasGuildCapability } from '../permission/admin-capabilities.js';
+import type { AdminCapability } from './authorized-user.service.js';
 import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
 
 export interface GuildChannelRoutesOptions {
@@ -87,7 +89,20 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
 
     // Static path — Fastify prioritises it over /:guildId even when registered after.
     server.get('/api/guilds/events', async (request, reply) => {
-        if (!requireCapability(request, reply, 'guild.read')) return;
+        // Cross-guild stream — gate the connection itself on the user
+        // having SOME guild scope, then filter each emitted event by
+        // the caller's accessible guild ids.
+        const caps = request.authCapabilities as Set<AdminCapability> | undefined;
+        const hasAnyGuildAccess = !!caps && (
+            caps.has('admin')
+            || caps.has('guild.message')
+            || caps.has('guild.manage')
+            || [...caps].some(c => /^guild:[^.:]+\.(message|manage)$/.test(c))
+        );
+        if (!hasAnyGuildAccess) {
+            reply.code(403).send({ error: 'guild capability required' });
+            return;
+        }
         reply.hijack();
         reply.raw.writeHead(200, {
             'Content-Type': 'text/event-stream',
@@ -103,6 +118,9 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
         heartbeat.unref();
 
         const unsubscribe = events.subscribe(event => {
+            // Drop events for guilds this caller can't see — `message`
+            // scope is enough since these are all message-shaped events.
+            if (!caps || !hasGuildCapability(caps, event.guildId, 'message')) return;
             try {
                 reply.raw.write(`event: ${event.type}\n`);
                 reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -120,7 +138,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/forums',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -162,7 +180,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/active-threads',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -198,7 +216,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string }; Querystring: { archived?: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/threads',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -234,7 +252,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/voice-channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -296,7 +314,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/text-channels',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -377,7 +395,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string } }>(
         '/api/guilds/:guildId/roles',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -423,7 +441,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/members',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId } = request.params;
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -463,7 +481,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/pins',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId } = request.params;
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -483,7 +501,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId } = request.params;
             const limit = Math.min(Math.max(Number(request.query.limit ?? 16) || 16, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
@@ -527,7 +545,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.post<{ Params: { guildId: string; channelId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId } = request.params;
             const channel = fetchTextChannel(bot, guildId, channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown channel' }); return; }
@@ -611,7 +629,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.patch<{ Params: { guildId: string; channelId: string; messageId: string }; Body: { content?: unknown } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
@@ -641,7 +659,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
@@ -664,7 +682,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.get<{ Params: { guildId: string; channelId: string; messageId: string }; Querystring: { emojiId?: string; emojiName?: string } }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions/users',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.read')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
@@ -694,7 +712,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.post<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
@@ -717,7 +735,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.delete<{ Params: { guildId: string; channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/guilds/:guildId/text-channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, channelId, messageId } = request.params;
             if (!isSnowflake(messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = fetchTextChannel(bot, guildId, channelId);
@@ -746,7 +764,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.patch<{ Params: { guildId: string; userId: string }; Body: { mute?: unknown } }>(
         '/api/guilds/:guildId/voice-members/:userId/mute',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -766,7 +784,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.patch<{ Params: { guildId: string; userId: string }; Body: { deaf?: unknown } }>(
         '/api/guilds/:guildId/voice-members/:userId/deafen',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, userId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
@@ -786,7 +804,7 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
     server.patch<{ Params: { guildId: string; userId: string }; Body: { channelId?: unknown } }>(
         '/api/guilds/:guildId/voice-members/:userId/move',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'guild.write')) return;
+            if (!requireGuildCapability(request, reply, request.params.guildId, 'message')) return;
             const { guildId, userId } = request.params;
             const raw = request.body?.channelId;
             // null disconnects; a snowflake string moves into that channel.

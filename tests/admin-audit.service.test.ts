@@ -180,7 +180,7 @@ describe('admin audit hash chain', () => {
         it('survives complex nested context (chain stays valid)', async () => {
             await recordAudit('owner1', 'role.update', 'admin', {
                 description: 'has 中文 and emoji 😀',
-                capabilities: ['admin', 'dm.read'],
+                capabilities: ['admin', 'dm.message'],
                 meta: { previous: null, requestedBy: 'self' }
             });
             const result = await verifyAuditChain();
@@ -188,7 +188,7 @@ describe('admin audit hash chain', () => {
             const [entry] = await listAudit({ limit: 1 });
             expect(entry.context).toMatchObject({
                 description: 'has 中文 and emoji 😀',
-                capabilities: ['admin', 'dm.read']
+                capabilities: ['admin', 'dm.message']
             });
         });
     });

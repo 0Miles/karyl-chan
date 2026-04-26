@@ -174,7 +174,7 @@ describe('GET /api/guilds/:guildId/voice-channels', () => {
     });
 
     it('requires guild.read', async () => {
-        server = await buildServer(fakeBot(fakeGuild()), ['dm.read']);
+        server = await buildServer(fakeBot(fakeGuild()), ['dm.message']);
         const r = await server.inject({
             method: 'GET',
             url: `/api/guilds/${GUILD_ID}/voice-channels`
@@ -213,7 +213,7 @@ describe('GET /api/guilds/:guildId/active-threads', () => {
     });
 
     it('requires guild.read', async () => {
-        server = await buildServer(fakeBot(fakeGuild()), ['dm.read']);
+        server = await buildServer(fakeBot(fakeGuild()), ['dm.message']);
         const r = await server.inject({
             method: 'GET',
             url: `/api/guilds/${GUILD_ID}/active-threads`
@@ -259,7 +259,7 @@ describe('GET /api/guilds/:guildId/forums', () => {
     });
 
     it('requires guild.read', async () => {
-        server = await buildServer(fakeBot(fakeGuild({ forum: true })), ['dm.read']);
+        server = await buildServer(fakeBot(fakeGuild({ forum: true })), ['dm.message']);
         const r = await server.inject({
             method: 'GET',
             url: `/api/guilds/${GUILD_ID}/forums`

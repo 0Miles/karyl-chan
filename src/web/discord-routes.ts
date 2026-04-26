@@ -2,14 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { ChannelType, type Message as DjsMessage, type TextBasedChannel } from 'discord.js';
 import { avatarUrlFor, bannerUrlFor, guildAvatarUrlFor, guildBannerUrlFor, toApiMessage } from './message-mapper.js';
-import { requireAnyCapability, requireCapability } from './route-guards.js';
+import { requireAnyCapability, requireGuildCapability } from './route-guards.js';
 import { isSnowflake } from './validators.js';
 
 // Discord lookup endpoints feed both the DM and guild chat surfaces, so
-// either read capability is sufficient. Listing the pair instead of a
-// blanket 'admin' check keeps the principle-of-least-privilege intent
-// even though the data they return is mostly cosmetic.
-const READ_CAPS = ['dm.read', 'guild.read'] as const;
+// either of these globally-scoped tokens is sufficient. (Per-guild
+// scoped grants don't satisfy these — they're cosmetic lookups across
+// the whole bot.)
+const READ_CAPS = ['dm.message', 'guild.message', 'guild.manage'] as const;
 
 export interface DiscordRoutesOptions {
     bot: Client;
@@ -241,9 +241,9 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
 
     // Cross-surface message forward. Source can be in any guild OR a DM
     // the bot has access to; target likewise. The capability gate
-    // depends on the target's surface — guild target needs `guild.write`,
-    // DM target needs `dm.write`. Both surfaces ultimately call the same
-    // discord.js `forward` send, with the source's channel + message.
+    // depends on the target's surface — guild target needs the target
+    // guild's `message` scope (global guild.message OR guild:<id>.message
+    // OR admin); DM target needs `dm.message`.
     server.post<{ Body: { sourceChannelId?: unknown; sourceMessageId?: unknown; targetChannelId?: unknown } }>(
         '/api/discord/messages/forward',
         async (request, reply) => {
@@ -256,12 +256,16 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
             }
             const target = await resolveTextChannel(bot, targetChannelId);
             if (!target) { reply.code(404).send({ error: 'Unknown destination channel' }); return; }
-            // DMs and guild channels gate behind different capabilities;
-            // requireCapability writes the 4xx response itself, so we
-            // bail when it returns false.
             const targetIsDm = target.type === ChannelType.DM || target.type === ChannelType.GroupDM;
-            const requiredCap = targetIsDm ? 'dm.write' : 'guild.write';
-            if (!requireCapability(request, reply, requiredCap)) return;
+            if (targetIsDm) {
+                if (!requireAnyCapability(request, reply, ['dm.message'])) return;
+            } else {
+                // Guild channels carry a guildId; resolve it from the
+                // resolved channel and check the per-guild scope.
+                const guildId = (target as { guildId?: string | null }).guildId;
+                if (!guildId) { reply.code(400).send({ error: 'destination channel has no guild' }); return; }
+                if (!requireGuildCapability(request, reply, guildId, 'message')) return;
+            }
             // Source resolution must succeed before discord.js's forward
             // path runs — otherwise the cryptic "Cannot read properties
             // of undefined" surfaces in the logs and we 502 the client.

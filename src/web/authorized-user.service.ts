@@ -2,14 +2,21 @@ import { AuthorizedUser } from '../models/authorized-user.model.js';
 import { AdminRole } from '../models/admin-role.model.js';
 import { AdminRoleCapability } from '../models/admin-role-capability.model.js';
 import {
-    ADMIN_CAPABILITIES,
-    ADMIN_CAPABILITY_KEYS,
+    GLOBAL_CAPABILITY_DESCRIPTIONS,
+    GLOBAL_CAPABILITY_KEYS,
     DEFAULT_ROLES,
     isAdminCapability,
-    type AdminCapability
+    type AdminCapability,
+    type GlobalCapability
 } from '../permission/admin-capabilities.js';
 
-export { ADMIN_CAPABILITIES, ADMIN_CAPABILITY_KEYS, isAdminCapability, type AdminCapability };
+export {
+    GLOBAL_CAPABILITY_DESCRIPTIONS,
+    GLOBAL_CAPABILITY_KEYS,
+    isAdminCapability,
+    type AdminCapability,
+    type GlobalCapability
+};
 
 export interface AuthorizedUserRecord {
     userId: string;
@@ -127,8 +134,12 @@ export async function resolveUserSession(
     now: number = Date.now()
 ): Promise<UserSession> {
     // Owner bypass is constant-time — no DB work, no caching needed.
+    // Owner gets `admin` (which short-circuits every capability check
+    // including per-guild scoped ones); listing every global token here
+    // would still leave per-guild scopes unhandled, so the bypass token
+    // is the only honest representation.
     if (ownerId && userId === ownerId) {
-        return { role: 'owner', caps: new Set(ADMIN_CAPABILITY_KEYS) };
+        return { role: 'owner', caps: new Set<AdminCapability>(['admin']) };
     }
     const cached = sessionCache.get(userId);
     if (cached && cached.expiresAt > now) return { role: cached.role, caps: cached.caps };

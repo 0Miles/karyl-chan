@@ -35,6 +35,8 @@ import GuildAutoModSection from './people/GuildAutoModSection.vue';
 import GuildAuditLogSection from './people/GuildAuditLogSection.vue';
 import { plugins } from '../../../plugins/registry';
 import { useGuildsRoute } from './use-guilds-route';
+import { useCurrentUserStore } from '../../../stores/currentUserStore';
+import { hasGuildCapability } from '../../../libs/admin-capabilities';
 
 const { t: $t } = useI18n();
 
@@ -65,12 +67,38 @@ const activeSub = ref<Record<Tab, string>>({
     features: plugins[0]?.name ?? ''
 });
 
-const primaryTabs = computed(() => [
-    { key: 'overview', label: $t('guilds.tabs.overview'), icon: 'material-symbols:dashboard-outline-rounded' },
-    { key: 'settings', label: $t('guilds.tabs.settings'), icon: 'material-symbols:tune-rounded' },
-    { key: 'people', label: $t('guilds.tabs.people'), icon: 'material-symbols:groups-outline-rounded' },
-    { key: 'features', label: $t('guilds.tabs.features'), icon: 'material-symbols:extension-outline-rounded' }
-]);
+// Per-guild capability gating: settings/people/features all live behind
+// `manage` for the selected guild. Hide them when the user only has
+// `message` access — overview stays visible since both scopes need it.
+const currentUser = useCurrentUserStore();
+const canManageSelectedGuild = computed(() => {
+    if (!selectedId.value) return false;
+    const caps = currentUser.user?.capabilities ?? [];
+    return hasGuildCapability(caps, selectedId.value, 'manage');
+});
+
+const primaryTabs = computed(() => {
+    const tabs = [
+        { key: 'overview', label: $t('guilds.tabs.overview'), icon: 'material-symbols:dashboard-outline-rounded' }
+    ];
+    if (canManageSelectedGuild.value) {
+        tabs.push(
+            { key: 'settings', label: $t('guilds.tabs.settings'), icon: 'material-symbols:tune-rounded' },
+            { key: 'people', label: $t('guilds.tabs.people'), icon: 'material-symbols:groups-outline-rounded' },
+            { key: 'features', label: $t('guilds.tabs.features'), icon: 'material-symbols:extension-outline-rounded' }
+        );
+    }
+    return tabs;
+});
+
+// If the user lands on a non-overview tab for a guild they can't
+// manage (e.g. via deep-link), bounce them back to overview so the
+// page state matches what AppTabs is willing to render.
+watch([selectedId, canManageSelectedGuild], () => {
+    if (!canManageSelectedGuild.value && activeTab.value !== 'overview') {
+        activeTab.value = 'overview';
+    }
+});
 const settingsSubs = computed(() => [
     { key: 'general', label: $t('guilds.subtabs.settings.general') },
     { key: 'moderation', label: $t('guilds.subtabs.settings.moderation') },

@@ -9,6 +9,7 @@ import { provideAppShell } from './composables/use-app-shell';
 import { useBreakpoint } from './composables/use-breakpoint';
 import { useDrawer } from './composables/use-drawer';
 import { useCurrentUserStore } from './stores/currentUserStore';
+import { accessibleGuildIds, hasAdminCapability } from './libs/admin-capabilities';
 import { useDmStore } from './modules/discord-chat/stores/dmStore';
 import { useGuildChannelStore } from './modules/discord-chat/stores/guildChannelStore';
 import { useUnreadStore } from './modules/discord-chat/stores/unreadStore';
@@ -57,10 +58,19 @@ const displayName = computed(() =>
     ?? currentUser.user?.profile?.username
     ?? t('admin.users.unknownProfile')
 );
-// Hide the "Admin access" nav entry for users whose capability set
-// doesn't include admin — the page itself renders a 403 anyway, but
-// pointing at a door you can't open is bad UX.
-const canOpenAdminPanel = computed(() => currentUser.user?.capabilities.includes('admin') ?? false);
+// Hide nav entries the current user can't actually use — the pages
+// render their own 403/empty states, but linking to doors you can't
+// open is bad UX. Each predicate falls back to `false` when the user
+// hasn't loaded yet so we don't briefly flash links before hiding them.
+const userCaps = computed(() => currentUser.user?.capabilities ?? []);
+const canOpenAdminPanel = computed(() => hasAdminCapability(userCaps.value, 'admin'));
+const canSeeMessages = computed(() => hasAdminCapability(userCaps.value, 'dm.message')
+    || accessibleGuildIds(userCaps.value) === 'all'
+    || (accessibleGuildIds(userCaps.value) as Set<string>).size > 0);
+const canSeeGuilds = computed(() => {
+    const access = accessibleGuildIds(userCaps.value);
+    return access === 'all' || access.size > 0;
+});
 const avatarUrl = computed(() => currentUser.user?.profile?.avatarUrl ?? null);
 const avatarInitial = computed(() => {
     const name = currentUser.user?.profile?.globalName
@@ -147,11 +157,11 @@ function navigate() {
             <nav class="desktop-nav">
                 <template v-if="isAuthenticated">
                     <RouterLink to="/admin">{{ $t('app.nav.dashboard') }}</RouterLink>
-                    <RouterLink to="/admin/messages" class="nav-with-dot">
+                    <RouterLink v-if="canSeeMessages" to="/admin/messages" class="nav-with-dot">
                         {{ $t('app.nav.messages') }}
                         <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
                     </RouterLink>
-                    <RouterLink to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
+                    <RouterLink v-if="canSeeGuilds" to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
                     <RouterLink v-if="canOpenAdminPanel" to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <AppMenu placement="bottom-end" :offset="[0, 10]">
                         <template #trigger>
@@ -235,11 +245,11 @@ function navigate() {
                 <nav v-show="overlayView === 'nav'" class="mobile-overlay-nav">
                     <template v-if="isAuthenticated">
                         <RouterLink to="/admin" @click="navigate">{{ $t('app.nav.dashboard') }}</RouterLink>
-                        <RouterLink to="/admin/messages" class="nav-with-dot" @click="navigate">
+                        <RouterLink v-if="canSeeMessages" to="/admin/messages" class="nav-with-dot" @click="navigate">
                             {{ $t('app.nav.messages') }}
                             <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
                         </RouterLink>
-                        <RouterLink to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
+                        <RouterLink v-if="canSeeGuilds" to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
                         <RouterLink v-if="canOpenAdminPanel" to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>

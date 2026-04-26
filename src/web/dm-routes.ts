@@ -46,14 +46,14 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     const events = options.eventBus ?? dmEventBus;
 
     server.get('/api/dm/channels', async (request, reply) => {
-        if (!requireCapability(request, reply, 'dm.read')) return;
+        if (!requireCapability(request, reply, 'dm.message')) return;
         return { channels: await inbox.listChannels() };
     });
 
     server.post<{ Body: { lastSeen?: Record<string, string | null> } }>(
         '/api/dm/unread',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             const lastSeen = (request.body?.lastSeen && typeof request.body.lastSeen === 'object')
                 ? request.body.lastSeen
                 : {};
@@ -119,7 +119,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { channelId: string }; Querystring: { limit?: string; before?: string; around?: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             const { channelId } = request.params;
             const limit = Math.min(Math.max(Number(request.query.limit ?? 10) || 10, 1), 50);
             const before = typeof request.query.before === 'string' && request.query.before.length > 0 ? request.query.before : undefined;
@@ -156,7 +156,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.post<{ Params: { channelId: string } }>(
         '/api/dm/channels/:channelId/messages',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
 
@@ -242,7 +242,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     );
 
     server.post<{ Body: StartBody }>('/api/dm/channels', async (request, reply) => {
-        if (!requireCapability(request, reply, 'dm.write')) return;
+        if (!requireCapability(request, reply, 'dm.message')) return;
         const recipientUserId = typeof request.body?.recipientUserId === 'string' ? request.body.recipientUserId : '';
         if (!isSnowflake(recipientUserId)) { reply.code(400).send({ error: 'recipientUserId must be a snowflake' }); return; }
         try {
@@ -265,7 +265,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.patch<{ Params: { channelId: string; messageId: string }; Body: { content?: unknown } }>(
         '/api/dm/channels/:channelId/messages/:messageId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
@@ -294,7 +294,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.delete<{ Params: { channelId: string; messageId: string } }>(
         '/api/dm/channels/:channelId/messages/:messageId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
@@ -317,7 +317,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { channelId: string; messageId: string }; Querystring: { emojiId?: string; emojiName?: string } }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions/users',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
@@ -346,7 +346,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.post<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
@@ -372,7 +372,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.delete<{ Params: { channelId: string; messageId: string }; Body: ReactionBody }>(
         '/api/dm/channels/:channelId/messages/:messageId/reactions',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.write')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             if (!isSnowflake(request.params.messageId)) { reply.code(400).send({ error: 'invalid messageId' }); return; }
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
@@ -396,7 +396,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { channelId: string } }>(
         '/api/dm/channels/:channelId/pins',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             const channel = await fetchDmChannel(bot, request.params.channelId);
             if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
             try {
@@ -417,7 +417,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     server.get<{ Params: { stickerId: string } }>(
         '/api/dm/stickers/:stickerId',
         async (request, reply) => {
-            if (!requireCapability(request, reply, 'dm.read')) return;
+            if (!requireCapability(request, reply, 'dm.message')) return;
             const id = request.params.stickerId.replace(/[^0-9]/g, '');
             if (!id) { reply.code(400).send({ error: 'invalid sticker id' }); return; }
             // Hard ceiling on proxied response size. Lottie sticker JSON
@@ -449,7 +449,7 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
     );
 
     server.get('/api/dm/events', async (request, reply) => {
-        if (!requireCapability(request, reply, 'dm.read')) return;
+        if (!requireCapability(request, reply, 'dm.message')) return;
         // Hand the socket to us — without this fastify auto-sends a body once
         // the async handler returns, which races with our SSE writes and the
         // browser sees the connection close immediately.

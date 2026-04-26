@@ -287,7 +287,7 @@
             },
             "desktopNotifications": {
                 "label": "桌面通知",
-                "help": "窗口未在前台时,新 DM 与公会中提及你的消息会弹出系统通知。被静音的对话不会推送。"
+                "help": "窗口未在前台时,新 DM 与服务器中提及你的消息会弹出系统通知。被静音的对话不会推送。"
             }
         }
     },
@@ -737,16 +737,33 @@
             "saved": "已保存",
             "discardChanges": "放弃",
             "noDescription": "尚未设置说明。",
-            "ownerOnlyCapability": "admin"
+            "ownerOnlyCapability": "admin",
+            "editCapabilities": "编辑权限",
+            "capabilityModalTitle": "权限 · {name}",
+            "capabilityTabs": {
+                "global": "全局",
+                "globalHint": "应用于 bot 所有服务器与所有功能界面。",
+                "perGuild": "单个服务器",
+                "perGuildHint": "将相同范围限定到单个服务器,与全局权限为相加关系,不会覆盖。"
+            },
+            "searchGuilds": "搜索服务器…",
+            "noGuilds": "没有符合条件的服务器。",
+            "noGlobalCaps": "尚未授予任何全局权限。",
+            "perGuildSummary": "已授予 {count} 个单服务器权限",
+            "pendingChanges": "已修改 {count} 项",
+            "confirmChanges": "确认变更"
         },
         "capabilitiesCatalog": "可用权限词条",
         "capabilityDesc": {
             "admin": "完整后台权限(可无视其他所有权限检查)",
-            "dm.read": "读取 DM 对话列表、消息与未读数",
-            "dm.write": "在 DM 中发送、编辑、删除消息与反应",
-            "guild.read": "读取公会频道、消息、成员与角色",
-            "guild.write": "在公会频道中发送、编辑、删除消息与反应",
-            "system.read": "查看系统事件记录与统计信息"
+            "dm.message": "读写 DM 对话列表、消息、反应与未读数",
+            "guild.message": "读写所有服务器频道的消息与反应",
+            "guild.manage": "管理所有服务器的成员、角色、设置与 bot 功能",
+            "system.read": "查看系统事件记录与统计信息",
+            "guildScoped": {
+                "message": "仅限此服务器读写频道消息与反应。",
+                "manage": "仅限此服务器管理成员、角色、设置与 bot 功能。"
+            }
         }
     },
     "picker": {

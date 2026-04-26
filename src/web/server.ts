@@ -370,7 +370,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             // Bot identity feeds the chat composer ("is this me?") and the
             // dashboard at the same time, so any of the read capabilities
             // is enough.
-            if (!requireAnyCapability(request, reply, ['dm.read', 'guild.read', 'system.read'])) return;
+            if (!requireAnyCapability(request, reply, ['dm.message', 'guild.message', 'guild.manage', 'system.read'])) return;
             const ready = bot.isReady();
             const user = ready ? bot.user : null;
             return {

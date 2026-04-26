@@ -2,8 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Client } from 'discordx';
 import {
     addAuthorizedUser,
-    ADMIN_CAPABILITIES,
-    ADMIN_CAPABILITY_KEYS,
+    GLOBAL_CAPABILITY_DESCRIPTIONS,
+    GLOBAL_CAPABILITY_KEYS,
     createAdminRole,
     deleteAdminRole,
     findAuthorizedUser,
@@ -14,7 +14,8 @@ import {
     removeAuthorizedUser,
     revokeRoleCapability,
     type AuthorizedUserRecord,
-    type AdminCapability
+    type AdminCapability,
+    type GlobalCapability
 } from './authorized-user.service.js';
 import { listAudit, recordAudit } from './admin-audit.service.js';
 import { avatarUrlFor } from './message-mapper.js';
@@ -254,9 +255,14 @@ export async function registerAdminManagementRoutes(
     // pins the set of valid keys plus a fallback description.
     server.get('/api/admin/capabilities', async (request, reply) => {
         if (!requireAdmin(request, reply)) return;
-        const capabilities = ADMIN_CAPABILITY_KEYS.map(key => ({
+        // Per-guild scoped tokens (`guild:<id>.message`/`.manage`) are
+        // generated on the client per-guild — they're not enumerable
+        // here without listing every guild the bot is in. This catalog
+        // returns just the global tokens; the UI composes scoped ones
+        // separately from the bot's guild list.
+        const capabilities = GLOBAL_CAPABILITY_KEYS.map((key: GlobalCapability) => ({
             key,
-            description: ADMIN_CAPABILITIES[key]
+            description: GLOBAL_CAPABILITY_DESCRIPTIONS[key]
         }));
         return { capabilities };
     });

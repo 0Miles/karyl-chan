@@ -336,9 +336,14 @@ const matchSummary = computed(() =>
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+    /* Responsive grid — packs multiple user cards side-by-side once the
+       viewport is wide enough. Each card stays self-contained at the
+       card's own min width (380px); narrower viewports collapse to a
+       single column. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 0.5rem;
+    align-items: start;
 }
 .user-row {
     display: grid;
@@ -350,12 +355,9 @@ const matchSummary = computed(() =>
     border: 1px solid var(--border);
     border-radius: 8px;
     transition: opacity 0.15s;
+    padding: 16px;
 }
 .user-row.pending { opacity: 0.55; }
-.owner-row {
-    background: var(--accent-bg);
-    border-color: var(--accent);
-}
 .avatar {
     width: 44px;
     height: 44px;

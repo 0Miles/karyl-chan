@@ -29,7 +29,7 @@ function fakeRequest(caps: AdminCapability[] | undefined): FastifyRequest {
 describe('requireCapability', () => {
     it('allows when the user has the exact capability', () => {
         const { reply, code } = fakeReply();
-        expect(requireCapability(fakeRequest(['dm.read']), reply, 'dm.read')).toBe(true);
+        expect(requireCapability(fakeRequest(['dm.message']), reply, 'dm.message')).toBe(true);
         expect(code).not.toHaveBeenCalled();
     });
 
@@ -37,35 +37,35 @@ describe('requireCapability', () => {
         const { reply, code } = fakeReply();
         // The whole point of the admin token: it bypasses every other
         // check, mirroring hasAdminCapability semantics.
-        expect(requireCapability(fakeRequest(['admin']), reply, 'dm.write')).toBe(true);
+        expect(requireCapability(fakeRequest(['admin']), reply, 'dm.message')).toBe(true);
         expect(code).not.toHaveBeenCalled();
     });
 
     it('denies and replies 403 when the capability is missing', () => {
         const { reply, code, send } = fakeReply();
-        expect(requireCapability(fakeRequest(['dm.read']), reply, 'guild.write')).toBe(false);
+        expect(requireCapability(fakeRequest(['dm.message']), reply, 'guild.manage')).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
-        expect(send).toHaveBeenCalledWith({ error: 'guild.write capability required' });
+        expect(send).toHaveBeenCalledWith({ error: 'guild.manage capability required' });
     });
 
     it('denies when authCapabilities is undefined (the hook never ran)', () => {
         const { reply, code } = fakeReply();
-        expect(requireCapability(fakeRequest(undefined), reply, 'dm.read')).toBe(false);
+        expect(requireCapability(fakeRequest(undefined), reply, 'dm.message')).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
     });
 
     it('denies when authCapabilities is empty', () => {
         const { reply, code } = fakeReply();
-        expect(requireCapability(fakeRequest([]), reply, 'dm.read')).toBe(false);
+        expect(requireCapability(fakeRequest([]), reply, 'dm.message')).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
     });
 
     it('does not leak the user\'s actual capability set in the error message', () => {
         const { reply, send } = fakeReply();
-        requireCapability(fakeRequest(['dm.read', 'system.read']), reply, 'guild.write');
+        requireCapability(fakeRequest(['dm.message', 'system.read']), reply, 'guild.manage');
         const errorBody = send.mock.calls[0][0] as { error: string };
-        expect(errorBody.error).toBe('guild.write capability required');
-        // No mention of dm.read / system.read; the response only ever
+        expect(errorBody.error).toBe('guild.manage capability required');
+        // No mention of dm.message / system.read; the response only ever
         // names the missing required capability.
         expect(errorBody.error).not.toMatch(/dm\.read|system\.read/);
     });
@@ -75,7 +75,7 @@ describe('requireAnyCapability', () => {
     it('allows when the user has any of the listed capabilities', () => {
         const { reply, code } = fakeReply();
         expect(
-            requireAnyCapability(fakeRequest(['guild.read']), reply, ['dm.read', 'guild.read'])
+            requireAnyCapability(fakeRequest(['guild.message']), reply, ['dm.message', 'guild.message'])
         ).toBe(true);
         expect(code).not.toHaveBeenCalled();
     });
@@ -83,7 +83,7 @@ describe('requireAnyCapability', () => {
     it('admin bypasses even when none of the listed capabilities are held literally', () => {
         const { reply, code } = fakeReply();
         expect(
-            requireAnyCapability(fakeRequest(['admin']), reply, ['dm.read', 'guild.read'])
+            requireAnyCapability(fakeRequest(['admin']), reply, ['dm.message', 'guild.message'])
         ).toBe(true);
         expect(code).not.toHaveBeenCalled();
     });
@@ -91,21 +91,21 @@ describe('requireAnyCapability', () => {
     it('denies when none of the listed capabilities are held', () => {
         const { reply, code, send } = fakeReply();
         expect(
-            requireAnyCapability(fakeRequest(['system.read']), reply, ['dm.read', 'guild.read'])
+            requireAnyCapability(fakeRequest(['system.read']), reply, ['dm.message', 'guild.message'])
         ).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
         expect(send).toHaveBeenCalled();
         const body = send.mock.calls[0][0] as { error: string };
         // Surfaces the full list so the operator learns what would unblock
         // them — only acceptable because the route surface is admin-only.
-        expect(body.error).toContain('dm.read');
-        expect(body.error).toContain('guild.read');
+        expect(body.error).toContain('dm.message');
+        expect(body.error).toContain('guild.message');
     });
 
     it('denies when authCapabilities is undefined', () => {
         const { reply, code } = fakeReply();
         expect(
-            requireAnyCapability(fakeRequest(undefined), reply, ['dm.read'])
+            requireAnyCapability(fakeRequest(undefined), reply, ['dm.message'])
         ).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
     });
@@ -116,7 +116,7 @@ describe('requireAnyCapability', () => {
         // isn't `admin`. Ensures we don't accidentally treat that as
         // "anything goes".
         expect(
-            requireAnyCapability(fakeRequest(['dm.read']), reply, [])
+            requireAnyCapability(fakeRequest(['dm.message']), reply, [])
         ).toBe(false);
         expect(code).toHaveBeenCalledWith(403);
     });

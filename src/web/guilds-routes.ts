@@ -7,7 +7,7 @@ import { RoleEmoji } from '../models/role-emoji.model.js';
 import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
 import { ChannelType } from 'discord.js';
 import { CapabilityGrant } from '../models/capability-grant.model.js';
-import { requireCapability } from './route-guards.js';
+import { guildAccessFilter, requireAnyGuildCapability, requireGuildCapability } from './route-guards.js';
 
 export interface GuildsRoutesOptions {
     bot: Client;
@@ -36,14 +36,22 @@ function summariseGuilds(bot: Client): GuildSummary[] {
 export async function registerGuildsRoutes(server: FastifyInstance, options: GuildsRoutesOptions): Promise<void> {
     const { bot } = options;
 
-    server.get('/api/guilds', async (request, reply) => {
-        if (!requireCapability(request, reply, 'guild.read')) return;
-        const guilds = summariseGuilds(bot).sort((a, b) => a.name.localeCompare(b.name));
+    server.get('/api/guilds', async (request) => {
+        // Listing intentionally returns 200 with an empty array for
+        // callers with no guild grants — surfacing 403 here would make
+        // it easy to fingerprint user permissions, and the empty list
+        // is the same outcome from the UI's perspective.
+        const allow = guildAccessFilter(request);
+        const guilds = summariseGuilds(bot)
+            .filter(g => allow(g.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
         return { guilds };
     });
 
     server.get<{ Params: { guildId: string } }>('/api/guilds/:guildId', async (request, reply) => {
-        if (!requireCapability(request, reply, 'guild.read')) return;
+        // Detail is the entry point for both message and manage UIs;
+        // either scope is enough to read it.
+        if (!requireAnyGuildCapability(request, reply, request.params.guildId, ['message', 'manage'])) return;
         const guild = bot.guilds.cache.get(request.params.guildId);
         if (!guild) {
             reply.code(404).send({ error: 'Bot is not in this guild' });
@@ -130,7 +138,7 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
     });
 
     server.get<{ Params: { guildId: string } }>('/api/guilds/:guildId/invites', async (request, reply) => {
-        if (!requireCapability(request, reply, 'guild.read')) return;
+        if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
         const guild = bot.guilds.cache.get(request.params.guildId);
         if (!guild) { reply.code(404).send({ error: 'Bot is not in this guild' }); return; }
         try {
@@ -161,7 +169,7 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
         Params: { guildId: string };
         Body: { channelId?: string; maxAge?: number; maxUses?: number; temporary?: boolean; unique?: boolean; reason?: string }
     }>('/api/guilds/:guildId/invites', async (request, reply) => {
-        if (!requireCapability(request, reply, 'guild.write')) return;
+        if (!requireGuildCapability(request, reply, request.params.guildId, 'manage')) return;
         const guild = bot.guilds.cache.get(request.params.guildId);
         if (!guild) { reply.code(404).send({ error: 'Bot is not in this guild' }); return; }
         const body = request.body ?? {};

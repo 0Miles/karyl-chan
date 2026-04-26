@@ -122,10 +122,14 @@ describe('GET /api/guilds', () => {
         expect(body.guilds.map(g => g.name)).toEqual(['Apple', 'Zebra']);
     });
 
-    it('requires guild.read', async () => {
-        server = await buildServer(fakeBot(fakeGuild()), ['dm.read']);
+    it('returns an empty list (200) for callers with no guild grants', async () => {
+        // Listing intentionally never 403s — surfacing the lack of
+        // grants would let probers fingerprint user permissions.
+        // The user just sees an empty list, same UI outcome.
+        server = await buildServer(fakeBot(fakeGuild()), ['dm.message']);
         const r = await server.inject({ method: 'GET', url: '/api/guilds' });
-        expect(r.statusCode).toBe(403);
+        expect(r.statusCode).toBe(200);
+        expect(r.json()).toEqual({ guilds: [] });
     });
 });
 
@@ -175,7 +179,7 @@ describe('GET /api/guilds/:guildId/invites', () => {
     });
 
     it('requires guild.read', async () => {
-        server = await buildServer(fakeBot(fakeGuild()), ['dm.read']);
+        server = await buildServer(fakeBot(fakeGuild()), ['dm.message']);
         const r = await server.inject({ method: 'GET', url: `/api/guilds/${GUILD_ID}/invites` });
         expect(r.statusCode).toBe(403);
     });
@@ -283,7 +287,7 @@ describe('POST /api/guilds/:guildId/invites', () => {
 
     it('requires guild.write', async () => {
         const guild = fakeGuild();
-        server = await buildServer(fakeBot(guild), ['guild.read']);
+        server = await buildServer(fakeBot(guild), ['guild.message']);
         const r = await server.inject({
             method: 'POST',
             url: `/api/guilds/${GUILD_ID}/invites`,
