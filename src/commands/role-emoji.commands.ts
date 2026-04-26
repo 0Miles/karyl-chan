@@ -334,12 +334,14 @@ export class RoleEmojiCommands {
                 const emojiChar = re.getDataValue('emojiChar') as string;
                 const emojiId = re.getDataValue('emojiId') as string;
                 const emojiName = re.getDataValue('emojiName') as string;
-                // Already on the message? Skip silently — the reaction
-                // is what we care about, so we don't fail even if the
-                // emoji is now unresolvable (deleted, off-guild without
-                // name). discord.js keys reactions by id for customs
-                // and by the unicode char itself for unicode.
-                if (message.reactions.cache.get(emojiId || emojiChar)?.me) continue;
+                // Already on the message (by anyone)? Skip silently —
+                // the reaction is what we care about, and Discord rejects
+                // bot-side reacts on emoji it can't access (off-guild
+                // custom emoji → 10014 Unknown Emoji) even though the
+                // visual reaction is already present. discord.js keys
+                // reactions by id for customs and by the unicode char
+                // itself for unicode.
+                if (message.reactions.cache.has(emojiId || emojiChar)) continue;
                 const resolvable = resolveReactable(command, emojiChar, emojiId, emojiName);
                 if (!resolvable) {
                     failed.push(emojiChar || emojiId);
