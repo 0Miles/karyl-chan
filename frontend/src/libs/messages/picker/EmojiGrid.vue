@@ -34,8 +34,12 @@ const emit = defineEmits<{
 
 <style scoped>
 .emoji-grid {
+    /* auto-fill so the grid wraps to whatever container width it gets;
+       the fixed `repeat(8, 1fr)` would force 8 columns even on narrow
+       containers, and the inner 28px image can't shrink below itself —
+       leading to horizontal overflow inside the mobile drawer. */
     display: grid;
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
     gap: 0.3rem;
 }
 .cell {
@@ -48,6 +52,7 @@ const emit = defineEmits<{
     align-items: center;
     justify-content: center;
     aspect-ratio: 1 / 1;
+    min-width: 0;
 }
 .cell:hover { background: var(--bg-surface-hover); }
 .emoji {

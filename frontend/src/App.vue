@@ -357,7 +357,7 @@ function navigate() {
 
 .mobile-fab-wrap {
     position: fixed;
-    left: 1rem;
+    right: 1rem;
     top: 1rem;
     z-index: 40;
     display: none;

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { GuildDetail, GuildRoleSummary } from '../../../../api/guilds';
+import { plugins } from '../../../../plugins/registry';
 
 const props = defineProps<{
     detail: GuildDetail;
@@ -13,25 +14,6 @@ function formatDate(iso: string | null): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
-
-interface FeatureTile {
-    key: string;
-    icon: string;
-    labelKey: string;
-    count: number;
-}
-
-// Dashboard tiles — a single glance at how each bot feature is wired
-// for the selected guild. Numbers come straight from the existing
-// guild-detail payload so this section stays read-only / observational.
-const tiles = computed<FeatureTile[]>(() => [
-    { key: 'todo', icon: 'material-symbols:checklist-rounded', labelKey: 'guilds.todoChannels', count: props.detail.todoChannels.length },
-    { key: 'picture', icon: 'material-symbols:image-outline-rounded', labelKey: 'guilds.pictureOnly', count: props.detail.pictureOnlyChannels.length },
-    { key: 'rcon', icon: 'material-symbols:terminal-rounded', labelKey: 'guilds.rconForward', count: props.detail.rconForwardChannels.length },
-    { key: 'roleEmoji', icon: 'material-symbols:mood-rounded', labelKey: 'guilds.roleEmoji', count: props.detail.roleEmojis.length },
-    { key: 'roleReact', icon: 'material-symbols:add-reaction-outline-rounded', labelKey: 'guilds.roleReactions', count: props.detail.roleReceiveMessages.length },
-    { key: 'caps', icon: 'material-symbols:vpn-key-outline-rounded', labelKey: 'guilds.capabilityGrants', count: props.detail.capabilityGrants.length }
-]);
 
 const rolesCount = computed(() => props.roles.length);
 </script>
@@ -70,15 +52,14 @@ const rolesCount = computed(() => props.roles.length);
         </section>
 
         <h3 class="section-title">{{ $t('guilds.dashboard.featureUsage') }}</h3>
-        <ul class="feature-grid">
-            <li v-for="tile in tiles" :key="tile.key" class="feature-tile">
-                <Icon :icon="tile.icon" width="22" height="22" class="tile-icon" />
-                <div class="tile-text">
-                    <span class="tile-count">{{ tile.count }}</span>
-                    <span class="tile-label">{{ $t(tile.labelKey) }}</span>
-                </div>
-            </li>
-        </ul>
+        <div class="feature-grid">
+            <component
+                :is="plugin.OverviewCard"
+                v-for="plugin in plugins"
+                :key="plugin.name"
+                :detail="detail"
+            />
+        </div>
     </div>
 </template>
 
@@ -160,29 +141,8 @@ const rolesCount = computed(() => props.roles.length);
     color: var(--text-strong);
 }
 .feature-grid {
-    list-style: none;
-    margin: 0;
-    padding: 0;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0.5rem;
 }
-.feature-tile {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.6rem 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-}
-.tile-icon { color: var(--text-muted); flex-shrink: 0; }
-.tile-text { display: flex; flex-direction: column; min-width: 0; }
-.tile-count {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: var(--text-strong);
-    font-variant-numeric: tabular-nums;
-}
-.tile-label { font-size: 0.78rem; color: var(--text-muted); }
 </style>

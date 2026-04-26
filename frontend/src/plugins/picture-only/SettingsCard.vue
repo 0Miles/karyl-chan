@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { addPictureOnlyChannel, removePictureOnlyChannel, type GuildDetail } from '../../../../api/guilds';
-import AppSelectField from '../../../../components/AppSelectField.vue';
-import { useBotFeatureCard } from './use-bot-feature-card';
-import { useChannelPicker } from './use-feature-pickers';
+import { addPictureOnlyChannel, removePictureOnlyChannel, type GuildDetail } from '../../api/guilds';
+import AppSelectField from '../../components/AppSelectField.vue';
+import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
+import { useChannelPicker } from '../_shared/use-feature-pickers';
 
 const props = defineProps<{ detail: GuildDetail }>();
 const emit = defineEmits<{ (e: 'changed'): void }>();
@@ -54,4 +54,4 @@ async function rmPicture(channelId: string) {
     </section>
 </template>
 
-<style scoped src="./card.css"></style>
+<style scoped src="../_shared/card.css"></style>

@@ -33,11 +33,8 @@ import GuildMembersSection from './people/GuildMembersSection.vue';
 import GuildBansSection from './people/GuildBansSection.vue';
 import GuildAutoModSection from './people/GuildAutoModSection.vue';
 import GuildAuditLogSection from './people/GuildAuditLogSection.vue';
-import GuildTodoChannelsCard from './features/GuildTodoChannelsCard.vue';
-import GuildPictureOnlyCard from './features/GuildPictureOnlyCard.vue';
-import GuildRconForwardCard from './features/GuildRconForwardCard.vue';
-import GuildReactionRolesCard from './features/GuildReactionRolesCard.vue';
-import GuildCapabilityGrantsCard from './features/GuildCapabilityGrantsCard.vue';
+import { plugins } from '../../../plugins/registry';
+import { useGuildsRoute } from './use-guilds-route';
 
 const { t: $t } = useI18n();
 
@@ -46,26 +43,26 @@ const { isMobile } = useBreakpoint();
 const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
 const guilds = ref<GuildSummary[]>([]);
-const selectedId = ref<string | null>(null);
 const detail = ref<GuildDetail | null>(null);
 const loadingList = ref(false);
 const loadingDetail = ref(false);
 const error = ref<string | null>(null);
 
-// Sticky tab nav for the workbench. Each guild keeps its tab independently
-// so flipping between guilds doesn't bounce the user back to "overview".
+// `selectedId` is two-way bound to `?guild=<id>` by useGuildsRoute. The
+// tab + sub-tab portion of the URL lives on `<AppTabs routed>` itself
+// (passed `name="guilds"` below), so the page-level state is just a
+// pair of refs that AppTabs writes through via v-model. Per-tab sub
+// memory still happens here — switching primary tabs back and forth
+// preserves the last sub the user was on.
 type Tab = 'overview' | 'settings' | 'people' | 'features';
+const { selectedId } = useGuildsRoute();
 const activeTab = ref<Tab>('overview');
-
-// Per-tab sub-selection. Stored in a single ref keyed by primary tab so
-// the sub-state survives flipping between primary tabs and back —
-// jumping to "people" then back to "settings" preserves the settings
-// sub-tab the user was last on.
+// Default features sub = first plugin's name; updates if plugins list changes.
 const activeSub = ref<Record<Tab, string>>({
     overview: '',
     settings: 'general',
     people: 'members',
-    features: 'todo'
+    features: plugins[0]?.name ?? ''
 });
 
 const primaryTabs = computed(() => [
@@ -88,13 +85,12 @@ const peopleSubs = computed(() => [
     { key: 'automod', label: $t('guilds.subtabs.people.automod') },
     { key: 'audit', label: $t('guilds.subtabs.people.audit') }
 ]);
-const featuresSubs = computed(() => [
-    { key: 'todo', label: $t('guilds.subtabs.features.todo') },
-    { key: 'picture', label: $t('guilds.subtabs.features.picture') },
-    { key: 'rcon', label: $t('guilds.subtabs.features.rcon') },
-    { key: 'reactionRoles', label: $t('guilds.subtabs.features.reactionRoles') },
-    { key: 'capability', label: $t('guilds.subtabs.features.capability') }
-]);
+// Features sub-tabs are derived from the plugin registry — adding a new
+// plugin folder + entry there is enough to surface it here.
+const featuresSubs = computed(() => plugins.map(p => ({
+    key: p.name,
+    label: $t(p.labelKey)
+})));
 const currentSubTabs = computed(() => {
     if (activeTab.value === 'settings') return settingsSubs.value;
     if (activeTab.value === 'people') return peopleSubs.value;
@@ -247,7 +243,12 @@ async function onRevokeInvite(inv: GuildInvite) {
     }
 }
 
-watch(selectedId, (id) => { if (id) loadDetail(id); });
+// `immediate` so a deep-link like /admin/guilds?guild=X loads the
+// detail on first mount — useGuildsRoute seeds selectedId from the
+// URL before this watcher attaches, so without immediate the initial
+// value would slip past unobserved and the main panel would render
+// blank.
+watch(selectedId, (id) => { if (id) loadDetail(id); }, { immediate: true });
 
 function handleSelect(id: string) {
     selectedId.value = id;
@@ -296,6 +297,8 @@ onMounted(refresh);
                         :sub-tabs="currentSubTabs"
                         :sub-model-value="currentSub"
                         sub-layout="sidebar"
+                        routed
+                        name="guilds"
                         @update:sub-model-value="currentSub = $event"
                     >
                         <!-- Overview ─ no sub-tabs ─ -->
@@ -341,33 +344,19 @@ onMounted(refresh);
                             <GuildAuditLogSection v-else-if="currentSub === 'audit'" :guild-id="selectedId!" />
                         </template>
 
-                        <!-- Bot features sub-tabs ─ -->
+                        <!-- Bot features sub-tabs — driven by the plugin
+                             registry; whichever plugin's name matches the
+                             current sub-tab key gets its SettingsCard
+                             mounted. -->
                         <template v-else-if="activeTab === 'features'">
-                            <GuildTodoChannelsCard
-                                v-if="currentSub === 'todo'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
-                            <GuildPictureOnlyCard
-                                v-else-if="currentSub === 'picture'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
-                            <GuildRconForwardCard
-                                v-else-if="currentSub === 'rcon'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
-                            <GuildReactionRolesCard
-                                v-else-if="currentSub === 'reactionRoles'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
-                            <GuildCapabilityGrantsCard
-                                v-else-if="currentSub === 'capability'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
+                            <template v-for="plugin in plugins" :key="plugin.name">
+                                <component
+                                    :is="plugin.SettingsCard"
+                                    v-if="currentSub === plugin.name"
+                                    :detail="detail"
+                                    @changed="selectedId && loadDetail(selectedId)"
+                                />
+                            </template>
                         </template>
                     </AppTabs>
                 </article>

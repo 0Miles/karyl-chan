@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { isAuthenticated } from './auth';
+import { pluginRoutes } from './plugins/routes';
 
 // Route names stay stable so programmatic `router.replace({ name: '...' })`
 // calls elsewhere keep working — only paths moved under /admin. The root
@@ -48,7 +49,10 @@ const routes: RouteRecordRaw[] = [
         path: '/admin/auth',
         name: 'auth',
         component: () => import('./views/admin/auth/AuthPage.vue')
-    }
+    },
+    // Plugin-supplied routes (only plugins with a `FrontComponent` add
+    // entries here). Each lives at `/<plugin-name>`.
+    ...pluginRoutes()
 ];
 
 export const router = createRouter({

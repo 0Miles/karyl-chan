@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { getGuildDetail, type GuildDetail } from '../../../../api/guilds';
-import { useApiError } from '../../../../composables/use-api-error';
+import { getGuildDetail, type GuildDetail } from '../../api/guilds';
+import { useApiError } from '../../composables/use-api-error';
 
 export function useBotFeatureCard(initialDetail: GuildDetail, onChanged: () => void) {
     const { t } = useI18n();

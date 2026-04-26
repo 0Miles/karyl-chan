@@ -31,8 +31,12 @@ const emit = defineEmits<{
 
 <style scoped>
 .sticker-grid {
+    /* auto-fill so the grid wraps to whatever container width it gets;
+       a fixed column count would force horizontal overflow when the
+       container is narrower than 4×min-sticker-width (e.g. inside the
+       mobile drawer). */
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
     gap: 0.3rem;
 }
 .cell {
@@ -45,6 +49,7 @@ const emit = defineEmits<{
     align-items: center;
     justify-content: center;
     aspect-ratio: 1 / 1;
+    min-width: 0;
 }
 .cell:hover {
     background: var(--bg-surface-hover);

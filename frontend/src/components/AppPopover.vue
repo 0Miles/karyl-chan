@@ -206,10 +206,31 @@ function onContentClick() {
     flex-direction: column;
     overflow: hidden;
 }
+/* Drag-handle visual cue at the screen-touching edge — mirrors AppModal's
+   bottom drawer so picker/menu drawers feel consistent with the rest of
+   the mobile chrome. Only emitted for top/bottom placements; side
+   drawers don't carry a handle. */
+.app-popover-drawer-panel[data-placement="bottom"]::before,
+.app-popover-drawer-panel[data-placement="top"]::after {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    opacity: 0.35;
+    flex-shrink: 0;
+}
+.app-popover-drawer-panel[data-placement="bottom"]::before {
+    margin: 0.4rem auto 0;
+}
 .app-popover-drawer-panel[data-placement="top"] {
     border-top: none;
     border-bottom: 1px solid var(--border);
     border-radius: 0 0 12px 12px;
+}
+.app-popover-drawer-panel[data-placement="top"]::after {
+    margin: 0 auto 0.4rem;
 }
 .app-popover-drawer-panel[data-placement="left"],
 .app-popover-drawer-panel[data-placement="right"] {

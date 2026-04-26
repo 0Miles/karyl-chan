@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { addCapabilityGrant, removeCapabilityGrant, type GuildDetail } from '../../../../api/guilds';
-import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
-import { useBotFeatureCard } from './use-bot-feature-card';
-import { useRolePicker } from './use-feature-pickers';
+import { addCapabilityGrant, removeCapabilityGrant, type GuildDetail } from '../../api/guilds';
+import AppSelectField, { type SelectOption } from '../../components/AppSelectField.vue';
+import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
+import { useRolePicker } from '../_shared/use-feature-pickers';
 
 const props = defineProps<{ detail: GuildDetail }>();
 const emit = defineEmits<{ (e: 'changed'): void }>();
@@ -77,4 +77,4 @@ async function rmCap(capability: string, roleId: string) {
     </section>
 </template>
 
-<style scoped src="./card.css"></style>
+<style scoped src="../_shared/card.css"></style>

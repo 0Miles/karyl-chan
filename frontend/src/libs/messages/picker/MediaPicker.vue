@@ -383,7 +383,6 @@ function categoryLabel(id: string): string {
     display: flex;
     flex-direction: column;
     background: var(--bg-surface);
-    border: 1px solid var(--border);
     border-radius: 6px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     overflow: hidden;

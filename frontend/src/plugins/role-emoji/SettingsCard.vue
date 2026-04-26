@@ -6,10 +6,10 @@ import {
     removeRoleEmoji,
     removeRoleReceiveMessage,
     type GuildDetail
-} from '../../../../api/guilds';
-import AppSelectField from '../../../../components/AppSelectField.vue';
-import { useBotFeatureCard } from './use-bot-feature-card';
-import { useChannelPicker, useRolePicker } from './use-feature-pickers';
+} from '../../api/guilds';
+import AppSelectField from '../../components/AppSelectField.vue';
+import { useBotFeatureCard } from '../_shared/use-bot-feature-card';
+import { useChannelPicker, useRolePicker } from '../_shared/use-feature-pickers';
 
 const props = defineProps<{ detail: GuildDetail }>();
 const emit = defineEmits<{ (e: 'changed'): void }>();
@@ -124,7 +124,7 @@ async function rmRRM(channelId: string, messageId: string) {
     </div>
 </template>
 
-<style scoped src="./card.css"></style>
+<style scoped src="../_shared/card.css"></style>
 <style scoped>
 .cards {
     display: flex;
