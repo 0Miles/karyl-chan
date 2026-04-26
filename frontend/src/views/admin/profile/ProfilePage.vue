@@ -92,11 +92,6 @@ const roleLabel = computed(() => {
         </article>
         <p v-else class="muted">{{ $t('profile.unavailable') }}</p>
 
-        <p v-if="user" class="login-hint muted">
-            <Icon icon="material-symbols:info-outline-rounded" width="16" height="16" />
-            {{ $t('profile.hint') }}
-        </p>
-
         <section v-if="user" class="settings-card">
             <h3>{{ $t('profile.settings.title') }}</h3>
             <label class="setting-row">
