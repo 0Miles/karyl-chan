@@ -381,6 +381,18 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
             const { guildId } = request.params;
             const guild = bot.guilds.cache.get(guildId);
             if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            // Populate members cache first so r.members.size reflects the
+            // real role roster instead of just whatever was previously
+            // cached (which on a fresh boot is essentially nothing).
+            // discord.js dedupes concurrent fetches.
+            if (guild.members.cache.size < guild.memberCount) {
+                try {
+                    await guild.members.fetch();
+                } catch (err) {
+                    // GuildMembers intent missing — fall back to cached counts.
+                    request.log.warn({ err, guildId }, 'guild.members.fetch failed (roles)');
+                }
+            }
             const roles = [...guild.roles.cache.values()]
                 .filter(r => r.id !== guildId)
                 .sort((a, b) => b.position - a.position)
@@ -390,12 +402,6 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
                     color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
                     position: r.position,
                     mentionable: r.mentionable,
-                    // Cached members only — accurate when GuildMembers
-                    // intent is on AND we've fetched the roster, which
-                    // listGuildChannelMembers does on demand. For roles
-                    // page first-load we accept whatever's in cache;
-                    // the member count is informational and refreshes
-                    // naturally on subsequent loads.
                     memberCount: r.members.size,
                     hoist: r.hoist,
                     managed: r.managed,

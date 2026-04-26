@@ -151,7 +151,7 @@
         "create": "Create",
         "save": "Save",
         "deleteConfirm": "Delete role @{name}?",
-        "createButton": "+ Create role",
+        "createButton": "Create role",
         "edit": "Edit",
         "delete": "Delete",
         "permGroup": {
@@ -416,10 +416,39 @@
         "roleManaged": "managed",
         "invites": {
             "title": "Invite links",
-            "create": "Create 24h invite",
+            "create": "Create invite",
             "created": "Created:",
             "uses": "{uses}/{max} used",
-            "expires": "expires {date}"
+            "expires": "expires {date}",
+            "neverExpires": "never expires",
+            "modalTitle": "Create invite",
+            "fieldChannel": "Channel",
+            "fieldChannelHint": "Where the invite drops people in. Defaults to the system channel.",
+            "fieldMaxAge": "Expire after",
+            "fieldMaxUses": "Max uses",
+            "fieldTemporary": "Temporary membership",
+            "fieldTemporaryHint": "Members get kicked when they disconnect unless they're assigned a role first.",
+            "fieldUnique": "Always create a fresh code",
+            "fieldUniqueHint": "When off, Discord reuses an equivalent existing invite if one exists.",
+            "submit": "Create",
+            "expireOpt": {
+                "1800": "30 minutes",
+                "3600": "1 hour",
+                "21600": "6 hours",
+                "43200": "12 hours",
+                "86400": "1 day",
+                "604800": "7 days",
+                "0": "Never"
+            },
+            "usesOpt": {
+                "0": "No limit",
+                "1": "1 use",
+                "5": "5 uses",
+                "10": "10 uses",
+                "25": "25 uses",
+                "50": "50 uses",
+                "100": "100 uses"
+            }
         },
         "tabs2": {
             "people": "Members & moderation"

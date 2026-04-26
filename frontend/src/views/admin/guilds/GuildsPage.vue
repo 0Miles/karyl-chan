@@ -25,6 +25,7 @@ import GuildOverviewSection from './sections/GuildOverviewSection.vue';
 import GuildBotConfigSection from './sections/GuildBotConfigSection.vue';
 import GuildRolesSection from './sections/GuildRolesSection.vue';
 import GuildInvitesSection from './sections/GuildInvitesSection.vue';
+import GuildInviteCreateModal from './GuildInviteCreateModal.vue';
 import GuildSettingsSection from './sections/GuildSettingsSection.vue';
 import GuildMembersSection from './sections/GuildMembersSection.vue';
 import GuildBansSection from './sections/GuildBansSection.vue';
@@ -111,13 +112,34 @@ async function loadInvites(guildId: string) {
     }
 }
 
-async function onCreateInvite() {
+const inviteModalOpen = ref(false);
+function openCreateInvite() {
+    invitesError.value = null;
+    createdInviteUrl.value = null;
+    inviteModalOpen.value = true;
+}
+
+async function submitCreateInvite(payload: {
+    channelId: string | null;
+    maxAge: number;
+    maxUses: number;
+    temporary: boolean;
+    unique: boolean;
+}) {
     if (!selectedId.value || creatingInvite.value) return;
     creatingInvite.value = true;
+    invitesError.value = null;
     createdInviteUrl.value = null;
     try {
-        const result = await createGuildInvite(selectedId.value, { maxAge: 86400, maxUses: 0 });
+        const result = await createGuildInvite(selectedId.value, {
+            channelId: payload.channelId ?? undefined,
+            maxAge: payload.maxAge,
+            maxUses: payload.maxUses,
+            temporary: payload.temporary,
+            unique: payload.unique
+        });
         createdInviteUrl.value = result.url;
+        inviteModalOpen.value = false;
         await loadInvites(selectedId.value);
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
@@ -262,7 +284,7 @@ onMounted(refresh);
                             :creating="creatingInvite"
                             :created-url="createdInviteUrl"
                             :error="invitesError"
-                            @create="onCreateInvite"
+                            @create="openCreateInvite"
                             @revoke="onRevokeInvite"
                             @copy="copyInvite"
                         />
@@ -290,6 +312,14 @@ onMounted(refresh);
             :role="roleEditingTarget"
             @close="roleModalVisible = false"
             @saved="onRoleSaved"
+        />
+        <GuildInviteCreateModal
+            :visible="inviteModalOpen"
+            :guild-id="selectedId"
+            :creating="creatingInvite"
+            :error="invitesError"
+            @close="inviteModalOpen = false"
+            @submit="submitCreateInvite"
         />
     </SidebarLayout>
 </template>

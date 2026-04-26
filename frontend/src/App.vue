@@ -95,10 +95,10 @@ onMounted(() => {
 
 onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown));
 
-// Cmd/Ctrl+K opens the quick switcher. Bound at window level so the
-// shortcut works from any page; ignored when the user is typing into
-// a text input or the contenteditable composer (the OS native "find"
-// dialog isn't a thing here, so the lack of override is fine).
+// Cmd/Ctrl+K opens the quick switcher. Scoped to the admin messages
+// page only — that's the surface it's actually useful on (jump between
+// channels and DMs), and on other pages overriding the browser's
+// default Cmd+K (URL bar) is just disruptive.
 const quickSwitcherOpen = ref(false);
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -108,11 +108,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 function onGlobalKeydown(event: KeyboardEvent) {
     if (!isAuthenticated.value) return;
+    if (route.name !== 'messages') return;
     if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
         // Even when focus is inside an input, override — Discord's
-        // Cmd+K is universal, and the user expects it to win over the
-        // text field. Browser default for Cmd+K is "open URL bar with
-        // search" which we don't want either.
+        // Cmd+K is universal on the messages page and the user expects
+        // it to win over the text field.
         event.preventDefault();
         quickSwitcherOpen.value = true;
     }

@@ -151,7 +151,7 @@
         "create": "建立",
         "save": "儲存",
         "deleteConfirm": "確定刪除身分組 @{name}？",
-        "createButton": "+ 建立身分組",
+        "createButton": "建立身分組",
         "edit": "編輯",
         "delete": "刪除",
         "permGroup": {
@@ -416,10 +416,39 @@
         "roleManaged": "整合",
         "invites": {
             "title": "邀請連結",
-            "create": "新增 24h 邀請",
+            "create": "建立邀請",
             "created": "已建立:",
             "uses": "{uses}/{max} 已使用",
-            "expires": "{date} 失效"
+            "expires": "{date} 失效",
+            "neverExpires": "永不失效",
+            "modalTitle": "建立邀請",
+            "fieldChannel": "頻道",
+            "fieldChannelHint": "邀請連結會帶入哪個頻道。預設為系統頻道。",
+            "fieldMaxAge": "失效時間",
+            "fieldMaxUses": "使用次數上限",
+            "fieldTemporary": "臨時成員資格",
+            "fieldTemporaryHint": "成員若未在斷線前被指派身分組,將會被踢出。",
+            "fieldUnique": "每次都建立新邀請碼",
+            "fieldUniqueHint": "若關閉,Discord 會在條件相同時重用現有邀請。",
+            "submit": "建立",
+            "expireOpt": {
+                "1800": "30 分鐘",
+                "3600": "1 小時",
+                "21600": "6 小時",
+                "43200": "12 小時",
+                "86400": "1 天",
+                "604800": "7 天",
+                "0": "永不失效"
+            },
+            "usesOpt": {
+                "0": "無限制",
+                "1": "1 次",
+                "5": "5 次",
+                "10": "10 次",
+                "25": "25 次",
+                "50": "50 次",
+                "100": "100 次"
+            }
         },
         "tabs2": {
             "people": "成員與管理"

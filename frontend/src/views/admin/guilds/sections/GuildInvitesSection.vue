@@ -40,7 +40,10 @@ const emit = defineEmits<{
                 <span class="muted invite-meta">
                     {{ inv.channelName ? `#${inv.channelName}` : '—' }}
                     · {{ $t('guilds.invites.uses', { uses: inv.uses, max: inv.maxUses || '∞' }) }}
-                    <template v-if="inv.expiresAt">· {{ $t('guilds.invites.expires', { date: new Date(inv.expiresAt).toLocaleString() }) }}</template>
+                    <template v-if="inv.expiresAt">
+                        · {{ $t('guilds.invites.expires', { date: new Date(inv.expiresAt).toLocaleString() }) }}
+                    </template>
+                    <template v-else>· {{ $t('guilds.invites.neverExpires') }}</template>
                 </span>
                 <button type="button" class="link" @click="emit('copy', inv.url)">{{ $t('messages.copyLink') }}</button>
                 <button type="button" class="link danger" @click="emit('revoke', inv)">{{ $t('inviteMgmt.revoke') }}</button>

@@ -151,7 +151,7 @@
         "create": "创建",
         "save": "保存",
         "deleteConfirm": "确定删除身份组 @{name}？",
-        "createButton": "+ 创建身份组",
+        "createButton": "创建身份组",
         "edit": "编辑",
         "delete": "删除",
         "permGroup": {
@@ -416,10 +416,39 @@
         "roleManaged": "集成",
         "invites": {
             "title": "邀请链接",
-            "create": "创建 24h 邀请",
+            "create": "创建邀请",
             "created": "已创建:",
             "uses": "{uses}/{max} 已使用",
-            "expires": "{date} 失效"
+            "expires": "{date} 失效",
+            "neverExpires": "永不过期",
+            "modalTitle": "创建邀请",
+            "fieldChannel": "频道",
+            "fieldChannelHint": "邀请链接落点。默认为系统频道。",
+            "fieldMaxAge": "过期时间",
+            "fieldMaxUses": "最大使用次数",
+            "fieldTemporary": "临时成员",
+            "fieldTemporaryHint": "成员断开前若未被分配身份组,将被自动踢出。",
+            "fieldUnique": "每次都生成新邀请码",
+            "fieldUniqueHint": "关闭后,Discord 会在条件相同时复用已有邀请。",
+            "submit": "创建",
+            "expireOpt": {
+                "1800": "30 分钟",
+                "3600": "1 小时",
+                "21600": "6 小时",
+                "43200": "12 小时",
+                "86400": "1 天",
+                "604800": "7 天",
+                "0": "永不过期"
+            },
+            "usesOpt": {
+                "0": "无限制",
+                "1": "1 次",
+                "5": "5 次",
+                "10": "10 次",
+                "25": "25 次",
+                "50": "50 次",
+                "100": "100 次"
+            }
         },
         "tabs2": {
             "people": "成员与管理"

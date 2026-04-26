@@ -49,6 +49,13 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
             reply.code(404).send({ error: 'Bot is not in this guild' });
             return;
         }
+        // Refresh the guild from REST so memberCount, description, and the
+        // rest of the cached payload aren't whatever stale snapshot was
+        // captured at GUILD_CREATE — Discord doesn't push memberCount on
+        // member join/leave for guilds without GUILD_MEMBERS intent.
+        try { await guild.fetch(); } catch (err) {
+            request.log.warn({ err, guildId: guild.id }, 'guild.fetch failed (detail)');
+        }
 
         const [
             todoChannels,
@@ -152,7 +159,7 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
 
     server.post<{
         Params: { guildId: string };
-        Body: { channelId?: string; maxAge?: number; maxUses?: number; temporary?: boolean }
+        Body: { channelId?: string; maxAge?: number; maxUses?: number; temporary?: boolean; unique?: boolean; reason?: string }
     }>('/api/guilds/:guildId/invites', async (request, reply) => {
         if (!requireCapability(request, reply, 'guild.write')) return;
         const guild = bot.guilds.cache.get(request.params.guildId);
@@ -173,12 +180,17 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
         // never expire. maxUses 0 means unlimited. Anything else is rejected.
         const maxAge = Number.isFinite(body.maxAge) ? Math.max(0, Math.min(Number(body.maxAge), 604800)) : 86400;
         const maxUses = Number.isFinite(body.maxUses) ? Math.max(0, Math.min(Number(body.maxUses), 100)) : 0;
+        const reason = typeof body.reason === 'string' ? body.reason : undefined;
         try {
             const invite = await (channel as { createInvite: (opts: object) => Promise<{ code: string; url: string; expiresAt: Date | null }> }).createInvite({
                 maxAge,
                 maxUses,
                 temporary: !!body.temporary,
-                unique: true
+                // `unique: false` reuses an existing equivalent invite when
+                // one exists; `true` always mints a fresh code. Default to
+                // true so the button is predictable.
+                unique: body.unique !== false,
+                reason
             });
             return {
                 code: invite.code,

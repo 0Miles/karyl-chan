@@ -269,7 +269,16 @@ export async function listGuildInvites(guildId: string): Promise<GuildInvite[]> 
 
 export async function createGuildInvite(
     guildId: string,
-    options: { channelId?: string; maxAge?: number; maxUses?: number; temporary?: boolean } = {}
+    options: {
+        channelId?: string;
+        maxAge?: number;
+        maxUses?: number;
+        temporary?: boolean;
+        /** When false, Discord may reuse an equivalent existing invite
+         *  rather than minting a fresh code. Defaults to true server-side. */
+        unique?: boolean;
+        reason?: string;
+    } = {}
 ): Promise<{ code: string; url: string; expiresAt: string | null }> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/invites`;
     const response = await authedFetch(url, {
