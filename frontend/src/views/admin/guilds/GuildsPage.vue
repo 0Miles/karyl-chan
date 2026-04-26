@@ -279,6 +279,7 @@ onMounted(refresh);
                     <GuildBotConfigSection
                         v-else-if="activeTab === 'features'"
                         :detail="detail"
+                        @changed="selectedId && loadDetail(selectedId)"
                     />
                 </article>
             </template>

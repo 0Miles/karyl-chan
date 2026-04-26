@@ -865,6 +865,101 @@ export async function deleteAutoModRule(guildId: string, ruleId: string, reason?
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to delete AutoMod rule');
 }
 
+// ── Bot-feature CRUD ───────────────────────────────────────────────────
+//
+// Mirrors the slash commands; lets the admin panel manage the same
+// per-guild settings without dropping into Discord. All endpoints write
+// to local SQL state — Discord.js is only used for cosmetic name
+// lookups in the GET /api/guilds/:id detail call.
+
+export async function addTodoChannel(guildId: string, channelId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/todo-channels`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add todo channel');
+}
+export async function removeTodoChannel(guildId: string, channelId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/todo-channels/${encodeURIComponent(channelId)}`, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove todo channel');
+}
+
+export async function addPictureOnlyChannel(guildId: string, channelId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/picture-only-channels`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add picture-only channel');
+}
+export async function removePictureOnlyChannel(guildId: string, channelId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/picture-only-channels/${encodeURIComponent(channelId)}`, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove picture-only channel');
+}
+
+export interface RconForwardPayload {
+    channelId: string;
+    host?: string | null;
+    port?: number | null;
+    password?: string | null;
+    commandPrefix?: string | null;
+    triggerPrefix?: string | null;
+}
+export async function upsertRconForward(guildId: string, payload: RconForwardPayload): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/rcon-channels`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to save rcon channel');
+}
+export async function removeRconForward(guildId: string, channelId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/rcon-channels/${encodeURIComponent(channelId)}`, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove rcon channel');
+}
+
+export async function addRoleEmoji(guildId: string, roleId: string, emoji: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roleId, emoji })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role-emoji');
+}
+export async function removeRoleEmoji(
+    guildId: string,
+    opts: { emojiChar?: string; emojiId?: string }
+): Promise<void> {
+    const params = new URLSearchParams();
+    if (opts.emojiChar) params.set('emojiChar', opts.emojiChar);
+    if (opts.emojiId) params.set('emojiId', opts.emojiId);
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji?${params.toString()}`, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove role-emoji');
+}
+
+export async function addRoleReceiveMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId, messageId })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role-receive message');
+}
+export async function removeRoleReceiveMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove role-receive message');
+}
+
+export async function addCapabilityGrant(guildId: string, capability: string, roleId: string): Promise<void> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/capability-grants`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ capability, roleId })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add capability grant');
+}
+export async function removeCapabilityGrant(guildId: string, capability: string, roleId: string): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/capability-grants/${encodeURIComponent(capability)}/${encodeURIComponent(roleId)}`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove capability grant');
+}
+
 /** Pass `null` to clear an existing timeout, or an ISO string ≤28 days
  *  in the future to apply one. */
 export async function timeoutGuildMember(

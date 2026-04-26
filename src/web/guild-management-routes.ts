@@ -5,6 +5,12 @@ import { requireCapability } from './route-guards.js';
 import { isSnowflake } from './validators.js';
 import { avatarUrlFor, guildAvatarUrlFor } from './message-mapper.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
+import { TodoChannel } from '../models/todo-channel.model.js';
+import { PictureOnlyChannel } from '../models/picture-only-channel.model.js';
+import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
+import { RoleEmoji } from '../models/role-emoji.model.js';
+import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
+import { CapabilityGrant } from '../models/capability-grant.model.js';
 
 export interface GuildManagementRoutesOptions {
     bot: Client;
@@ -1299,6 +1305,199 @@ export async function registerGuildManagementRoutes(
                 request.log.error({ err }, 'failed to bulk delete messages');
                 reply.code(502).send({ error: 'Failed to bulk delete' });
             }
+        }
+    );
+
+    // ── Bot-feature CRUD ───────────────────────────────────────────────
+    //
+    // Mirrors the slash commands (todo-channel, picture-only, rcon, role-emoji,
+    // role-receive, capability grants) so admins can manage these from the
+    // web panel without dropping into Discord. The data lives in our local
+    // SQL models — Discord.js is only used for cosmetic name lookups.
+
+    // Todo channels ─────────────────────────────────────────────────────
+    server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
+        '/api/guilds/:guildId/feature/todo-channels',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const channelId = request.body?.channelId;
+            if (typeof channelId !== 'string' || !isSnowflake(channelId)) {
+                reply.code(400).send({ error: 'channelId required' }); return;
+            }
+            await TodoChannel.upsert({ channelId, guildId });
+            reply.code(204).send();
+        }
+    );
+    server.delete<{ Params: { guildId: string; channelId: string } }>(
+        '/api/guilds/:guildId/feature/todo-channels/:channelId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, channelId } = request.params;
+            await TodoChannel.destroy({ where: { guildId, channelId } });
+            reply.code(204).send();
+        }
+    );
+
+    // Picture-only channels ─────────────────────────────────────────────
+    server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
+        '/api/guilds/:guildId/feature/picture-only-channels',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const channelId = request.body?.channelId;
+            if (typeof channelId !== 'string' || !isSnowflake(channelId)) {
+                reply.code(400).send({ error: 'channelId required' }); return;
+            }
+            await PictureOnlyChannel.upsert({ channelId, guildId });
+            reply.code(204).send();
+        }
+    );
+    server.delete<{ Params: { guildId: string; channelId: string } }>(
+        '/api/guilds/:guildId/feature/picture-only-channels/:channelId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, channelId } = request.params;
+            await PictureOnlyChannel.destroy({ where: { guildId, channelId } });
+            reply.code(204).send();
+        }
+    );
+
+    // RCON forward channels ─────────────────────────────────────────────
+    server.post<{ Params: { guildId: string }; Body: {
+        channelId?: unknown; host?: unknown; port?: unknown; password?: unknown;
+        commandPrefix?: unknown; triggerPrefix?: unknown;
+    } }>(
+        '/api/guilds/:guildId/feature/rcon-channels',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const b = request.body ?? {};
+            if (typeof b.channelId !== 'string' || !isSnowflake(b.channelId)) {
+                reply.code(400).send({ error: 'channelId required' }); return;
+            }
+            await RconForwardChannel.upsert({
+                channelId: b.channelId,
+                guildId,
+                host: typeof b.host === 'string' ? b.host : null,
+                port: typeof b.port === 'number' && Number.isFinite(b.port) ? Math.floor(b.port) : null,
+                password: typeof b.password === 'string' ? b.password : null,
+                commandPrefix: typeof b.commandPrefix === 'string' ? b.commandPrefix : null,
+                triggerPrefix: typeof b.triggerPrefix === 'string' ? b.triggerPrefix : null
+            });
+            reply.code(204).send();
+        }
+    );
+    server.delete<{ Params: { guildId: string; channelId: string } }>(
+        '/api/guilds/:guildId/feature/rcon-channels/:channelId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, channelId } = request.params;
+            await RconForwardChannel.destroy({ where: { guildId, channelId } });
+            reply.code(204).send();
+        }
+    );
+
+    // Role-emoji ────────────────────────────────────────────────────────
+    //
+    // The `emoji` body parses with the same regex the slash command uses,
+    // so the call site can pass a raw emoji literal (`👍` or `<:foo:123>`)
+    // instead of having to mirror the parsing logic. Either branch fills
+    // both PK columns (emojiChar / emojiId) so the SQL row is unique.
+    const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/;
+    server.post<{ Params: { guildId: string }; Body: { roleId?: unknown; emoji?: unknown } }>(
+        '/api/guilds/:guildId/feature/role-emoji',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const b = request.body ?? {};
+            if (typeof b.roleId !== 'string' || !isSnowflake(b.roleId)) {
+                reply.code(400).send({ error: 'roleId required' }); return;
+            }
+            if (typeof b.emoji !== 'string' || !b.emoji.trim()) {
+                reply.code(400).send({ error: 'emoji required' }); return;
+            }
+            const m = EMOJI_REGEX.exec(b.emoji);
+            if (!m) { reply.code(400).send({ error: 'unparseable emoji' }); return; }
+            try {
+                await RoleEmoji.create({
+                    roleId: b.roleId,
+                    emojiChar: m[1] ?? '',
+                    emojiName: m[2] ?? '',
+                    emojiId: m[3] ?? '',
+                    guildId
+                });
+                reply.code(204).send();
+            } catch (err) {
+                request.log.error({ err }, 'failed to add role-emoji');
+                reply.code(409).send({ error: 'mapping already exists' });
+            }
+        }
+    );
+    server.delete<{ Params: { guildId: string }; Querystring: { emojiChar?: string; emojiId?: string } }>(
+        '/api/guilds/:guildId/feature/role-emoji',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const emojiChar = typeof request.query.emojiChar === 'string' ? request.query.emojiChar : '';
+            const emojiId = typeof request.query.emojiId === 'string' ? request.query.emojiId : '';
+            if (!emojiChar && !emojiId) { reply.code(400).send({ error: 'emojiChar or emojiId required' }); return; }
+            await RoleEmoji.destroy({ where: { guildId, emojiChar, emojiId } });
+            reply.code(204).send();
+        }
+    );
+
+    // Role-receive messages ─────────────────────────────────────────────
+    server.post<{ Params: { guildId: string }; Body: { channelId?: unknown; messageId?: unknown } }>(
+        '/api/guilds/:guildId/feature/role-receive-messages',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const b = request.body ?? {};
+            if (typeof b.channelId !== 'string' || !isSnowflake(b.channelId)) {
+                reply.code(400).send({ error: 'channelId required' }); return;
+            }
+            if (typeof b.messageId !== 'string' || !isSnowflake(b.messageId)) {
+                reply.code(400).send({ error: 'messageId required' }); return;
+            }
+            await RoleReceiveMessage.upsert({ guildId, channelId: b.channelId, messageId: b.messageId });
+            reply.code(204).send();
+        }
+    );
+    server.delete<{ Params: { guildId: string; channelId: string; messageId: string } }>(
+        '/api/guilds/:guildId/feature/role-receive-messages/:channelId/:messageId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, channelId, messageId } = request.params;
+            await RoleReceiveMessage.destroy({ where: { guildId, channelId, messageId } });
+            reply.code(204).send();
+        }
+    );
+
+    // Capability grants ─────────────────────────────────────────────────
+    server.post<{ Params: { guildId: string }; Body: { capability?: unknown; roleId?: unknown } }>(
+        '/api/guilds/:guildId/feature/capability-grants',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId } = request.params;
+            const b = request.body ?? {};
+            if (typeof b.capability !== 'string' || !b.capability.trim()) {
+                reply.code(400).send({ error: 'capability required' }); return;
+            }
+            if (typeof b.roleId !== 'string' || !isSnowflake(b.roleId)) {
+                reply.code(400).send({ error: 'roleId required' }); return;
+            }
+            await CapabilityGrant.upsert({ guildId, capability: b.capability.trim(), roleId: b.roleId });
+            reply.code(204).send();
+        }
+    );
+    server.delete<{ Params: { guildId: string; capability: string; roleId: string } }>(
+        '/api/guilds/:guildId/feature/capability-grants/:capability/:roleId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.write')) return;
+            const { guildId, capability, roleId } = request.params;
+            await CapabilityGrant.destroy({ where: { guildId, capability, roleId } });
+            reply.code(204).send();
         }
     );
 }
