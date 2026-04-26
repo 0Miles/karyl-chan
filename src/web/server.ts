@@ -7,7 +7,8 @@ import type { ServerOptions as HttpsServerOptions } from 'https';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { AuthStore, authStore as defaultAuthStore } from './auth-store.service.js';
-import { resolveUserCapabilities, type AdminCapability } from './authorized-user.service.js';
+import { JwtService, jwtService as defaultJwtService } from './jwt.service.js';
+import { resolveLoginRole, resolveUserCapabilities, type AdminCapability } from './authorized-user.service.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
 import fastifyMultipart from '@fastify/multipart';
 
@@ -75,6 +76,8 @@ export interface CreateWebServerOptions {
     staticRoot?: string;
     bot?: Client;
     authStore?: AuthStore;
+    /** Override JWT issuer/verifier for tests; defaults to the singleton. */
+    jwtService?: JwtService;
     dmInbox?: DmInboxStore;
 }
 
@@ -115,6 +118,7 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
 
     const ownerId = process.env.BOT_OWNER_ID?.trim();
     const auth = options.authStore ?? defaultAuthStore;
+    const jwt = options.jwtService ?? defaultJwtService;
     const authEnabled = !!ownerId;
 
     if (!authEnabled) {
@@ -249,18 +253,37 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
             reply.code(429).send({ error: 'Too many attempts, slow down' });
             return;
         }
-        const oneTimeToken = typeof request.body?.token === 'string' ? request.body.token : null;
-        if (!oneTimeToken) {
+        const loginToken = typeof request.body?.token === 'string' ? request.body.token : null;
+        if (!loginToken) {
             reply.code(400).send({ error: 'token required' });
             return;
         }
-        const ownerForToken = auth.consumeOneTimeToken(oneTimeToken);
-        if (!ownerForToken) {
+        // Stage 1 — JWT must be intact, unexpired, and minted for the
+        // login flow. `purpose: 'login'` blocks tokens issued for some
+        // other future flow (e.g., account-link DMs) from being walked
+        // up to a full session here. Tampered / stale / wrong-purpose
+        // all collapse into a generic 401 so we don't hand probers a
+        // useful distinction.
+        const claims = jwt.verify(loginToken, { purpose: 'login' });
+        if (!claims) {
             reply.code(401).send({ error: 'Invalid or expired token' });
             return;
         }
+        // Stage 2 — JWT info (the user) must still be permitted to log
+        // in. Authorization can change between issuance and exchange
+        // (role demotion, account removal); resolveLoginRole reflects
+        // the current state.
+        const role = await resolveLoginRole(claims.userId);
+        if (!role) {
+            request.log.warn(
+                { userId: claims.userId, guildId: claims.guildId, channelId: claims.channelId, messageId: claims.messageId },
+                'auth.exchange: token user no longer authorized'
+            );
+            reply.code(401).send({ error: 'User no longer authorized' });
+            return;
+        }
         try {
-            return await auth.issueTokens(ownerForToken);
+            return await auth.issueTokens(claims.userId);
         } catch (err) {
             // Most plausible cause is the SQLite refresh-token persistence
             // throwing — log the full stack at error level so it shows up

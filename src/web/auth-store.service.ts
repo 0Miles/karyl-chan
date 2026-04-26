@@ -1,6 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
 
-const ONE_TIME_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // SSE tickets gate EventSource auth without leaking the long-lived
@@ -8,11 +7,6 @@ const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // to open the connection after the API call returns.
 const SSE_TICKET_TTL_MS = 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
-
-interface OneTimeRecord {
-    ownerId: string;
-    expiresAt: number;
-}
 
 interface AccessRecord {
     ownerId: string;
@@ -53,7 +47,6 @@ function newToken(): string {
 }
 
 export class AuthStore {
-    private oneTime = new Map<string, OneTimeRecord>();
     private access = new Map<string, AccessRecord>();
     private refresh = new Map<string, RefreshRecord>();
     private sseTickets = new Map<string, SseTicketRecord>();
@@ -80,22 +73,6 @@ export class AuthStore {
                 await this.adapter.delete(record.hash).catch(() => {});
             }
         }
-    }
-
-    createOneTimeToken(ownerId: string, now: number = Date.now()): { token: string; expiresAt: number } {
-        const token = newToken();
-        const expiresAt = now + ONE_TIME_TTL_MS;
-        this.oneTime.set(hashToken(token), { ownerId, expiresAt });
-        return { token, expiresAt };
-    }
-
-    consumeOneTimeToken(token: string, now: number = Date.now()): string | null {
-        const key = hashToken(token);
-        const record = this.oneTime.get(key);
-        if (!record) return null;
-        this.oneTime.delete(key);
-        if (record.expiresAt <= now) return null;
-        return record.ownerId;
     }
 
     async issueTokens(ownerId: string, now: number = Date.now()): Promise<IssuedTokens> {
@@ -183,9 +160,6 @@ export class AuthStore {
     }
 
     private purgeExpired(now: number = Date.now()): void {
-        for (const [key, record] of this.oneTime) {
-            if (record.expiresAt <= now) this.oneTime.delete(key);
-        }
         for (const [key, record] of this.access) {
             if (record.expiresAt <= now) this.access.delete(key);
         }

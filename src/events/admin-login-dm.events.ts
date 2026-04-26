@@ -1,7 +1,7 @@
 import type { ArgsOf } from 'discordx';
 import { Discord, On } from 'discordx';
 import { ChannelType } from 'discord.js';
-import { authStore } from '../web/auth-store.service.js';
+import { jwtService } from '../web/jwt.service.js';
 import { resolveLoginRole } from '../web/authorized-user.service.js';
 
 // Full-message match — trimmed content must be exactly "login" (or
@@ -17,7 +17,7 @@ function buildBaseUrl(): string {
 }
 
 @Discord()
-export class LoginDmEvents {
+export class AdminLoginDmEvents {
     @On()
     async messageCreate([message]: ArgsOf<'messageCreate'>): Promise<void> {
         try {
@@ -32,14 +32,26 @@ export class LoginDmEvents {
             const role = await resolveLoginRole(message.author.id);
             if (!role) return;
 
-            const { token, expiresAt } = authStore.createOneTimeToken(message.author.id);
+            // JWT carries the trigger-message context so the exchange
+            // endpoint can apply policy decisions (re-check role, audit
+            // which message produced the login) without keeping any
+            // server-side token table. `purpose: 'login'` pins the
+            // token to the login flow — the exchange endpoint refuses
+            // tokens minted for any other purpose. Default 5-min TTL.
+            const { token, expiresAt } = jwtService.sign({
+                purpose: 'login',
+                userId: message.author.id,
+                guildId: message.guild?.id ?? null,
+                channelId: message.channel.id,
+                messageId: message.id
+            });
             const url = `${buildBaseUrl()}/admin/auth?token=${encodeURIComponent(token)}`;
             const minutes = Math.max(1, Math.round((expiresAt - Date.now()) / 60_000));
             await message.reply(
-                `Login link (role: ${role}, single-use, expires in ~${minutes} min):\n${url}`
+                `Login link (role: ${role}, expires in ~${minutes} min):\n${url}`
             );
         } catch (ex) {
-            console.error('login-dm failed:', ex);
+            console.error('admin-login-dm failed:', ex);
         }
     }
 }

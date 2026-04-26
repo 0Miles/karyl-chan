@@ -4,8 +4,10 @@ import type { Client } from 'discordx';
 import { mkdtempSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { randomBytes } from 'crypto';
 import { createWebServer } from '../src/web/server.js';
 import { AuthStore } from '../src/web/auth-store.service.js';
+import { JwtService, type JwtClaims } from '../src/web/jwt.service.js';
 
 interface FakeBotOptions {
     ready?: boolean;
@@ -186,13 +188,22 @@ describe('web server', () => {
 
     describe('with BOT_OWNER_ID set (auth enabled)', () => {
         const OWNER_ID = '1234567890';
+        const baseClaims: JwtClaims = {
+            purpose: 'login',
+            userId: OWNER_ID,
+            guildId: null,
+            channelId: 'dm-channel',
+            messageId: 'msg-1'
+        };
         let server: FastifyInstance;
         let store: AuthStore;
+        let jwt: JwtService;
 
         beforeAll(async () => {
             process.env.BOT_OWNER_ID = OWNER_ID;
             store = new AuthStore();
-            server = await createWebServer({ staticRoot: undefined, authStore: store });
+            jwt = new JwtService(randomBytes(64));
+            server = await createWebServer({ staticRoot: undefined, authStore: store, jwtService: jwt });
             await server.ready();
         });
 
@@ -233,8 +244,8 @@ describe('web server', () => {
             expect(response.json().error).toBe('token required');
         });
 
-        it('exchanges a valid one-time token for access + refresh tokens', async () => {
-            const { token } = store.createOneTimeToken(OWNER_ID);
+        it('exchanges a valid login JWT for access + refresh tokens', async () => {
+            const { token } = jwt.sign(baseClaims);
             const response = await server.inject({
                 method: 'POST',
                 url: '/api/auth/exchange',
@@ -248,12 +259,52 @@ describe('web server', () => {
             expect(body.refreshExpiresAt).toBeGreaterThan(body.accessExpiresAt);
         });
 
-        it('rejects an already-consumed one-time token', async () => {
-            const { token } = store.createOneTimeToken(OWNER_ID);
-            const first = await server.inject({ method: 'POST', url: '/api/auth/exchange', payload: { token } });
-            expect(first.statusCode).toBe(200);
-            const second = await server.inject({ method: 'POST', url: '/api/auth/exchange', payload: { token } });
-            expect(second.statusCode).toBe(401);
+        it('rejects an expired login JWT', async () => {
+            const past = Date.now() - 10 * 60 * 1000;
+            const { token } = jwt.sign(baseClaims, { now: past });
+            const response = await server.inject({
+                method: 'POST',
+                url: '/api/auth/exchange',
+                payload: { token }
+            });
+            expect(response.statusCode).toBe(401);
+        });
+
+        it('rejects a JWT for a user who is not (or no longer) authorized', async () => {
+            // Stage-2 check: the token is structurally valid + unexpired,
+            // but resolveLoginRole returns null because this user isn't
+            // the owner and isn't in authorized_users.
+            const { token } = jwt.sign({ ...baseClaims, userId: 'someone-else' });
+            const response = await server.inject({
+                method: 'POST',
+                url: '/api/auth/exchange',
+                payload: { token }
+            });
+            expect(response.statusCode).toBe(401);
+        });
+
+        it('rejects a JWT signed by a different key', async () => {
+            const otherJwt = new JwtService(randomBytes(64));
+            const { token } = otherJwt.sign(baseClaims);
+            const response = await server.inject({
+                method: 'POST',
+                url: '/api/auth/exchange',
+                payload: { token }
+            });
+            expect(response.statusCode).toBe(401);
+        });
+
+        it('rejects a JWT minted for a different purpose', async () => {
+            // Token is structurally valid + signed by the same JWT
+            // service, but `purpose: 'link-account'` doesn't match the
+            // login endpoint's required purpose.
+            const { token } = jwt.sign({ ...baseClaims, purpose: 'link-account' });
+            const response = await server.inject({
+                method: 'POST',
+                url: '/api/auth/exchange',
+                payload: { token }
+            });
+            expect(response.statusCode).toBe(401);
         });
 
         it('rotates the refresh token and revokes the old one', async () => {

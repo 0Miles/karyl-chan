@@ -8,24 +8,6 @@ describe('AuthStore', () => {
     beforeEach(() => { store = new AuthStore(); });
     afterEach(() => { store.stop(); });
 
-    describe('one-time tokens', () => {
-        it('issues a token that consumes once and returns the owner id', () => {
-            const { token } = store.createOneTimeToken(OWNER);
-            expect(store.consumeOneTimeToken(token)).toBe(OWNER);
-            expect(store.consumeOneTimeToken(token)).toBeNull();
-        });
-
-        it('rejects unknown tokens', () => {
-            expect(store.consumeOneTimeToken('does-not-exist')).toBeNull();
-        });
-
-        it('rejects expired tokens', () => {
-            const now = Date.now();
-            const { token } = store.createOneTimeToken(OWNER, now);
-            expect(store.consumeOneTimeToken(token, now + 6 * 60 * 1000)).toBeNull();
-        });
-    });
-
     describe('access tokens', () => {
         it('verifies an issued access token and returns the owner id', async () => {
             const { accessToken } = await store.issueTokens(OWNER);
