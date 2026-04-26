@@ -56,6 +56,24 @@ async function rmRcon(channelId: string) {
             </h3>
         </header>
         <p class="hint">{{ $t('guilds.feature.rconHint') }}</p>
+        <div class="form-row">
+            <AppSelectField
+                v-model="rconChannel"
+                :options="channelPickerOptions"
+                :placeholder="$t('guilds.feature.channelPlaceholder')"
+                :drawer-title="$t('guilds.feature.rconTitle')"
+            />
+            <div class="grid-2">
+                <input v-model="rconHost" type="text" :placeholder="$t('guilds.feature.host')" />
+                <input v-model="rconPort" type="number" :placeholder="$t('guilds.feature.port')" />
+                <input v-model="rconPassword" type="password" :placeholder="$t('guilds.feature.password')" />
+                <input v-model="rconCmdPrefix" type="text" :placeholder="$t('guilds.feature.commandPrefix')" />
+                <input v-model="rconTriggerPrefix" type="text" :placeholder="$t('guilds.feature.triggerPrefix')" />
+            </div>
+            <button type="button" class="primary submit" :disabled="!rconChannel" @click="saveRcon">
+                {{ $t('guilds.feature.saveBtn') }}
+            </button>
+        </div>
         <ul v-if="detailLocal.rconForwardChannels.length" class="bare">
             <li v-for="c in detailLocal.rconForwardChannels" :key="c.channelId" class="row">
                 <div class="row-meta">
@@ -66,22 +84,6 @@ async function rmRcon(channelId: string) {
             </li>
         </ul>
         <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
-        <div class="form-grid">
-            <div class="span-2">
-                <AppSelectField
-                    v-model="rconChannel"
-                    :options="channelPickerOptions"
-                    :placeholder="$t('guilds.feature.channelPlaceholder')"
-                    :drawer-title="$t('guilds.feature.rconTitle')"
-                />
-            </div>
-            <input v-model="rconHost" type="text" :placeholder="$t('guilds.feature.host')" />
-            <input v-model="rconPort" type="number" :placeholder="$t('guilds.feature.port')" />
-            <input v-model="rconPassword" type="password" :placeholder="$t('guilds.feature.password')" />
-            <input v-model="rconCmdPrefix" type="text" :placeholder="$t('guilds.feature.commandPrefix')" />
-            <input v-model="rconTriggerPrefix" type="text" :placeholder="$t('guilds.feature.triggerPrefix')" />
-            <button type="button" class="primary span-2" :disabled="!rconChannel" @click="saveRcon">{{ $t('guilds.feature.saveBtn') }}</button>
-        </div>
     </section>
 </template>
 

@@ -28,7 +28,9 @@
         "archived": "已封存",
         "save": "儲存",
         "updated": "已於 {time} 更新",
-        "failedToLoad": "載入失敗:{error}"
+        "failedToLoad": "載入失敗:{error}",
+        "search": "搜尋…",
+        "noMatches": "沒有符合的項目。"
     },
     "home": {
         "title": "Karyl Chan",
@@ -354,8 +356,7 @@
                 "todo": "待辦頻道",
                 "picture": "純圖片",
                 "rcon": "RCON 轉發",
-                "roleEmoji": "身分組表情",
-                "roleReceive": "身分組接收",
+                "reactionRoles": "身分組反應",
                 "capability": "權限授予"
             }
         },

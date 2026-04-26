@@ -36,8 +36,7 @@ import GuildAuditLogSection from './people/GuildAuditLogSection.vue';
 import GuildTodoChannelsCard from './features/GuildTodoChannelsCard.vue';
 import GuildPictureOnlyCard from './features/GuildPictureOnlyCard.vue';
 import GuildRconForwardCard from './features/GuildRconForwardCard.vue';
-import GuildRoleEmojiCard from './features/GuildRoleEmojiCard.vue';
-import GuildRoleReceiveCard from './features/GuildRoleReceiveCard.vue';
+import GuildReactionRolesCard from './features/GuildReactionRolesCard.vue';
 import GuildCapabilityGrantsCard from './features/GuildCapabilityGrantsCard.vue';
 
 const { t: $t } = useI18n();
@@ -93,8 +92,7 @@ const featuresSubs = computed(() => [
     { key: 'todo', label: $t('guilds.subtabs.features.todo') },
     { key: 'picture', label: $t('guilds.subtabs.features.picture') },
     { key: 'rcon', label: $t('guilds.subtabs.features.rcon') },
-    { key: 'roleEmoji', label: $t('guilds.subtabs.features.roleEmoji') },
-    { key: 'roleReceive', label: $t('guilds.subtabs.features.roleReceive') },
+    { key: 'reactionRoles', label: $t('guilds.subtabs.features.reactionRoles') },
     { key: 'capability', label: $t('guilds.subtabs.features.capability') }
 ]);
 const currentSubTabs = computed(() => {
@@ -360,13 +358,8 @@ onMounted(refresh);
                                 :detail="detail"
                                 @changed="selectedId && loadDetail(selectedId)"
                             />
-                            <GuildRoleEmojiCard
-                                v-else-if="currentSub === 'roleEmoji'"
-                                :detail="detail"
-                                @changed="selectedId && loadDetail(selectedId)"
-                            />
-                            <GuildRoleReceiveCard
-                                v-else-if="currentSub === 'roleReceive'"
+                            <GuildReactionRolesCard
+                                v-else-if="currentSub === 'reactionRoles'"
                                 :detail="detail"
                                 @changed="selectedId && loadDetail(selectedId)"
                             />

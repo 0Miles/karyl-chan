@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { addCapabilityGrant, removeCapabilityGrant, type GuildDetail } from '../../../../api/guilds';
-import AppSelectField from '../../../../components/AppSelectField.vue';
+import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
 import { useBotFeatureCard } from './use-bot-feature-card';
 import { useRolePicker } from './use-feature-pickers';
 
@@ -13,6 +13,16 @@ const { rolePickerOptions } = useRolePicker(detailLocal.value.guild.id);
 
 const capabilityName = ref<string>('');
 const capabilityRoleId = ref<string>('');
+
+// Mirrors the backend's CAPABILITIES map in src/permission/capabilities.ts.
+// Keep this list in sync when new capabilities are added there.
+const capabilityOptions: SelectOption<string>[] = [
+    { value: 'todo.manage', label: 'todo.manage' },
+    { value: 'picture-only.manage', label: 'picture-only.manage' },
+    { value: 'rcon.configure', label: 'rcon.configure' },
+    { value: 'rcon.execute', label: 'rcon.execute' },
+    { value: 'role-emoji.manage', label: 'role-emoji.manage' }
+];
 
 async function addCap() {
     if (!capabilityName.value.trim() || !capabilityRoleId.value) return;
@@ -35,6 +45,24 @@ async function rmCap(capability: string, roleId: string) {
             </h3>
         </header>
         <p class="hint">{{ $t('guilds.feature.capabilityHint') }}</p>
+        <div class="form-row">
+            <AppSelectField
+                v-model="capabilityName"
+                :options="capabilityOptions"
+                :placeholder="$t('guilds.feature.capabilityPlaceholder')"
+                :drawer-title="$t('guilds.feature.capability')"
+                filter
+            />
+            <AppSelectField
+                v-model="capabilityRoleId"
+                :options="rolePickerOptions"
+                :placeholder="$t('guilds.feature.rolePlaceholder')"
+                :drawer-title="$t('guilds.feature.pickRole')"
+            />
+            <button type="button" class="primary submit" :disabled="!capabilityName.trim() || !capabilityRoleId" @click="addCap">
+                {{ $t('guilds.feature.addBtn') }}
+            </button>
+        </div>
         <ul v-if="detailLocal.capabilityGrants.length" class="bare">
             <li v-for="(g, idx) in detailLocal.capabilityGrants" :key="idx" class="row">
                 <div class="row-meta">
@@ -46,22 +74,6 @@ async function rmCap(capability: string, roleId: string) {
             </li>
         </ul>
         <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
-        <div class="form-grid">
-            <input v-model="capabilityName" type="text" list="cap-suggest" :placeholder="$t('guilds.feature.capabilityPlaceholder')" />
-            <datalist id="cap-suggest">
-                <option value="todo.manage" />
-                <option value="picture-only.manage" />
-                <option value="rcon.configure" />
-                <option value="role-emoji.manage" />
-            </datalist>
-            <AppSelectField
-                v-model="capabilityRoleId"
-                :options="rolePickerOptions"
-                :placeholder="$t('guilds.feature.rolePlaceholder')"
-                :drawer-title="$t('guilds.feature.pickRole')"
-            />
-            <button type="button" class="primary span-2" :disabled="!capabilityName.trim() || !capabilityRoleId" @click="addCap">{{ $t('guilds.feature.addBtn') }}</button>
-        </div>
     </section>
 </template>
 

@@ -28,7 +28,9 @@
         "archived": "已存档",
         "save": "保存",
         "updated": "已于 {time} 更新",
-        "failedToLoad": "加载失败:{error}"
+        "failedToLoad": "加载失败:{error}",
+        "search": "搜索…",
+        "noMatches": "没有匹配的项目。"
     },
     "home": {
         "title": "Karyl Chan",
@@ -354,8 +356,7 @@
                 "todo": "待办频道",
                 "picture": "仅图片",
                 "rcon": "RCON 转发",
-                "roleEmoji": "身份组表情",
-                "roleReceive": "身份组接收",
+                "reactionRoles": "身份组反应",
                 "capability": "权限授予"
             }
         },

@@ -33,13 +33,6 @@ async function rmTodo(channelId: string) {
             </h3>
         </header>
         <p class="hint">{{ $t('guilds.feature.todoHint') }}</p>
-        <ul v-if="detailLocal.todoChannels.length" class="bare">
-            <li v-for="c in detailLocal.todoChannels" :key="c.channelId" class="row">
-                <span class="channel">#{{ c.channelName ?? c.channelId }}</span>
-                <button type="button" class="ghost danger small" @click="rmTodo(c.channelId)">{{ $t('guilds.feature.removeBtn') }}</button>
-            </li>
-        </ul>
-        <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
         <div class="form-row">
             <AppSelectField
                 v-model="todoChannel"
@@ -47,8 +40,17 @@ async function rmTodo(channelId: string) {
                 :placeholder="$t('guilds.feature.channelPlaceholder')"
                 :drawer-title="$t('guilds.feature.todoTitle')"
             />
-            <button type="button" class="primary" :disabled="!todoChannel" @click="addTodo">{{ $t('guilds.feature.addBtn') }}</button>
+            <button type="button" class="primary submit" :disabled="!todoChannel" @click="addTodo">
+                {{ $t('guilds.feature.addBtn') }}
+            </button>
         </div>
+        <ul v-if="detailLocal.todoChannels.length" class="bare">
+            <li v-for="c in detailLocal.todoChannels" :key="c.channelId" class="row">
+                <span class="channel">#{{ c.channelName ?? c.channelId }}</span>
+                <button type="button" class="ghost danger small" @click="rmTodo(c.channelId)">{{ $t('guilds.feature.removeBtn') }}</button>
+            </li>
+        </ul>
+        <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
     </section>
 </template>
 

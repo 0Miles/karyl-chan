@@ -28,7 +28,9 @@
         "archived": "Archived",
         "save": "Save",
         "updated": "Updated {time}",
-        "failedToLoad": "Failed to load: {error}"
+        "failedToLoad": "Failed to load: {error}",
+        "search": "Search…",
+        "noMatches": "No matches."
     },
     "home": {
         "title": "Karyl Chan",
@@ -354,8 +356,7 @@
                 "todo": "Todo channels",
                 "picture": "Picture-only",
                 "rcon": "RCON forward",
-                "roleEmoji": "Role emoji",
-                "roleReceive": "Role-receive",
+                "reactionRoles": "Reaction roles",
                 "capability": "Capability grants"
             }
         },
