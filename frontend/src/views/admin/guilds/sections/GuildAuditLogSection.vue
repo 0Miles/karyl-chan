@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import {
     listGuildAuditLogs,
     type AuditLogEntry
 } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
+import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     guildId: string;
 }>();
 
 const { handle: handleApiError } = useApiError();
+const { t } = useI18n();
 
 const entries = ref<AuditLogEntry[]>([]);
 const loading = ref(false);
@@ -29,11 +32,10 @@ const expanded = ref<Record<string, boolean>>({});
 // Curated list of the handful of action types that actually matter for
 // day-to-day moderation review. The backend accepts any number, so users
 // can extend this manually via the URL if they need a niche action.
-const ACTION_OPTIONS: Array<{ value: number | ''; label: string }> = [
-    { value: '', label: '' }, // filled at render time from i18n
+const ACTION_TYPES: Array<{ value: number; label: string }> = [
     { value: 20, label: 'MemberKick' },
     { value: 22, label: 'MemberBanAdd' },
-    { value: 23, label:'MemberBanRemove' },
+    { value: 23, label: 'MemberBanRemove' },
     { value: 24, label: 'MemberUpdate' },
     { value: 25, label: 'MemberRoleUpdate' },
     { value: 72, label: 'MessageDelete' },
@@ -51,6 +53,11 @@ const ACTION_OPTIONS: Array<{ value: number | ''; label: string }> = [
     { value: 61, label: 'EmojiUpdate' },
     { value: 62, label: 'EmojiDelete' }
 ];
+
+const actionOptions = computed<SelectOption<string>[]>(() => [
+    { value: '', label: t('guilds.audit.actionAll') },
+    ...ACTION_TYPES.map(o => ({ value: String(o.value), label: o.label }))
+]);
 
 async function load(reset: boolean) {
     if (reset) {
@@ -129,14 +136,11 @@ function fmtValue(v: unknown): string {
         <div class="filters">
             <label class="field">
                 <span>{{ $t('guilds.audit.filterAction') }}</span>
-                <select v-model="actionFilter">
-                    <option value="">{{ $t('guilds.audit.actionAll') }}</option>
-                    <option
-                        v-for="opt in ACTION_OPTIONS.slice(1)"
-                        :key="opt.value"
-                        :value="String(opt.value)"
-                    >{{ opt.label }}</option>
-                </select>
+                <AppSelectField
+                    v-model="actionFilter"
+                    :options="actionOptions"
+                    :drawer-title="$t('guilds.audit.filterAction')"
+                />
             </label>
             <label class="field">
                 <span>{{ $t('guilds.audit.filterUser') }}</span>

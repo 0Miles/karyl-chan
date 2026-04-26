@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppModal from '../../../components/AppModal.vue';
+import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
 import type { AutoModRule, AutoModRulePayload } from '../../../api/guilds';
 
 const props = defineProps<{
@@ -77,8 +78,14 @@ watch(() => props.visible, (v) => {
 });
 
 const isCreate = computed(() => props.rule === null);
-const triggerTypes = [1, 3, 4, 5, 6] as const;
 const presetOptions = [1, 2, 3] as const;
+
+const triggerOptions = computed<SelectOption<number>[]>(() =>
+    [1, 3, 4, 5, 6].map(v => ({ value: v, label: t('guilds.automod.trigger.' + v) }))
+);
+const actionTypeOptions = computed<SelectOption<number>[]>(() =>
+    [1, 2, 3].map(v => ({ value: v, label: t('guilds.automod.action.' + v) }))
+);
 
 function splitCsv(input: string): string[] {
     return input.split(',').map(s => s.trim()).filter(Boolean);
@@ -182,9 +189,12 @@ async function submit() {
 
             <label class="field">
                 <span>{{ $t('guilds.automod.fieldTriggerType') }}</span>
-                <select v-model.number="draft.triggerType" :disabled="!isCreate">
-                    <option v-for="t in triggerTypes" :key="t" :value="t">{{ $t('guilds.automod.trigger.' + t) }}</option>
-                </select>
+                <AppSelectField
+                    v-model="draft.triggerType"
+                    :options="triggerOptions"
+                    :disabled="!isCreate"
+                    :drawer-title="$t('guilds.automod.fieldTriggerType')"
+                />
                 <small v-if="!isCreate" class="hint">{{ $t('guilds.automod.fieldTriggerImmutable') }}</small>
             </label>
 
@@ -238,11 +248,11 @@ async function submit() {
                 <div v-for="(a, idx) in draft.actions" :key="idx" class="action-row">
                     <label class="field action-type">
                         <span>{{ $t('guilds.automod.actionType') }}</span>
-                        <select v-model.number="a.type">
-                            <option :value="1">{{ $t('guilds.automod.action.1') }}</option>
-                            <option :value="2">{{ $t('guilds.automod.action.2') }}</option>
-                            <option :value="3">{{ $t('guilds.automod.action.3') }}</option>
-                        </select>
+                        <AppSelectField
+                            v-model="a.type"
+                            :options="actionTypeOptions"
+                            :drawer-title="$t('guilds.automod.actionType')"
+                        />
                     </label>
                     <label v-if="a.type === 1" class="field">
                         <span>{{ $t('guilds.automod.actionCustomMsg') }}</span>

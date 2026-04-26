@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppModal from '../../components/AppModal.vue';
+import AppSelectField, { type SelectOption } from '../../components/AppSelectField.vue';
 import {
     addGuildMemberRole,
     banGuildMember,
@@ -47,6 +48,13 @@ const BAN_DELETE_PRESETS: Array<{ seconds: number; key: string }> = [
     { seconds: 3 * 24 * 60 * 60, key: 'memberMgmt.banDeleteThreeDays' },
     { seconds: 7 * 24 * 60 * 60, key: 'memberMgmt.banDeleteWeek' }
 ];
+
+const banDeleteOptions = computed<SelectOption<number>[]>(() =>
+    BAN_DELETE_PRESETS.map(o => ({ value: o.seconds, label: $t(o.key) }))
+);
+const timeoutOptions = computed<SelectOption<number>[]>(() =>
+    TIMEOUT_PRESETS.map(o => ({ value: o.seconds, label: $t(o.key) }))
+);
 
 // Each open() call resets form state — and for the roles editor we also
 // kick off the role-list fetch + member-snapshot fetch so the checkboxes
@@ -154,11 +162,11 @@ const titleText = computed(() => {
             <template v-if="target?.mode === 'ban'">
                         <label class="field">
                             <span>{{ $t('memberMgmt.banDeleteLabel') }}</span>
-                            <select v-model.number="banDeleteSeconds">
-                                <option v-for="opt in BAN_DELETE_PRESETS" :key="opt.seconds" :value="opt.seconds">
-                                    {{ $t(opt.key) }}
-                                </option>
-                            </select>
+                            <AppSelectField
+                                v-model="banDeleteSeconds"
+                                :options="banDeleteOptions"
+                                :drawer-title="$t('memberMgmt.banDeleteLabel')"
+                            />
                         </label>
                         <label class="field">
                             <span>{{ $t('memberMgmt.reasonLabel') }}</span>
@@ -168,11 +176,11 @@ const titleText = computed(() => {
                     <template v-else-if="target?.mode === 'timeout'">
                         <label class="field">
                             <span>{{ $t('memberMgmt.timeoutDuration') }}</span>
-                            <select v-model.number="timeoutPreset">
-                                <option v-for="opt in TIMEOUT_PRESETS" :key="opt.seconds" :value="opt.seconds">
-                                    {{ $t(opt.key) }}
-                                </option>
-                            </select>
+                            <AppSelectField
+                                v-model="timeoutPreset"
+                                :options="timeoutOptions"
+                                :drawer-title="$t('memberMgmt.timeoutDuration')"
+                            />
                         </label>
                         <label class="field">
                             <span>{{ $t('memberMgmt.reasonLabel') }}</span>

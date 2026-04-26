@@ -22,6 +22,7 @@ import {
     type GuildRoleSummary
 } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
+import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
 
 const props = defineProps<{
     detail: GuildDetail;
@@ -99,6 +100,24 @@ const capabilityName = ref<string>('');
 const capabilityRoleId = ref<string>('');
 
 const allTextChannels = computed(() => textCategories.value.flatMap(cat => cat.channels));
+
+const channelPickerOptions = computed<SelectOption<string>[]>(() => {
+    const out: SelectOption<string>[] = [
+        { value: '', label: t('guilds.feature.channelPlaceholder') }
+    ];
+    for (const cat of textCategories.value) {
+        const groupLabel = cat.name ?? null;
+        for (const ch of cat.channels) {
+            out.push({ value: ch.id, label: '#' + ch.name, group: groupLabel ?? undefined });
+        }
+    }
+    return out;
+});
+
+const rolePickerOptions = computed<SelectOption<string>[]>(() => [
+    { value: '', label: t('guilds.feature.rolePlaceholder') },
+    ...roles.value.map(r => ({ value: r.id, label: '@' + r.name }))
+]);
 
 async function addTodo() {
     if (!todoChannel.value) return;
@@ -193,12 +212,12 @@ async function rmCap(capability: string, roleId: string) {
             </ul>
             <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
             <div class="form-row">
-                <select v-model="todoChannel">
-                    <option value="">{{ $t('guilds.feature.channelPlaceholder') }}</option>
-                    <optgroup v-for="cat in textCategories" :key="cat.id ?? '__'" :label="cat.name ?? '—'">
-                        <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                    </optgroup>
-                </select>
+                <AppSelectField
+                    v-model="todoChannel"
+                    :options="channelPickerOptions"
+                    :placeholder="$t('guilds.feature.channelPlaceholder')"
+                    :drawer-title="$t('guilds.feature.todoTitle')"
+                />
                 <button type="button" class="primary" :disabled="!todoChannel" @click="addTodo">{{ $t('guilds.feature.addBtn') }}</button>
             </div>
         </section>
@@ -219,12 +238,12 @@ async function rmCap(capability: string, roleId: string) {
             </ul>
             <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
             <div class="form-row">
-                <select v-model="pictureChannel">
-                    <option value="">{{ $t('guilds.feature.channelPlaceholder') }}</option>
-                    <optgroup v-for="cat in textCategories" :key="cat.id ?? '__'" :label="cat.name ?? '—'">
-                        <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                    </optgroup>
-                </select>
+                <AppSelectField
+                    v-model="pictureChannel"
+                    :options="channelPickerOptions"
+                    :placeholder="$t('guilds.feature.channelPlaceholder')"
+                    :drawer-title="$t('guilds.feature.pictureTitle')"
+                />
                 <button type="button" class="primary" :disabled="!pictureChannel" @click="addPicture">{{ $t('guilds.feature.addBtn') }}</button>
             </div>
         </section>
@@ -248,12 +267,14 @@ async function rmCap(capability: string, roleId: string) {
             </ul>
             <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
             <div class="form-grid">
-                <select v-model="rconChannel" class="span-2">
-                    <option value="">{{ $t('guilds.feature.channelPlaceholder') }}</option>
-                    <optgroup v-for="cat in textCategories" :key="cat.id ?? '__'" :label="cat.name ?? '—'">
-                        <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                    </optgroup>
-                </select>
+                <div class="span-2">
+                    <AppSelectField
+                        v-model="rconChannel"
+                        :options="channelPickerOptions"
+                        :placeholder="$t('guilds.feature.channelPlaceholder')"
+                        :drawer-title="$t('guilds.feature.rconTitle')"
+                    />
+                </div>
                 <input v-model="rconHost" type="text" :placeholder="$t('guilds.feature.host')" />
                 <input v-model="rconPort" type="number" :placeholder="$t('guilds.feature.port')" />
                 <input v-model="rconPassword" type="password" :placeholder="$t('guilds.feature.password')" />
@@ -283,10 +304,12 @@ async function rmCap(capability: string, roleId: string) {
             </ul>
             <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
             <div class="form-grid">
-                <select v-model="roleEmojiRoleId">
-                    <option value="">{{ $t('guilds.feature.rolePlaceholder') }}</option>
-                    <option v-for="r in roles" :key="r.id" :value="r.id">@{{ r.name }}</option>
-                </select>
+                <AppSelectField
+                    v-model="roleEmojiRoleId"
+                    :options="rolePickerOptions"
+                    :placeholder="$t('guilds.feature.rolePlaceholder')"
+                    :drawer-title="$t('guilds.feature.pickRole')"
+                />
                 <input v-model="roleEmojiInput" type="text" :placeholder="$t('guilds.feature.emoji')" />
                 <small class="hint span-2">{{ $t('guilds.feature.emojiHint') }}</small>
                 <button type="button" class="primary span-2" :disabled="!roleEmojiRoleId || !roleEmojiInput" @click="addRE">{{ $t('guilds.feature.addBtn') }}</button>
@@ -312,12 +335,12 @@ async function rmCap(capability: string, roleId: string) {
             </ul>
             <p v-else class="muted">{{ $t('guilds.feature.noEntries') }}</p>
             <div class="form-grid">
-                <select v-model="roleReceiveChannel">
-                    <option value="">{{ $t('guilds.feature.channelPlaceholder') }}</option>
-                    <optgroup v-for="cat in textCategories" :key="cat.id ?? '__'" :label="cat.name ?? '—'">
-                        <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                    </optgroup>
-                </select>
+                <AppSelectField
+                    v-model="roleReceiveChannel"
+                    :options="channelPickerOptions"
+                    :placeholder="$t('guilds.feature.channelPlaceholder')"
+                    :drawer-title="$t('guilds.feature.roleReceiveTitle')"
+                />
                 <input v-model="roleReceiveMessage" type="text" inputmode="numeric" :placeholder="$t('guilds.feature.messageId')" />
                 <button type="button" class="primary span-2" :disabled="!roleReceiveChannel || !roleReceiveMessage" @click="addRRM">{{ $t('guilds.feature.addBtn') }}</button>
             </div>
@@ -350,10 +373,12 @@ async function rmCap(capability: string, roleId: string) {
                     <option value="rcon.configure" />
                     <option value="role-emoji.manage" />
                 </datalist>
-                <select v-model="capabilityRoleId">
-                    <option value="">{{ $t('guilds.feature.rolePlaceholder') }}</option>
-                    <option v-for="r in roles" :key="r.id" :value="r.id">@{{ r.name }}</option>
-                </select>
+                <AppSelectField
+                    v-model="capabilityRoleId"
+                    :options="rolePickerOptions"
+                    :placeholder="$t('guilds.feature.rolePlaceholder')"
+                    :drawer-title="$t('guilds.feature.pickRole')"
+                />
                 <button type="button" class="primary span-2" :disabled="!capabilityName.trim() || !capabilityRoleId" @click="addCap">{{ $t('guilds.feature.addBtn') }}</button>
             </div>
         </section>

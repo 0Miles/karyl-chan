@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import AppModal from '../../../components/AppModal.vue';
+import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
 import {
     createGuildChannel,
     editGuildChannel,
@@ -72,6 +73,17 @@ watch(target, (t) => {
 
 const categoryOptions = computed(() =>
     props.categories.filter(c => c.id !== null).map(c => ({ id: c.id as string, name: c.name ?? c.id! }))
+);
+
+const typeSelectOptions = computed<SelectOption<CreatableChannelKind>[]>(() =>
+    TYPE_OPTIONS.map(o => ({ value: o.value, label: $t(o.label) }))
+);
+const parentSelectOptions = computed<SelectOption<string | null>[]>(() => [
+    { value: null, label: $t('channelMgmt.fieldParentNone') },
+    ...categoryOptions.value.map(c => ({ value: c.id, label: c.name }))
+]);
+const autoArchiveOptions = computed<SelectOption<number>[]>(() =>
+    AUTO_ARCHIVE_OPTIONS.map(d => ({ value: d, label: $t('channelMgmt.autoArchive' + d) }))
 );
 
 function close() { store.close(); }
@@ -145,27 +157,28 @@ const showTextChannelExtras = computed(() =>
             </label>
             <label v-if="target?.mode === 'create'" class="field">
                 <span>{{ $t('channelMgmt.fieldType') }}</span>
-                <select v-model="type">
-                    <option v-for="opt in TYPE_OPTIONS" :key="opt.value" :value="opt.value">
-                        {{ $t(opt.label) }}
-                    </option>
-                </select>
+                <AppSelectField
+                    v-model="type"
+                    :options="typeSelectOptions"
+                    :drawer-title="$t('channelMgmt.fieldType')"
+                />
             </label>
             <label v-if="target?.mode === 'create' && type !== 'category'" class="field">
                 <span>{{ $t('channelMgmt.fieldParent') }}</span>
-                <select v-model="parentId">
-                    <option :value="null">{{ $t('channelMgmt.fieldParentNone') }}</option>
-                    <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-                </select>
+                <AppSelectField
+                    v-model="parentId"
+                    :options="parentSelectOptions"
+                    :drawer-title="$t('channelMgmt.fieldParent')"
+                />
             </label>
             <template v-if="target?.mode === 'edit' && target.isThread">
                 <label class="field">
                     <span>{{ $t('channelMgmt.fieldAutoArchive') }}</span>
-                    <select v-model.number="autoArchive">
-                        <option v-for="d in AUTO_ARCHIVE_OPTIONS" :key="d" :value="d">
-                            {{ $t('channelMgmt.autoArchive' + d) }}
-                        </option>
-                    </select>
+                    <AppSelectField
+                        v-model="autoArchive"
+                        :options="autoArchiveOptions"
+                        :drawer-title="$t('channelMgmt.fieldAutoArchive')"
+                    />
                 </label>
                 <label class="check">
                     <input type="checkbox" v-model="archived" />

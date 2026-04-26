@@ -585,6 +585,7 @@
             "ownerNote": "Bot owner 始终拥有所有权限,无需另外添加。",
             "ownerBadge": "Bot Owner",
             "unknownProfile": "未知用户",
+            "unknownRole": "{name}(未知)",
             "userIdLabel": "Discord 用户 ID",
             "roleLabel": "身份组",
             "noteLabel": "备注(可选)",

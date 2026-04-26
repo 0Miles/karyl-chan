@@ -13,12 +13,15 @@ import {
     type GuildVoiceCategory
 } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
+import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     guildId: string;
 }>();
 
 const { handle: handleApiError } = useApiError();
+const { t } = useI18n();
 
 // Server-truth snapshot. Each save replaces this with the response from
 // the backend so subsequent dirty checks compare against the freshest
@@ -221,11 +224,49 @@ function discard() {
     if (settings.value) reseed(settings.value);
 }
 
-const verificationLevels = [0, 1, 2, 3, 4] as const;
-const explicitFilterLevels = [0, 1, 2] as const;
-const defaultNotificationLevels = [0, 1] as const;
-const mfaLevels = [0, 1] as const;
-const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
+const verificationOptions = computed<SelectOption<number>[]>(() =>
+    [0, 1, 2, 3, 4].map(v => ({ value: v, label: t('guilds.settings.verification.' + v) }))
+);
+const explicitFilterOptions = computed<SelectOption<number>[]>(() =>
+    [0, 1, 2].map(v => ({ value: v, label: t('guilds.settings.explicitContentFilterOpt.' + v) }))
+);
+const defaultNotificationOptions = computed<SelectOption<number>[]>(() =>
+    [0, 1].map(v => ({ value: v, label: t('guilds.settings.defaultNotificationsOpt.' + v) }))
+);
+const mfaLevelOptions = computed<SelectOption<number>[]>(() =>
+    [0, 1].map(v => ({ value: v, label: t('guilds.settings.mfaLevelOpt.' + v) }))
+);
+const afkTimeoutOptions = computed<SelectOption<number>[]>(() =>
+    [60, 300, 900, 1800, 3600].map(v => ({ value: v, label: t('guilds.settings.afkTimeoutOpt.' + v) }))
+);
+
+// Channel option lists. Each text/voice category becomes a `group`
+// header in the picker so users see channels under the right
+// category (matches Discord's own channel organisation).
+const textChannelOptions = computed<SelectOption<string | null>[]>(() => {
+    const out: SelectOption<string | null>[] = [
+        { value: null, label: t('guilds.settings.systemChannelNone') }
+    ];
+    for (const cat of textCategories.value) {
+        const groupLabel = cat.name ?? null;
+        for (const ch of cat.channels) {
+            out.push({ value: ch.id, label: '#' + ch.name, group: groupLabel ?? undefined });
+        }
+    }
+    return out;
+});
+const voiceChannelOptions = computed<SelectOption<string | null>[]>(() => {
+    const out: SelectOption<string | null>[] = [
+        { value: null, label: t('guilds.settings.afkChannelNone') }
+    ];
+    for (const cat of voiceCategories.value) {
+        const groupLabel = cat.name ?? null;
+        for (const ch of cat.channels) {
+            out.push({ value: ch.id, label: ch.name, group: groupLabel ?? undefined });
+        }
+    }
+    return out;
+});
 </script>
 
 <template>
@@ -278,27 +319,27 @@ const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
                 </header>
                 <label class="field">
                     <span>{{ $t('guilds.settings.verificationLevel') }}</span>
-                    <select v-model.number="moderationDraft.verificationLevel">
-                        <option v-for="lvl in verificationLevels" :key="lvl" :value="lvl">
-                            {{ $t('guilds.settings.verification.' + lvl) }}
-                        </option>
-                    </select>
+                    <AppSelectField
+                        v-model="moderationDraft.verificationLevel"
+                        :options="verificationOptions"
+                        :drawer-title="$t('guilds.settings.verificationLevel')"
+                    />
                 </label>
                 <label class="field">
                     <span>{{ $t('guilds.settings.explicitContentFilter') }}</span>
-                    <select v-model.number="moderationDraft.explicitContentFilter">
-                        <option v-for="lvl in explicitFilterLevels" :key="lvl" :value="lvl">
-                            {{ $t('guilds.settings.explicitContentFilterOpt.' + lvl) }}
-                        </option>
-                    </select>
+                    <AppSelectField
+                        v-model="moderationDraft.explicitContentFilter"
+                        :options="explicitFilterOptions"
+                        :drawer-title="$t('guilds.settings.explicitContentFilter')"
+                    />
                 </label>
                 <label class="field">
                     <span>{{ $t('guilds.settings.defaultNotifications') }}</span>
-                    <select v-model.number="moderationDraft.defaultMessageNotifications">
-                        <option v-for="lvl in defaultNotificationLevels" :key="lvl" :value="lvl">
-                            {{ $t('guilds.settings.defaultNotificationsOpt.' + lvl) }}
-                        </option>
-                    </select>
+                    <AppSelectField
+                        v-model="moderationDraft.defaultMessageNotifications"
+                        :options="defaultNotificationOptions"
+                        :drawer-title="$t('guilds.settings.defaultNotifications')"
+                    />
                 </label>
                 <p v-if="moderationCard.error" class="error">{{ $t('guilds.settings.saveFailed') }}: {{ moderationCard.error }}</p>
                 <footer class="actions">
@@ -323,11 +364,11 @@ const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
                 <div class="subcard">
                     <label class="field">
                         <span>{{ $t('guilds.settings.mfaLevel') }}</span>
-                        <select v-model.number="mfaDraft.mfaLevel">
-                            <option v-for="lvl in mfaLevels" :key="lvl" :value="lvl">
-                                {{ $t('guilds.settings.mfaLevelOpt.' + lvl) }}
-                            </option>
-                        </select>
+                        <AppSelectField
+                            v-model="mfaDraft.mfaLevel"
+                            :options="mfaLevelOptions"
+                            :drawer-title="$t('guilds.settings.mfaLevel')"
+                        />
                     </label>
                     <p class="hint">{{ $t('guilds.settings.mfaOwnerOnly') }}</p>
                     <p v-if="mfaCard.error" class="error">{{ $t('guilds.settings.saveFailed') }}: {{ mfaCard.error }}</p>
@@ -351,16 +392,11 @@ const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
                 </header>
                 <label class="field">
                     <span>{{ $t('guilds.settings.systemChannel') }}</span>
-                    <select v-model="systemDraft.systemChannelId">
-                        <option :value="null">{{ $t('guilds.settings.systemChannelNone') }}</option>
-                        <optgroup
-                            v-for="cat in textCategories"
-                            :key="cat.id ?? '__uncat'"
-                            :label="cat.name ?? '—'"
-                        >
-                            <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                        </optgroup>
-                    </select>
+                    <AppSelectField
+                        v-model="systemDraft.systemChannelId"
+                        :options="textChannelOptions"
+                        :drawer-title="$t('guilds.settings.systemChannel')"
+                    />
                 </label>
 
                 <fieldset class="flags">
@@ -389,24 +425,19 @@ const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
 
                 <label class="field">
                     <span>{{ $t('guilds.settings.afkChannel') }}</span>
-                    <select v-model="systemDraft.afkChannelId">
-                        <option :value="null">{{ $t('guilds.settings.afkChannelNone') }}</option>
-                        <optgroup
-                            v-for="cat in voiceCategories"
-                            :key="cat.id ?? '__uncat'"
-                            :label="cat.name ?? '—'"
-                        >
-                            <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">{{ ch.name }}</option>
-                        </optgroup>
-                    </select>
+                    <AppSelectField
+                        v-model="systemDraft.afkChannelId"
+                        :options="voiceChannelOptions"
+                        :drawer-title="$t('guilds.settings.afkChannel')"
+                    />
                 </label>
                 <label class="field">
                     <span>{{ $t('guilds.settings.afkTimeout') }}</span>
-                    <select v-model.number="systemDraft.afkTimeout">
-                        <option v-for="t in afkTimeoutOptions" :key="t" :value="t">
-                            {{ $t('guilds.settings.afkTimeoutOpt.' + t) }}
-                        </option>
-                    </select>
+                    <AppSelectField
+                        v-model="systemDraft.afkTimeout"
+                        :options="afkTimeoutOptions"
+                        :drawer-title="$t('guilds.settings.afkTimeout')"
+                    />
                 </label>
 
                 <label class="field" :class="{ disabled: !isCommunity }">
@@ -414,32 +445,24 @@ const afkTimeoutOptions = [60, 300, 900, 1800, 3600] as const;
                         {{ $t('guilds.settings.rulesChannel') }}
                         <em v-if="!isCommunity" class="muted">· {{ $t('guilds.settings.communityOnly') }}</em>
                     </span>
-                    <select v-model="systemDraft.rulesChannelId" :disabled="!isCommunity">
-                        <option :value="null">{{ $t('guilds.settings.systemChannelNone') }}</option>
-                        <optgroup
-                            v-for="cat in textCategories"
-                            :key="cat.id ?? '__uncat'"
-                            :label="cat.name ?? '—'"
-                        >
-                            <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                        </optgroup>
-                    </select>
+                    <AppSelectField
+                        v-model="systemDraft.rulesChannelId"
+                        :options="textChannelOptions"
+                        :disabled="!isCommunity"
+                        :drawer-title="$t('guilds.settings.rulesChannel')"
+                    />
                 </label>
                 <label class="field" :class="{ disabled: !isCommunity }">
                     <span>
                         {{ $t('guilds.settings.publicUpdatesChannel') }}
                         <em v-if="!isCommunity" class="muted">· {{ $t('guilds.settings.communityOnly') }}</em>
                     </span>
-                    <select v-model="systemDraft.publicUpdatesChannelId" :disabled="!isCommunity">
-                        <option :value="null">{{ $t('guilds.settings.systemChannelNone') }}</option>
-                        <optgroup
-                            v-for="cat in textCategories"
-                            :key="cat.id ?? '__uncat'"
-                            :label="cat.name ?? '—'"
-                        >
-                            <option v-for="ch in cat.channels" :key="ch.id" :value="ch.id">#{{ ch.name }}</option>
-                        </optgroup>
-                    </select>
+                    <AppSelectField
+                        v-model="systemDraft.publicUpdatesChannelId"
+                        :options="textChannelOptions"
+                        :disabled="!isCommunity"
+                        :drawer-title="$t('guilds.settings.publicUpdatesChannel')"
+                    />
                 </label>
 
                 <label class="check">

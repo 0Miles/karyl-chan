@@ -11,6 +11,7 @@ import {
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
 import AppModal from '../../../components/AppModal.vue';
+import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
 
 const props = defineProps<{
     data: AdminUserList;
@@ -30,6 +31,21 @@ const { t } = useI18n();
 
 const search = ref('');
 const roleFilter = ref<string>('');
+
+const filterRoleOptions = computed<SelectOption<string>[]>(() => [
+    { value: '', label: t('admin.users.filterAll') },
+    ...props.roles.map(r => ({ value: r.name, label: r.name }))
+]);
+const addRoleOptions = computed<SelectOption<string>[]>(() =>
+    props.roles.map(r => ({ value: r.name, label: r.name }))
+);
+function rowRoleOptionsFor(user: AuthorizedUser): SelectOption<string>[] {
+    const known = props.roles.map(r => ({ value: r.name, label: r.name }));
+    if (!props.roles.some(r => r.name === user.role)) {
+        return [...known, { value: user.role, label: t('admin.users.unknownRole', { name: user.role }) }];
+    }
+    return known;
+}
 
 const ownerEntry = computed(() => props.data.users.find(u => u.isOwner) ?? null);
 const manageableUsers = computed(() => props.data.users.filter(u => !u.isOwner));
@@ -156,10 +172,13 @@ const matchSummary = computed(() =>
                     :placeholder="$t('admin.users.searchPlaceholder')"
                 />
             </div>
-            <select v-model="roleFilter" class="role-filter">
-                <option value="">{{ $t('admin.users.filterAll') }}</option>
-                <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-            </select>
+            <div class="role-filter">
+                <AppSelectField
+                    v-model="roleFilter"
+                    :options="filterRoleOptions"
+                    :drawer-title="$t('admin.users.filterAll')"
+                />
+            </div>
             <button type="button" class="primary" @click="addOpen = true">
                 <Icon icon="material-symbols:person-add-outline-rounded" width="16" height="16" />
                 {{ $t('admin.users.add') }}
@@ -193,18 +212,15 @@ const matchSummary = computed(() =>
                     <code class="handle">{{ handleFor(user) ?? user.userId }}</code>
                     <p v-if="user.note" class="note">{{ user.note }}</p>
                 </div>
-                <select
-                    class="role-select"
-                    :value="user.role"
-                    :disabled="isUserPending(user.userId)"
-                    :title="$t('admin.users.changeRole')"
-                    @change="onChangeRole(user, ($event.target as HTMLSelectElement).value)"
-                >
-                    <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-                    <option v-if="!roles.some(r => r.name === user.role)" :value="user.role">
-                        {{ user.role }} (unknown)
-                    </option>
-                </select>
+                <div class="role-select">
+                    <AppSelectField
+                        :model-value="user.role"
+                        :options="rowRoleOptionsFor(user)"
+                        :disabled="isUserPending(user.userId)"
+                        :drawer-title="$t('admin.users.changeRole')"
+                        @update:model-value="onChangeRole(user, $event)"
+                    />
+                </div>
                 <button
                     type="button"
                     class="icon-btn danger"
@@ -236,9 +252,11 @@ const matchSummary = computed(() =>
                 </label>
                 <label class="field">
                     <span>{{ $t('admin.users.roleLabel') }}</span>
-                    <select v-model="addForm.role" required>
-                        <option v-for="r in roles" :key="r.name" :value="r.name">{{ r.name }}</option>
-                    </select>
+                    <AppSelectField
+                        v-model="addForm.role"
+                        :options="addRoleOptions"
+                        :drawer-title="$t('admin.users.roleLabel')"
+                    />
                 </label>
                 <label class="field">
                     <span>{{ $t('admin.users.noteLabel') }}</span>
@@ -292,13 +310,7 @@ const matchSummary = computed(() =>
     font-size: 0.9rem;
 }
 .role-filter {
-    padding: 0.45rem 0.65rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.9rem;
+    min-width: 140px;
 }
 .primary {
     display: inline-flex;
@@ -397,13 +409,6 @@ const matchSummary = computed(() =>
     color: var(--text-muted);
 }
 .role-select {
-    padding: 0.35rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 0.85rem;
     min-width: 140px;
 }
 .icon-btn {
