@@ -271,6 +271,7 @@
         "tabs": {
             "overview": "Overview",
             "settings": "Server settings",
+            "people": "Members & moderation",
             "features": "Bot features"
         },
         "dashboard": {
@@ -358,6 +359,53 @@
             "created": "Created:",
             "uses": "{uses}/{max} used",
             "expires": "expires {date}"
+        },
+        "tabs2": {
+            "people": "Members & moderation"
+        },
+        "members": {
+            "title": "Members",
+            "search": "Search by name…",
+            "empty": "No members loaded.",
+            "loadMore": "Load more",
+            "joined": "joined {date}",
+            "rolesCount": "{count} roles",
+            "pending": "pending",
+            "timeoutActive": "timeout until {date}",
+            "actionKick": "Kick",
+            "actionBan": "Ban",
+            "actionTimeout": "Timeout",
+            "actionClearTimeout": "Clear timeout",
+            "actionNickname": "Set nickname",
+            "promptKick": "Kick {name}? (optional reason)",
+            "promptBan": "Ban {name}? (optional reason)",
+            "promptTimeout": "Timeout duration in minutes (1..40320 = 28 days):",
+            "promptNickname": "New nickname for {name} (blank to clear):",
+            "actionFailed": "Action failed: {message}",
+            "botBadge": "BOT"
+        },
+        "bans": {
+            "title": "Bans",
+            "empty": "No bans recorded.",
+            "reason": "Reason:",
+            "noReason": "(no reason provided)",
+            "unban": "Unban",
+            "promptUnban": "Unban {name}?"
+        },
+        "audit": {
+            "title": "Audit log",
+            "empty": "No audit-log entries.",
+            "loadMore": "Load older",
+            "filterAction": "Action",
+            "filterUser": "User ID",
+            "actionAll": "All actions",
+            "filterApply": "Apply",
+            "filterReset": "Reset",
+            "by": "by {name}",
+            "noExecutor": "(unknown executor)",
+            "reason": "Reason:",
+            "changes": "{count} changes",
+            "actionLoadFailed": "Failed to load entries"
         }
     },
     "quickSwitcher": {

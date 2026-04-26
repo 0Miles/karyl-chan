@@ -627,7 +627,7 @@ export interface GuildBanEntry {
     userId: string;
     username: string;
     globalName: string | null;
-    avatar: string | null;
+    avatarUrl: string;
     reason: string | null;
 }
 
@@ -636,6 +636,34 @@ export async function listGuildBans(guildId: string): Promise<GuildBanEntry[]> {
     const response = await authedFetch(url);
     const body = await jsonOrThrow<{ bans: GuildBanEntry[] }>(response);
     return body.bans;
+}
+
+export interface GuildMemberRow {
+    id: string;
+    username: string;
+    globalName: string | null;
+    nickname: string | null;
+    avatarUrl: string;
+    color: string | null;
+    bot: boolean;
+    joinedAt: string | null;
+    pending: boolean;
+    roles: string[];
+    timeoutUntil: string | null;
+}
+
+export async function listGuildMembers(
+    guildId: string,
+    opts: { limit?: number; query?: string } = {}
+): Promise<GuildMemberRow[]> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.query) params.set('query', opts.query);
+    const query = params.toString();
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/members${query ? `?${query}` : ''}`;
+    const response = await authedFetch(url);
+    const body = await jsonOrThrow<{ members: GuildMemberRow[] }>(response);
+    return body.members;
 }
 
 // ── Guild settings (general / moderation / system) ────────────────────

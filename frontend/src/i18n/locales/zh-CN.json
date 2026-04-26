@@ -271,6 +271,7 @@
         "tabs": {
             "overview": "概览",
             "settings": "服务器设置",
+            "people": "成员与管理",
             "features": "Bot 功能"
         },
         "dashboard": {
@@ -358,6 +359,53 @@
             "created": "已创建:",
             "uses": "{uses}/{max} 已使用",
             "expires": "{date} 失效"
+        },
+        "tabs2": {
+            "people": "成员与管理"
+        },
+        "members": {
+            "title": "成员",
+            "search": "按名称搜索…",
+            "empty": "未加载任何成员。",
+            "loadMore": "加载更多",
+            "joined": "{date} 加入",
+            "rolesCount": "{count} 个身份组",
+            "pending": "待审核",
+            "timeoutActive": "禁言至 {date}",
+            "actionKick": "踢出",
+            "actionBan": "封禁",
+            "actionTimeout": "禁言",
+            "actionClearTimeout": "解除禁言",
+            "actionNickname": "设置昵称",
+            "promptKick": "确定踢出 {name}?(可选原因)",
+            "promptBan": "确定封禁 {name}?(可选原因)",
+            "promptTimeout": "禁言时长(分钟,1..40320 = 28 天):",
+            "promptNickname": "{name} 的新昵称(留空清除):",
+            "actionFailed": "操作失败:{message}",
+            "botBadge": "机器人"
+        },
+        "bans": {
+            "title": "封禁名单",
+            "empty": "暂无任何封禁记录。",
+            "reason": "原因:",
+            "noReason": "(未填写原因)",
+            "unban": "解除封禁",
+            "promptUnban": "确定要解除 {name} 的封禁?"
+        },
+        "audit": {
+            "title": "审计日志",
+            "empty": "暂无审计日志。",
+            "loadMore": "加载较早记录",
+            "filterAction": "操作",
+            "filterUser": "用户 ID",
+            "actionAll": "全部操作",
+            "filterApply": "应用",
+            "filterReset": "重置",
+            "by": "由 {name}",
+            "noExecutor": "(未知执行者)",
+            "reason": "原因:",
+            "changes": "{count} 项变更",
+            "actionLoadFailed": "无法加载日志"
         }
     },
     "quickSwitcher": {

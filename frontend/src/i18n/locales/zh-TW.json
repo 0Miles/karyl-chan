@@ -271,6 +271,7 @@
         "tabs": {
             "overview": "總覽",
             "settings": "伺服器設定",
+            "people": "成員與管理",
             "features": "Bot 功能"
         },
         "dashboard": {
@@ -358,6 +359,53 @@
             "created": "已建立:",
             "uses": "{uses}/{max} 已使用",
             "expires": "{date} 失效"
+        },
+        "tabs2": {
+            "people": "成員與管理"
+        },
+        "members": {
+            "title": "成員",
+            "search": "依名稱搜尋…",
+            "empty": "未載入任何成員。",
+            "loadMore": "載入更多",
+            "joined": "{date} 加入",
+            "rolesCount": "{count} 個身分組",
+            "pending": "待審核",
+            "timeoutActive": "禁言至 {date}",
+            "actionKick": "踢出",
+            "actionBan": "封鎖",
+            "actionTimeout": "禁言",
+            "actionClearTimeout": "解除禁言",
+            "actionNickname": "設定暱稱",
+            "promptKick": "確定踢出 {name}? (可選原因)",
+            "promptBan": "確定封鎖 {name}? (可選原因)",
+            "promptTimeout": "禁言時長 (分鐘,1..40320 = 28 天):",
+            "promptNickname": "{name} 的新暱稱 (留空清除):",
+            "actionFailed": "操作失敗: {message}",
+            "botBadge": "機器人"
+        },
+        "bans": {
+            "title": "封鎖名單",
+            "empty": "目前沒有任何封鎖記錄。",
+            "reason": "原因:",
+            "noReason": "(未填寫原因)",
+            "unban": "解除封鎖",
+            "promptUnban": "確定要解除 {name} 的封鎖?"
+        },
+        "audit": {
+            "title": "稽核紀錄",
+            "empty": "尚無稽核紀錄。",
+            "loadMore": "載入較舊紀錄",
+            "filterAction": "動作",
+            "filterUser": "使用者 ID",
+            "actionAll": "全部動作",
+            "filterApply": "套用",
+            "filterReset": "重設",
+            "by": "由 {name}",
+            "noExecutor": "(未知執行者)",
+            "reason": "原因:",
+            "changes": "{count} 項變更",
+            "actionLoadFailed": "無法載入紀錄"
         }
     },
     "quickSwitcher": {

@@ -3,7 +3,7 @@ import type { Client } from 'discordx';
 import { AuditLogEvent, ChannelType, GuildSystemChannelFlags, PermissionsBitField } from 'discord.js';
 import { requireCapability } from './route-guards.js';
 import { isSnowflake } from './validators.js';
-import { avatarUrlFor } from './message-mapper.js';
+import { avatarUrlFor, guildAvatarUrlFor } from './message-mapper.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 
 export interface GuildManagementRoutesOptions {
@@ -273,7 +273,7 @@ export async function registerGuildManagementRoutes(
                         userId: b.user.id,
                         username: b.user.username,
                         globalName: b.user.globalName ?? null,
-                        avatar: b.user.avatar,
+                        avatarUrl: avatarUrlFor(b.user.id, b.user.avatar, 64),
                         reason: b.reason ?? null
                     }))
                 };
@@ -896,6 +896,51 @@ export async function registerGuildManagementRoutes(
             } catch (err) {
                 request.log.error({ err }, 'failed to set MFA level');
                 reply.code(502).send({ error: 'Failed to set MFA level (owner-only)' });
+            }
+        }
+    );
+
+    // ── Guild-wide member listing ──────────────────────────────────────
+    //
+    // The per-channel `/text-channels/:channelId/members` endpoint exists
+    // for mention suggestions and is permission-filtered against a single
+    // channel. The members panel needs the whole roster, so we hit the
+    // bot-level cache instead. `query` triggers a REST search (Discord's
+    // server-side prefix index) for guilds large enough that the local
+    // cache is incomplete.
+    server.get<{ Params: { guildId: string }; Querystring: { limit?: string; query?: string } }>(
+        '/api/guilds/:guildId/members',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'guild.read')) return;
+            const guild = bot.guilds.cache.get(request.params.guildId);
+            if (!guild) { reply.code(404).send({ error: 'Unknown guild' }); return; }
+            const limit = Math.min(Math.max(Number(request.query.limit ?? 200) || 200, 1), 1000);
+            const query = typeof request.query.query === 'string' ? request.query.query.trim() : '';
+            try {
+                const members = query
+                    ? await guild.members.search({ query, limit: Math.min(limit, 100) })
+                    : await guild.members.fetch({ limit }).catch(() => guild.members.cache);
+                const rows = [...members.values()].map(m => ({
+                    id: m.id,
+                    username: m.user.username,
+                    globalName: m.user.globalName ?? null,
+                    nickname: m.nickname ?? null,
+                    avatarUrl: m.avatar
+                        ? guildAvatarUrlFor(guild.id, m.user.id, m.avatar, 64)
+                        : avatarUrlFor(m.user.id, m.user.avatar, 64),
+                    color: m.displayColor ? `#${m.displayColor.toString(16).padStart(6, '0')}` : null,
+                    bot: m.user.bot,
+                    joinedAt: m.joinedAt ? m.joinedAt.toISOString() : null,
+                    pending: m.pending,
+                    roles: [...m.roles.cache.keys()].filter(id => id !== guild.id),
+                    timeoutUntil: m.communicationDisabledUntil ? m.communicationDisabledUntil.toISOString() : null
+                }))
+                .sort((a, b) =>
+                    (a.nickname ?? a.globalName ?? a.username).localeCompare(b.nickname ?? b.globalName ?? b.username));
+                return { members: rows };
+            } catch (err) {
+                request.log.error({ err }, 'failed to list guild members');
+                reply.code(502).send({ error: 'Failed to list members' });
             }
         }
     );

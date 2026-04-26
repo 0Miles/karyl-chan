@@ -26,6 +26,9 @@ import GuildBotConfigSection from './sections/GuildBotConfigSection.vue';
 import GuildRolesSection from './sections/GuildRolesSection.vue';
 import GuildInvitesSection from './sections/GuildInvitesSection.vue';
 import GuildSettingsSection from './sections/GuildSettingsSection.vue';
+import GuildMembersSection from './sections/GuildMembersSection.vue';
+import GuildBansSection from './sections/GuildBansSection.vue';
+import GuildAuditLogSection from './sections/GuildAuditLogSection.vue';
 
 const { t: $t } = useI18n();
 
@@ -42,7 +45,7 @@ const error = ref<string | null>(null);
 
 // Sticky tab nav for the workbench. Each guild keeps its tab independently
 // so flipping between guilds doesn't bounce the user back to "overview".
-type Tab = 'overview' | 'settings' | 'features';
+type Tab = 'overview' | 'settings' | 'people' | 'features';
 const activeTab = ref<Tab>('overview');
 
 async function refresh() {
@@ -226,6 +229,13 @@ onMounted(refresh);
                         <button
                             type="button"
                             role="tab"
+                            :class="['tab', { active: activeTab === 'people' }]"
+                            :aria-selected="activeTab === 'people'"
+                            @click="activeTab = 'people'"
+                        >{{ $t('guilds.tabs.people') }}</button>
+                        <button
+                            type="button"
+                            role="tab"
                             :class="['tab', { active: activeTab === 'features' }]"
                             :aria-selected="activeTab === 'features'"
                             @click="activeTab = 'features'"
@@ -256,6 +266,12 @@ onMounted(refresh);
                             @copy="copyInvite"
                         />
                         <GuildEmojiStickerPanel :guild-id="selectedId" />
+                    </div>
+
+                    <div v-else-if="activeTab === 'people'" class="stack">
+                        <GuildMembersSection :guild-id="selectedId!" />
+                        <GuildBansSection :guild-id="selectedId!" />
+                        <GuildAuditLogSection :guild-id="selectedId!" />
                     </div>
 
                     <GuildBotConfigSection
