@@ -7,10 +7,13 @@ import { useI18n } from 'vue-i18n';
 const props = defineProps<{ detail: GuildDetail }>();
 const { t } = useI18n();
 
-// Reaction roles is a merged feature — combine the two underlying
-// counts (emoji↔role mappings + watched messages) into one tile.
+// Reaction roles is a merged feature — combine the underlying counts
+// (groups + emoji↔role mappings + watched messages) into one tile so
+// the overview reflects every dimension of the configuration.
 const total = computed(() =>
-    props.detail.roleEmojis.length + props.detail.roleReceiveMessages.length
+    props.detail.roleEmojiGroups.length
+    + props.detail.roleEmojis.length
+    + props.detail.roleReceiveMessages.length
 );
 </script>
 

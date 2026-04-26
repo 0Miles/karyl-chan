@@ -22,7 +22,13 @@ export interface RconForwardEntry extends GuildChannelRef {
     port: number | null;
 }
 
+export interface RoleEmojiGroupEntry {
+    id: number;
+    name: string;
+}
+
 export interface RoleEmojiEntry {
+    groupId: number;
     roleId: string;
     roleName: string | null;
     emojiName: string;
@@ -32,6 +38,8 @@ export interface RoleEmojiEntry {
 
 export interface RoleReceiveMessageEntry extends GuildChannelRef {
     messageId: string;
+    /** Pinned group ids; empty array means "every group in the guild applies". */
+    groupIds: number[];
 }
 
 export interface CapabilityGrantEntry {
@@ -46,6 +54,7 @@ export interface GuildDetail {
     todoChannels: GuildChannelRef[];
     pictureOnlyChannels: GuildChannelRef[];
     rconForwardChannels: RconForwardEntry[];
+    roleEmojiGroups: RoleEmojiGroupEntry[];
     roleEmojis: RoleEmojiEntry[];
     roleReceiveMessages: RoleReceiveMessageEntry[];
     capabilityGrants: CapabilityGrantEntry[];
@@ -929,30 +938,63 @@ export async function removeRconForward(guildId: string, channelId: string): Pro
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove rcon channel');
 }
 
-export async function addRoleEmoji(guildId: string, roleId: string, emoji: string): Promise<void> {
+export async function addRoleEmojiGroup(guildId: string, name: string): Promise<RoleEmojiGroupEntry> {
+    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji-groups`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Failed to add emoji group');
+    return (await response.json()) as RoleEmojiGroupEntry;
+}
+export async function removeRoleEmojiGroup(guildId: string, groupId: number): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji-groups/${encodeURIComponent(String(groupId))}`;
+    const response = await authedFetch(url, { method: 'DELETE' });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove emoji group');
+}
+
+export async function addRoleEmoji(guildId: string, groupId: number, roleId: string, emoji: string): Promise<void> {
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roleId, emoji })
+        body: JSON.stringify({ groupId, roleId, emoji })
     });
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role-emoji');
 }
 export async function removeRoleEmoji(
     guildId: string,
-    opts: { emojiChar?: string; emojiId?: string }
+    opts: { groupId: number; emojiChar?: string; emojiId?: string }
 ): Promise<void> {
     const params = new URLSearchParams();
+    params.set('groupId', String(opts.groupId));
     if (opts.emojiChar) params.set('emojiChar', opts.emojiChar);
     if (opts.emojiId) params.set('emojiId', opts.emojiId);
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-emoji?${params.toString()}`, { method: 'DELETE' });
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove role-emoji');
 }
 
-export async function addRoleReceiveMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
+export async function addRoleReceiveMessage(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    groupIds: number[] = []
+): Promise<void> {
     const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId, messageId })
+        body: JSON.stringify({ channelId, messageId, groupIds })
     });
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add role-receive message');
+}
+export async function setRoleReceiveMessageGroups(
+    guildId: string,
+    channelId: string,
+    messageId: string,
+    groupIds: number[]
+): Promise<void> {
+    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}/groups`;
+    const response = await authedFetch(url, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupIds })
+    });
+    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to update message groups');
 }
 export async function removeRoleReceiveMessage(guildId: string, channelId: string, messageId: string): Promise<void> {
     const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}`;
