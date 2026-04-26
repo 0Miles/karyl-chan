@@ -335,6 +335,30 @@
             "people": "成员与管理",
             "features": "Bot 功能"
         },
+        "subtabs": {
+            "settings": {
+                "general": "常规",
+                "moderation": "审核",
+                "system": "系统与欢迎",
+                "roles": "身份组",
+                "invites": "邀请",
+                "emoji": "表情与贴纸"
+            },
+            "people": {
+                "members": "成员",
+                "bans": "封禁名单",
+                "automod": "AutoMod",
+                "audit": "审计日志"
+            },
+            "features": {
+                "todo": "待办频道",
+                "picture": "仅图片",
+                "rcon": "RCON 转发",
+                "roleEmoji": "身份组表情",
+                "roleReceive": "身份组接收",
+                "capability": "权限授予"
+            }
+        },
         "dashboard": {
             "members": "成员",
             "roles": "身份组",

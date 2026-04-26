@@ -16,9 +16,18 @@ import { useApiError } from '../../../../composables/use-api-error';
 import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
 import { useI18n } from 'vue-i18n';
 
-const props = defineProps<{
+type SettingsCard = 'general' | 'moderation' | 'system';
+
+const props = withDefaults(defineProps<{
     guildId: string;
-}>();
+    /** Limits which cards render — used by the sub-tab nav so each
+     *  sub-tab shows just its slice. Defaults to all three. */
+    cards?: readonly SettingsCard[];
+}>(), {
+    cards: () => ['general', 'moderation', 'system'] as const
+});
+
+const showCard = (card: SettingsCard) => props.cards.includes(card);
 
 const { handle: handleApiError } = useApiError();
 const { t } = useI18n();
@@ -276,7 +285,7 @@ const voiceChannelOptions = computed<SelectOption<string | null>[]>(() => {
 
         <template v-else-if="settings">
             <!-- General ───────────────────────────────────── -->
-            <section class="card">
+            <section v-if="showCard('general')" class="card">
                 <header class="card-head">
                     <h3>{{ $t('guilds.settings.general') }}</h3>
                     <span v-if="generalCard.savedFlash" class="saved-flash">{{ $t('guilds.settings.saved') }}</span>
@@ -312,7 +321,7 @@ const voiceChannelOptions = computed<SelectOption<string | null>[]>(() => {
             </section>
 
             <!-- Moderation ───────────────────────────────── -->
-            <section class="card">
+            <section v-if="showCard('moderation')" class="card">
                 <header class="card-head">
                     <h3>{{ $t('guilds.settings.moderation') }}</h3>
                     <span v-if="moderationCard.savedFlash" class="saved-flash">{{ $t('guilds.settings.saved') }}</span>
@@ -385,7 +394,7 @@ const voiceChannelOptions = computed<SelectOption<string | null>[]>(() => {
             </section>
 
             <!-- System ───────────────────────────────────── -->
-            <section class="card">
+            <section v-if="showCard('system')" class="card">
                 <header class="card-head">
                     <h3>{{ $t('guilds.settings.system') }}</h3>
                     <span v-if="systemCard.savedFlash" class="saved-flash">{{ $t('guilds.settings.saved') }}</span>

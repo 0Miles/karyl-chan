@@ -335,6 +335,30 @@
             "people": "成員與管理",
             "features": "Bot 功能"
         },
+        "subtabs": {
+            "settings": {
+                "general": "一般",
+                "moderation": "審核",
+                "system": "系統與歡迎",
+                "roles": "身分組",
+                "invites": "邀請",
+                "emoji": "表情與貼圖"
+            },
+            "people": {
+                "members": "成員",
+                "bans": "封鎖名單",
+                "automod": "AutoMod",
+                "audit": "稽核紀錄"
+            },
+            "features": {
+                "todo": "待辦頻道",
+                "picture": "純圖片",
+                "rcon": "RCON 轉發",
+                "roleEmoji": "身分組表情",
+                "roleReceive": "身分組接收",
+                "capability": "權限授予"
+            }
+        },
         "dashboard": {
             "members": "成員",
             "roles": "身分組",

@@ -335,6 +335,30 @@
             "people": "Members & moderation",
             "features": "Bot features"
         },
+        "subtabs": {
+            "settings": {
+                "general": "General",
+                "moderation": "Moderation",
+                "system": "System & welcome",
+                "roles": "Roles",
+                "invites": "Invites",
+                "emoji": "Emoji & stickers"
+            },
+            "people": {
+                "members": "Members",
+                "bans": "Bans",
+                "automod": "AutoMod",
+                "audit": "Audit log"
+            },
+            "features": {
+                "todo": "Todo channels",
+                "picture": "Picture-only",
+                "rcon": "RCON forward",
+                "roleEmoji": "Role emoji",
+                "roleReceive": "Role-receive",
+                "capability": "Capability grants"
+            }
+        },
         "dashboard": {
             "members": "Members",
             "roles": "Roles",

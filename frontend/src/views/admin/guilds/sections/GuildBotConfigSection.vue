@@ -24,9 +24,18 @@ import {
 import { useApiError } from '../../../../composables/use-api-error';
 import AppSelectField, { type SelectOption } from '../../../../components/AppSelectField.vue';
 
-const props = defineProps<{
+type FeatureCard = 'todo' | 'picture' | 'rcon' | 'roleEmoji' | 'roleReceive' | 'capability';
+
+const props = withDefaults(defineProps<{
     detail: GuildDetail;
-}>();
+    /** Limits which feature cards render — used by the sub-tab nav so
+     *  each tab shows just the feature it covers. Defaults to all. */
+    cards?: readonly FeatureCard[];
+}>(), {
+    cards: () => ['todo', 'picture', 'rcon', 'roleEmoji', 'roleReceive', 'capability'] as const
+});
+
+const showCard = (card: FeatureCard) => props.cards.includes(card);
 
 const emit = defineEmits<{
     (e: 'changed'): void;
@@ -197,7 +206,7 @@ async function rmCap(capability: string, roleId: string) {
         <p v-if="error" class="error">{{ error }}</p>
 
         <!-- Todo ─────────────────────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('todo')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.todoTitle') }}
                     <span class="count-pill">{{ detailLocal.todoChannels.length }}</span>
@@ -223,7 +232,7 @@ async function rmCap(capability: string, roleId: string) {
         </section>
 
         <!-- Picture-only ────────────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('picture')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.pictureTitle') }}
                     <span class="count-pill">{{ detailLocal.pictureOnlyChannels.length }}</span>
@@ -249,7 +258,7 @@ async function rmCap(capability: string, roleId: string) {
         </section>
 
         <!-- RCON ────────────────────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('rcon')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.rconTitle') }}
                     <span class="count-pill">{{ detailLocal.rconForwardChannels.length }}</span>
@@ -285,7 +294,7 @@ async function rmCap(capability: string, roleId: string) {
         </section>
 
         <!-- Role-emoji ──────────────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('roleEmoji')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.roleEmojiTitle') }}
                     <span class="count-pill">{{ detailLocal.roleEmojis.length }}</span>
@@ -317,7 +326,7 @@ async function rmCap(capability: string, roleId: string) {
         </section>
 
         <!-- Role-receive ────────────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('roleReceive')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.roleReceiveTitle') }}
                     <span class="count-pill">{{ detailLocal.roleReceiveMessages.length }}</span>
@@ -347,7 +356,7 @@ async function rmCap(capability: string, roleId: string) {
         </section>
 
         <!-- Capability grants ──────────────────────────── -->
-        <section class="card">
+        <section v-if="showCard('capability')" class="card">
             <header class="card-head">
                 <h3>{{ $t('guilds.feature.capabilityTitle') }}
                     <span class="count-pill">{{ detailLocal.capabilityGrants.length }}</span>
