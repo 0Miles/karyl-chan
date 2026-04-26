@@ -19,19 +19,26 @@ import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { useApiError } from '../../../composables/use-api-error';
 import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
-import GuildRoleEditModal from './GuildRoleEditModal.vue';
-import GuildEmojiStickerPanel from './GuildEmojiStickerPanel.vue';
-import GuildOverviewSection from './sections/GuildOverviewSection.vue';
-import GuildBotConfigSection from './sections/GuildBotConfigSection.vue';
-import GuildRolesSection from './sections/GuildRolesSection.vue';
-import GuildInvitesSection from './sections/GuildInvitesSection.vue';
-import GuildInviteCreateModal from './GuildInviteCreateModal.vue';
 import AppTabs from '../../../components/AppTabs.vue';
-import GuildSettingsSection from './sections/GuildSettingsSection.vue';
-import GuildMembersSection from './sections/GuildMembersSection.vue';
-import GuildBansSection from './sections/GuildBansSection.vue';
-import GuildAuditLogSection from './sections/GuildAuditLogSection.vue';
-import GuildAutoModSection from './sections/GuildAutoModSection.vue';
+import GuildOverviewSection from './overview/GuildOverviewSection.vue';
+import GuildGeneralSettingsCard from './settings/GuildGeneralSettingsCard.vue';
+import GuildModerationSettingsCard from './settings/GuildModerationSettingsCard.vue';
+import GuildSystemSettingsCard from './settings/GuildSystemSettingsCard.vue';
+import GuildRolesSection from './settings/GuildRolesSection.vue';
+import GuildInvitesSection from './settings/GuildInvitesSection.vue';
+import GuildEmojiStickerPanel from './settings/GuildEmojiStickerPanel.vue';
+import GuildRoleEditModal from './settings/GuildRoleEditModal.vue';
+import GuildInviteCreateModal from './settings/GuildInviteCreateModal.vue';
+import GuildMembersSection from './people/GuildMembersSection.vue';
+import GuildBansSection from './people/GuildBansSection.vue';
+import GuildAutoModSection from './people/GuildAutoModSection.vue';
+import GuildAuditLogSection from './people/GuildAuditLogSection.vue';
+import GuildTodoChannelsCard from './features/GuildTodoChannelsCard.vue';
+import GuildPictureOnlyCard from './features/GuildPictureOnlyCard.vue';
+import GuildRconForwardCard from './features/GuildRconForwardCard.vue';
+import GuildRoleEmojiCard from './features/GuildRoleEmojiCard.vue';
+import GuildRoleReceiveCard from './features/GuildRoleReceiveCard.vue';
+import GuildCapabilityGrantsCard from './features/GuildCapabilityGrantsCard.vue';
 
 const { t: $t } = useI18n();
 
@@ -302,11 +309,9 @@ onMounted(refresh);
 
                         <!-- Settings sub-tabs ─ -->
                         <template v-else-if="activeTab === 'settings'">
-                            <GuildSettingsSection
-                                v-if="currentSub === 'general' || currentSub === 'moderation' || currentSub === 'system'"
-                                :guild-id="selectedId!"
-                                :cards="[currentSub as 'general' | 'moderation' | 'system']"
-                            />
+                            <GuildGeneralSettingsCard v-if="currentSub === 'general'" :guild-id="selectedId!" />
+                            <GuildModerationSettingsCard v-else-if="currentSub === 'moderation'" :guild-id="selectedId!" />
+                            <GuildSystemSettingsCard v-else-if="currentSub === 'system'" :guild-id="selectedId!" />
                             <GuildRolesSection
                                 v-else-if="currentSub === 'roles'"
                                 :roles="roles"
@@ -339,12 +344,38 @@ onMounted(refresh);
                         </template>
 
                         <!-- Bot features sub-tabs ─ -->
-                        <GuildBotConfigSection
-                            v-else-if="activeTab === 'features'"
-                            :detail="detail"
-                            :cards="[currentSub as 'todo' | 'picture' | 'rcon' | 'roleEmoji' | 'roleReceive' | 'capability']"
-                            @changed="selectedId && loadDetail(selectedId)"
-                        />
+                        <template v-else-if="activeTab === 'features'">
+                            <GuildTodoChannelsCard
+                                v-if="currentSub === 'todo'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                            <GuildPictureOnlyCard
+                                v-else-if="currentSub === 'picture'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                            <GuildRconForwardCard
+                                v-else-if="currentSub === 'rcon'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                            <GuildRoleEmojiCard
+                                v-else-if="currentSub === 'roleEmoji'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                            <GuildRoleReceiveCard
+                                v-else-if="currentSub === 'roleReceive'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                            <GuildCapabilityGrantsCard
+                                v-else-if="currentSub === 'capability'"
+                                :detail="detail"
+                                @changed="selectedId && loadDetail(selectedId)"
+                            />
+                        </template>
                     </AppTabs>
                 </article>
             </template>

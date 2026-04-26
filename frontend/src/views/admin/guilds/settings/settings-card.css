@@ -1,0 +1,114 @@
+.card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.85rem 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+.card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+}
+.card-head h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text-strong);
+}
+.field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.field span { color: var(--text-muted); }
+.field.disabled span { opacity: 0.6; }
+.field input,
+.field select,
+.field textarea {
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9rem;
+}
+.field textarea { resize: vertical; min-height: 2.5rem; }
+.field select:disabled,
+.field input:disabled { opacity: 0.55; cursor: not-allowed; }
+.flags {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin: 0;
+}
+.flags legend {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    padding: 0 0.3rem;
+}
+.check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+.subcard {
+    margin-top: 0.55rem;
+    padding-top: 0.55rem;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.subcard .actions { align-items: center; }
+.hint { margin: 0; font-size: 0.78rem; color: var(--text-muted); }
+.muted { color: var(--text-muted); font-style: normal; font-size: 0.78rem; margin-left: 0.3rem; }
+.meta-line {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.error {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 4px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.82rem;
+    margin: 0;
+}
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    align-items: center;
+}
+.saved-flash {
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin-right: auto;
+}
+.card-head .saved-flash { margin-right: 0; }
+.ghost,
+.primary {
+    padding: 0.4rem 0.85rem;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+.ghost:not(:disabled):hover { background: var(--bg-surface-hover); }
+.primary {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: 1px solid var(--accent);
+}
+.primary:disabled,
+.ghost:disabled { opacity: 0.5; cursor: default; }

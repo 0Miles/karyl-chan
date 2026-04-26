@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import AppModal from '../../../components/AppModal.vue';
+import AppModal from '../../../../components/AppModal.vue';
 import {
     createGuildEmoji,
     createGuildSticker,
@@ -13,7 +13,7 @@ import {
     renameGuildEmoji,
     type GuildEmojiRow,
     type GuildStickerRow
-} from '../../../api/guilds';
+} from '../../../../api/guilds';
 
 const props = defineProps<{
     guildId: string | null;

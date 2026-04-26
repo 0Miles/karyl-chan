@@ -10,7 +10,7 @@ import {
 } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
 import { useI18n } from 'vue-i18n';
-import GuildAutoModEditModal from '../GuildAutoModEditModal.vue';
+import GuildAutoModEditModal from './GuildAutoModEditModal.vue';
 
 const props = defineProps<{
     guildId: string;

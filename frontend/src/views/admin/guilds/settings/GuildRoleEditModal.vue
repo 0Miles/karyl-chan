@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import AppModal from '../../../components/AppModal.vue';
+import AppModal from '../../../../components/AppModal.vue';
 import {
     createGuildRole,
     editGuildRole,
     type GuildRoleSummary,
     type RoleEditPayload
-} from '../../../api/guilds';
+} from '../../../../api/guilds';
 
 const props = defineProps<{
     visible: boolean;
