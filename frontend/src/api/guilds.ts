@@ -194,6 +194,10 @@ export interface GuildRoleSummary {
     memberCount?: number;
     hoist?: boolean;
     managed?: boolean;
+    /** Discord permission bitfield as a base-10 string (always present
+     *  from the new /api/guilds/:id/roles payload — older callers may
+     *  see it missing). */
+    permissions?: string;
 }
 
 export interface GuildChannelMember {

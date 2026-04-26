@@ -398,7 +398,11 @@ export async function registerGuildChannelRoutes(server: FastifyInstance, option
                     // naturally on subsequent loads.
                     memberCount: r.members.size,
                     hoist: r.hoist,
-                    managed: r.managed
+                    managed: r.managed,
+                    // Permissions as a bigint string so the editor can
+                    // pre-populate every checkbox; sending a Number would
+                    // lose the high bits (Discord uses up to 2^48+).
+                    permissions: r.permissions.bitfield.toString()
                 }));
             return { roles };
         }
