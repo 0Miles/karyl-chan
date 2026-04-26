@@ -406,6 +406,61 @@
             "reason": "原因:",
             "changes": "{count} 項變更",
             "actionLoadFailed": "無法載入紀錄"
+        },
+        "automod": {
+            "title": "AutoMod 規則",
+            "empty": "尚未設定任何 AutoMod 規則。",
+            "create": "新增規則",
+            "enabled": "啟用",
+            "disabled": "停用",
+            "trigger": {
+                "1": "關鍵字過濾",
+                "3": "垃圾訊息偵測",
+                "4": "關鍵字預設",
+                "5": "提及洪水",
+                "6": "成員資料"
+            },
+            "preset": {
+                "1": "髒話",
+                "2": "性內容",
+                "3": "歧視語"
+            },
+            "action": {
+                "1": "封鎖訊息",
+                "2": "發送提醒",
+                "3": "禁言"
+            },
+            "actionsCount": "{count} 個動作",
+            "edit": "編輯",
+            "delete": "刪除",
+            "deleteConfirm": "確定刪除規則「{name}」?",
+            "modalNew": "新增 AutoMod 規則",
+            "modalEdit": "編輯規則",
+            "fieldName": "名稱",
+            "fieldTriggerType": "觸發類型",
+            "fieldTriggerImmutable": "觸發類型在建立後不可變更。",
+            "fieldKeywords": "關鍵字 (以逗號分隔)",
+            "fieldKeywordsHint": "最多 1,000 個項目;* 在字詞邊界匹配任意字元。",
+            "fieldRegex": "正規表達式 (每行一條)",
+            "fieldAllowList": "白名單 (以逗號分隔)",
+            "fieldPresets": "預設類別",
+            "fieldMentionLimit": "每則訊息最多獨立提及數",
+            "fieldMentionRaid": "啟用突襲防護",
+            "fieldActions": "動作",
+            "actionAdd": "新增動作",
+            "actionType": "類型",
+            "actionChannel": "提醒頻道",
+            "actionDuration": "禁言時長 (秒,≤2,419,200)",
+            "actionCustomMsg": "自訂訊息",
+            "fieldExemptRoles": "排除身分組 (以逗號分隔的 ID)",
+            "fieldExemptChannels": "排除頻道 (以逗號分隔的 ID)",
+            "save": "儲存規則",
+            "cancel": "取消",
+            "saving": "儲存中…",
+            "saveFailed": "儲存失敗",
+            "loadFailed": "無法載入 AutoMod 規則",
+            "needsName": "名稱必填",
+            "needsAction": "至少需要一個動作"
         }
     },
     "quickSwitcher": {

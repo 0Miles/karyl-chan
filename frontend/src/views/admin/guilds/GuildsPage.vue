@@ -29,6 +29,7 @@ import GuildSettingsSection from './sections/GuildSettingsSection.vue';
 import GuildMembersSection from './sections/GuildMembersSection.vue';
 import GuildBansSection from './sections/GuildBansSection.vue';
 import GuildAuditLogSection from './sections/GuildAuditLogSection.vue';
+import GuildAutoModSection from './sections/GuildAutoModSection.vue';
 
 const { t: $t } = useI18n();
 
@@ -271,6 +272,7 @@ onMounted(refresh);
                     <div v-else-if="activeTab === 'people'" class="stack">
                         <GuildMembersSection :guild-id="selectedId!" />
                         <GuildBansSection :guild-id="selectedId!" />
+                        <GuildAutoModSection :guild-id="selectedId!" />
                         <GuildAuditLogSection :guild-id="selectedId!" />
                     </div>
 

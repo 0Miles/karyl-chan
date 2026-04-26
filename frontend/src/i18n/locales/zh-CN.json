@@ -406,6 +406,61 @@
             "reason": "原因:",
             "changes": "{count} 项变更",
             "actionLoadFailed": "无法加载日志"
+        },
+        "automod": {
+            "title": "AutoMod 规则",
+            "empty": "尚未设置任何 AutoMod 规则。",
+            "create": "新建规则",
+            "enabled": "启用",
+            "disabled": "停用",
+            "trigger": {
+                "1": "关键字过滤",
+                "3": "垃圾消息检测",
+                "4": "关键字预设",
+                "5": "提及洪水",
+                "6": "成员资料"
+            },
+            "preset": {
+                "1": "脏话",
+                "2": "性内容",
+                "3": "歧视语"
+            },
+            "action": {
+                "1": "屏蔽消息",
+                "2": "发送提醒",
+                "3": "禁言"
+            },
+            "actionsCount": "{count} 个动作",
+            "edit": "编辑",
+            "delete": "删除",
+            "deleteConfirm": "确定删除规则「{name}」?",
+            "modalNew": "新建 AutoMod 规则",
+            "modalEdit": "编辑规则",
+            "fieldName": "名称",
+            "fieldTriggerType": "触发类型",
+            "fieldTriggerImmutable": "触发类型在创建后不可更改。",
+            "fieldKeywords": "关键字(逗号分隔)",
+            "fieldKeywordsHint": "最多 1,000 项;* 在词边界匹配任意字符。",
+            "fieldRegex": "正则表达式(每行一条)",
+            "fieldAllowList": "白名单(逗号分隔)",
+            "fieldPresets": "预设类别",
+            "fieldMentionLimit": "每条消息最多独立提及数",
+            "fieldMentionRaid": "启用突袭防护",
+            "fieldActions": "动作",
+            "actionAdd": "新增动作",
+            "actionType": "类型",
+            "actionChannel": "提醒频道",
+            "actionDuration": "禁言时长(秒,≤2,419,200)",
+            "actionCustomMsg": "自定义消息",
+            "fieldExemptRoles": "排除身份组(逗号分隔 ID)",
+            "fieldExemptChannels": "排除频道(逗号分隔 ID)",
+            "save": "保存规则",
+            "cancel": "取消",
+            "saving": "保存中…",
+            "saveFailed": "保存失败",
+            "loadFailed": "无法加载 AutoMod 规则",
+            "needsName": "名称必填",
+            "needsAction": "至少需要一个动作"
         }
     },
     "quickSwitcher": {

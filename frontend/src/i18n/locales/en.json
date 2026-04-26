@@ -406,6 +406,61 @@
             "reason": "Reason:",
             "changes": "{count} changes",
             "actionLoadFailed": "Failed to load entries"
+        },
+        "automod": {
+            "title": "AutoMod rules",
+            "empty": "No AutoMod rules configured.",
+            "create": "New rule",
+            "enabled": "Enabled",
+            "disabled": "Disabled",
+            "trigger": {
+                "1": "Keyword filter",
+                "3": "Spam detection",
+                "4": "Keyword preset",
+                "5": "Mention spam",
+                "6": "Member profile"
+            },
+            "preset": {
+                "1": "Profanity",
+                "2": "Sexual content",
+                "3": "Slurs"
+            },
+            "action": {
+                "1": "Block message",
+                "2": "Send alert",
+                "3": "Timeout"
+            },
+            "actionsCount": "{count} actions",
+            "edit": "Edit",
+            "delete": "Delete",
+            "deleteConfirm": "Delete rule \"{name}\"?",
+            "modalNew": "New AutoMod rule",
+            "modalEdit": "Edit rule",
+            "fieldName": "Name",
+            "fieldTriggerType": "Trigger type",
+            "fieldTriggerImmutable": "Trigger type can't be changed after creation.",
+            "fieldKeywords": "Keywords (comma-separated)",
+            "fieldKeywordsHint": "Up to 1,000 entries; * matches any chars at word boundaries.",
+            "fieldRegex": "Regex patterns (one per line)",
+            "fieldAllowList": "Allow-list (comma-separated)",
+            "fieldPresets": "Preset categories",
+            "fieldMentionLimit": "Max unique mentions per message",
+            "fieldMentionRaid": "Enable raid-protection",
+            "fieldActions": "Actions",
+            "actionAdd": "Add action",
+            "actionType": "Type",
+            "actionChannel": "Alert channel",
+            "actionDuration": "Timeout duration (seconds, ≤2,419,200)",
+            "actionCustomMsg": "Custom message",
+            "fieldExemptRoles": "Exempt roles (comma-separated IDs)",
+            "fieldExemptChannels": "Exempt channels (comma-separated IDs)",
+            "save": "Save rule",
+            "cancel": "Cancel",
+            "saving": "Saving…",
+            "saveFailed": "Save failed",
+            "loadFailed": "Failed to load AutoMod rules",
+            "needsName": "Name is required",
+            "needsAction": "At least one action is required"
         }
     },
     "quickSwitcher": {
