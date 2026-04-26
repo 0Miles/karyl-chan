@@ -327,7 +327,7 @@
         "title": "Guilds",
         "empty": "Bot isn't in any guild.",
         "selectGuild": "Select a guild.",
-        "members": "{count} members",
+        "memberCount": "{count} members",
         "joined": "joined {date}",
         "tabs": {
             "overview": "Overview",

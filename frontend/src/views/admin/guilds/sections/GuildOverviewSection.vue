@@ -44,7 +44,7 @@ const rolesCount = computed(() => props.roles.length);
             <div class="hero-meta">
                 <h2>{{ detail.guild.name }}</h2>
                 <p class="meta-line">
-                    <span>{{ $t('guilds.members', { count: detail.guild.memberCount }) }}</span>
+                    <span>{{ $t('guilds.memberCount', { count: detail.guild.memberCount }) }}</span>
                     <span>· {{ $t('guilds.joined', { date: formatDate(detail.guild.joinedAt) }) }}</span>
                     <span>· {{ $t('guilds.idLabel') }} <code>{{ detail.guild.id }}</code></span>
                 </p>

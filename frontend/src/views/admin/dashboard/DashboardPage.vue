@@ -262,7 +262,7 @@ onUnmounted(() => {
                             <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
                             <div class="meta">
                                 <div class="name">{{ g.name }}</div>
-                                <div class="sub">{{ $t('guilds.members', { count: g.memberCount }) }}</div>
+                                <div class="sub">{{ $t('guilds.memberCount', { count: g.memberCount }) }}</div>
                             </div>
                         </RouterLink>
                     </li>

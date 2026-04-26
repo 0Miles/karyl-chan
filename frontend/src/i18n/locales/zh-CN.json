@@ -327,7 +327,7 @@
         "title": "服务器",
         "empty": "机器人尚未加入任何服务器。",
         "selectGuild": "请选择一个服务器。",
-        "members": "{count} 位成员",
+        "memberCount": "{count} 位成员",
         "joined": "加入于 {date}",
         "tabs": {
             "overview": "概览",

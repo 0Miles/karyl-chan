@@ -327,7 +327,7 @@
         "title": "伺服器",
         "empty": "機器人尚未加入任何伺服器。",
         "selectGuild": "請選擇一個伺服器。",
-        "members": "{count} 位成員",
+        "memberCount": "{count} 位成員",
         "joined": "加入於 {date}",
         "tabs": {
             "overview": "總覽",
