@@ -329,6 +329,7 @@ function subLinkTo(key: string) {
     padding-bottom: 0.5rem;
     overflow-x: auto;
     scrollbar-width: thin;
+    flex-shrink: 0;
 }
 .tab {
     background: var(--bg-surface-2);
@@ -365,6 +366,7 @@ function subLinkTo(key: string) {
     overflow-x: auto;
     scrollbar-width: thin;
     margin-top: -0.3rem;
+    flex-shrink: 0;
 }
 .sub-tab {
     background: none;

@@ -50,7 +50,10 @@ defineProps<{
     flex-wrap: wrap;
 }
 .content {
+    flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 @media (max-width: 768px) {
