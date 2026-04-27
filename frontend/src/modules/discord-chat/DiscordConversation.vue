@@ -16,7 +16,7 @@ import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
 import { useUnreadStore, markerGreater } from './stores/unreadStore';
-import { useTypingStore } from './stores/typingStore';
+import { useTypingIndicator } from './useTypingIndicator';
 import { useMuteControl } from './useMuteControl';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
@@ -165,28 +165,7 @@ watch(() => props.channelId, () => {
 });
 
 // Typing indicator: pull users actively typing in the current channel.
-// activeIn() prunes stale entries on every read so we don't need our
-// own setInterval to keep the list tidy.
-const typingStore = useTypingStore();
-const typingNames = computed<string[]>(() => {
-    if (!props.channelId) return [];
-    return typingStore.activeIn(props.channelId).map(t => t.userName);
-});
-// `now` ticks every second so activeIn is re-evaluated and stale
-// typers fade out without further server input.
-const typingNow = ref(Date.now());
-let typingTicker: ReturnType<typeof setInterval> | null = null;
-onMounted(() => { typingTicker = setInterval(() => { typingNow.value = Date.now(); }, 1000); });
-onBeforeUnmount(() => { if (typingTicker) clearInterval(typingTicker); });
-// Force computed re-eval by reading typingNow inside.
-const typingLabel = computed<string | null>(() => {
-    void typingNow.value;
-    const names = typingNames.value;
-    if (names.length === 0) return null;
-    if (names.length === 1) return $t('messages.typingOne', { name: names[0] });
-    if (names.length === 2) return $t('messages.typingTwo', { a: names[0], b: names[1] });
-    return $t('messages.typingMany', { name: names[0], count: names.length - 1 });
-});
+const { typingLabel } = useTypingIndicator(toRef(props, 'channelId'));
 
 // Index of the first message strictly newer than the unread divider
 // marker for the current channel. Returns -1 when the channel has no
