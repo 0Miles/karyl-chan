@@ -1,4 +1,4 @@
-FROM node:24-trixie-slim AS frontend-build
+FROM node:22-trixie-slim AS frontend-build
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY frontend/ frontend/
 RUN cd frontend && npm run build
 
 
-FROM node:24-trixie-slim AS backend-build
+FROM node:22-trixie-slim AS backend-build
 
 WORKDIR /usr/src/app
 
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 
-FROM node:24-trixie-slim AS runtime
+FROM node:22-trixie-slim AS runtime
 
 WORKDIR /usr/src/app
 
