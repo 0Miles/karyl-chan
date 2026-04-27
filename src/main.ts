@@ -39,12 +39,16 @@ export const bot = new Client({
 });
 
 bot.once("ready", async () => {
+  const userTag = bot.user?.tag ?? "unknown";
+  const userId = bot.user?.id ?? "unknown";
+  await bot.guilds.fetch();
+  const guildCount = bot.guilds.cache.size;
   botEventLog.record(
     "info",
     "bot",
-    `Logged in as ${bot.user?.tag ?? "unknown"}`,
+    `Bot ready: ${userTag}`,
+    { userTag, userId, guildCount },
   );
-  await bot.guilds.fetch();
   await bot.initApplicationCommands();
 
   // Pre-cache the owner's DM channel. discord.js silently drops
@@ -58,6 +62,14 @@ bot.once("ready", async () => {
       await owner.createDM();
     } catch (err) {
       console.error("Failed to cache owner DM channel:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      const errorType = err instanceof Error ? err.constructor.name : "unknown";
+      botEventLog.record(
+        "warn",
+        "bot",
+        `Failed to cache owner DM channel: ${msg}`,
+        { ownerId, errorType },
+      );
     }
   }
 
@@ -65,12 +77,19 @@ bot.once("ready", async () => {
 });
 
 bot.on("guildCreate", async (guild) => {
-  botEventLog.record("info", "bot", `Joined guild: ${guild.name}`);
+  botEventLog.record("info", "bot", `Joined guild: ${guild.name}`, {
+    guildId: guild.id,
+    guildName: guild.name,
+    memberCount: guild.memberCount,
+  });
   await bot.initApplicationCommands();
 });
 
 bot.on("guildDelete", (guild) => {
-  botEventLog.record("info", "bot", `Left guild: ${guild.name}`);
+  botEventLog.record("info", "bot", `Left guild: ${guild.name}`, {
+    guildId: guild.id,
+    guildName: guild.name,
+  });
 });
 
 bot.on("interactionCreate", async (interaction: Interaction) => {
@@ -134,7 +153,15 @@ async function run() {
     // to be idempotent / guard against already-applied changes so
     // fresh-sync'd DBs don't trip over them.
     await sequelize.sync();
-    await runPendingMigrations();
+    const migrations = await runPendingMigrations();
+    if (migrations.length > 0) {
+      botEventLog.record(
+        "info",
+        "bot",
+        `Migrations applied: ${migrations.length}`,
+        { migrationNames: migrations.map((m) => m.name) },
+      );
+    }
 
     // Register process-level error handlers only after migrations have run
     // so bot_events table is guaranteed to exist before we attempt to write to it.
@@ -163,18 +190,38 @@ async function run() {
     await authStore.init();
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
-    webServer = await startWebServer({ port: webPort, bot, dmInbox: dmInboxService });
-    botEventLog.record("info", "web", `Web server started on :${webPort}`);
+    const webHost = process.env.WEB_HOST ?? "0.0.0.0";
+    webServer = await startWebServer({ port: webPort, host: webHost, bot, dmInbox: dmInboxService });
+    const isHttps = !!(process.env.SSL_CERT_PATH?.trim() && process.env.SSL_KEY_PATH?.trim());
+    botEventLog.record("info", "web", `Web server started on :${webPort}`, {
+      port: webPort,
+      https: isHttps,
+      host: webHost,
+    });
     console.log(`Web server listening on :${webPort}`);
 
     await bot.login(process.env.BOT_TOKEN ?? "");
   } catch (ex) {
     console.error(ex);
+    const msg = ex instanceof Error ? ex.message : String(ex);
+    const errorType = ex instanceof Error ? ex.constructor.name : "unknown";
+    botEventLog.record(
+      "error",
+      "web",
+      `Startup failed: ${msg}`,
+      { phase: "main", errorType },
+    );
     resetBot();
   }
 }
 
-async function resetBot() {
+async function resetBot(reason = "unknown") {
+  botEventLog.record(
+    "error",
+    "bot",
+    `Bot reset triggered: ${reason}`,
+    { phase: "startup" },
+  );
   bot.destroy();
   if (webServer) {
     await webServer.close();

@@ -3,6 +3,7 @@ import type { ArgsOf, Client } from 'discordx';
 import { Discord, On } from 'discordx';
 import { findRoleReceiveMessage } from '../models/role-receive-message.model.js';
 import { findRoleEmojiInGroup } from '../models/role-emoji.model.js';
+import { botEventLog } from '../web/bot-event-log.js';
 
 /**
  * Hydrate a partial reaction (and its parent message) before we read
@@ -74,7 +75,25 @@ export class RoleEmojiEvents {
             // round-trips to Discord on a miss, so it works either way.
             const member = await hydrated.message.guild?.members.fetch(user.id).catch(() => null);
             if (!member) return;
-            await member.roles.add(role);
+            try {
+                await member.roles.add(role);
+                botEventLog.record('info', 'feature', `Role auto-granted via reaction: ${role.name}`, {
+                    guildId: hydrated.message.guildId,
+                    channelId: hydrated.message.channelId,
+                    messageId: hydrated.message.id,
+                    userId: user.id,
+                    roleId: role.id,
+                    emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? '',
+                });
+            } catch (roleErr) {
+                botEventLog.record('error', 'feature', `Role grant/revoke failed: ${(roleErr as Error).message}`, {
+                    guildId: hydrated.message.guildId,
+                    userId: user.id,
+                    roleId: role.id,
+                    action: 'add',
+                });
+                throw roleErr;
+            }
         } catch (ex) {
             console.error('role-emoji messageReactionAdd failed:', ex);
         }
@@ -90,7 +109,25 @@ export class RoleEmojiEvents {
             if (!role) return;
             const member = await hydrated.message.guild?.members.fetch(user.id).catch(() => null);
             if (!member) return;
-            await member.roles.remove(role);
+            try {
+                await member.roles.remove(role);
+                botEventLog.record('info', 'feature', `Role auto-revoked via reaction: ${role.name}`, {
+                    guildId: hydrated.message.guildId,
+                    channelId: hydrated.message.channelId,
+                    messageId: hydrated.message.id,
+                    userId: user.id,
+                    roleId: role.id,
+                    emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? '',
+                });
+            } catch (roleErr) {
+                botEventLog.record('error', 'feature', `Role grant/revoke failed: ${(roleErr as Error).message}`, {
+                    guildId: hydrated.message.guildId,
+                    userId: user.id,
+                    roleId: role.id,
+                    action: 'remove',
+                });
+                throw roleErr;
+            }
         } catch (ex) {
             console.error('role-emoji messageReactionRemove failed:', ex);
         }

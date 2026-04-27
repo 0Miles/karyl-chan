@@ -64,6 +64,8 @@ import { registerAdminManagementRoutes } from "./admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { requireAnyCapability } from "./route-guards.js";
+import { botEventLog } from "./bot-event-log.js";
+import { shouldRecord } from "./bot-event-dedup.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -191,6 +193,12 @@ export async function createWebServer(
     // authorized_users → admin_role_capabilities join.
     const capabilities = await resolveUserCapabilities(userId, ownerId);
     if (capabilities.size === 0) {
+      botEventLog.record(
+        "warn",
+        "auth",
+        `Authenticated user lacks all capabilities: ${userId}`,
+        { userId, path: request.url },
+      );
       reply.code(403).send({ error: "Forbidden" });
       return;
     }
@@ -274,6 +282,15 @@ export async function createWebServer(
         return;
       }
       if (loginRateLimiter.isRateLimited(clientKey(request))) {
+        const ip = clientKey(request);
+        if (shouldRecord(`rateLimit:${ip}:/api/auth/exchange`)) {
+          botEventLog.record(
+            "warn",
+            "auth",
+            "Auth rate-limit hit: /api/auth/exchange",
+            { endpoint: "/api/auth/exchange", ip },
+          );
+        }
         reply.code(429).send({ error: "Too many attempts, slow down" });
         return;
       }
@@ -291,6 +308,15 @@ export async function createWebServer(
       // useful distinction.
       const claims = jwt.verify(loginToken, { purpose: "login" });
       if (!claims) {
+        const ip = clientKey(request);
+        if (shouldRecord(`jwtReject:${ip}`)) {
+          botEventLog.record(
+            "warn",
+            "auth",
+            "Login token rejected (invalid/expired)",
+            { ip },
+          );
+        }
         reply.code(401).send({ error: "Invalid or expired token" });
         return;
       }
@@ -309,11 +335,34 @@ export async function createWebServer(
           },
           "auth.exchange: token user no longer authorized",
         );
+        botEventLog.record(
+          "warn",
+          "auth",
+          `Login attempt by deauthorized user: ${claims.userId}`,
+          {
+            userId: claims.userId,
+            guildId: claims.guildId,
+            channelId: claims.channelId,
+            messageId: claims.messageId,
+          },
+        );
         reply.code(401).send({ error: "User no longer authorized" });
         return;
       }
       try {
-        return await auth.issueTokens(claims.userId);
+        const tokens = await auth.issueTokens(claims.userId);
+        botEventLog.record(
+          "info",
+          "auth",
+          `Admin login: ${claims.userId} role=${role}`,
+          {
+            userId: claims.userId,
+            role,
+            guildId: claims.guildId,
+            channelId: claims.channelId,
+          },
+        );
+        return tokens;
       } catch (err) {
         // Most plausible cause is the SQLite refresh-token persistence
         // throwing — log the full stack at error level so it shows up
@@ -321,6 +370,12 @@ export async function createWebServer(
         // message to the client instead of fastify's bare 500.
         const detail = err instanceof Error ? err.message : String(err);
         request.log.error({ err }, "auth.exchange: issueTokens failed");
+        botEventLog.record(
+          "error",
+          "auth",
+          `Token issuance failed: ${detail}`,
+          { userId: claims.userId },
+        );
         reply.code(500).send({ error: `issueTokens failed: ${detail}` });
       }
     },
@@ -334,6 +389,15 @@ export async function createWebServer(
         return;
       }
       if (refreshRateLimiter.isRateLimited(clientKey(request))) {
+        const ip = clientKey(request);
+        if (shouldRecord(`rateLimit:${ip}:/api/auth/refresh`)) {
+          botEventLog.record(
+            "warn",
+            "auth",
+            "Auth rate-limit hit: /api/auth/refresh",
+            { endpoint: "/api/auth/refresh", ip },
+          );
+        }
         reply.code(429).send({ error: "Too many refresh attempts, slow down" });
         return;
       }
@@ -386,13 +450,24 @@ export async function createWebServer(
         typeof request.body?.refreshToken === "string"
           ? request.body.refreshToken
           : null;
+      const refreshRevoked = !!refreshToken;
       if (refreshToken) await auth.revokeRefresh(refreshToken);
       // Revoke the presented access token too. Access tokens live in
       // memory (not JWTs), so we can actually invalidate them rather
       // than waiting for TTL. The Authorization header arrives even
       // though /api/auth/* is excluded from the hook.
       const header = request.headers.authorization;
-      if (header?.startsWith("Bearer ")) auth.revokeAccess(header.slice(7));
+      const accessToken = header?.startsWith("Bearer ") ? header.slice(7) : null;
+      const userId = accessToken ? auth.verifyAccessToken(accessToken) : null;
+      if (accessToken) auth.revokeAccess(accessToken);
+      if (userId) {
+        botEventLog.record(
+          "info",
+          "auth",
+          `Admin logout: ${userId}`,
+          { userId, refreshRevoked },
+        );
+      }
       reply.code(204).send();
     },
   );

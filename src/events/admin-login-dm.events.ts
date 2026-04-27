@@ -3,6 +3,7 @@ import { Discord, On } from 'discordx';
 import { ChannelType } from 'discord.js';
 import { jwtService } from '../web/jwt.service.js';
 import { resolveLoginRole } from '../web/authorized-user.service.js';
+import { botEventLog } from '../web/bot-event-log.js';
 
 // Full-message match — trimmed content must be exactly "login" (or
 // "!login"). The old \b variant triggered on "loginwithus" or any prose
@@ -50,8 +51,18 @@ export class AdminLoginDmEvents {
             await message.reply(
                 `Login link (role: ${role}, expires in ~${minutes} min):\n${url}`
             );
+            botEventLog.record('info', 'feature', `Admin login link issued to ${message.author.tag}`, {
+                userId: message.author.id,
+                role,
+                expiresAt,
+                guildId: message.guild?.id ?? null,
+                channelId: message.channel.id,
+            });
         } catch (ex) {
             console.error('admin-login-dm failed:', ex);
+            botEventLog.record('error', 'feature', `Admin login DM failed: ${(ex as Error).message}`, {
+                userId: message.author.id,
+            });
         }
     }
 }

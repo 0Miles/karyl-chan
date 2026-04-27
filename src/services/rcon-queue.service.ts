@@ -2,6 +2,8 @@ import { Message, TextChannel } from 'discord.js';
 import { RconConnectionService, type RconConnection } from './rcon-connection.service.js';
 import { RateLimiter } from '../utils/rate-limiter.js';
 import { FAILED_COLOR } from '../utils/constant.js';
+import { botEventLog } from '../web/bot-event-log.js';
+import { shouldRecord } from '../web/bot-event-dedup.js';
 
 export class RconQueueService {
     private static rateLimiter = new RateLimiter();
@@ -29,6 +31,12 @@ export class RconQueueService {
                         description: `請稍後再試。每分鐘最多可發送 ${this.rateLimiter.maxCommandsPerWindow} 條指令。`
                     }]
                 });
+                if (shouldRecord(`rcon-rate:${message.channelId}`)) {
+                    botEventLog.record('warn', 'feature', `RCON rate limit hit on channel ${message.channelId}`, {
+                        channelId: message.channelId,
+                        guildId: message.guildId,
+                    });
+                }
                 return;
             }
 
@@ -67,6 +75,11 @@ export class RconQueueService {
                         title: 'Queue Full',
                         description: '指令佇列已滿，請稍後再試。'
                     }]
+                });
+                botEventLog.record('warn', 'feature', 'RCON queue full', {
+                    host: connection.host,
+                    port: connection.port,
+                    channelId: message.channelId,
                 });
             }
         } catch (error) {

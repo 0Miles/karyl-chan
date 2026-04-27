@@ -4,6 +4,7 @@ import { ChannelType, type DMChannel, type MessageReaction, type PartialMessageR
 import { dmInboxService, type DmRecipient } from '../web/dm-inbox.service.js';
 import { dmEventBus } from '../web/dm-event-bus.js';
 import { avatarUrlFor, toApiMessage } from '../web/message-mapper.js';
+import { botEventLog } from '../web/bot-event-log.js';
 
 async function publishReactionUpdate(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser, client: Client): Promise<void> {
     const channel = reaction.message.channel;
@@ -48,17 +49,35 @@ export class DmInboxEvents {
     async ready([client]: ArgsOf<'ready'>): Promise<void> {
         try {
             const summaries = await dmInboxService.listChannels();
+            const totalCount = summaries.length;
+            let syncedCount = 0;
+            let skippedCount = 0;
             for (const summary of summaries) {
                 try {
                     const channel = await client.channels.fetch(summary.id).catch(() => null);
-                    if (!channel || channel.type !== ChannelType.DM) continue;
+                    if (!channel || channel.type !== ChannelType.DM) {
+                        skippedCount++;
+                        continue;
+                    }
                     const latest = (channel as DMChannel).lastMessageId;
                     if (latest && latest !== summary.lastMessageId) {
                         await dmInboxService.updateLatestMessageId(summary.id, latest);
+                        syncedCount++;
+                    } else {
+                        skippedCount++;
                     }
                 } catch (err) {
                     console.warn('dm-inbox ready sync skip:', summary.id, err);
+                    skippedCount++;
                 }
+            }
+            if (syncedCount > 0) {
+                botEventLog.record(
+                    'info',
+                    'bot',
+                    `DM inbox sync complete: ${syncedCount}/${totalCount} channels`,
+                    { totalCount, syncedCount, skippedCount },
+                );
             }
         } catch (err) {
             console.error('dm-inbox ready sync failed:', err);

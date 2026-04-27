@@ -6,6 +6,8 @@ import { RconQueueService } from '../services/rcon-queue.service.js';
 import { RconConnectionService } from '../services/rcon-connection.service.js';
 import { decryptSecret } from '../utils/crypto.js';
 import { hasCapability } from '../permission/permission.service.js';
+import { botEventLog } from '../web/bot-event-log.js';
+import { shouldRecord } from '../web/bot-event-dedup.js';
 
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -53,6 +55,13 @@ export class RconForwardChannelEvents {
 
                 if (!(await hasCapability(message.guild, message.member, 'rcon.execute'))) {
                     console.log(`rcon.execute denied: user=${message.author.id} channel=${message.channelId}`);
+                    if (shouldRecord(`rcon-deny:${message.author.id}`)) {
+                        botEventLog.record('warn', 'feature', `RCON forward denied (no capability): ${message.author.id}`, {
+                            guildId: message.guildId,
+                            channelId: message.channelId,
+                            userId: message.author.id,
+                        });
+                    }
                     return;
                 }
 

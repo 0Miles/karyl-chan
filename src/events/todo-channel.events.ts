@@ -3,6 +3,7 @@ import type { ArgsOf, Client } from 'discordx';
 import { Discord, On } from 'discordx';
 import { findTodoChannel } from '../models/todo-channel.model.js'
 import { addTodoMessage, removeTodoMessage, findChannelTodoMessages } from '../models/todo-message.model.js';
+import { botEventLog } from '../web/bot-event-log.js';
 
 /**
  * Hydrate a partial reaction (and its parent message) before any code
@@ -44,6 +45,11 @@ async function loadTodoMessage(message: Message) {
                 return await message.channel.messages.fetch({ message: x.getDataValue('messageId') });
             } catch (error) {
                 await removeTodoMessage(x.getDataValue('guildId'), x.getDataValue('channelId'), x.getDataValue('messageId'));
+                botEventLog.record('info', 'feature', 'Orphan todo message pruned', {
+                    guildId: x.getDataValue('guildId') as string,
+                    channelId: x.getDataValue('channelId') as string,
+                    messageId: x.getDataValue('messageId') as string,
+                });
                 throw error;
             }
         })
@@ -83,6 +89,11 @@ export class TodoChannelEvents {
                             }
                         } catch (ex) {
                             console.error(ex);
+                            botEventLog.record('error', 'feature', `Todo rotation failed: ${(ex as Error).message}`, {
+                                guildId: eachMessage.guildId,
+                                channelId: eachMessage.channelId,
+                                messageId: eachMessage.id,
+                            });
                         }
                     }
                     await message.delete();

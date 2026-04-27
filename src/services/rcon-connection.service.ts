@@ -2,6 +2,7 @@ import { TextChannel } from 'discord.js';
 import Rcon from 'rcon';
 import { DEFAULT_COLOR, FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
 import { assertAllowedTarget, HostPolicyError } from '../utils/host-policy.js';
+import { botEventLog } from '../web/bot-event-log.js';
 
 export interface RconConnection {
     conn: Rcon;
@@ -96,6 +97,13 @@ export class RconConnectionService {
             return true;
         } catch (error) {
             console.error(`Connection init failed for ${connectionName}:`, error);
+            botEventLog.record('error', 'feature', `RCON connection failed: ${host}:${port} — ${(error as Error).message}`, {
+                host,
+                port,
+                errorType: error instanceof HostPolicyError
+                    ? 'HostPolicyError'
+                    : (error instanceof Error && error.message.includes('超時')) ? 'timeout' : 'other',
+            });
             const userMessage = error instanceof HostPolicyError
                 ? error.message
                 : '無法建立連接，請確認 host/port 設定是否正確。';
@@ -146,6 +154,10 @@ export class RconConnectionService {
                 connection.authenticated = true;
                 connection.reconnectAttempts = 0;
                 this.processQueuedCommands(connectionName);
+                botEventLog.record('info', 'feature', `RCON connected: ${host}:${port}`, {
+                    host,
+                    port,
+                });
             })
             .on('response', (str: string) => {
                 console.log(`Received response from ${connectionName} (${str?.length ?? 0} bytes)`);
@@ -269,6 +281,11 @@ export class RconConnectionService {
                             console.error(`無法發送連接失敗通知到頻道 ${channel.id}:`, error);
                         }
                     }
+                    botEventLog.record('error', 'feature', `RCON reconnect exhausted: ${host}:${port}`, {
+                        host,
+                        port,
+                        attempts: connection.reconnectAttempts,
+                    });
                     await this.handleConnectionEnd(connectionName);
                 }
             }

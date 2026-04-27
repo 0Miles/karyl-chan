@@ -9,6 +9,7 @@ import {
     type AdminCapability,
     type GlobalCapability
 } from '../permission/admin-capabilities.js';
+import { botEventLog } from './bot-event-log.js';
 
 export {
     GLOBAL_CAPABILITY_DESCRIPTIONS,
@@ -104,8 +105,15 @@ export async function auditStoredCapabilities(
         if (!isAdminCapability(cap)) unknown.add(cap);
     }
     if (unknown.size > 0) {
+        const unknownTokens = [...unknown];
         logger.warn(
-            `admin_role_capabilities contains unknown tokens (silently ignored): ${[...unknown].join(', ')}`
+            `admin_role_capabilities contains unknown tokens (silently ignored): ${unknownTokens.join(', ')}`
+        );
+        botEventLog.record(
+            'warn',
+            'auth',
+            `Stranded capability tokens in DB: ${unknownTokens.join(',')}`,
+            { unknownTokens, count: unknownTokens.length },
         );
     }
 }
