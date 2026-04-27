@@ -294,8 +294,9 @@ const titleText = computed(() => {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
+    font-family: inherit;
+    line-height: inherit;
     cursor: pointer;
-    font: inherit;
 }
 .primary:disabled { opacity: 0.55; cursor: default; }
 .primary.danger {

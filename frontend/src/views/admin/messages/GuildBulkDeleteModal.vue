@@ -78,8 +78,9 @@ function submit() {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
+    font-family: inherit;
+    line-height: inherit;
     cursor: pointer;
-    font: inherit;
 }
 .primary.danger {
     background: var(--danger);

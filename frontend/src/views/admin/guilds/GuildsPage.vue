@@ -470,6 +470,7 @@ onMounted(refresh);
 .meta .sub { font-size: 0.75rem; color: var(--text-muted); }
 
 .detail {
+    flex: 1;
     padding: 1rem;
     box-sizing: border-box;
     display: flex;
