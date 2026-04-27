@@ -7,6 +7,7 @@ import { ProactiveFeaturesMenu } from '../dm-proactive-features';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
 import PinnedPanel from './PinnedPanel.vue';
+import MessageActionBar from './MessageActionBar.vue';
 import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
 import type { MediaSelection } from '../../libs/messages/picker/MediaPicker.vue';
 import { isContinuation } from '../../libs/messages/grouping';
@@ -401,43 +402,20 @@ const replyToProp = computed(() => props.replyTo);
                             @submit-edit="(content: string) => emit('submit-edit', message, content)"
                             @cancel-edit="emit('cancel-edit')"
                         />
-                        <div class="message-actions">
-                            <button
-                                :ref="(el) => setReactButton(message.id, el as HTMLButtonElement | null)"
-                                type="button"
-                                :class="['action', { active: reactingMessageId === message.id }]"
-                                :title="$t('messages.react')"
-                                @click="startReact(message.id)"
-                            >
-                                <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
-                            </button>
-                            <button type="button" class="action" :title="$t('messages.reply')" @click="emit('reply', message)">
-                                <Icon icon="material-symbols:reply-rounded" width="16" height="16" />
-                            </button>
-                            <template v-if="isOwn(message)">
-                                <button type="button" class="action" :title="$t('messages.edit')" @click="emit('request-edit', message)">
-                                    <Icon icon="material-symbols:edit-rounded" width="16" height="16" />
-                                </button>
-                            </template>
-                            <button
-                                type="button"
-                                :class="['action', { copied: copiedMessageId === message.id }]"
-                                :title="copiedMessageId === message.id ? $t('messages.copyLinkDone') : $t('messages.copyLink')"
-                                @click="copyMessageLink(message)"
-                            >
-                                <Icon :icon="copiedMessageId === message.id ? 'material-symbols:check-rounded' : 'material-symbols:link-rounded'" width="16" height="16" />
-                            </button>
-                            <template v-if="isOwn(message)">
-                                <button
-                                    type="button"
-                                    :class="['action', { danger: shiftHeld }]"
-                                    :title="shiftHeld ? $t('messages.deleteNoConfirm') : $t('messages.deleteShiftConfirm')"
-                                    @click="emit('delete', message, $event)"
-                                >
-                                    <Icon icon="material-symbols:delete-rounded" width="16" height="16" />
-                                </button>
-                            </template>
-                        </div>
+                        <MessageActionBar
+                            :message="message"
+                            :is-own="isOwn(message)"
+                            :shift-held="shiftHeld"
+                            :reacting="reactingMessageId === message.id"
+                            :copied="copiedMessageId === message.id"
+                            @react="startReact(message.id)"
+                            @reply="emit('reply', message)"
+                            @edit="emit('request-edit', message)"
+                            @copy-link="copyMessageLink(message)"
+                            @delete="(ev) => emit('delete', message, ev)"
+                            @register-react-button="(el) => setReactButton(message.id, el)"
+                            @unregister-react-button="setReactButton(message.id, null)"
+                        />
                     </div>
                 </DynamicScrollerItem>
             </template>
@@ -613,47 +591,11 @@ const replyToProp = computed(() => props.replyTo);
     60% { background-color: rgba(99, 150, 240, 0.2); }
     100% { background-color: transparent; }
 }
-.message-wrap:hover .message-actions,
-.message-actions:focus-within { opacity: 1; }
-.message-actions {
-    position: absolute;
-    top: 4px;
-    right: 12px;
-    display: flex;
-    gap: 0.2rem;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px;
-    opacity: 0;
-    transition: opacity 0.15s;
-    z-index: 2;
-}
-.action {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 3px;
-    color: var(--text);
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.action:hover { background: var(--bg-surface-hover); }
-.action.active {
-    background: var(--accent-bg);
-    color: var(--accent-text-strong);
-}
-.action.danger {
-    background: rgba(239, 68, 68, 0.18);
-    color: var(--danger);
-}
-.action.copied {
-    background: var(--accent-bg);
-    color: var(--accent-text-strong);
-}
+/* Hover trigger for the MessageActionBar sub-component. The opacity
+   transition lives inside MessageActionBar.vue; the parent drives the
+   visible state via :deep so the scoped boundary is respected. */
+.message-wrap:hover :deep(.message-actions),
+:deep(.message-actions:focus-within) { opacity: 1; }
 .composer-row {
     padding: 0.5rem 0.75rem;
 }
