@@ -690,7 +690,9 @@
         "replyPingOn": "停止 @ 原作者",
         "replyPingOff": "啟用 @ 原作者",
         "replyPingOnShort": "@",
-        "replyPingOffShort": "@?"
+        "replyPingOffShort": "@?",
+        "removeAttachment": "移除附件",
+        "removeSticker": "移除貼圖"
     },
     "dmProactiveFeatures": {
         "menuTitle": "Bot 主動功能",

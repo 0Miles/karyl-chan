@@ -443,12 +443,12 @@ watch(() => props.channelId, (newId, oldId) => {
                 >
                     <Icon :icon="attachmentSpoiler[idx] ? 'material-symbols:visibility-off-outline-rounded' : 'material-symbols:visibility-outline-rounded'" width="14" height="14" />
                 </button>
-                <button type="button" @click="removeAttachment(idx)">×</button>
+                <button type="button" :aria-label="$t('composer.removeAttachment')" @click="removeAttachment(idx)">×</button>
             </div>
             <div v-for="(sticker, idx) in pendingStickers" :key="'s' + sticker.id" class="chip sticker-chip">
                 <img :src="stickerPreview(sticker)" :alt="sticker.name" class="sticker-thumb" />
                 <span>{{ sticker.name }}</span>
-                <button type="button" @click="removeSticker(idx)">×</button>
+                <button type="button" :aria-label="$t('composer.removeSticker')" @click="removeSticker(idx)">×</button>
             </div>
         </div>
         <div v-if="suggestions.length" class="suggestions-pop">

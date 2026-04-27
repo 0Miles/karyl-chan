@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, toRef } from 'vue';
+import { computed, onMounted, onUnmounted, toRef, useId } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useBreakpoint } from '../composables/use-breakpoint';
 import { useDrawer } from '../composables/use-drawer';
@@ -43,6 +43,8 @@ const visibleRef = toRef(props, 'visible');
 const desktopVisible = computed(() => props.visible && !isMobile.value);
 const drawerVisible = computed(() => props.visible && isMobile.value);
 
+const titleId = useId();
+
 // Desktop Escape handler — useDrawer already covers the mobile branch
 // via its escape stack, so we only listen when the popover branch is
 // active. Listening unconditionally would let a single Escape close two
@@ -83,9 +85,11 @@ function onBackdropClick() {
                     role="dialog"
                     aria-modal="true"
                     :style="{ width }"
+                    :aria-labelledby="title || $slots.header ? titleId : undefined"
+                    :aria-label="title || $slots.header ? undefined : title || undefined"
                 >
                     <header v-if="title || $slots.header" class="app-modal-head">
-                        <span class="app-modal-title">
+                        <span :id="titleId" class="app-modal-title">
                             <slot name="header">{{ title }}</slot>
                         </span>
                         <button
@@ -119,9 +123,11 @@ function onBackdropClick() {
                 data-placement="bottom"
                 role="dialog"
                 aria-modal="true"
+                :aria-labelledby="title || $slots.header ? titleId : undefined"
+                :aria-label="title || $slots.header ? undefined : title || undefined"
             >
                 <header v-if="title || $slots.header" class="app-modal-drawer-head">
-                    <span class="app-modal-title">
+                    <span :id="titleId" class="app-modal-title">
                         <slot name="header">{{ title }}</slot>
                     </span>
                     <button
@@ -180,8 +186,12 @@ function onBackdropClick() {
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 0.2rem;
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .app-modal-close:hover { color: var(--text); }
 
