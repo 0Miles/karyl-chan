@@ -76,9 +76,15 @@ export function useWorkspace(opts: UseWorkspaceOptions): UseWorkspaceReturn {
                 const pick = remembered && params.availableIds.includes(remembered)
                     ? remembered
                     : params.availableIds[0];
-                // Queue the event so the machine finishes settling into
-                // `resolving` before we push a new selection at it.
-                queueMicrotask(() => send({ type: 'SELECT_CHANNEL', channelId: pick }));
+                // Send synchronously: xstate v5 queues events sent during an
+                // action and processes them after the current cycle, so the
+                // machine settles into `committed` before this call stack
+                // unwinds. That matters on remount — without it the first
+                // render runs with `selectedChannelId === null`, the
+                // DiscordConversation mounts an empty `DynamicScroller`, and
+                // the subsequent commit's key swap leaves the chat surface
+                // blank until the user manually picks a channel.
+                send({ type: 'SELECT_CHANNEL', channelId: pick });
             },
             tryScroll: (_args, params) => {
                 // Delegate to the caller's scroller-aware helper when

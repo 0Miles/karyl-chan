@@ -224,7 +224,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
         }
         if (id !== opts.channelId.value) return;
         await fillIfNoScrollbar();
-    });
+    }, { immediate: true });
 
     return {
         messages,
