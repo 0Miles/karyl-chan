@@ -9,6 +9,8 @@ const props = defineProps<{
     loading: boolean;
     permissionDenied: boolean;
     error?: string | null;
+    /** True only on the very first load — controls whether skeleton shows. */
+    isInitialLoad: boolean;
 }>();
 
 const { t } = useI18n();
@@ -93,8 +95,8 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
         <!-- No permission -->
         <p v-else-if="permissionDenied" class="no-perm">{{ $t('dashboard.noPermission') }}</p>
 
-        <!-- Loading skeleton -->
-        <div v-else-if="loading && !events.length" class="events-list">
+        <!-- Loading skeleton — only on initial load, not on refresh -->
+        <div v-else-if="isInitialLoad && loading && !events.length" class="events-list">
             <div v-for="i in 5" :key="i" class="event-row event-row--skel">
                 <div class="skel skel-level"></div>
                 <div class="event-body">

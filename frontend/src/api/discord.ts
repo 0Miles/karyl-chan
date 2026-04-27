@@ -1,7 +1,8 @@
 import { ApiError, authedFetch } from './client';
 import type { CustomEmoji, GuildBucket, GuildSticker } from '../libs/messages/types';
+import type { DiscordUserSummary } from './types';
 
-export type { CustomEmoji, GuildBucket, GuildSticker };
+export type { CustomEmoji, GuildBucket, GuildSticker, DiscordUserSummary };
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
     if (!response.ok) {
@@ -38,6 +39,28 @@ export interface DiscordMessageLinkInfo {
     messageId: string | null;
     /** Null for channel-only links; populated for message links. */
     preview: string | null;
+}
+
+/**
+ * Batch-resolve lightweight user summaries (username + globalName + avatar)
+ * for a list of user ids. Uses the bot's internal cache; no force-fetch.
+ * Unknown ids map to null. Caller should chunk to ≤50 ids per call if
+ * needed — the backend rejects larger batches with 400.
+ */
+export async function fetchUserSummaries(
+    ids: string[]
+): Promise<Record<string, DiscordUserSummary | null>> {
+    if (ids.length === 0) return {};
+    const response = await authedFetch(
+        `/api/discord/users/bulk?ids=${ids.map(encodeURIComponent).join(',')}`
+    );
+    if (!response.ok) {
+        // Non-fatal for name resolution — return empty so callers fall back
+        // to the raw userId display.
+        return {};
+    }
+    const body = (await response.json()) as { users: Record<string, DiscordUserSummary | null> };
+    return body.users;
 }
 
 /**

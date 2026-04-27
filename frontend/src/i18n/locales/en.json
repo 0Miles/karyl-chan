@@ -359,7 +359,89 @@
         "activity": {
             "title": "Recent admin activity",
             "empty": "No admin activity recorded yet.",
-            "by": "by"
+            "by": "by",
+            "action": {
+                "user": {
+                    "upsert": {
+                        "verb": "Updated",
+                        "noun": "user"
+                    },
+                    "delete": {
+                        "verb": "Removed",
+                        "noun": "user"
+                    }
+                },
+                "role": {
+                    "grant": {
+                        "verb": "Granted",
+                        "noun": "role"
+                    },
+                    "revoke": {
+                        "verb": "Revoked",
+                        "noun": "role"
+                    },
+                    "upsert": {
+                        "verb": "Updated",
+                        "noun": "role"
+                    },
+                    "delete": {
+                        "verb": "Deleted",
+                        "noun": "role"
+                    }
+                },
+                "capability": {
+                    "grant": {
+                        "verb": "Granted",
+                        "noun": "capability"
+                    },
+                    "revoke": {
+                        "verb": "Revoked",
+                        "noun": "capability"
+                    }
+                },
+                "feature": {
+                    "todo": {
+                        "upsert": {
+                            "verb": "Updated",
+                            "noun": "todo channel"
+                        },
+                        "delete": {
+                            "verb": "Removed",
+                            "noun": "todo channel"
+                        }
+                    },
+                    "picture": {
+                        "upsert": {
+                            "verb": "Updated",
+                            "noun": "picture-only"
+                        },
+                        "delete": {
+                            "verb": "Removed",
+                            "noun": "picture-only"
+                        }
+                    },
+                    "rcon": {
+                        "upsert": {
+                            "verb": "Updated",
+                            "noun": "RCON forward"
+                        },
+                        "delete": {
+                            "verb": "Removed",
+                            "noun": "RCON forward"
+                        }
+                    },
+                    "roleemoji": {
+                        "upsert": {
+                            "verb": "Updated",
+                            "noun": "role emoji"
+                        },
+                        "delete": {
+                            "verb": "Removed",
+                            "noun": "role emoji"
+                        }
+                    }
+                }
+            }
         },
         "dmChart": {
             "title": "DM activity",

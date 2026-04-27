@@ -359,7 +359,89 @@
         "activity": {
             "title": "近期管理操作",
             "empty": "暂无管理操作记录。",
-            "by": "由"
+            "by": "由",
+            "action": {
+                "user": {
+                    "upsert": {
+                        "verb": "更新了",
+                        "noun": "用户"
+                    },
+                    "delete": {
+                        "verb": "移除了",
+                        "noun": "用户"
+                    }
+                },
+                "role": {
+                    "grant": {
+                        "verb": "授予了",
+                        "noun": "角色"
+                    },
+                    "revoke": {
+                        "verb": "撤销了",
+                        "noun": "角色"
+                    },
+                    "upsert": {
+                        "verb": "更新了",
+                        "noun": "角色"
+                    },
+                    "delete": {
+                        "verb": "删除了",
+                        "noun": "角色"
+                    }
+                },
+                "capability": {
+                    "grant": {
+                        "verb": "授予了",
+                        "noun": "权限"
+                    },
+                    "revoke": {
+                        "verb": "撤销了",
+                        "noun": "权限"
+                    }
+                },
+                "feature": {
+                    "todo": {
+                        "upsert": {
+                            "verb": "更新了",
+                            "noun": "待办频道"
+                        },
+                        "delete": {
+                            "verb": "移除了",
+                            "noun": "待办频道"
+                        }
+                    },
+                    "picture": {
+                        "upsert": {
+                            "verb": "更新了",
+                            "noun": "纯图片频道"
+                        },
+                        "delete": {
+                            "verb": "移除了",
+                            "noun": "纯图片频道"
+                        }
+                    },
+                    "rcon": {
+                        "upsert": {
+                            "verb": "更新了",
+                            "noun": "RCON 转发"
+                        },
+                        "delete": {
+                            "verb": "移除了",
+                            "noun": "RCON 转发"
+                        }
+                    },
+                    "roleemoji": {
+                        "upsert": {
+                            "verb": "更新了",
+                            "noun": "身份组表情"
+                        },
+                        "delete": {
+                            "verb": "移除了",
+                            "noun": "身份组表情"
+                        }
+                    }
+                }
+            }
         },
         "dmChart": {
             "title": "私信活动",

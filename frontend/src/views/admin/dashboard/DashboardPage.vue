@@ -9,6 +9,7 @@ import type { GuildSummary } from '../../../api/guilds';
 import { DashboardLayout } from '../../../layouts';
 import { useApiError } from '../../../composables/use-api-error';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
+import DiscordUserCardPopover from '../../../modules/discord-chat/DiscordUserCardPopover.vue';
 
 import StatusHero from './StatusHero.vue';
 import GuildsListCard from './GuildsListCard.vue';
@@ -35,6 +36,15 @@ const loadingAudit = ref(true);
 const loadingEvents = ref(true);
 const loadingLogin = ref(true);
 const loadingGuilds = ref(true);
+
+// Track whether each section has completed its first load.
+// Skeleton is only shown on first load; subsequent refreshes patch data in-place.
+const initialLoadBot = ref(true);
+const initialLoadStats = ref(true);
+const initialLoadAudit = ref(true);
+const initialLoadEvents = ref(true);
+const initialLoadLogin = ref(true);
+const initialLoadGuilds = ref(true);
 
 const globalLoading = computed(() =>
     loadingBot.value && loadingStats.value && loadingAudit.value &&
@@ -73,6 +83,7 @@ async function loadBot() {
         }
     } finally {
         loadingBot.value = false;
+        initialLoadBot.value = false;
     }
 }
 
@@ -89,6 +100,7 @@ async function loadStats() {
         }
     } finally {
         loadingStats.value = false;
+        initialLoadStats.value = false;
     }
 }
 
@@ -108,6 +120,7 @@ async function loadAudit() {
         }
     } finally {
         loadingAudit.value = false;
+        initialLoadAudit.value = false;
     }
 }
 
@@ -128,6 +141,7 @@ async function loadEvents() {
         }
     } finally {
         loadingEvents.value = false;
+        initialLoadEvents.value = false;
     }
 }
 
@@ -148,6 +162,7 @@ async function loadLogin() {
         }
     } finally {
         loadingLogin.value = false;
+        initialLoadLogin.value = false;
     }
 }
 
@@ -164,6 +179,7 @@ async function loadGuilds() {
         }
     } finally {
         loadingGuilds.value = false;
+        initialLoadGuilds.value = false;
     }
 }
 
@@ -241,6 +257,7 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
             <StatusHero
                 :bot="bot"
                 :loading="loadingBot"
+                :is-initial-load="initialLoadBot"
                 :error="errorBot"
             />
 
@@ -251,28 +268,27 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
             <GuildsListCard
                 :guilds="guilds"
                 :loading="loadingGuilds"
+                :is-initial-load="initialLoadGuilds"
                 :error="errorGuilds"
             />
 
             <!-- ── 4. Middle two-col row: Chart + Admin Login ─────────── -->
             <div class="mid-row">
                 <DmActivityChart
-                    v-if="!loadingStats && (dmActivity.length || errorStats)"
+                    v-if="!initialLoadStats || !loadingStats"
                     :data="dmActivity"
                     :error="errorStats"
                     class="mid-chart"
                 />
-                <div v-else-if="loadingStats" class="mid-chart chart-skel">
+                <div v-else class="mid-chart chart-skel">
                     <div class="skel skel-chart-title"></div>
                     <div class="skel skel-chart-body"></div>
-                </div>
-                <div v-else class="mid-chart">
-                    <DmActivityChart :data="[]" />
                 </div>
 
                 <AdminLoginCard
                     :admins="adminLogins"
                     :loading="loadingLogin"
+                    :is-initial-load="initialLoadLogin"
                     :permission-denied="loginDenied"
                     :error="errorLogin"
                     class="mid-login"
@@ -284,6 +300,7 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
                 <BotEventsCard
                     :events="botEvents"
                     :loading="loadingEvents"
+                    :is-initial-load="initialLoadEvents"
                     :permission-denied="eventsDenied"
                     :error="errorEvents"
                     class="bottom-events"
@@ -292,12 +309,16 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
                 <RecentActivity
                     :entries="auditEntries"
                     :loading="loadingAudit"
+                    :is-initial-load="initialLoadAudit"
                     :permission-denied="auditDenied"
                     :error="errorAudit"
                     class="bottom-activity"
                 />
             </div>
         </template>
+
+        <!-- User profile card popover — shared across all clickable user refs on this page -->
+        <DiscordUserCardPopover />
     </DashboardLayout>
 </template>
 

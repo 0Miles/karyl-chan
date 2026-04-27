@@ -1,19 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { AdminLoginEntry } from '../../../api/types';
 import { useRelativeTime } from '../../../composables/use-relative-time';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
+import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
 
-defineProps<{
+const props = defineProps<{
     admins: AdminLoginEntry[];
     loading: boolean;
     permissionDenied: boolean;
     error?: string | null;
+    /** True only on the very first load — controls whether skeleton shows. */
+    isInitialLoad: boolean;
 }>();
 
 const { relativeTime } = useRelativeTime();
+const profileStore = useUserProfileStore();
+
+const userIds = computed(() => props.admins.map(a => a.userId));
+const { getDisplayName } = useUserSummaries(userIds);
 
 /** Truncate long user IDs to show last 8 chars, prefixed with ellipsis */
 function shortId(id: string): string {
     return id.length > 10 ? `…${id.slice(-8)}` : id;
+}
+
+function displayName(userId: string): string {
+    return getDisplayName(userId) ?? shortId(userId);
+}
+
+function onAdminClick(userId: string, event: MouseEvent) {
+    profileStore.openFor(userId, event.currentTarget as HTMLElement, null);
 }
 </script>
 
@@ -30,8 +47,8 @@ function shortId(id: string): string {
         <!-- No permission -->
         <p v-else-if="permissionDenied" class="no-perm">{{ $t('dashboard.noPermission') }}</p>
 
-        <!-- Loading skeleton -->
-        <div v-else-if="loading && !admins.length" class="admin-list">
+        <!-- Loading skeleton — only on initial load, not on refresh -->
+        <div v-else-if="isInitialLoad && loading && !admins.length" class="admin-list">
             <div v-for="i in 3" :key="i" class="admin-row admin-row--skel">
                 <div class="skel skel-dot"></div>
                 <div class="admin-body">
@@ -51,8 +68,10 @@ function shortId(id: string): string {
             <li
                 v-for="admin in admins"
                 :key="admin.userId"
-                class="admin-row"
+                class="admin-row admin-row--clickable"
                 role="listitem"
+                :title="admin.userId"
+                @click="onAdminClick(admin.userId, $event)"
             >
                 <!-- Session indicator dot -->
                 <span
@@ -64,9 +83,9 @@ function shortId(id: string): string {
                 ></span>
 
                 <div class="admin-body">
-                    <!-- Top line: ID + badges -->
+                    <!-- Top line: name + badges -->
                     <div class="admin-top">
-                        <code class="admin-id" :title="admin.userId">{{ shortId(admin.userId) }}</code>
+                        <span class="admin-name">{{ displayName(admin.userId) }}</span>
                         <!-- Owner badge -->
                         <span v-if="admin.isOwner" class="badge badge-owner">
                             {{ $t('dashboard.adminLogin.owner') }}
@@ -171,6 +190,10 @@ function shortId(id: string): string {
     background: var(--bg-surface-hover);
 }
 
+.admin-row--clickable {
+    cursor: pointer;
+}
+
 /* ─── Session dot ────────────────────────────────────────────────── */
 .session-dot {
     width: 8px;
@@ -205,13 +228,14 @@ function shortId(id: string): string {
     flex-wrap: wrap;
 }
 
-.admin-id {
-    font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
-    font-size: 0.8rem;
+.admin-name {
+    font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-strong);
-    background: var(--bg-surface-2);
-    padding: 0.1rem 0.35rem;
-    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
 }
 
 /* ─── Badges ─────────────────────────────────────────────────────── */

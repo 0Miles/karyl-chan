@@ -5,6 +5,8 @@ defineProps<{
     bot: BotStatus | null;
     loading: boolean;
     error?: string | null;
+    /** True only on the very first load — controls whether skeleton shows. */
+    isInitialLoad: boolean;
 }>();
 
 function formatDuration(seconds: number): string {
@@ -29,8 +31,8 @@ function formatDuration(seconds: number): string {
             {{ error }}
         </div>
 
-        <!-- Loading skeleton -->
-        <template v-if="loading && !bot">
+        <!-- Loading skeleton — only on initial load, not on refresh -->
+        <template v-if="isInitialLoad && loading && !bot">
             <div class="hero-identity">
                 <div class="skel skel-avatar"></div>
                 <div class="hero-meta">

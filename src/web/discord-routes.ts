@@ -69,6 +69,58 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
         return { guilds: buckets };
     });
 
+    // Bulk user summary for name resolution (dashboard, audit log, etc.).
+    // Uses the internal discord.js cache only (no force:true) — intended for
+    // display-name resolution where slightly stale data is fine. Finds-nothing
+    // returns null for that id rather than a 404, because callers are batch
+    // consumers that handle partial results gracefully.
+    server.get<{ Querystring: { ids?: string } }>(
+        '/api/discord/users/bulk',
+        async (request, reply) => {
+            if (!requireAnyCapability(request, reply, READ_CAPS)) return;
+            const rawIds = typeof request.query.ids === 'string' ? request.query.ids : '';
+            if (!rawIds) {
+                reply.code(400).send({ error: 'ids query param required' });
+                return;
+            }
+            const ids = rawIds.split(',').map(s => s.trim()).filter(Boolean);
+            if (ids.length === 0) {
+                reply.code(400).send({ error: 'ids query param required' });
+                return;
+            }
+            if (ids.length > 50) {
+                reply.code(400).send({ error: 'at most 50 ids per request' });
+                return;
+            }
+            for (const id of ids) {
+                if (!isSnowflake(id)) {
+                    reply.code(400).send({ error: `invalid snowflake id: ${id}` });
+                    return;
+                }
+            }
+            const results = await Promise.allSettled(
+                ids.map(id => bot.users.fetch(id))
+            );
+            const users: Record<string, { id: string; username: string; globalName: string | null; avatarUrl: string; bot: boolean } | null> = {};
+            for (let i = 0; i < ids.length; i++) {
+                const r = results[i];
+                if (r.status === 'fulfilled') {
+                    const u = r.value;
+                    users[ids[i]] = {
+                        id: u.id,
+                        username: u.username,
+                        globalName: u.globalName ?? null,
+                        avatarUrl: avatarUrlFor(u.id, u.avatar, 64),
+                        bot: !!u.bot
+                    };
+                } else {
+                    users[ids[i]] = null;
+                }
+            }
+            return { users };
+        }
+    );
+
     // Profile card data: base user (avatar, banner, display name) plus
     // guild-specific member fields (nickname, roles) when `?guildId=…` is
     // supplied. `force: true` is required to pull `banner` + `accentColor`

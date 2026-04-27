@@ -7,6 +7,8 @@ defineProps<{
     guilds: GuildSummary[];
     loading: boolean;
     error?: string | null;
+    /** True only on the very first load — controls whether skeleton shows. */
+    isInitialLoad: boolean;
 }>();
 
 const { relativeJoin } = useRelativeTime();
@@ -35,8 +37,8 @@ function initials(name: string): string {
             {{ error }}
         </div>
 
-        <!-- Loading skeleton -->
-        <div v-else-if="loading && !guilds.length" class="guild-list">
+        <!-- Loading skeleton — only on initial load, not on refresh -->
+        <div v-else-if="isInitialLoad && loading && !guilds.length" class="guild-list">
             <div v-for="i in 4" :key="i" class="guild-row guild-row--skel">
                 <div class="skel skel-avatar"></div>
                 <div class="guild-info">

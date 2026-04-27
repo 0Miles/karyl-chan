@@ -1,35 +1,65 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { AdminAuditEntry } from '../../../api/types';
 import { useRelativeTime } from '../../../composables/use-relative-time';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
+import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
     entries: AdminAuditEntry[];
     loading: boolean;
     permissionDenied: boolean;
     error?: string | null;
+    /** True only on the very first load — controls whether skeleton shows. */
+    isInitialLoad: boolean;
 }>();
 
+const { t } = useI18n();
 const { relativeTime } = useRelativeTime();
+const profileStore = useUserProfileStore();
+
+const actorIds = computed(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const e of props.entries) {
+        if (!seen.has(e.actorUserId)) {
+            seen.add(e.actorUserId);
+            ids.push(e.actorUserId);
+        }
+    }
+    return ids;
+});
+
+const { getDisplayName } = useUserSummaries(actorIds);
+
+function actorDisplayName(userId: string): string {
+    return getDisplayName(userId) ?? `…${userId.slice(-6)}`;
+}
+
+function onActorClick(userId: string, event: MouseEvent) {
+    profileStore.openFor(userId, event.currentTarget as HTMLElement, null);
+}
 
 /** Map action token to a human-readable label */
 function actionLabel(action: string): { verb: string; noun: string } {
     const map: Record<string, [string, string]> = {
-        'user.upsert':          ['Updated', 'user'],
-        'user.delete':          ['Removed', 'user'],
-        'role.grant':           ['Granted', 'role'],
-        'role.revoke':          ['Revoked', 'role'],
-        'role.upsert':          ['Updated', 'role'],
-        'role.delete':          ['Deleted', 'role'],
-        'capability.grant':     ['Granted', 'capability'],
-        'capability.revoke':    ['Revoked', 'capability'],
-        'feature.todo.upsert':  ['Updated', 'todo channel'],
-        'feature.todo.delete':  ['Removed', 'todo channel'],
-        'feature.picture.upsert': ['Updated', 'picture-only'],
-        'feature.picture.delete': ['Removed', 'picture-only'],
-        'feature.rcon.upsert':  ['Updated', 'RCON forward'],
-        'feature.rcon.delete':  ['Removed', 'RCON forward'],
-        'feature.roleemoji.upsert': ['Updated', 'role emoji'],
-        'feature.roleemoji.delete': ['Removed', 'role emoji'],
+        'user.upsert':              [t('dashboard.activity.action.user.upsert.verb'),   t('dashboard.activity.action.user.upsert.noun')],
+        'user.delete':              [t('dashboard.activity.action.user.delete.verb'),   t('dashboard.activity.action.user.delete.noun')],
+        'role.grant':               [t('dashboard.activity.action.role.grant.verb'),    t('dashboard.activity.action.role.grant.noun')],
+        'role.revoke':              [t('dashboard.activity.action.role.revoke.verb'),   t('dashboard.activity.action.role.revoke.noun')],
+        'role.upsert':              [t('dashboard.activity.action.role.upsert.verb'),   t('dashboard.activity.action.role.upsert.noun')],
+        'role.delete':              [t('dashboard.activity.action.role.delete.verb'),   t('dashboard.activity.action.role.delete.noun')],
+        'capability.grant':         [t('dashboard.activity.action.capability.grant.verb'),   t('dashboard.activity.action.capability.grant.noun')],
+        'capability.revoke':        [t('dashboard.activity.action.capability.revoke.verb'),  t('dashboard.activity.action.capability.revoke.noun')],
+        'feature.todo.upsert':      [t('dashboard.activity.action.feature.todo.upsert.verb'),   t('dashboard.activity.action.feature.todo.upsert.noun')],
+        'feature.todo.delete':      [t('dashboard.activity.action.feature.todo.delete.verb'),   t('dashboard.activity.action.feature.todo.delete.noun')],
+        'feature.picture.upsert':   [t('dashboard.activity.action.feature.picture.upsert.verb'), t('dashboard.activity.action.feature.picture.upsert.noun')],
+        'feature.picture.delete':   [t('dashboard.activity.action.feature.picture.delete.verb'), t('dashboard.activity.action.feature.picture.delete.noun')],
+        'feature.rcon.upsert':      [t('dashboard.activity.action.feature.rcon.upsert.verb'),   t('dashboard.activity.action.feature.rcon.upsert.noun')],
+        'feature.rcon.delete':      [t('dashboard.activity.action.feature.rcon.delete.verb'),   t('dashboard.activity.action.feature.rcon.delete.noun')],
+        'feature.roleemoji.upsert': [t('dashboard.activity.action.feature.roleemoji.upsert.verb'), t('dashboard.activity.action.feature.roleemoji.upsert.noun')],
+        'feature.roleemoji.delete': [t('dashboard.activity.action.feature.roleemoji.delete.verb'), t('dashboard.activity.action.feature.roleemoji.delete.noun')],
     };
     const entry = map[action];
     if (entry) return { verb: entry[0], noun: entry[1] };
@@ -41,11 +71,6 @@ function actionLabel(action: string): { verb: string; noun: string } {
         verb: verb.charAt(0).toUpperCase() + verb.slice(1),
         noun
     };
-}
-
-/** Short actor ID: last 6 chars */
-function shortId(id: string): string {
-    return id.slice(-6);
 }
 
 /** Summarise context JSON into a 1-line string */
@@ -77,7 +102,8 @@ function dotClass(action: string): string {
 
         <p v-else-if="permissionDenied" class="no-perm">{{ $t('dashboard.noPermission') }}</p>
 
-        <div v-else-if="loading && !entries.length" class="feed">
+        <!-- Loading skeleton — only on initial load, not on refresh -->
+        <div v-else-if="isInitialLoad && loading && !entries.length" class="feed">
             <div v-for="i in 5" :key="i" class="feed-item feed-item--skel">
                 <div class="timeline-col">
                     <div class="skel skel-dot"></div>
@@ -110,10 +136,15 @@ function dotClass(action: string): string {
                         </span>
                     </div>
                     <div class="feed-meta">
-                        <span class="actor" :title="entry.actorUserId">
+                        <button
+                            type="button"
+                            class="actor"
+                            :title="entry.actorUserId"
+                            @click="onActorClick(entry.actorUserId, $event)"
+                        >
                             {{ $t('dashboard.activity.by') }}
-                            <code class="actor-id">…{{ shortId(entry.actorUserId) }}</code>
-                        </span>
+                            <code class="actor-name">{{ actorDisplayName(entry.actorUserId) }}</code>
+                        </button>
                         <span class="sep">·</span>
                         <time :datetime="entry.createdAt" class="rel-time">{{ relativeTime(entry.createdAt) }}</time>
                     </div>
@@ -279,16 +310,40 @@ function dotClass(action: string): string {
     color: var(--text-muted);
 }
 
+/* Actor: button-reset + click styles */
 .actor {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: inherit;
+    color: inherit;
+    font-family: inherit;
+    line-height: inherit;
+    transition: color var(--transition-fast) ease;
 }
 
-.actor-id {
+.actor:hover {
+    color: var(--text-strong);
+}
+
+.actor:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.actor-name {
     font-family: "JetBrains Mono", "Fira Code", monospace;
     font-size: 0.72rem;
     color: var(--text-faint);
+}
+
+.actor:hover .actor-name {
+    color: var(--accent-text);
 }
 
 .sep {
