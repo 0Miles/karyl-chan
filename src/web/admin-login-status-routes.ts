@@ -84,11 +84,13 @@ export async function registerAdminLoginStatusRoutes(server: FastifyInstance): P
             ]);
 
             const ownerId = readOwnerId();
+
+            // Build the full list: owner entry (synthetic or folded) + authorized users.
+            // Owner pinned first. If owner is also in authorized_users, fold
+            // isOwner:true into that entry instead of duping.
+            const ownerInTable = ownerId ? users.some(u => u.userId === ownerId) : false;
             const admins: AdminLoginStatusEntry[] = [];
 
-            // Owner pinned first. If owner is also in authorized_users, fold
-            // isOwner:true into that entry (handled below) instead of duping.
-            const ownerInTable = ownerId ? users.some(u => u.userId === ownerId) : false;
             if (ownerId && !ownerInTable) {
                 admins.push({
                     userId: ownerId,
@@ -100,14 +102,7 @@ export async function registerAdminLoginStatusRoutes(server: FastifyInstance): P
                 });
             }
 
-            // Remaining authorized users, sorted by role then userId for stability.
-            const sorted = [...users].sort((a, b) => {
-                const roleCmp = a.role.localeCompare(b.role);
-                if (roleCmp !== 0) return roleCmp;
-                return a.userId.localeCompare(b.userId);
-            });
-
-            for (const user of sorted) {
+            for (const user of users) {
                 admins.push({
                     userId: user.userId,
                     role: user.role,
@@ -117,6 +112,13 @@ export async function registerAdminLoginStatusRoutes(server: FastifyInstance): P
                     isOwner: ownerId !== null && user.userId === ownerId
                 });
             }
+
+            // Sort: owner pinned first, then by role, then by userId for stability.
+            admins.sort((a, b) =>
+                Number(b.isOwner) - Number(a.isOwner)
+                || a.role.localeCompare(b.role, 'en-US')
+                || a.userId.localeCompare(b.userId, 'en-US')
+            );
 
             return { admins };
         } catch (err) {

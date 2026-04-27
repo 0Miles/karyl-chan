@@ -112,17 +112,6 @@ bot.on('raw', async (packet: { t?: string; d?: { id?: string; channel_id?: strin
     }
 });
 
-process.on('unhandledRejection', (reason) => {
-    console.error('Unhandled promise rejection:', reason);
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    botEventLog.record('error', 'error', `Unhandled promise rejection: ${msg}`);
-});
-
-process.on('uncaughtException', (error) => {
-    console.error('Uncaught exception:', error);
-    botEventLog.record('error', 'error', `Uncaught exception: ${error.message}`);
-});
-
 async function run() {
     try {
         await importx(dirname(import.meta.url) + '/{events,commands}/**/*.{ts,js}');
@@ -133,6 +122,19 @@ async function run() {
         // fresh-sync'd DBs don't trip over them.
         await sequelize.sync();
         await runPendingMigrations();
+
+        // Register process-level error handlers only after migrations have run
+        // so bot_events table is guaranteed to exist before we attempt to write to it.
+        process.on('unhandledRejection', (reason) => {
+            console.error('Unhandled promise rejection:', reason);
+            const msg = reason instanceof Error ? reason.message : String(reason);
+            botEventLog.record('error', 'error', `Unhandled promise rejection: ${msg}`);
+        });
+
+        process.on('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+            botEventLog.record('error', 'error', `Uncaught exception: ${error.message}`);
+        });
         await seedDefaultRoles();
         await auditStoredCapabilities();
 
