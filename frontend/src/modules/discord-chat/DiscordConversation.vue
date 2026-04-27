@@ -18,6 +18,7 @@ import { useMessageCacheStore, type ScrollPosition } from './stores/messageCache
 import { useUnreadStore, markerGreater } from './stores/unreadStore';
 import { useTypingIndicator } from './useTypingIndicator';
 import { useMuteControl } from './useMuteControl';
+import { usePinnedMessages } from './usePinnedMessages';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 const { t: $t } = useI18n();
@@ -118,50 +119,10 @@ const { isMuted, muteIcon, muteTooltip, toggleMute } = useMuteControl(toRef(prop
 // because the trigger and the panel both render inside the conversation
 // header — keeping the open/close + cached list co-located avoids a
 // prop+emit ping-pong. Fetched lazily on first open per channel.
-const pinsOpen = ref(false);
-const pinsLoading = ref(false);
-const pinsError = ref<string | null>(null);
-const pinsList = ref<Message[]>([]);
-const pinsFetchedFor = ref<string | null>(null);
-
-async function loadPins() {
-    if (!props.channelId || !props.pinFetcher) return;
-    if (pinsFetchedFor.value === props.channelId) return;
-    pinsLoading.value = true;
-    pinsError.value = null;
-    const channelId = props.channelId;
-    try {
-        const messages = await props.pinFetcher(channelId);
-        // Guard against a stale response after the user already swapped
-        // channels — without this we'd flash the previous channel's
-        // pins for one frame.
-        if (props.channelId !== channelId) return;
-        pinsList.value = messages;
-        pinsFetchedFor.value = channelId;
-    } catch (err) {
-        if (props.channelId !== channelId) return;
-        pinsError.value = err instanceof Error ? err.message : 'Failed to load pins';
-    } finally {
-        pinsLoading.value = false;
-    }
-}
-
-function togglePins() {
-    pinsOpen.value = !pinsOpen.value;
-    if (pinsOpen.value) void loadPins();
-}
-
-function onPinJump(messageId: string) {
-    pinsOpen.value = false;
-    emit('jump-to-message', messageId);
-}
-
-// New channel? Wipe the cache so the next pin-button click refetches.
-watch(() => props.channelId, () => {
-    pinsOpen.value = false;
-    pinsList.value = [];
-    pinsError.value = null;
-    pinsFetchedFor.value = null;
+const { pinsOpen, pinsLoading, pinsError, pinsList, togglePins, onPinJump } = usePinnedMessages({
+    channelId: toRef(props, 'channelId'),
+    pinFetcher: toRef(props, 'pinFetcher'),
+    emit: (event, id) => emit(event, id),
 });
 
 // Typing indicator: pull users actively typing in the current channel.
