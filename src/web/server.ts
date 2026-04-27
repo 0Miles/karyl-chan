@@ -76,6 +76,7 @@ export interface WebServerOptions {
   port: number;
   host?: string;
   bot?: Client;
+  dmInbox?: DmInboxStore;
 }
 
 export interface CreateWebServerOptions {
@@ -473,7 +474,10 @@ export async function createWebServer(
 export async function startWebServer(
   options: WebServerOptions,
 ): Promise<FastifyInstance> {
-  const server = await createWebServer({ bot: options.bot });
+  const server = await createWebServer({
+    bot: options.bot,
+    dmInbox: options.dmInbox,
+  });
   await server.listen({
     port: options.port,
     host: options.host ?? "0.0.0.0",

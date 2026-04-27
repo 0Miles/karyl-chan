@@ -6,6 +6,7 @@ import { Events, IntentsBitField, Partials } from "discord.js";
 import { Client } from "discordx";
 import { sequelize } from "./models/db.js";
 import { startWebServer } from "./web/server.js";
+import { dmInboxService } from "./web/dm-inbox.service.js";
 import { authStore } from "./web/auth-store.service.js";
 import { sequelizeRefreshStore } from "./web/refresh-token.repository.js";
 import {
@@ -162,7 +163,7 @@ async function run() {
     await authStore.init();
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
-    webServer = await startWebServer({ port: webPort, bot });
+    webServer = await startWebServer({ port: webPort, bot, dmInbox: dmInboxService });
     botEventLog.record("info", "web", `Web server started on :${webPort}`);
     console.log(`Web server listening on :${webPort}`);
 
