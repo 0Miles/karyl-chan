@@ -114,7 +114,7 @@ function timestamp(message: Message): string {
 <style scoped>
 .pins-panel {
     position: absolute;
-    top: 54px;
+    top: var(--conv-header-height);
     right: 0.5rem;
     width: min(92vw, 380px);
     max-height: 60vh;

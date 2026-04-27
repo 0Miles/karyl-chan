@@ -83,7 +83,8 @@ const { pinsOpen, pinsLoading, pinsError, pinsList, togglePins, onPinJump } = us
 
 <style scoped>
 .conv-header {
-    height: 54px;
+    height: var(--conv-header-height);
+    flex-shrink: 0;
     padding: 1rem;
     border-bottom: 1px solid var(--border);
     display: flex;
