@@ -1,2 +1,2 @@
-export { dmProactiveFeatures } from './registry';
-export type { DmProactiveFeature } from './types';
+export { dmProactiveFeatures } from "./registry";
+export type { DmProactiveFeature } from "./types";
