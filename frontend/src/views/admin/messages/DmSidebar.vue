@@ -176,13 +176,6 @@ function formatTimestamp(iso: string | null): string {
 </template>
 
 <style scoped>
-.sidebar {
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    min-height: 0;
-}
 .sidebar-header {
     display: flex;
     align-items: center;
@@ -194,10 +187,6 @@ function formatTimestamp(iso: string | null): string {
     height: 54px;
 }
 @media (max-width: 768px) {
-    .sidebar {
-        border-right: none;
-        height: 100%;
-    }
     .sidebar-header{
         height: auto;
     }

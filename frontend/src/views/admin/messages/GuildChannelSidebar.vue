@@ -416,13 +416,6 @@ function channelIcon(channel: GuildTextChannel): string | null {
 </template>
 
 <style scoped>
-.sidebar {
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
-}
 .sidebar-header {
     display: flex;
     align-items: center;
@@ -432,10 +425,6 @@ function channelIcon(channel: GuildTextChannel): string | null {
     height: 54px;
 }
 @media (max-width: 768px) {
-    .sidebar {
-        border-right: none;
-        height: 100%;
-    }
     .sidebar-header{
         height: auto;
     }
