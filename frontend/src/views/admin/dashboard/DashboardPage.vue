@@ -109,7 +109,7 @@ async function loadAudit() {
     auditDenied.value = false;
     errorAudit.value = null;
     try {
-        auditEntries.value = await fetchRecentAudit(20);
+        auditEntries.value = await fetchRecentAudit(10);
     } catch (err) {
         if (err instanceof ApiError && err.status === 401) {
             handleApiError(err);
@@ -129,7 +129,7 @@ async function loadEvents() {
     eventsDenied.value = false;
     errorEvents.value = null;
     try {
-        const result = await fetchBotEvents({ limit: 20 });
+        const result = await fetchBotEvents({ limit: 10 });
         botEvents.value = result.events;
     } catch (err) {
         if (err instanceof ApiError && err.status === 401) {

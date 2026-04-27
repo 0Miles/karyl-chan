@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import type { AdminAuditEntry } from '../../../api/types';
 import { useRelativeTime } from '../../../composables/use-relative-time';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
+import { useUserSummaryStore } from '../../../modules/discord-chat/stores/userSummaryStore';
 import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
 import { useI18n } from 'vue-i18n';
 
@@ -18,27 +19,69 @@ const props = defineProps<{
 const { t } = useI18n();
 const { relativeTime } = useRelativeTime();
 const profileStore = useUserProfileStore();
+// Read display names directly from the store so template reads
+// participate in store-state reactivity.
+const summaryStore = useUserSummaryStore();
 
-const actorIds = computed(() => {
+/** Action prefixes whose `target` field is a Discord user id. */
+const USER_TARGET_ACTIONS = ['user.', 'capability.'] as const;
+function targetIsUser(action: string): boolean {
+    return USER_TARGET_ACTIONS.some(p => action.startsWith(p));
+}
+
+/** Context keys whose value should be resolved as a Discord user id. */
+const USER_CONTEXT_KEYS = new Set([
+    'userId', 'targetUserId', 'actorUserId', 'authorId', 'ownerId', 'memberId',
+]);
+
+/** Collect every userId that needs resolution: actors + user targets + user-keyed context fields. */
+const userIds = computed(() => {
     const seen = new Set<string>();
     const ids: string[] = [];
+    const add = (id: string) => {
+        if (!seen.has(id)) { seen.add(id); ids.push(id); }
+    };
     for (const e of props.entries) {
-        if (!seen.has(e.actorUserId)) {
-            seen.add(e.actorUserId);
-            ids.push(e.actorUserId);
+        add(e.actorUserId);
+        if (e.target && targetIsUser(e.action)) add(e.target);
+        if (e.context) {
+            for (const [k, v] of Object.entries(e.context)) {
+                if (USER_CONTEXT_KEYS.has(k) && typeof v === 'string') add(v);
+            }
         }
     }
     return ids;
 });
 
-const { getDisplayName } = useUserSummaries(actorIds);
+useUserSummaries(userIds);
 
 function actorDisplayName(userId: string): string {
-    return getDisplayName(userId) ?? `…${userId.slice(-6)}`;
+    return summaryStore.getDisplayName(userId) ?? `…${userId.slice(-6)}`;
 }
 
-function onActorClick(userId: string, event: MouseEvent) {
+function targetDisplayName(userId: string): string {
+    return summaryStore.getDisplayName(userId) ?? userId;
+}
+
+function onUserClick(userId: string, event: MouseEvent) {
     profileStore.openFor(userId, event.currentTarget as HTMLElement, null);
+}
+
+/** Render context as `key: value` pairs; user-keyed values become resolved usernames. */
+interface ContextChip { key: string; value: string; userId: string | null }
+function contextChips(ctx: Record<string, unknown> | null): ContextChip[] {
+    if (!ctx) return [];
+    const out: ContextChip[] = [];
+    for (const [k, v] of Object.entries(ctx)) {
+        if (v == null) continue;
+        if (USER_CONTEXT_KEYS.has(k) && typeof v === 'string') {
+            out.push({ key: k, value: targetDisplayName(v), userId: v });
+        } else {
+            const text = typeof v === 'string' ? v : JSON.stringify(v);
+            out.push({ key: k, value: text, userId: null });
+        }
+    }
+    return out;
 }
 
 /** Precomputed map of action token → [verb, noun] — recomputes only on locale change */
@@ -75,13 +118,9 @@ function actionLabel(action: string): { verb: string; noun: string } {
     };
 }
 
-/** Summarise context JSON into a 1-line string */
-function contextSummary(ctx: Record<string, unknown> | null): string | null {
-    if (!ctx) return null;
-    const keys = Object.keys(ctx);
-    if (!keys.length) return null;
-    const first = keys.slice(0, 2).map(k => `${k}: ${JSON.stringify(ctx[k])}`).join(', ');
-    return keys.length > 2 ? `${first} …` : first;
+/** Onclick handler reused by template for any user-resolved chip. */
+function onUserChipClick(userId: string, event: MouseEvent) {
+    onUserClick(userId, event);
 }
 
 /** Colour-coded dot per action verb */
@@ -133,7 +172,16 @@ function dotClass(action: string): string {
                     <div class="feed-title">
                         <span class="action-verb">{{ actionLabel(entry.action).verb }}</span>
                         <span class="action-noun">{{ actionLabel(entry.action).noun }}</span>
-                        <span v-if="entry.target" class="target">
+                        <button
+                            v-if="entry.target && targetIsUser(entry.action)"
+                            type="button"
+                            class="target target-user"
+                            :title="entry.target"
+                            @click="onUserClick(entry.target, $event)"
+                        >
+                            <code>{{ targetDisplayName(entry.target) }}</code>
+                        </button>
+                        <span v-else-if="entry.target" class="target">
                             <code>{{ entry.target }}</code>
                         </span>
                     </div>
@@ -142,7 +190,7 @@ function dotClass(action: string): string {
                             type="button"
                             class="actor"
                             :title="entry.actorUserId"
-                            @click="onActorClick(entry.actorUserId, $event)"
+                            @click="onUserClick(entry.actorUserId, $event)"
                         >
                             {{ $t('dashboard.activity.by') }}
                             <code class="actor-name">{{ actorDisplayName(entry.actorUserId) }}</code>
@@ -150,8 +198,24 @@ function dotClass(action: string): string {
                         <span class="sep">·</span>
                         <time :datetime="entry.createdAt" class="rel-time">{{ relativeTime(entry.createdAt) }}</time>
                     </div>
-                    <div v-if="contextSummary(entry.context)" class="feed-ctx">
-                        <code>{{ contextSummary(entry.context) }}</code>
+                    <div v-if="contextChips(entry.context).length" class="feed-ctx">
+                        <span
+                            v-for="chip in contextChips(entry.context)"
+                            :key="chip.key"
+                            class="ctx-chip"
+                        >
+                            <span class="ctx-key">{{ chip.key }}:</span>
+                            <button
+                                v-if="chip.userId"
+                                type="button"
+                                class="ctx-user"
+                                :title="chip.userId"
+                                @click="onUserChipClick(chip.userId, $event)"
+                            >
+                                {{ chip.value }}
+                            </button>
+                            <code v-else class="ctx-val">{{ chip.value }}</code>
+                        </span>
                     </div>
                 </div>
             </div>
@@ -357,21 +421,75 @@ function dotClass(action: string): string {
 }
 
 .feed-ctx {
-    margin-top: 0.1rem;
+    margin-top: 0.15rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
 }
 
-.feed-ctx code {
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+.ctx-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     font-size: 0.72rem;
+    line-height: 1.2;
+}
+
+.ctx-key {
+    color: var(--text-faint);
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+.ctx-val {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
     color: var(--text-muted);
     background: var(--bg-surface-2);
-    padding: 0.15rem 0.4rem;
+    padding: 0.1rem 0.35rem;
     border-radius: var(--radius-sm);
-    display: inline-block;
-    max-width: 100%;
+    max-width: 18rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Target / context chips that resolve to a Discord user — clickable. */
+.target.target-user,
+.ctx-user {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    transition: color var(--transition-fast) ease;
+}
+
+.target.target-user code,
+.ctx-user {
+    background: var(--bg-surface-2);
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-sm);
+    color: var(--accent-text);
+    font-size: 0.78rem;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+.ctx-user {
+    font-size: 0.72rem;
+}
+
+.target.target-user:hover code,
+.ctx-user:hover {
+    color: var(--text-strong);
+    background: var(--bg-surface-3, var(--bg-surface));
+}
+
+.target.target-user:focus-visible,
+.ctx-user:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 /* ─── Skeleton ──────────────────────────────────────────────────── */

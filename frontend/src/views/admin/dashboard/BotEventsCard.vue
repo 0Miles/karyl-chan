@@ -3,6 +3,9 @@ import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BotEvent, BotEventLevel, BotEventCategory } from '../../../api/types';
 import { useRelativeTime } from '../../../composables/use-relative-time';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
+import { useUserSummaryStore } from '../../../modules/discord-chat/stores/userSummaryStore';
+import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
 
 const props = defineProps<{
     events: BotEvent[];
@@ -15,6 +18,52 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const { relativeTime } = useRelativeTime();
+const summaryStore = useUserSummaryStore();
+const profileStore = useUserProfileStore();
+
+/** Context keys whose value is a Discord user id. */
+const USER_CONTEXT_KEYS = new Set([
+    'userId', 'targetUserId', 'actorUserId', 'authorId', 'ownerId', 'memberId',
+]);
+
+/** Collect every userId-shaped value across visible event contexts. */
+const userIds = computed(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of props.events) {
+        if (!e.context) continue;
+        for (const [k, v] of Object.entries(e.context)) {
+            if (USER_CONTEXT_KEYS.has(k) && typeof v === 'string' && !seen.has(v)) {
+                seen.add(v);
+                out.push(v);
+            }
+        }
+    }
+    return out;
+});
+
+useUserSummaries(userIds);
+
+interface ContextChip { key: string; value: string; userId: string | null }
+function contextChips(ctx: Record<string, unknown> | null): ContextChip[] {
+    if (!ctx) return [];
+    const out: ContextChip[] = [];
+    for (const [k, v] of Object.entries(ctx)) {
+        if (v == null) continue;
+        if (USER_CONTEXT_KEYS.has(k) && typeof v === 'string') {
+            const display = summaryStore.getDisplayName(v) ?? v;
+            out.push({ key: k, value: display, userId: v });
+        } else {
+            const text = typeof v === 'string' ? v : JSON.stringify(v);
+            out.push({ key: k, value: text, userId: null });
+        }
+    }
+    return out;
+}
+
+function onUserChipClick(userId: string, event: MouseEvent) {
+    profileStore.openFor(userId, event.currentTarget as HTMLElement, null);
+}
 
 /** Active level filter; null = show all */
 const activeLevel = ref<BotEventLevel | null>(null);
@@ -154,7 +203,23 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
                     </div>
                     <!-- Expanded context -->
                     <div v-if="hasContext(event) && expandedIds.has(event.id)" class="event-context">
-                        <code>{{ contextPreview(event.context!) }}</code>
+                        <span
+                            v-for="chip in contextChips(event.context)"
+                            :key="chip.key"
+                            class="ctx-chip"
+                        >
+                            <span class="ctx-key">{{ chip.key }}:</span>
+                            <button
+                                v-if="chip.userId"
+                                type="button"
+                                class="ctx-user"
+                                :title="chip.userId"
+                                @click="onUserChipClick(chip.userId, $event)"
+                            >
+                                {{ chip.value }}
+                            </button>
+                            <code v-else class="ctx-val">{{ chip.value }}</code>
+                        </span>
                     </div>
                 </div>
             </li>
@@ -419,20 +484,55 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
 /* ─── Context box ────────────────────────────────────────────────── */
 .event-context {
     margin-top: 0.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
 }
 
-.event-context code {
-    font-family: "JetBrains Mono", "Fira Code", monospace;
+.event-context .ctx-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+.event-context .ctx-key {
+    color: var(--text-faint);
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
+.event-context .ctx-val {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
     color: var(--text-muted);
     background: var(--bg-surface-2);
-    padding: 0.2rem 0.5rem;
+    padding: 0.1rem 0.4rem;
     border-radius: var(--radius-sm);
-    display: inline-block;
-    max-width: 100%;
+    max-width: 18rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.event-context .ctx-user {
+    background: var(--bg-surface-2);
+    border: none;
+    padding: 0.1rem 0.4rem;
+    border-radius: var(--radius-sm);
+    color: var(--accent-text);
+    cursor: pointer;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.7rem;
+    transition: background var(--transition-fast) ease, color var(--transition-fast) ease;
+}
+
+.event-context .ctx-user:hover {
+    color: var(--text-strong);
+}
+
+.event-context .ctx-user:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* ─── Skeleton ───────────────────────────────────────────────────── */

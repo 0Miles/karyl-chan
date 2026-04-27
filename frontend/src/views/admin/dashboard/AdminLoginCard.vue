@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import type { AdminLoginEntry } from '../../../api/types';
 import { useRelativeTime } from '../../../composables/use-relative-time';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
+import { useUserSummaryStore } from '../../../modules/discord-chat/stores/userSummaryStore';
 import { useUserProfileStore } from '../../../modules/discord-chat/stores/userProfileStore';
 
 const props = defineProps<{
@@ -16,9 +17,13 @@ const props = defineProps<{
 
 const { relativeTime } = useRelativeTime();
 const profileStore = useUserProfileStore();
+// Read display names directly from the Pinia store so template reads
+// participate in store-state reactivity (the previous composable
+// indirection had a stale-render bug after the first fetch resolved).
+const summaryStore = useUserSummaryStore();
 
 const userIds = computed(() => props.admins.map(a => a.userId));
-const { getDisplayName } = useUserSummaries(userIds);
+useUserSummaries(userIds);
 
 /** Truncate long user IDs to show last 8 chars, prefixed with ellipsis */
 function shortId(id: string): string {
@@ -26,7 +31,7 @@ function shortId(id: string): string {
 }
 
 function displayName(userId: string): string {
-    return getDisplayName(userId) ?? shortId(userId);
+    return summaryStore.getDisplayName(userId) ?? shortId(userId);
 }
 
 function onAdminClick(userId: string, event: MouseEvent) {
