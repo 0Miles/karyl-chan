@@ -1,5 +1,5 @@
 import { ApiError, authedFetch } from './client';
-import type { AdminAuditEntry } from './types';
+import type { AdminAuditEntry, AdminLoginEntry, BotEvent, BotEventCategory, BotEventLevel } from './types';
 
 export interface AdminRole {
     name: string;
@@ -154,4 +154,24 @@ export async function fetchRecentAudit(limit = 20, before?: number): Promise<Adm
     const response = await authedFetch(`/api/admin/audit?${params.toString()}`);
     const body = await json<{ entries: AdminAuditEntry[] }>(response);
     return body.entries;
+}
+
+export async function fetchBotEvents(opts: {
+    limit?: number;
+    before?: number;
+    level?: BotEventLevel;
+    category?: BotEventCategory;
+} = {}): Promise<{ events: BotEvent[]; hasMore: boolean }> {
+    const params = new URLSearchParams();
+    if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+    if (opts.before !== undefined) params.set('before', String(opts.before));
+    if (opts.level !== undefined) params.set('level', opts.level);
+    if (opts.category !== undefined) params.set('category', opts.category);
+    const response = await authedFetch(`/api/admin/bot-events?${params.toString()}`);
+    return json<{ events: BotEvent[]; hasMore: boolean }>(response);
+}
+
+export async function fetchAdminLoginStatus(): Promise<{ admins: AdminLoginEntry[] }> {
+    const response = await authedFetch('/api/admin/login-status');
+    return json<{ admins: AdminLoginEntry[] }>(response);
 }

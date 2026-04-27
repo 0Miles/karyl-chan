@@ -49,3 +49,25 @@ export interface FeatureSummary {
     capabilityGrants: number;
     distinctGuilds: number;
 }
+
+export type BotEventLevel = 'info' | 'warn' | 'error';
+
+export type BotEventCategory = 'bot' | 'auth' | 'feature' | 'web' | 'error';
+
+export interface BotEvent {
+    id: number;
+    level: BotEventLevel;
+    category: BotEventCategory;
+    message: string;
+    context: Record<string, unknown> | null;
+    createdAt: string;
+}
+
+export interface AdminLoginEntry {
+    userId: string;
+    role: string;
+    note: string | null;
+    lastLoginAt: string | null;
+    hasActiveSession: boolean;
+    isOwner: boolean;
+}
