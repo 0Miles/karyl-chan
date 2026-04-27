@@ -225,7 +225,7 @@ function onPickStickerFile(event: Event) {
                 <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" @change="onPickEmojiFile" required />
             </label>
             <footer class="modal-actions">
-                <button type="button" class="ghost" @click="emojiUploadOpen = false">{{ $t('common.cancel') }}</button>
+                <button type="button" class="btn-ghost" @click="emojiUploadOpen = false">{{ $t('common.cancel') }}</button>
                 <button type="submit" class="primary" :disabled="emojiUploadSubmitting">{{ $t('common.save') }}</button>
             </footer>
         </form>
@@ -255,7 +255,7 @@ function onPickStickerFile(event: Event) {
                 <input type="file" accept="image/png,image/apng,application/json" @change="onPickStickerFile" required />
             </label>
             <footer class="modal-actions">
-                <button type="button" class="ghost" @click="stickerModalOpen = false">{{ $t('common.cancel') }}</button>
+                <button type="button" class="btn-ghost" @click="stickerModalOpen = false">{{ $t('common.cancel') }}</button>
                 <button type="submit" class="primary" :disabled="stickerSubmitting">{{ $t('common.save') }}</button>
             </footer>
         </form>
@@ -383,24 +383,18 @@ function onPickStickerFile(event: Event) {
     justify-content: flex-end;
     gap: 0.5rem;
 }
-.ghost,
+.btn-ghost,
 .primary {
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius-sm);
-    font: inherit;
     font-size: 0.88rem;
-    cursor: pointer;
 }
-.ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-.ghost:hover { background: var(--bg-surface-hover); }
 .primary {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
+    cursor: pointer;
+    font: inherit;
 }
 .primary:disabled { opacity: 0.55; cursor: default; }
 </style>

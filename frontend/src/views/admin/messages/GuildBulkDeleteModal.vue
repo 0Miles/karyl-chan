@@ -36,7 +36,7 @@ function submit() {
                 <input v-model.number="count" type="number" min="2" max="100" autofocus />
             </label>
             <footer class="actions">
-                <button type="button" class="ghost" @click="emit('close')">{{ $t('common.cancel') }}</button>
+                <button type="button" class="btn-ghost" @click="emit('close')">{{ $t('common.cancel') }}</button>
                 <button type="submit" class="primary danger">
                     {{ $t('messageMgmt.bulkConfirm', { count: clamped }) }}
                 </button>
@@ -68,24 +68,18 @@ function submit() {
     justify-content: flex-end;
     gap: 0.5rem;
 }
-.ghost,
+.btn-ghost,
 .primary {
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius-sm);
-    font: inherit;
     font-size: 0.88rem;
-    cursor: pointer;
 }
-.ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-.ghost:hover { background: var(--bg-surface-hover); }
 .primary {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
+    cursor: pointer;
+    font: inherit;
 }
 .primary.danger {
     background: var(--danger);

@@ -57,6 +57,23 @@
     --radius-pill: 999px;
 }
 
+/* ── Shared button utilities ───────────────────────────────────────── */
+/* Ghost (outlined, transparent bg) button base — covers the 80% that is
+   identical across every usage site. Padding, font-size, and border-radius
+   are NOT set here because they differ per context; each call site provides
+   its own scoped override. */
+.btn-ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+}
+.btn-ghost:hover:not(:disabled) { background: var(--bg-surface-hover); }
+.btn-ghost:disabled { opacity: 0.5; cursor: default; }
+.btn-ghost.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.45); }
+.btn-ghost.danger:hover { background: rgba(239, 68, 68, 0.1); }
+
 @media (prefers-color-scheme: dark) {
     :root {
         --bg-page: #1e1f22;

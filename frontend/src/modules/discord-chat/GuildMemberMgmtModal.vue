@@ -215,7 +215,7 @@ const titleText = computed(() => {
                     </template>
             <p v-if="error" class="error">{{ error }}</p>
             <footer class="actions">
-                <button type="button" class="ghost" @click="close">{{ $t('common.cancel') }}</button>
+                <button type="button" class="btn-ghost" @click="close">{{ $t('common.cancel') }}</button>
                 <button
                     type="submit"
                     class="primary"
@@ -284,24 +284,18 @@ const titleText = computed(() => {
     gap: 0.5rem;
     margin-top: 0.4rem;
 }
-.ghost,
+.btn-ghost,
 .primary {
     padding: 0.45rem 0.9rem;
     border-radius: var(--radius-sm);
-    font: inherit;
     font-size: 0.88rem;
-    cursor: pointer;
 }
-.ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-.ghost:hover { background: var(--bg-surface-hover); }
 .primary {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
+    cursor: pointer;
+    font: inherit;
 }
 .primary:disabled { opacity: 0.55; cursor: default; }
 .primary.danger {
