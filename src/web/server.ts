@@ -57,6 +57,8 @@ import { registerGuildManagementRoutes } from './guild-management-routes.js';
 import type { DmInboxStore } from './dm-inbox.service.js';
 import { registerSystemRoutes } from './system-routes.js';
 import { registerAdminManagementRoutes } from './admin-management-routes.js';
+import { registerAdminLoginStatusRoutes } from './admin-login-status-routes.js';
+import { registerBotEventRoutes } from './bot-event-routes.js';
 import { requireAnyCapability } from './route-guards.js';
 
 declare module 'fastify' {
@@ -364,6 +366,8 @@ export async function createWebServer(options: CreateWebServerOptions = {}): Pro
 
     const bot = options.bot;
     await registerAdminManagementRoutes(server, { bot });
+    await registerAdminLoginStatusRoutes(server);
+    await registerBotEventRoutes(server);
 
     if (bot) {
         server.get('/api/bot/status', async (request, reply) => {

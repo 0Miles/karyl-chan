@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import { Op, Transaction } from 'sequelize';
 import { AdminAuditLog } from '../models/admin-audit-log.model.js';
 import { sequelize } from '../models/db.js';
-import { systemEventLog } from './system-event-log.js';
+import { botEventLog } from './bot-event-log.js';
 
 export interface AdminAuditEntry {
     id: number;
@@ -114,7 +114,8 @@ export async function recordAudit(
         // primary work succeeded — the audit is meant to observe, not
         // veto. (See file-level note for the trade-off.)
         const msg = err instanceof Error ? err.message : String(err);
-        systemEventLog.record(
+        botEventLog.record(
+            'error',
             'error',
             `admin audit write failed: ${action} target=${target ?? '∅'} (${msg})`
         );

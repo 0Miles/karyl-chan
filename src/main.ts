@@ -9,7 +9,7 @@ import { startWebServer } from './web/server.js';
 import { authStore } from './web/auth-store.service.js';
 import { sequelizeRefreshStore } from './web/refresh-token.repository.js';
 import { auditStoredCapabilities, seedDefaultRoles } from './web/authorized-user.service.js';
-import { systemEventLog } from './web/system-event-log.js';
+import { botEventLog } from './web/bot-event-log.js';
 import { runPendingMigrations } from './migrations/runner.js';
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
@@ -39,7 +39,7 @@ export const bot = new Client({
 });
 
 bot.once('ready', async () => {
-    systemEventLog.record('bot-ready', `Logged in as ${bot.user?.tag ?? 'unknown'}`);
+    botEventLog.record('info', 'bot', `Logged in as ${bot.user?.tag ?? 'unknown'}`);
     await bot.guilds.fetch();
     await bot.initApplicationCommands();
 
@@ -61,12 +61,12 @@ bot.once('ready', async () => {
 });
 
 bot.on('guildCreate', async (guild) => {
-    systemEventLog.record('guild-join', `Joined guild: ${guild.name}`);
+    botEventLog.record('info', 'bot', `Joined guild: ${guild.name}`);
     await bot.initApplicationCommands();
 });
 
 bot.on('guildDelete', (guild) => {
-    systemEventLog.record('guild-leave', `Left guild: ${guild.name}`);
+    botEventLog.record('info', 'bot', `Left guild: ${guild.name}`);
 });
 
 bot.on('interactionCreate', async (interaction: Interaction) => {
@@ -114,10 +114,13 @@ bot.on('raw', async (packet: { t?: string; d?: { id?: string; channel_id?: strin
 
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled promise rejection:', reason);
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    botEventLog.record('error', 'error', `Unhandled promise rejection: ${msg}`);
 });
 
 process.on('uncaughtException', (error) => {
     console.error('Uncaught exception:', error);
+    botEventLog.record('error', 'error', `Uncaught exception: ${error.message}`);
 });
 
 async function run() {
@@ -138,7 +141,7 @@ async function run() {
 
         const webPort = parseInt(process.env.WEB_PORT ?? '3000', 10);
         webServer = await startWebServer({ port: webPort, bot });
-        systemEventLog.record('server-start', `Web server started on :${webPort}`);
+        botEventLog.record('info', 'web', `Web server started on :${webPort}`);
         console.log(`Web server listening on :${webPort}`);
 
         await bot.login(process.env.BOT_TOKEN ?? '');
