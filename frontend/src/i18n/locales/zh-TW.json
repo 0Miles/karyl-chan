@@ -681,7 +681,8 @@
     },
     "composer": {
         "placeholder": "訊息…",
-        "attach": "附加檔案",
+        "attach": "附加",
+        "uploadFile": "上傳檔案",
         "picker": "表情與貼圖",
         "send": "傳送",
         "spoilerOn": "標記為劇透",

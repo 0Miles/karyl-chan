@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import AppPopover from '../../components/AppPopover.vue';
 import MediaPickerPopover from './picker/MediaPickerPopover.vue';
 import type { MediaSelection } from './picker/MediaPicker.vue';
 import type { StickerRecent } from './picker/recents';
@@ -65,7 +66,14 @@ const attachmentSpoiler = ref<boolean[]>([]);
 const pendingStickers = ref<StickerRecent[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 const showPicker = ref(false);
+const plusMenuOpen = ref(false);
 const editorRef = ref<HTMLDivElement | null>(null);
+
+function closePlusMenu() { plusMenuOpen.value = false; }
+function onPickUpload() {
+    closePlusMenu();
+    fileInput.value?.click();
+}
 
 const ctx = useMessageContext();
 const codec = ctx.composerTokenCodec ?? NOOP_TOKEN_CODEC;
@@ -452,15 +460,25 @@ watch(() => props.channelId, (newId, oldId) => {
             />
         </div>
         <div class="input-row">
-            <button type="button" class="icon-button" :disabled="disabled" @click="fileInput?.click()" :title="$t('composer.attach')" :aria-label="$t('composer.attach')">
-                <Icon icon="material-symbols:add-2-rounded" width="20" height="20" />
-            </button>
+            <AppPopover
+                v-model:open="plusMenuOpen"
+                placement="top-start"
+                :drawer-title="$t('composer.attach')"
+            >
+                <template #trigger>
+                    <button type="button" class="icon-button" :disabled="disabled" :title="$t('composer.attach')" :aria-label="$t('composer.attach')">
+                        <Icon icon="material-symbols:add-2-rounded" width="20" height="20" />
+                    </button>
+                </template>
+                <div class="plus-menu">
+                    <button type="button" class="plus-menu-item" @click="onPickUpload">
+                        <Icon icon="material-symbols:upload-file-outline-rounded" width="18" height="18" class="plus-menu-icon" />
+                        <span class="plus-menu-label">{{ $t('composer.uploadFile') }}</span>
+                    </button>
+                    <slot name="plus-menu-extras" :close="closePlusMenu" />
+                </div>
+            </AppPopover>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
-            <!-- Surface-specific extras (e.g., DM-only "bot proactive
-                 actions" menu). Slot lives between attach and editor so
-                 the host's button visually groups with the other
-                 leading icons. -->
-            <slot name="leading-actions" :disabled="disabled" />
             <div
                 ref="editorRef"
                 :class="['editor', { disabled }]"
@@ -679,6 +697,54 @@ watch(() => props.channelId, (newId, oldId) => {
 }
 .hidden {
     display: none;
+}
+.plus-menu {
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    min-width: 220px;
+    max-width: 320px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+}
+.plus-menu :deep(.plus-menu-item) {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+}
+.plus-menu :deep(.plus-menu-item:hover) {
+    background: var(--bg-surface-hover);
+}
+.plus-menu :deep(.plus-menu-icon) {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--text-muted);
+}
+.plus-menu :deep(.plus-menu-label) {
+    font-weight: 500;
+}
+.plus-menu :deep(.plus-menu-desc) {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+.plus-menu :deep(.plus-menu-text) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
 }
 .char-count {
     align-self: flex-end;

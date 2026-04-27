@@ -681,7 +681,8 @@
     },
     "composer": {
         "placeholder": "消息…",
-        "attach": "附加文件",
+        "attach": "附加",
+        "uploadFile": "上传文件",
         "picker": "表情与贴纸",
         "send": "发送",
         "spoilerOn": "标记为剧透",

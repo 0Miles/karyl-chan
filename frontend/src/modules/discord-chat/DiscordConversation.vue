@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, toRef, type ComponentPublicInstance } from 'vue';
+import { Icon } from '@iconify/vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
-import { ProactiveFeaturesMenu } from '../dm-proactive-features';
+import { dmProactiveFeatures } from '../dm-proactive-features';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
 import ConversationHeader from './ConversationHeader.vue';
@@ -417,11 +418,20 @@ const replyToProp = computed(() => props.replyTo);
                 @send="(payload: OutgoingMessage) => emit('send', payload)"
                 @cancel-reply="emit('cancel-reply')"
             >
-                <template v-if="showProactiveFeatures" #leading-actions="{ disabled }">
-                    <ProactiveFeaturesMenu
-                        :disabled="disabled"
-                        @pick="(name: string) => emit('proactive-action', name)"
-                    />
+                <template v-if="showProactiveFeatures" #plus-menu-extras="{ close }">
+                    <button
+                        v-for="feature in dmProactiveFeatures"
+                        :key="feature.name"
+                        type="button"
+                        class="plus-menu-item"
+                        @click="emit('proactive-action', feature.name); close();"
+                    >
+                        <Icon :icon="feature.icon" width="18" height="18" class="plus-menu-icon" />
+                        <span class="plus-menu-text">
+                            <span class="plus-menu-label">{{ $t(feature.labelKey) }}</span>
+                            <span v-if="feature.descriptionKey" class="plus-menu-desc">{{ $t(feature.descriptionKey) }}</span>
+                        </span>
+                    </button>
                 </template>
             </MessageComposer>
         </footer>

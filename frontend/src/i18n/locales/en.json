@@ -681,7 +681,8 @@
     },
     "composer": {
         "placeholder": "Message…",
-        "attach": "Attach files",
+        "attach": "Attach",
+        "uploadFile": "Upload files",
         "picker": "Emoji & stickers",
         "send": "Send",
         "spoilerOn": "Mark as spoiler",
