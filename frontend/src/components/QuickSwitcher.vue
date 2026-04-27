@@ -212,7 +212,7 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKey));
     justify-content: center;
     align-items: flex-start;
     padding-top: 12vh;
-    z-index: 80;
+    z-index: 200;
 }
 .qs-panel {
     width: min(92vw, 560px);
