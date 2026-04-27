@@ -79,14 +79,9 @@ export async function registerDiscordRoutes(server: FastifyInstance, options: Di
         async (request, reply) => {
             if (!requireAnyCapability(request, reply, READ_CAPS)) return;
             const rawIds = typeof request.query.ids === 'string' ? request.query.ids : '';
-            if (!rawIds) {
-                reply.code(400).send({ error: 'ids query param required' });
-                return;
-            }
             const ids = rawIds.split(',').map(s => s.trim()).filter(Boolean);
             if (ids.length === 0) {
-                reply.code(400).send({ error: 'ids query param required' });
-                return;
+                return { users: {} };
             }
             if (ids.length > 50) {
                 reply.code(400).send({ error: 'at most 50 ids per request' });

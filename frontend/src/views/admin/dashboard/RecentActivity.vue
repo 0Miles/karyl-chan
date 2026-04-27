@@ -41,27 +41,29 @@ function onActorClick(userId: string, event: MouseEvent) {
     profileStore.openFor(userId, event.currentTarget as HTMLElement, null);
 }
 
+/** Precomputed map of action token → [verb, noun] — recomputes only on locale change */
+const actionLabelMap = computed<Record<string, [string, string]>>(() => ({
+    'user.upsert':              [t('dashboard.activity.action.user.upsert.verb'),   t('dashboard.activity.action.user.upsert.noun')],
+    'user.delete':              [t('dashboard.activity.action.user.delete.verb'),   t('dashboard.activity.action.user.delete.noun')],
+    'role.grant':               [t('dashboard.activity.action.role.grant.verb'),    t('dashboard.activity.action.role.grant.noun')],
+    'role.revoke':              [t('dashboard.activity.action.role.revoke.verb'),   t('dashboard.activity.action.role.revoke.noun')],
+    'role.upsert':              [t('dashboard.activity.action.role.upsert.verb'),   t('dashboard.activity.action.role.upsert.noun')],
+    'role.delete':              [t('dashboard.activity.action.role.delete.verb'),   t('dashboard.activity.action.role.delete.noun')],
+    'capability.grant':         [t('dashboard.activity.action.capability.grant.verb'),   t('dashboard.activity.action.capability.grant.noun')],
+    'capability.revoke':        [t('dashboard.activity.action.capability.revoke.verb'),  t('dashboard.activity.action.capability.revoke.noun')],
+    'feature.todo.upsert':      [t('dashboard.activity.action.feature.todo.upsert.verb'),   t('dashboard.activity.action.feature.todo.upsert.noun')],
+    'feature.todo.delete':      [t('dashboard.activity.action.feature.todo.delete.verb'),   t('dashboard.activity.action.feature.todo.delete.noun')],
+    'feature.picture.upsert':   [t('dashboard.activity.action.feature.picture.upsert.verb'), t('dashboard.activity.action.feature.picture.upsert.noun')],
+    'feature.picture.delete':   [t('dashboard.activity.action.feature.picture.delete.verb'), t('dashboard.activity.action.feature.picture.delete.noun')],
+    'feature.rcon.upsert':      [t('dashboard.activity.action.feature.rcon.upsert.verb'),   t('dashboard.activity.action.feature.rcon.upsert.noun')],
+    'feature.rcon.delete':      [t('dashboard.activity.action.feature.rcon.delete.verb'),   t('dashboard.activity.action.feature.rcon.delete.noun')],
+    'feature.roleemoji.upsert': [t('dashboard.activity.action.feature.roleemoji.upsert.verb'), t('dashboard.activity.action.feature.roleemoji.upsert.noun')],
+    'feature.roleemoji.delete': [t('dashboard.activity.action.feature.roleemoji.delete.verb'), t('dashboard.activity.action.feature.roleemoji.delete.noun')],
+}));
+
 /** Map action token to a human-readable label */
 function actionLabel(action: string): { verb: string; noun: string } {
-    const map: Record<string, [string, string]> = {
-        'user.upsert':              [t('dashboard.activity.action.user.upsert.verb'),   t('dashboard.activity.action.user.upsert.noun')],
-        'user.delete':              [t('dashboard.activity.action.user.delete.verb'),   t('dashboard.activity.action.user.delete.noun')],
-        'role.grant':               [t('dashboard.activity.action.role.grant.verb'),    t('dashboard.activity.action.role.grant.noun')],
-        'role.revoke':              [t('dashboard.activity.action.role.revoke.verb'),   t('dashboard.activity.action.role.revoke.noun')],
-        'role.upsert':              [t('dashboard.activity.action.role.upsert.verb'),   t('dashboard.activity.action.role.upsert.noun')],
-        'role.delete':              [t('dashboard.activity.action.role.delete.verb'),   t('dashboard.activity.action.role.delete.noun')],
-        'capability.grant':         [t('dashboard.activity.action.capability.grant.verb'),   t('dashboard.activity.action.capability.grant.noun')],
-        'capability.revoke':        [t('dashboard.activity.action.capability.revoke.verb'),  t('dashboard.activity.action.capability.revoke.noun')],
-        'feature.todo.upsert':      [t('dashboard.activity.action.feature.todo.upsert.verb'),   t('dashboard.activity.action.feature.todo.upsert.noun')],
-        'feature.todo.delete':      [t('dashboard.activity.action.feature.todo.delete.verb'),   t('dashboard.activity.action.feature.todo.delete.noun')],
-        'feature.picture.upsert':   [t('dashboard.activity.action.feature.picture.upsert.verb'), t('dashboard.activity.action.feature.picture.upsert.noun')],
-        'feature.picture.delete':   [t('dashboard.activity.action.feature.picture.delete.verb'), t('dashboard.activity.action.feature.picture.delete.noun')],
-        'feature.rcon.upsert':      [t('dashboard.activity.action.feature.rcon.upsert.verb'),   t('dashboard.activity.action.feature.rcon.upsert.noun')],
-        'feature.rcon.delete':      [t('dashboard.activity.action.feature.rcon.delete.verb'),   t('dashboard.activity.action.feature.rcon.delete.noun')],
-        'feature.roleemoji.upsert': [t('dashboard.activity.action.feature.roleemoji.upsert.verb'), t('dashboard.activity.action.feature.roleemoji.upsert.noun')],
-        'feature.roleemoji.delete': [t('dashboard.activity.action.feature.roleemoji.delete.verb'), t('dashboard.activity.action.feature.roleemoji.delete.noun')],
-    };
-    const entry = map[action];
+    const entry = actionLabelMap.value[action];
     if (entry) return { verb: entry[0], noun: entry[1] };
     // Fallback: split on last dot
     const parts = action.split('.');

@@ -68,45 +68,50 @@ function onAdminClick(userId: string, event: MouseEvent) {
             <li
                 v-for="admin in admins"
                 :key="admin.userId"
-                class="admin-row admin-row--clickable"
+                class="admin-row"
                 role="listitem"
-                :title="admin.userId"
-                @click="onAdminClick(admin.userId, $event)"
             >
-                <!-- Session indicator dot -->
-                <span
-                    class="session-dot"
-                    :class="admin.hasActiveSession ? 'dot-active' : 'dot-inactive'"
-                    :aria-label="admin.hasActiveSession
-                        ? $t('dashboard.adminLogin.sessionActive')
-                        : $t('dashboard.adminLogin.sessionNone')"
-                ></span>
+                <button
+                    type="button"
+                    class="admin-row-button"
+                    :title="admin.userId"
+                    @click="onAdminClick(admin.userId, $event)"
+                >
+                    <!-- Session indicator dot -->
+                    <span
+                        class="session-dot"
+                        :class="admin.hasActiveSession ? 'dot-active' : 'dot-inactive'"
+                        :aria-label="admin.hasActiveSession
+                            ? $t('dashboard.adminLogin.sessionActive')
+                            : $t('dashboard.adminLogin.sessionNone')"
+                    ></span>
 
-                <div class="admin-body">
-                    <!-- Top line: name + badges -->
-                    <div class="admin-top">
-                        <span class="admin-name">{{ displayName(admin.userId) }}</span>
-                        <!-- Owner badge -->
-                        <span v-if="admin.isOwner" class="badge badge-owner">
-                            {{ $t('dashboard.adminLogin.owner') }}
-                        </span>
-                        <!-- Role badge -->
-                        <span class="badge badge-role">{{ admin.role }}</span>
-                    </div>
+                    <div class="admin-body">
+                        <!-- Top line: name + badges -->
+                        <div class="admin-top">
+                            <span class="admin-name">{{ displayName(admin.userId) }}</span>
+                            <!-- Owner badge -->
+                            <span v-if="admin.isOwner" class="badge badge-owner">
+                                {{ $t('dashboard.adminLogin.owner') }}
+                            </span>
+                            <!-- Role badge -->
+                            <span class="badge badge-role">{{ admin.role }}</span>
+                        </div>
 
-                    <!-- Bottom line: last login + note -->
-                    <div class="admin-meta">
-                        <span class="login-time">
-                            {{ admin.lastLoginAt
-                                ? relativeTime(admin.lastLoginAt)
-                                : $t('dashboard.adminLogin.never') }}
-                        </span>
-                        <template v-if="admin.note">
-                            <span class="meta-sep" aria-hidden="true">·</span>
-                            <span class="admin-note" :title="admin.note">{{ admin.note }}</span>
-                        </template>
+                        <!-- Bottom line: last login + note -->
+                        <div class="admin-meta">
+                            <span class="login-time">
+                                {{ admin.lastLoginAt
+                                    ? relativeTime(admin.lastLoginAt)
+                                    : $t('dashboard.adminLogin.never') }}
+                            </span>
+                            <template v-if="admin.note">
+                                <span class="meta-sep" aria-hidden="true">·</span>
+                                <span class="admin-note" :title="admin.note">{{ admin.note }}</span>
+                            </template>
+                        </div>
                     </div>
-                </div>
+                </button>
             </li>
         </ul>
     </section>
@@ -174,10 +179,6 @@ function onAdminClick(userId: string, event: MouseEvent) {
 
 /* ─── Row ────────────────────────────────────────────────────────── */
 .admin-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.65rem 1rem;
     border-bottom: 1px solid var(--border);
     transition: background var(--transition-fast) ease;
 }
@@ -190,8 +191,26 @@ function onAdminClick(userId: string, event: MouseEvent) {
     background: var(--bg-surface-hover);
 }
 
-.admin-row--clickable {
+.admin-row-button {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.65rem 1rem;
+    background: none;
+    border: none;
     cursor: pointer;
+    text-align: left;
+    font-size: inherit;
+    font-family: inherit;
+    color: inherit;
+    line-height: inherit;
+}
+
+.admin-row-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
 }
 
 /* ─── Session dot ────────────────────────────────────────────────── */
