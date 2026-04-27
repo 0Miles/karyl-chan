@@ -1,124 +1,131 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
-import { RouterLink } from 'vue-router';
 import { ApiError, api } from '../../../api/client';
-import { listGuilds, type GuildSummary } from '../../../api/guilds';
-import { getSystemEvents, getSystemStats } from '../../../api/system';
-import type { BotStatus, HealthStatus, SystemEvent, SystemStats } from '../../../api/types';
+import { getSystemStats } from '../../../api/system';
+import { fetchFeatureSummary } from '../../../api/system';
+import { fetchRecentAudit } from '../../../api/admin';
+import type { BotStatus, FeatureSummary, SystemStats, AdminAuditEntry } from '../../../api/types';
 import { DashboardLayout } from '../../../layouts';
 import { useApiError } from '../../../composables/use-api-error';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 
+import StatusHero from './StatusHero.vue';
+import FeatureInventory from './FeatureInventory.vue';
+import RecentActivity from './RecentActivity.vue';
+import DmActivityChart from './DmActivityChart.vue';
+import NeedsAttention from './NeedsAttention.vue';
+
 const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 
-const health = ref<HealthStatus | null>(null);
 const bot = ref<BotStatus | null>(null);
-const guilds = ref<GuildSummary[]>([]);
-const systemEvents = ref<SystemEvent[]>([]);
 const systemStats = ref<SystemStats | null>(null);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const featureSummary = ref<FeatureSummary | null>(null);
+const auditEntries = ref<AdminAuditEntry[]>([]);
 const lastUpdated = ref<Date | null>(null);
 
-// 30s gives enough granularity for "is the bot alive?" without burning
-// five round-trips every 10s on a tab nobody's looking at. The visibility
-// hook below pauses entirely when hidden — pre-Visibility-API browsers
-// just keep the slower cadence.
+// Loading states per section (don't block the whole page)
+const loadingBot = ref(true);
+const loadingStats = ref(true);
+const loadingFeatures = ref(true);
+const loadingAudit = ref(true);
+
+const globalLoading = computed(() =>
+    loadingBot.value && loadingStats.value && loadingFeatures.value && loadingAudit.value
+);
+
+// Error states — feature-level (not page-level)
+const errorBot = ref<string | null>(null);
+const errorStats = ref<string | null>(null);
+const featuresDenied = ref(false);
+const auditDenied = ref(false);
+const errorFeatures = ref<string | null>(null);
+const errorAudit = ref<string | null>(null);
+
 const REFRESH_INTERVAL_MS = 30_000;
-let refreshTimer: ReturnType<typeof setInterval> | null = null;
-// Skip refreshes that would land less than this apart (e.g. visibility
-// flapping). The previous interval was effectively this — keep at least
-// that responsiveness for the manual button without re-firing on every
-// tab focus.
 const MIN_REFRESH_GAP_MS = 5_000;
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 let lastRefreshAt = 0;
 
-async function refresh() {
-    lastRefreshAt = Date.now();
+async function loadBot() {
+    loadingBot.value = true;
+    errorBot.value = null;
     try {
-        const [healthResult, botResult, guildsResult, eventsResult, statsResult] = await Promise.allSettled([
-            api.getHealth(),
-            api.getBotStatus(),
-            listGuilds(),
-            getSystemEvents(),
-            getSystemStats()
-        ]);
-
-        if (healthResult.status === 'fulfilled') {
-            health.value = healthResult.value;
-        } else {
-            throw healthResult.reason;
-        }
-
-        if (botResult.status === 'fulfilled') {
-            bot.value = botResult.value;
-        } else if (botResult.reason instanceof ApiError && botResult.reason.status === 404) {
-            bot.value = null;
-        } else {
-            throw botResult.reason;
-        }
-
-        if (guildsResult.status === 'fulfilled') guilds.value = guildsResult.value;
-        if (eventsResult.status === 'fulfilled') systemEvents.value = eventsResult.value;
-        if (statsResult.status === 'fulfilled') systemStats.value = statsResult.value;
-
-        error.value = null;
-        resetError();
-        lastUpdated.value = new Date();
+        const result = await api.getBotStatus();
+        bot.value = result;
     } catch (err) {
-        if (handleApiError(err) !== 'unhandled') return;
-        error.value = err instanceof Error ? err.message : 'Unknown error';
+        if (err instanceof ApiError && err.status === 404) {
+            bot.value = null;
+        } else if (err instanceof ApiError && err.status === 401) {
+            // Handled globally — handleApiError will redirect
+            handleApiError(err);
+        } else {
+            errorBot.value = err instanceof Error ? err.message : 'Unknown error';
+        }
     } finally {
-        loading.value = false;
+        loadingBot.value = false;
     }
 }
 
-function formatDuration(seconds: number): string {
-    if (!Number.isFinite(seconds) || seconds <= 0) return '—';
-    const s = Math.floor(seconds);
-    const days = Math.floor(s / 86400);
-    const hours = Math.floor((s % 86400) / 3600);
-    const mins = Math.floor((s % 3600) / 60);
-    const secs = s % 60;
-    if (days > 0) return `${days}d ${hours}h ${mins}m`;
-    if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
+async function loadStats() {
+    loadingStats.value = true;
+    errorStats.value = null;
+    try {
+        systemStats.value = await getSystemStats();
+    } catch (err) {
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            handleApiError(err);
+        } else {
+            errorStats.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingStats.value = false;
+    }
 }
 
-function formatEventTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString();
+async function loadFeatures() {
+    loadingFeatures.value = true;
+    featuresDenied.value = false;
+    errorFeatures.value = null;
+    try {
+        featureSummary.value = await fetchFeatureSummary();
+    } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+            handleApiError(err);
+        } else if (err instanceof ApiError && err.status === 403) {
+            featuresDenied.value = true;
+        } else {
+            errorFeatures.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingFeatures.value = false;
+    }
 }
 
-function formatEventDate(iso: string): string {
-    const d = new Date(iso);
-    const today = new Date();
-    if (d.toDateString() === today.toDateString()) return 'Today';
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString();
+async function loadAudit() {
+    loadingAudit.value = true;
+    auditDenied.value = false;
+    errorAudit.value = null;
+    try {
+        auditEntries.value = await fetchRecentAudit(20);
+    } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+            handleApiError(err);
+        } else if (err instanceof ApiError && err.status === 403) {
+            auditDenied.value = true;
+        } else {
+            errorAudit.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingAudit.value = false;
+    }
 }
 
-const eventIcon: Record<string, string> = {
-    'bot-ready': '✅',
-    'bot-disconnect': '❌',
-    'guild-join': '➕',
-    'guild-leave': '➖',
-    'server-start': '🚀',
-    'error': '⚠️'
-};
-
-const memUsagePercent = computed(() => {
-    if (!systemStats.value) return 0;
-    const { heapUsedMb, heapTotalMb } = systemStats.value.memory;
-    return Math.round((heapUsedMb / heapTotalMb) * 100);
-});
-
-const chartMax = computed(() => {
-    if (!systemStats.value?.dmActivity.length) return 1;
-    return Math.max(...systemStats.value.dmActivity.map(d => d.count), 1);
-});
+async function refresh() {
+    lastRefreshAt = Date.now();
+    resetError();
+    await Promise.all([loadBot(), loadStats(), loadFeatures(), loadAudit()]);
+    lastUpdated.value = new Date();
+}
 
 function startTimer() {
     if (refreshTimer !== null) return;
@@ -135,8 +142,6 @@ function onVisibilityChange() {
     if (document.visibilityState === 'hidden') {
         stopTimer();
     } else {
-        // Coming back from a hidden tab — refresh now if we've been
-        // away long enough that the existing data is plausibly stale.
         if (Date.now() - lastRefreshAt >= MIN_REFRESH_GAP_MS) refresh();
         startTimer();
     }
@@ -152,394 +157,178 @@ onUnmounted(() => {
     stopTimer();
     document.removeEventListener('visibilitychange', onVisibilityChange);
 });
+
+const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
 </script>
 
 <template>
     <DashboardLayout :title="$t('dashboard.title')">
         <template #actions>
-            <span v-if="lastUpdated" class="muted">
+            <span v-if="lastUpdated" class="last-updated">
                 {{ $t('common.updated', { time: lastUpdated.toLocaleTimeString() }) }}
             </span>
-            <button type="button" :disabled="loading" @click="refresh">{{ $t('common.refresh') }}</button>
+            <button
+                type="button"
+                class="refresh-btn"
+                :disabled="globalLoading"
+                :aria-label="$t('common.refresh')"
+                @click="refresh"
+            >
+                <span class="refresh-icon" :class="{ spinning: globalLoading }" aria-hidden="true">↻</span>
+                {{ $t('common.refresh') }}
+            </button>
         </template>
 
+        <!-- Global access denied (401/403 on protected routes) -->
         <AccessDeniedView v-if="accessDenied" />
+
         <template v-else>
-        <p v-if="loading && !health" class="muted">{{ $t('common.loading') }}</p>
-        <p v-else-if="error" class="error">{{ $t('common.failedToLoad', { error }) }}</p>
+            <!-- ── 1. Hero status ─────────────────────────────────────── -->
+            <StatusHero
+                :bot="bot"
+                :loading="loadingBot"
+            />
 
-        <div v-if="health || bot" class="grid">
-            <!-- Web server status -->
-            <article v-if="health" class="card">
-                <h2>{{ $t('dashboard.webServer') }}</h2>
-                <dl>
-                    <dt>{{ $t('dashboard.status') }}</dt>
-                    <dd><span class="pill pill-ok">{{ health.status }}</span></dd>
-                    <dt>{{ $t('dashboard.uptime') }}</dt>
-                    <dd>{{ formatDuration(health.uptime) }}</dd>
-                    <dt>{{ $t('dashboard.serverTime') }}</dt>
-                    <dd>{{ new Date(health.timestamp).toLocaleString() }}</dd>
-                </dl>
-            </article>
+            <!-- ── 2. Needs attention (conditional) ──────────────────── -->
+            <NeedsAttention :stats="systemStats" />
 
-            <!-- Discord bot identity -->
-            <article v-if="bot" class="card">
-                <h2>{{ $t('dashboard.discordBot') }}</h2>
-                <dl>
-                    <dt>{{ $t('dashboard.state') }}</dt>
-                    <dd>
-                        <span :class="['pill', bot.ready ? 'pill-ok' : 'pill-warn']">
-                            {{ bot.ready ? $t('dashboard.ready') : $t('dashboard.connecting') }}
-                        </span>
-                    </dd>
-                    <dt>{{ $t('dashboard.identity') }}</dt>
-                    <dd>{{ bot.userTag ?? '—' }}</dd>
-                    <dt>{{ $t('dashboard.guildsCount') }}</dt>
-                    <dd>{{ bot.guildCount }}</dd>
-                    <dt>{{ $t('dashboard.uptime') }}</dt>
-                    <dd>{{ formatDuration(bot.uptimeMs / 1000) }}</dd>
-                </dl>
-            </article>
-            <article v-else-if="!loading && !error" class="card card-muted">
-                <h2>{{ $t('dashboard.discordBot') }}</h2>
-                <p class="muted">{{ $t('dashboard.botStatusUnavailable') }}</p>
-            </article>
+            <!-- ── 3. Feature inventory ───────────────────────────────── -->
+            <FeatureInventory
+                :summary="featureSummary"
+                :loading="loadingFeatures"
+                :permission-denied="featuresDenied"
+            />
 
-            <!-- System monitoring -->
-            <article v-if="systemStats" class="card">
-                <h2>{{ $t('dashboard.system') }}</h2>
-                <dl>
-                    <dt>{{ $t('dashboard.database') }}</dt>
-                    <dd>
-                        <span :class="['pill', systemStats.dbConnected ? 'pill-ok' : 'pill-danger']">
-                            {{ systemStats.dbConnected ? $t('dashboard.connected') : $t('dashboard.disconnected') }}
-                        </span>
-                    </dd>
-                    <dt>{{ $t('dashboard.heapMemory') }}</dt>
-                    <dd>
-                        <div class="mem-row">
-                            <span>{{ systemStats.memory.heapUsedMb }} / {{ systemStats.memory.heapTotalMb }} MB</span>
-                            <div class="mem-bar">
-                                <div class="mem-fill" :style="{ width: memUsagePercent + '%' }" :class="{ 'mem-warn': memUsagePercent > 80 }"></div>
-                            </div>
-                        </div>
-                    </dd>
-                    <dt>{{ $t('dashboard.rss') }}</dt>
-                    <dd>{{ systemStats.memory.rssMb }} MB</dd>
-                    <dt>{{ $t('dashboard.dmChannels') }}</dt>
-                    <dd>{{ systemStats.dmChannelCount }}</dd>
-                </dl>
-            </article>
-
-            <!-- DM activity chart -->
-            <article v-if="systemStats?.dmActivity.length" class="card chart-card">
-                <h2>{{ $t('dashboard.dmActivity') }} <span class="muted subtitle">{{ $t('dashboard.past7Days') }}</span></h2>
-                <div class="chart">
-                    <div
-                        v-for="day in systemStats.dmActivity"
-                        :key="day.date"
-                        class="bar-col"
-                    >
-                        <div class="bar-label count">{{ day.count || '' }}</div>
-                        <div class="bar-track">
-                            <div
-                                class="bar-fill"
-                                :style="{ height: (day.count / chartMax * 100) + '%' }"
-                            ></div>
-                        </div>
-                        <div class="bar-label date">{{ day.date.slice(5) }}</div>
-                    </div>
+            <!-- ── Bottom two-col row ─────────────────────────────────── -->
+            <div class="bottom-row">
+                <!-- ── 4. DM activity chart ───────────────────────────── -->
+                <DmActivityChart
+                    v-if="!loadingStats && dmActivity.length"
+                    :data="dmActivity"
+                    class="bottom-chart"
+                />
+                <div v-else-if="loadingStats" class="bottom-chart chart-skel">
+                    <div class="skel skel-chart-title"></div>
+                    <div class="skel skel-chart-body"></div>
                 </div>
-            </article>
 
-            <!-- Guilds list -->
-            <article v-if="guilds.length" class="card guilds-card">
-                <h2>{{ $t('dashboard.guilds') }} <span class="count-pill">{{ guilds.length }}</span></h2>
-                <ul class="guild-list">
-                    <li v-for="g in guilds" :key="g.id">
-                        <RouterLink :to="`/admin/guilds`" class="guild-row" @click="$event.preventDefault?.()">
-                            <img v-if="g.iconUrl" :src="g.iconUrl" :alt="g.name" class="icon" />
-                            <div v-else class="icon icon-fallback">{{ g.name.charAt(0).toUpperCase() }}</div>
-                            <div class="meta">
-                                <div class="name">{{ g.name }}</div>
-                                <div class="sub">{{ $t('guilds.memberCount', { count: g.memberCount }) }}</div>
-                            </div>
-                        </RouterLink>
-                    </li>
-                </ul>
-                <RouterLink to="/admin/guilds" class="see-all">{{ $t('dashboard.manageGuilds') }}</RouterLink>
-            </article>
-
-            <!-- System event log -->
-            <article v-if="systemEvents.length" class="card events-card">
-                <h2>{{ $t('dashboard.systemEvents') }}</h2>
-                <ul class="event-list">
-                    <li v-for="evt in systemEvents.slice(0, 20)" :key="evt.id" class="event-row">
-                        <span class="event-icon">{{ eventIcon[evt.type] ?? '•' }}</span>
-                        <span class="event-body">
-                            <span class="event-msg">{{ evt.message }}</span>
-                            <span class="event-time muted">{{ formatEventDate(evt.timestamp) }} {{ formatEventTime(evt.timestamp) }}</span>
-                        </span>
-                    </li>
-                </ul>
-            </article>
-        </div>
+                <!-- ── 5. Recent admin activity ───────────────────────── -->
+                <RecentActivity
+                    :entries="auditEntries"
+                    :loading="loadingAudit"
+                    :permission-denied="auditDenied"
+                    class="bottom-activity"
+                />
+            </div>
         </template>
     </DashboardLayout>
 </template>
 
 <style scoped>
-.muted {
+/* ─── Actions bar ───────────────────────────────────────────────── */
+.last-updated {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.8rem;
 }
-.error {
-    color: var(--danger);
-}
-button {
-    padding: 0.4rem 0.8rem;
+
+.refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    transition:
+        background var(--transition-fast) ease,
+        border-color var(--transition-fast) ease;
 }
-button:disabled {
-    opacity: 0.6;
+
+.refresh-btn:hover:not(:disabled) {
+    background: var(--bg-surface-hover);
+    border-color: var(--accent);
+}
+
+.refresh-btn:disabled {
+    opacity: 0.55;
     cursor: default;
 }
-.grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 1rem;
-}
-.card {
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-base);
-    padding: 1rem 1.25rem;
-}
-.card h2 {
-    margin: 0 0 0.75rem;
+
+.refresh-icon {
     font-size: 1rem;
-    color: var(--text);
-}
-.card-muted {
-    background: var(--bg-surface-2);
-}
-dl {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.25rem 1rem;
-    margin: 0;
-}
-dt {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-}
-dd {
-    margin: 0;
-    font-size: 0.95rem;
-}
-.pill {
+    line-height: 1;
     display: inline-block;
-    padding: 0.1rem 0.5rem;
-    border-radius: var(--radius-pill);
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-transform: lowercase;
-}
-.pill-ok {
-    background: var(--success-bg);
-    color: var(--success-text);
-}
-.pill-warn {
-    background: var(--warn-bg);
-    color: var(--warn-text);
-}
-.pill-danger {
-    background: var(--danger-bg, #fee2e2);
-    color: var(--danger-text, #991b1b);
+    transition: transform 0.5s ease;
 }
 
-/* memory bar */
-.mem-row {
+.refresh-icon.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Layout: main sections stacked with gap ────────────────────── */
+:deep(.content) {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.9rem;
-}
-.mem-bar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--bg-surface-2);
-    overflow: hidden;
-}
-.mem-fill {
-    height: 100%;
-    border-radius: 3px;
-    background: var(--accent);
-    transition: width 0.4s ease;
-}
-.mem-fill.mem-warn {
-    background: var(--warn-text, #92400e);
+    gap: 1.5rem;
 }
 
-/* chart */
-.chart-card {
-    min-width: 0;
-}
-.subtitle {
-    font-size: 0.75rem;
-    font-weight: normal;
-}
-.chart {
-    display: flex;
-    align-items: flex-end;
-    gap: 0.5rem;
-    height: 100px;
-    padding-top: 1.25rem;
-}
-.bar-col {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.2rem;
-    height: 100%;
-}
-.bar-track {
-    flex: 1;
-    width: 100%;
-    display: flex;
-    align-items: flex-end;
-    background: var(--bg-surface-2);
-    border-radius: 3px 3px 0 0;
-    overflow: hidden;
-}
-.bar-fill {
-    width: 100%;
-    background: var(--accent);
-    border-radius: 3px 3px 0 0;
-    transition: height 0.4s ease;
-    min-height: 2px;
-}
-.bar-label {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-}
-.bar-label.count {
-    min-height: 1em;
-}
-
-/* guilds */
-.guilds-card {
-}
-.guilds-card h2 {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.count-pill {
-    background: var(--bg-surface-2);
-    color: var(--text-muted);
-    border-radius: var(--radius-pill);
-    padding: 0 0.5rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-.guild-list {
-    list-style: none;
-    margin: 0 0 0.5rem;
-    padding: 0;
+/* ─── Bottom two-column row ─────────────────────────────────────── */
+.bottom-row {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.4rem;
-}
-.guild-row {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.4rem 0.5rem;
-    border-radius: var(--radius-sm);
-    text-decoration: none;
-    color: inherit;
-}
-.guild-row:hover {
-    background: var(--bg-surface-hover);
-}
-.icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
-}
-.icon-fallback {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.85rem;
-}
-.guild-row .meta .name {
-    font-weight: 500;
-    color: var(--text-strong);
-}
-.guild-row .meta .sub {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-.see-all {
-    color: var(--accent-text);
-    font-size: 0.85rem;
-    text-decoration: none;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 1.5rem;
+    align-items: start;
 }
 
-/* event log */
-.events-card {
+.bottom-chart {
+    /* sticky top for taller activity feeds */
+    position: sticky;
+    top: 0;
 }
-.event-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+
+.bottom-activity {
+    /* activity feed can grow freely */
+}
+
+/* ─── Chart skeleton ────────────────────────────────────────────── */
+.chart-skel {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.75rem;
 }
-.event-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    font-size: 0.875rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--border);
+
+.skel {
+    background: var(--bg-surface-2);
+    border-radius: var(--radius-sm);
+    animation: skel-pulse 1.6s ease-in-out infinite;
 }
-.event-row:last-child {
-    border-bottom: none;
+
+@keyframes skel-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
 }
-.event-icon {
-    flex-shrink: 0;
-    font-size: 0.8rem;
+
+.skel-chart-title { height: 0.7rem; width: 8rem; }
+.skel-chart-body  {
+    height: 152px;
+    border-radius: var(--radius-lg);
 }
-.event-body {
-    flex: 1;
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    min-width: 0;
-}
-.event-msg {
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.event-time {
-    flex-shrink: 0;
-    font-size: 0.78rem;
+
+/* ─── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .bottom-row {
+        grid-template-columns: 1fr;
+    }
+
+    .bottom-chart {
+        position: static;
+    }
 }
 </style>

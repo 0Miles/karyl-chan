@@ -301,29 +301,44 @@
     },
     "dashboard": {
         "title": "Dashboard",
-        "webServer": "Web server",
-        "status": "Status",
-        "uptime": "Uptime",
-        "serverTime": "Server time",
-        "discordBot": "Discord bot",
-        "state": "State",
-        "ready": "ready",
-        "connecting": "connecting",
-        "identity": "Identity",
-        "guildsCount": "Servers",
-        "botStatusUnavailable": "Bot status endpoint not available on this server.",
-        "system": "System",
-        "database": "Database",
-        "connected": "connected",
-        "disconnected": "disconnected",
-        "heapMemory": "Heap memory",
-        "rss": "RSS",
-        "dmChannels": "DM channels",
-        "dmActivity": "DM activity",
-        "past7Days": "past 7 days",
-        "guilds": "Servers",
-        "manageGuilds": "Manage servers →",
-        "systemEvents": "System events"
+        "noPermission": "No permission to view this section.",
+        "hero": {
+            "ready": "Ready",
+            "connecting": "Connecting",
+            "statusOffline": "Offline",
+            "unavailable": "Bot unavailable",
+            "guilds": "Servers",
+            "uptime": "Uptime"
+        },
+        "features": {
+            "title": "Feature overview",
+            "distinctGuilds": "Active servers",
+            "todoChannels": "Todo channels",
+            "pictureOnlyChannels": "Picture-only",
+            "rconForwardChannels": "RCON forward",
+            "roleEmojiGroups": "Role emoji groups",
+            "authorizedUsers": "Authorized users",
+            "adminRoles": "Admin roles",
+            "capabilityGrants": "Capability grants"
+        },
+        "activity": {
+            "title": "Recent admin activity",
+            "empty": "No admin activity recorded yet.",
+            "by": "by"
+        },
+        "dmChart": {
+            "title": "DM activity",
+            "subtitle": "past 7 days",
+            "empty": "No DM activity data.",
+            "ariaLabel": "Bar chart showing DM activity over the past 7 days"
+        },
+        "attention": {
+            "title": "Needs attention",
+            "dbDisconnected": "Database disconnected",
+            "dbDisconnectedDesc": "The bot cannot persist data. Check your database connection.",
+            "highMemory": "High memory usage",
+            "highMemoryDesc": "Heap usage exceeds 80%. Consider restarting the bot process."
+        }
     },
     "guilds": {
         "title": "Servers",

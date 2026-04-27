@@ -301,29 +301,44 @@
     },
     "dashboard": {
         "title": "仪表板",
-        "webServer": "Web 服务器",
-        "status": "状态",
-        "uptime": "运行时长",
-        "serverTime": "服务器时间",
-        "discordBot": "Discord 机器人",
-        "state": "状态",
-        "ready": "就绪",
-        "connecting": "连接中",
-        "identity": "身份",
-        "guildsCount": "服务器",
-        "botStatusUnavailable": "此服务器未提供机器人状态端点。",
-        "system": "系统",
-        "database": "数据库",
-        "connected": "已连接",
-        "disconnected": "未连接",
-        "heapMemory": "Heap 内存",
-        "rss": "RSS",
-        "dmChannels": "私信频道",
-        "dmActivity": "私信活动",
-        "past7Days": "过去 7 天",
-        "guilds": "服务器",
-        "manageGuilds": "管理服务器 →",
-        "systemEvents": "系统事件"
+        "noPermission": "无权限查看此区块。",
+        "hero": {
+            "ready": "就绪",
+            "connecting": "连接中",
+            "statusOffline": "离线",
+            "unavailable": "机器人不可用",
+            "guilds": "服务器",
+            "uptime": "运行时长"
+        },
+        "features": {
+            "title": "功能概览",
+            "distinctGuilds": "活跃服务器",
+            "todoChannels": "待办频道",
+            "pictureOnlyChannels": "限图频道",
+            "rconForwardChannels": "RCON 转发",
+            "roleEmojiGroups": "身份组表情分组",
+            "authorizedUsers": "授权用户",
+            "adminRoles": "管理身份组",
+            "capabilityGrants": "权限授予"
+        },
+        "activity": {
+            "title": "近期管理操作",
+            "empty": "暂无管理操作记录。",
+            "by": "由"
+        },
+        "dmChart": {
+            "title": "私信活动",
+            "subtitle": "过去 7 天",
+            "empty": "没有私信活动数据。",
+            "ariaLabel": "展示过去 7 天私信活动的柱状图"
+        },
+        "attention": {
+            "title": "需要关注",
+            "dbDisconnected": "数据库已断线",
+            "dbDisconnectedDesc": "机器人无法持久化数据，请检查数据库连接。",
+            "highMemory": "内存使用偏高",
+            "highMemoryDesc": "Heap 使用率超过 80%，建议重启机器人进程。"
+        }
     },
     "guilds": {
         "title": "服务器",

@@ -301,29 +301,44 @@
     },
     "dashboard": {
         "title": "儀表板",
-        "webServer": "網頁伺服器",
-        "status": "狀態",
-        "uptime": "運行時間",
-        "serverTime": "伺服器時間",
-        "discordBot": "Discord 機器人",
-        "state": "狀態",
-        "ready": "就緒",
-        "connecting": "連線中",
-        "identity": "身分",
-        "guildsCount": "伺服器",
-        "botStatusUnavailable": "此伺服器未提供機器人狀態端點。",
-        "system": "系統",
-        "database": "資料庫",
-        "connected": "已連線",
-        "disconnected": "未連線",
-        "heapMemory": "Heap 記憶體",
-        "rss": "RSS",
-        "dmChannels": "私訊頻道",
-        "dmActivity": "私訊活動",
-        "past7Days": "過去 7 天",
-        "guilds": "伺服器",
-        "manageGuilds": "管理伺服器 →",
-        "systemEvents": "系統事件"
+        "noPermission": "無權限查看此區塊。",
+        "hero": {
+            "ready": "就緒",
+            "connecting": "連線中",
+            "statusOffline": "離線",
+            "unavailable": "機器人不可用",
+            "guilds": "伺服器",
+            "uptime": "運行時間"
+        },
+        "features": {
+            "title": "功能總覽",
+            "distinctGuilds": "活躍伺服器",
+            "todoChannels": "待辦頻道",
+            "pictureOnlyChannels": "限圖頻道",
+            "rconForwardChannels": "RCON 轉發",
+            "roleEmojiGroups": "身分組表情群組",
+            "authorizedUsers": "授權使用者",
+            "adminRoles": "管理身分組",
+            "capabilityGrants": "權限授予"
+        },
+        "activity": {
+            "title": "最近管理操作",
+            "empty": "尚無管理操作記錄。",
+            "by": "由"
+        },
+        "dmChart": {
+            "title": "私訊活動",
+            "subtitle": "過去 7 天",
+            "empty": "沒有私訊活動資料。",
+            "ariaLabel": "顯示過去 7 天私訊活動的長條圖"
+        },
+        "attention": {
+            "title": "需要注意",
+            "dbDisconnected": "資料庫已斷線",
+            "dbDisconnectedDesc": "機器人無法儲存資料，請檢查資料庫連線。",
+            "highMemory": "記憶體使用偏高",
+            "highMemoryDesc": "Heap 使用率超過 80%，建議重啟機器人程序。"
+        }
     },
     "guilds": {
         "title": "伺服器",
