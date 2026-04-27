@@ -27,6 +27,14 @@ import {
     ROLE_DESCRIPTION_MAX,
     USER_NOTE_MAX
 } from './validators.js';
+import { TodoChannel } from '../models/todo-channel.model.js';
+import { PictureOnlyChannel } from '../models/picture-only-channel.model.js';
+import { RconForwardChannel } from '../models/rcon-forward-channel.model.js';
+import { RoleEmojiGroup } from '../models/role-emoji-group.model.js';
+import { RoleEmoji } from '../models/role-emoji.model.js';
+import { AuthorizedUser } from '../models/authorized-user.model.js';
+import { AdminRole } from '../models/admin-role.model.js';
+import { CapabilityGrant } from '../models/capability-grant.model.js';
 
 export interface AdminManagementRoutesOptions {
     bot?: Client;
@@ -417,4 +425,65 @@ export async function registerAdminManagementRoutes(
             return { entries };
         }
     );
+
+    // ── Feature summary ──────────────────────────────────────────────────
+    // Cross-guild aggregate counts of every bot feature configuration.
+    // Intended for the admin dashboard "what is this bot actually doing"
+    // overview. Returns only counts — never row content.
+    server.get('/api/admin/feature-summary', async (request, reply) => {
+        if (!requireAdmin(request, reply)) return;
+        try {
+            const [
+                todoChannels,
+                pictureOnlyChannels,
+                rconForwardChannels,
+                roleEmojiGroups,
+                roleEmojis,
+                authorizedUsers,
+                adminRoles,
+                capabilityGrants,
+                todoGuilds,
+                pictureGuilds,
+                rconGuilds,
+                roleEmojiGroupGuilds,
+                capabilityGrantGuilds
+            ] = await Promise.all([
+                TodoChannel.count(),
+                PictureOnlyChannel.count(),
+                RconForwardChannel.count(),
+                RoleEmojiGroup.count(),
+                RoleEmoji.count(),
+                AuthorizedUser.count(),
+                AdminRole.count(),
+                CapabilityGrant.count(),
+                TodoChannel.findAll({ attributes: ['guildId'], group: ['guildId'] }),
+                PictureOnlyChannel.findAll({ attributes: ['guildId'], group: ['guildId'] }),
+                RconForwardChannel.findAll({ attributes: ['guildId'], group: ['guildId'] }),
+                RoleEmojiGroup.findAll({ attributes: ['guildId'], group: ['guildId'] }),
+                CapabilityGrant.findAll({ attributes: ['guildId'], group: ['guildId'] })
+            ]);
+
+            const guildIdSet = new Set<string>();
+            for (const rows of [todoGuilds, pictureGuilds, rconGuilds, roleEmojiGroupGuilds, capabilityGrantGuilds]) {
+                for (const row of rows) {
+                    guildIdSet.add((row.get('guildId') as string));
+                }
+            }
+
+            return {
+                todoChannels,
+                pictureOnlyChannels,
+                rconForwardChannels,
+                roleEmojiGroups,
+                roleEmojis,
+                authorizedUsers,
+                adminRoles,
+                capabilityGrants,
+                distinctGuilds: guildIdSet.size
+            };
+        } catch (err) {
+            request.log.error({ err }, 'feature-summary query failed');
+            reply.code(500).send({ error: 'Failed to retrieve feature summary' });
+        }
+    });
 }
