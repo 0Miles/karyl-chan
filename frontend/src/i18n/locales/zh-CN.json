@@ -310,16 +310,28 @@
             "guilds": "服务器",
             "uptime": "运行时长"
         },
-        "features": {
-            "title": "功能概览",
-            "distinctGuilds": "活跃服务器",
-            "todoChannels": "待办频道",
-            "pictureOnlyChannels": "限图频道",
-            "rconForwardChannels": "RCON 转发",
-            "roleEmojiGroups": "身份组表情分组",
-            "authorizedUsers": "授权用户",
-            "adminRoles": "管理身份组",
-            "capabilityGrants": "权限授予"
+        "guilds": {
+            "title": "服务器",
+            "viewAll": "查看全部",
+            "empty": "机器人尚未加入任何服务器。",
+            "members": "位成员",
+            "settings": "设置"
+        },
+        "adminLogin": {
+            "title": "管理员登录状况",
+            "empty": "未找到任何管理员账号。",
+            "owner": "所有者",
+            "never": "从未",
+            "sessionActive": "有效 session",
+            "sessionNone": "无 session"
+        },
+        "botEvents": {
+            "title": "机器人事件日志",
+            "empty": "暂无事件记录。",
+            "emptyFiltered": "没有 {level} 级别的事件。",
+            "filterAriaLabel": "按级别筛选",
+            "contextShow": "ctx",
+            "contextHide": "收起"
         },
         "activity": {
             "title": "近期管理操作",
@@ -335,9 +347,7 @@
         "attention": {
             "title": "需要关注",
             "dbDisconnected": "数据库已断线",
-            "dbDisconnectedDesc": "机器人无法持久化数据，请检查数据库连接。",
-            "highMemory": "内存使用偏高",
-            "highMemoryDesc": "Heap 使用率超过 80%，建议重启机器人进程。"
+            "dbDisconnectedDesc": "机器人无法持久化数据，请检查数据库连接。"
         }
     },
     "guilds": {

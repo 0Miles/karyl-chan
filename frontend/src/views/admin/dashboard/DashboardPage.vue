@@ -2,15 +2,18 @@
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { ApiError, api } from '../../../api/client';
 import { getSystemStats } from '../../../api/system';
-import { fetchFeatureSummary } from '../../../api/system';
-import { fetchRecentAudit } from '../../../api/admin';
-import type { BotStatus, FeatureSummary, SystemStats, AdminAuditEntry } from '../../../api/types';
+import { fetchRecentAudit, fetchBotEvents, fetchAdminLoginStatus } from '../../../api/admin';
+import type { BotStatus, SystemStats, AdminAuditEntry, BotEvent, AdminLoginEntry } from '../../../api/types';
+import { listGuilds } from '../../../api/guilds';
+import type { GuildSummary } from '../../../api/guilds';
 import { DashboardLayout } from '../../../layouts';
 import { useApiError } from '../../../composables/use-api-error';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 
 import StatusHero from './StatusHero.vue';
-import FeatureInventory from './FeatureInventory.vue';
+import GuildsListCard from './GuildsListCard.vue';
+import AdminLoginCard from './AdminLoginCard.vue';
+import BotEventsCard from './BotEventsCard.vue';
 import RecentActivity from './RecentActivity.vue';
 import DmActivityChart from './DmActivityChart.vue';
 import NeedsAttention from './NeedsAttention.vue';
@@ -19,27 +22,35 @@ const { accessDenied, reset: resetError, handle: handleApiError } = useApiError(
 
 const bot = ref<BotStatus | null>(null);
 const systemStats = ref<SystemStats | null>(null);
-const featureSummary = ref<FeatureSummary | null>(null);
 const auditEntries = ref<AdminAuditEntry[]>([]);
+const botEvents = ref<BotEvent[]>([]);
+const adminLogins = ref<AdminLoginEntry[]>([]);
+const guilds = ref<GuildSummary[]>([]);
 const lastUpdated = ref<Date | null>(null);
 
 // Loading states per section (don't block the whole page)
 const loadingBot = ref(true);
 const loadingStats = ref(true);
-const loadingFeatures = ref(true);
 const loadingAudit = ref(true);
+const loadingEvents = ref(true);
+const loadingLogin = ref(true);
+const loadingGuilds = ref(true);
 
 const globalLoading = computed(() =>
-    loadingBot.value && loadingStats.value && loadingFeatures.value && loadingAudit.value
+    loadingBot.value && loadingStats.value && loadingAudit.value &&
+    loadingEvents.value && loadingLogin.value && loadingGuilds.value
 );
 
 // Error states — feature-level (not page-level)
 const errorBot = ref<string | null>(null);
 const errorStats = ref<string | null>(null);
-const featuresDenied = ref(false);
 const auditDenied = ref(false);
-const errorFeatures = ref<string | null>(null);
 const errorAudit = ref<string | null>(null);
+const eventsDenied = ref(false);
+const errorEvents = ref<string | null>(null);
+const loginDenied = ref(false);
+const errorLogin = ref<string | null>(null);
+const errorGuilds = ref<string | null>(null);
 
 const REFRESH_INTERVAL_MS = 30_000;
 const MIN_REFRESH_GAP_MS = 5_000;
@@ -56,7 +67,6 @@ async function loadBot() {
         if (err instanceof ApiError && err.status === 404) {
             bot.value = null;
         } else if (err instanceof ApiError && err.status === 401) {
-            // Handled globally — handleApiError will redirect
             handleApiError(err);
         } else {
             errorBot.value = err instanceof Error ? err.message : 'Unknown error';
@@ -82,25 +92,6 @@ async function loadStats() {
     }
 }
 
-async function loadFeatures() {
-    loadingFeatures.value = true;
-    featuresDenied.value = false;
-    errorFeatures.value = null;
-    try {
-        featureSummary.value = await fetchFeatureSummary();
-    } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-            handleApiError(err);
-        } else if (err instanceof ApiError && err.status === 403) {
-            featuresDenied.value = true;
-        } else {
-            errorFeatures.value = err instanceof Error ? err.message : 'Unknown error';
-        }
-    } finally {
-        loadingFeatures.value = false;
-    }
-}
-
 async function loadAudit() {
     loadingAudit.value = true;
     auditDenied.value = false;
@@ -120,10 +111,73 @@ async function loadAudit() {
     }
 }
 
+async function loadEvents() {
+    loadingEvents.value = true;
+    eventsDenied.value = false;
+    errorEvents.value = null;
+    try {
+        const result = await fetchBotEvents({ limit: 20 });
+        botEvents.value = result.events;
+    } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+            handleApiError(err);
+        } else if (err instanceof ApiError && err.status === 403) {
+            eventsDenied.value = true;
+        } else {
+            errorEvents.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingEvents.value = false;
+    }
+}
+
+async function loadLogin() {
+    loadingLogin.value = true;
+    loginDenied.value = false;
+    errorLogin.value = null;
+    try {
+        const result = await fetchAdminLoginStatus();
+        adminLogins.value = result.admins;
+    } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+            handleApiError(err);
+        } else if (err instanceof ApiError && err.status === 403) {
+            loginDenied.value = true;
+        } else {
+            errorLogin.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingLogin.value = false;
+    }
+}
+
+async function loadGuilds() {
+    loadingGuilds.value = true;
+    errorGuilds.value = null;
+    try {
+        guilds.value = await listGuilds();
+    } catch (err) {
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            handleApiError(err);
+        } else {
+            errorGuilds.value = err instanceof Error ? err.message : 'Unknown error';
+        }
+    } finally {
+        loadingGuilds.value = false;
+    }
+}
+
 async function refresh() {
     lastRefreshAt = Date.now();
     resetError();
-    await Promise.all([loadBot(), loadStats(), loadFeatures(), loadAudit()]);
+    await Promise.all([
+        loadBot(),
+        loadStats(),
+        loadAudit(),
+        loadEvents(),
+        loadLogin(),
+        loadGuilds()
+    ]);
     lastUpdated.value = new Date();
 }
 
@@ -192,27 +246,47 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
             <!-- ── 2. Needs attention (conditional) ──────────────────── -->
             <NeedsAttention :stats="systemStats" />
 
-            <!-- ── 3. Feature inventory ───────────────────────────────── -->
-            <FeatureInventory
-                :summary="featureSummary"
-                :loading="loadingFeatures"
-                :permission-denied="featuresDenied"
+            <!-- ── 3. Guilds list ─────────────────────────────────────── -->
+            <GuildsListCard
+                :guilds="guilds"
+                :loading="loadingGuilds"
+                :error="errorGuilds"
             />
 
-            <!-- ── Bottom two-col row ─────────────────────────────────── -->
-            <div class="bottom-row">
-                <!-- ── 4. DM activity chart ───────────────────────────── -->
+            <!-- ── 4. Middle two-col row: Chart + Admin Login ─────────── -->
+            <div class="mid-row">
                 <DmActivityChart
                     v-if="!loadingStats && dmActivity.length"
                     :data="dmActivity"
-                    class="bottom-chart"
+                    class="mid-chart"
                 />
-                <div v-else-if="loadingStats" class="bottom-chart chart-skel">
+                <div v-else-if="loadingStats" class="mid-chart chart-skel">
                     <div class="skel skel-chart-title"></div>
                     <div class="skel skel-chart-body"></div>
                 </div>
+                <div v-else class="mid-chart">
+                    <DmActivityChart :data="[]" />
+                </div>
 
-                <!-- ── 5. Recent admin activity ───────────────────────── -->
+                <AdminLoginCard
+                    :admins="adminLogins"
+                    :loading="loadingLogin"
+                    :permission-denied="loginDenied"
+                    :error="errorLogin"
+                    class="mid-login"
+                />
+            </div>
+
+            <!-- ── 5. Bottom two-col row: Bot Events + Recent Activity ── -->
+            <div class="bottom-row">
+                <BotEventsCard
+                    :events="botEvents"
+                    :loading="loadingEvents"
+                    :permission-denied="eventsDenied"
+                    :error="errorEvents"
+                    class="bottom-events"
+                />
+
                 <RecentActivity
                     :entries="auditEntries"
                     :loading="loadingAudit"
@@ -279,22 +353,25 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
     gap: 1.5rem;
 }
 
-/* ─── Bottom two-column row ─────────────────────────────────────── */
-.bottom-row {
+/* ─── Middle two-column row (chart | admin login) ────────────────── */
+.mid-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1.5rem;
     align-items: start;
 }
 
-.bottom-chart {
-    /* sticky top for taller activity feeds */
+.mid-chart {
     position: sticky;
     top: 0;
 }
 
-.bottom-activity {
-    /* activity feed can grow freely */
+/* ─── Bottom two-column row (events | activity) ──────────────────── */
+.bottom-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
 }
 
 /* ─── Chart skeleton ────────────────────────────────────────────── */
@@ -323,11 +400,12 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
 
 /* ─── Responsive ────────────────────────────────────────────────── */
 @media (max-width: 900px) {
+    .mid-row,
     .bottom-row {
         grid-template-columns: 1fr;
     }
 
-    .bottom-chart {
+    .mid-chart {
         position: static;
     }
 }

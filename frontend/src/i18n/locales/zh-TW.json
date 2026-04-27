@@ -310,16 +310,28 @@
             "guilds": "伺服器",
             "uptime": "運行時間"
         },
-        "features": {
-            "title": "功能總覽",
-            "distinctGuilds": "活躍伺服器",
-            "todoChannels": "待辦頻道",
-            "pictureOnlyChannels": "限圖頻道",
-            "rconForwardChannels": "RCON 轉發",
-            "roleEmojiGroups": "身分組表情群組",
-            "authorizedUsers": "授權使用者",
-            "adminRoles": "管理身分組",
-            "capabilityGrants": "權限授予"
+        "guilds": {
+            "title": "伺服器",
+            "viewAll": "查看全部",
+            "empty": "機器人尚未加入任何伺服器。",
+            "members": "位成員",
+            "settings": "設定"
+        },
+        "adminLogin": {
+            "title": "管理員登入狀況",
+            "empty": "找不到任何管理員帳號。",
+            "owner": "擁有者",
+            "never": "從未",
+            "sessionActive": "有效 session",
+            "sessionNone": "無 session"
+        },
+        "botEvents": {
+            "title": "機器人事件日誌",
+            "empty": "尚無事件記錄。",
+            "emptyFiltered": "沒有 {level} 等級的事件。",
+            "filterAriaLabel": "依等級篩選",
+            "contextShow": "ctx",
+            "contextHide": "收起"
         },
         "activity": {
             "title": "最近管理操作",
@@ -335,9 +347,7 @@
         "attention": {
             "title": "需要注意",
             "dbDisconnected": "資料庫已斷線",
-            "dbDisconnectedDesc": "機器人無法儲存資料，請檢查資料庫連線。",
-            "highMemory": "記憶體使用偏高",
-            "highMemoryDesc": "Heap 使用率超過 80%，建議重啟機器人程序。"
+            "dbDisconnectedDesc": "機器人無法儲存資料，請檢查資料庫連線。"
         }
     },
     "guilds": {

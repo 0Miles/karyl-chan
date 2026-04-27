@@ -38,17 +38,6 @@ export interface AdminAuditEntry {
     hash: string;
 }
 
-export interface FeatureSummary {
-    todoChannels: number;
-    pictureOnlyChannels: number;
-    rconForwardChannels: number;
-    roleEmojiGroups: number;
-    roleEmojis: number;
-    authorizedUsers: number;
-    adminRoles: number;
-    capabilityGrants: number;
-    distinctGuilds: number;
-}
 
 export type BotEventLevel = 'info' | 'warn' | 'error';
 

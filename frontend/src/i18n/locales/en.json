@@ -310,16 +310,28 @@
             "guilds": "Servers",
             "uptime": "Uptime"
         },
-        "features": {
-            "title": "Feature overview",
-            "distinctGuilds": "Active servers",
-            "todoChannels": "Todo channels",
-            "pictureOnlyChannels": "Picture-only",
-            "rconForwardChannels": "RCON forward",
-            "roleEmojiGroups": "Role emoji groups",
-            "authorizedUsers": "Authorized users",
-            "adminRoles": "Admin roles",
-            "capabilityGrants": "Capability grants"
+        "guilds": {
+            "title": "Servers",
+            "viewAll": "View all",
+            "empty": "Bot isn't in any server.",
+            "members": "members",
+            "settings": "Settings"
+        },
+        "adminLogin": {
+            "title": "Admin sessions",
+            "empty": "No admin accounts found.",
+            "owner": "owner",
+            "never": "Never",
+            "sessionActive": "Active session",
+            "sessionNone": "No active session"
+        },
+        "botEvents": {
+            "title": "Bot event log",
+            "empty": "No events recorded yet.",
+            "emptyFiltered": "No {level} events.",
+            "filterAriaLabel": "Filter by level",
+            "contextShow": "ctx",
+            "contextHide": "hide"
         },
         "activity": {
             "title": "Recent admin activity",
@@ -335,9 +347,7 @@
         "attention": {
             "title": "Needs attention",
             "dbDisconnected": "Database disconnected",
-            "dbDisconnectedDesc": "The bot cannot persist data. Check your database connection.",
-            "highMemory": "High memory usage",
-            "highMemoryDesc": "Heap usage exceeds 80%. Consider restarting the bot process."
+            "dbDisconnectedDesc": "The bot cannot persist data. Check your database connection."
         }
     },
     "guilds": {

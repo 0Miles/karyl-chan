@@ -1,5 +1,5 @@
 import { authedFetch, ApiError } from './client';
-import type { FeatureSummary, SystemStats } from './types';
+import type { SystemStats } from './types';
 
 async function getJson<T>(path: string): Promise<T> {
     const response = await authedFetch(path);
@@ -9,8 +9,4 @@ async function getJson<T>(path: string): Promise<T> {
 
 export async function getSystemStats(): Promise<SystemStats> {
     return getJson<SystemStats>('/api/system/stats');
-}
-
-export async function fetchFeatureSummary(): Promise<FeatureSummary> {
-    return getJson<FeatureSummary>('/api/admin/feature-summary');
 }

@@ -26,19 +26,6 @@ const items = computed<AttentionItem[]>(() => {
         });
     }
 
-    const heapPct = props.stats.memory.heapTotalMb > 0
-        ? (props.stats.memory.heapUsedMb / props.stats.memory.heapTotalMb) * 100
-        : 0;
-
-    if (heapPct > 80) {
-        out.push({
-            kind: 'warning',
-            icon: '📈',
-            titleKey: 'dashboard.attention.highMemory',
-            descKey: 'dashboard.attention.highMemoryDesc'
-        });
-    }
-
     return out;
 });
 
