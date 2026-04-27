@@ -1,18 +1,18 @@
-import { createHash } from 'crypto';
-import { Op, Transaction } from 'sequelize';
-import { AdminAuditLog } from '../models/admin-audit-log.model.js';
-import { sequelize } from '../models/db.js';
-import { botEventLog } from './bot-event-log.js';
+import { createHash } from "crypto";
+import { Op, Transaction } from "sequelize";
+import { AdminAuditLog } from "../models/admin-audit-log.model.js";
+import { sequelize } from "../models/db.js";
+import { botEventLog } from "./bot-event-log.js";
 
 export interface AdminAuditEntry {
-    id: number;
-    actorUserId: string;
-    action: string;
-    target: string | null;
-    context: Record<string, unknown> | null;
-    createdAt: string;
-    previousHash: string | null;
-    hash: string;
+  id: number;
+  actorUserId: string;
+  action: string;
+  target: string | null;
+  context: Record<string, unknown> | null;
+  createdAt: string;
+  previousHash: string | null;
+  hash: string;
 }
 
 /**
@@ -28,19 +28,19 @@ export interface AdminAuditEntry {
  * computed against the raw string verify identically.
  */
 function canonicalPayload(
-    actorUserId: string,
-    action: string,
-    target: string | null,
-    contextJson: string | null,
-    createdAtMs: number
+  actorUserId: string,
+  action: string,
+  target: string | null,
+  contextJson: string | null,
+  createdAtMs: number,
 ): string {
-    return JSON.stringify({
-        actorUserId,
-        action,
-        target,
-        context: contextJson,
-        createdAt: createdAtMs
-    });
+  return JSON.stringify({
+    actorUserId,
+    action,
+    target,
+    context: contextJson,
+    createdAt: createdAtMs,
+  });
 }
 
 /**
@@ -51,13 +51,17 @@ function canonicalPayload(
  * verify-time hashing see the same bytes for the same logical content.
  */
 function contextToCanonicalString(value: unknown): string | null {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value);
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
 }
 
 function chainHash(previousHash: string | null, payload: string): string {
-    return createHash('sha256').update(previousHash ?? '').update('|').update(payload).digest('hex');
+  return createHash("sha256")
+    .update(previousHash ?? "")
+    .update("|")
+    .update(payload)
+    .digest("hex");
 }
 
 /**
@@ -75,103 +79,117 @@ function chainHash(previousHash: string | null, payload: string): string {
  * event log so an admin can see the gap and investigate.
  */
 export async function recordAudit(
-    actorUserId: string,
-    action: string,
-    target: string | null = null,
-    context: Record<string, unknown> | null = null
+  actorUserId: string,
+  action: string,
+  target: string | null = null,
+  context: Record<string, unknown> | null = null,
 ): Promise<void> {
-    const contextJson = context ? JSON.stringify(context) : null;
-    const createdAt = new Date();
-    try {
-        await sequelize.transaction(async (tx: Transaction) => {
-            const last = await AdminAuditLog.findOne({
-                order: [['id', 'DESC']],
-                transaction: tx,
-                lock: tx.LOCK.UPDATE
-            });
-            const previousHash = (last?.getDataValue('hash') as string | null) ?? null;
-            const payload = canonicalPayload(actorUserId, action, target, contextJson, createdAt.getTime());
-            const hash = chainHash(previousHash, payload);
-            await AdminAuditLog.create({
-                actorUserId,
-                action,
-                target,
-                // Pass the object form — Sequelize re-stringifies via the
-                // JSON column. The bytes match contextJson because
-                // JSON.stringify is deterministic for plain objects with
-                // string keys (which is all we ever pass in here), so
-                // the hash we just computed remains valid.
-                context,
-                previousHash,
-                hash,
-                createdAt
-            }, { transaction: tx });
-        });
-    } catch (err) {
-        // Loud failure: surface to system events so a human notices the
-        // chain has a hole, even if the original mutation already
-        // committed. We don't rethrow to avoid 500ing a request whose
-        // primary work succeeded — the audit is meant to observe, not
-        // veto. (See file-level note for the trade-off.)
-        const msg = err instanceof Error ? err.message : String(err);
-        botEventLog.record(
-            'error',
-            'error',
-            `admin audit write failed: ${action} target=${target ?? '∅'} (${msg})`
-        );
-        console.error('admin audit write failed:', err);
-    }
+  const contextJson = context ? JSON.stringify(context) : null;
+  const createdAt = new Date();
+  try {
+    await sequelize.transaction(async (tx: Transaction) => {
+      const last = await AdminAuditLog.findOne({
+        order: [["id", "DESC"]],
+        transaction: tx,
+        lock: tx.LOCK.UPDATE,
+      });
+      const previousHash =
+        (last?.getDataValue("hash") as string | null) ?? null;
+      const payload = canonicalPayload(
+        actorUserId,
+        action,
+        target,
+        contextJson,
+        createdAt.getTime(),
+      );
+      const hash = chainHash(previousHash, payload);
+      await AdminAuditLog.create(
+        {
+          actorUserId,
+          action,
+          target,
+          // Pass the object form — Sequelize re-stringifies via the
+          // JSON column. The bytes match contextJson because
+          // JSON.stringify is deterministic for plain objects with
+          // string keys (which is all we ever pass in here), so
+          // the hash we just computed remains valid.
+          context,
+          previousHash,
+          hash,
+          createdAt,
+        },
+        { transaction: tx },
+      );
+    });
+  } catch (err) {
+    // Loud failure: surface to system events so a human notices the
+    // chain has a hole, even if the original mutation already
+    // committed. We don't rethrow to avoid 500ing a request whose
+    // primary work succeeded — the audit is meant to observe, not
+    // veto. (See file-level note for the trade-off.)
+    const msg = err instanceof Error ? err.message : String(err);
+    botEventLog.record(
+      "error",
+      "error",
+      `admin audit write failed: ${action} target=${target ?? "∅"} (${msg})`,
+    );
+    console.error("admin audit write failed:", err);
+  }
 }
 
 export interface ListAuditOptions {
-    limit?: number;
-    before?: number;
+  limit?: number;
+  before?: number;
 }
 
-export async function listAudit(options: ListAuditOptions = {}): Promise<AdminAuditEntry[]> {
-    const limit = Math.min(Math.max(options.limit ?? 50, 1), 500);
-    const where = typeof options.before === 'number'
-        ? { id: { [Op.lt]: options.before } }
-        : undefined;
-    const rows = await AdminAuditLog.findAll({
-        where,
-        order: [['id', 'DESC']],
-        limit
-    });
-    return rows.map(row => {
-        // DataTypes.JSON returns the parsed object, but pre-migration
-        // rows that were written via TEXT may still come back as a
-        // string. Normalise both shapes to a Record (or null).
-        const raw = row.getDataValue('context') as unknown;
-        let context: Record<string, unknown> | null = null;
-        if (raw && typeof raw === 'object') {
-            context = raw as Record<string, unknown>;
-        } else if (typeof raw === 'string' && raw.length > 0) {
-            try {
-                const parsed = JSON.parse(raw);
-                if (parsed && typeof parsed === 'object') context = parsed as Record<string, unknown>;
-            } catch {
-                // Malformed context — skip rather than 500 the whole list.
-            }
-        }
-        return {
-            id: row.getDataValue('id') as number,
-            actorUserId: row.getDataValue('actorUserId') as string,
-            action: row.getDataValue('action') as string,
-            target: (row.getDataValue('target') as string | null) ?? null,
-            context,
-            createdAt: (row.getDataValue('createdAt') as Date).toISOString(),
-            previousHash: (row.getDataValue('previousHash') as string | null) ?? null,
-            hash: row.getDataValue('hash') as string
-        };
-    });
+export async function listAudit(
+  options: ListAuditOptions = {},
+): Promise<AdminAuditEntry[]> {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 500);
+  const where =
+    typeof options.before === "number"
+      ? { id: { [Op.lt]: options.before } }
+      : undefined;
+  const rows = await AdminAuditLog.findAll({
+    where,
+    order: [["id", "DESC"]],
+    limit,
+  });
+  return rows.map((row) => {
+    // DataTypes.JSON returns the parsed object, but pre-migration
+    // rows that were written via TEXT may still come back as a
+    // string. Normalise both shapes to a Record (or null).
+    const raw = row.getDataValue("context") as unknown;
+    let context: Record<string, unknown> | null = null;
+    if (raw && typeof raw === "object") {
+      context = raw as Record<string, unknown>;
+    } else if (typeof raw === "string" && raw.length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object")
+          context = parsed as Record<string, unknown>;
+      } catch {
+        // Malformed context — skip rather than 500 the whole list.
+      }
+    }
+    return {
+      id: row.getDataValue("id") as number,
+      actorUserId: row.getDataValue("actorUserId") as string,
+      action: row.getDataValue("action") as string,
+      target: (row.getDataValue("target") as string | null) ?? null,
+      context,
+      createdAt: (row.getDataValue("createdAt") as Date).toISOString(),
+      previousHash: (row.getDataValue("previousHash") as string | null) ?? null,
+      hash: row.getDataValue("hash") as string,
+    };
+  });
 }
 
 export interface AuditChainVerification {
-    valid: boolean;
-    rowsChecked: number;
-    /** id of the first row whose stored hash didn't match the recomputed value. */
-    firstBrokenId: number | null;
+  valid: boolean;
+  rowsChecked: number;
+  /** id of the first row whose stored hash didn't match the recomputed value. */
+  firstBrokenId: number | null;
 }
 
 /**
@@ -182,27 +200,28 @@ export interface AuditChainVerification {
  * not on a hot path.
  */
 export async function verifyAuditChain(): Promise<AuditChainVerification> {
-    const rows = await AdminAuditLog.findAll({ order: [['id', 'ASC']] });
-    let previousHash: string | null = null;
-    for (const row of rows) {
-        const id = row.getDataValue('id') as number;
-        const storedHash = row.getDataValue('hash') as string;
-        const storedPrev = (row.getDataValue('previousHash') as string | null) ?? null;
-        if (storedPrev !== previousHash) {
-            return { valid: false, rowsChecked: rows.length, firstBrokenId: id };
-        }
-        const payload = canonicalPayload(
-            row.getDataValue('actorUserId') as string,
-            row.getDataValue('action') as string,
-            (row.getDataValue('target') as string | null) ?? null,
-            contextToCanonicalString(row.getDataValue('context')),
-            (row.getDataValue('createdAt') as Date).getTime()
-        );
-        const expected = chainHash(previousHash, payload);
-        if (expected !== storedHash) {
-            return { valid: false, rowsChecked: rows.length, firstBrokenId: id };
-        }
-        previousHash = storedHash;
+  const rows = await AdminAuditLog.findAll({ order: [["id", "ASC"]] });
+  let previousHash: string | null = null;
+  for (const row of rows) {
+    const id = row.getDataValue("id") as number;
+    const storedHash = row.getDataValue("hash") as string;
+    const storedPrev =
+      (row.getDataValue("previousHash") as string | null) ?? null;
+    if (storedPrev !== previousHash) {
+      return { valid: false, rowsChecked: rows.length, firstBrokenId: id };
     }
-    return { valid: true, rowsChecked: rows.length, firstBrokenId: null };
+    const payload = canonicalPayload(
+      row.getDataValue("actorUserId") as string,
+      row.getDataValue("action") as string,
+      (row.getDataValue("target") as string | null) ?? null,
+      contextToCanonicalString(row.getDataValue("context")),
+      (row.getDataValue("createdAt") as Date).getTime(),
+    );
+    const expected = chainHash(previousHash, payload);
+    if (expected !== storedHash) {
+      return { valid: false, rowsChecked: rows.length, firstBrokenId: id };
+    }
+    previousHash = storedHash;
+  }
+  return { valid: true, rowsChecked: rows.length, firstBrokenId: null };
 }

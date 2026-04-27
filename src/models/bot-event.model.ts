@@ -1,5 +1,5 @@
-import { DataTypes } from 'sequelize';
-import { sequelize } from './db.js';
+import { DataTypes } from "sequelize";
+import { sequelize } from "./db.js";
 
 /**
  * Persistent log of bot lifecycle and runtime events. Replaces the
@@ -10,34 +10,44 @@ import { sequelize } from './db.js';
  * bot caller. Indexed for the three foreseeable admin queries: newest
  * first, filter-by-level, filter-by-category.
  */
-export const BotEvent = sequelize.define('BotEvent', {
+export const BotEvent = sequelize.define(
+  "BotEvent",
+  {
     id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
     },
     level: {
-        type: DataTypes.STRING,
-        allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     category: {
-        type: DataTypes.STRING,
-        allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     message: {
-        type: DataTypes.STRING(500),
-        allowNull: false
+      type: DataTypes.STRING(500),
+      allowNull: false,
     },
     context: {
-        type: DataTypes.JSON,
-        allowNull: true
-    }
-}, {
-    tableName: 'bot_events',
+      type: DataTypes.JSON,
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "bot_events",
     timestamps: true,
     indexes: [
-        { name: 'bot_events_created_at_idx', fields: ['createdAt'] },
-        { name: 'bot_events_level_created_at_idx', fields: ['level', 'createdAt'] },
-        { name: 'bot_events_category_created_at_idx', fields: ['category', 'createdAt'] }
-    ]
-});
+      { name: "bot_events_created_at_idx", fields: ["createdAt"] },
+      {
+        name: "bot_events_level_created_at_idx",
+        fields: ["level", "createdAt"],
+      },
+      {
+        name: "bot_events_category_created_at_idx",
+        fields: ["category", "createdAt"],
+      },
+    ],
+  },
+);

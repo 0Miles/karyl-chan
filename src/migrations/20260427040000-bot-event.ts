@@ -1,4 +1,4 @@
-import type { Migration } from './runner.js';
+import type { Migration } from "./runner.js";
 
 /**
  * Create the `bot_events` table for persistent bot lifecycle / runtime
@@ -12,11 +12,11 @@ import type { Migration } from './runner.js';
  * the rows are operational logs, not business records.
  */
 const migration: Migration = {
-    up: async ({ queryInterface }) => {
-        const tables = await queryInterface.showAllTables();
-        if (tables.includes('bot_events')) return;
+  up: async ({ queryInterface }) => {
+    const tables = await queryInterface.showAllTables();
+    if (tables.includes("bot_events")) return;
 
-        await queryInterface.sequelize.query(`
+    await queryInterface.sequelize.query(`
             CREATE TABLE bot_events (
                 id          INTEGER  PRIMARY KEY AUTOINCREMENT,
                 level       TEXT     NOT NULL,
@@ -28,25 +28,25 @@ const migration: Migration = {
             );
         `);
 
-        await queryInterface.sequelize.query(`
+    await queryInterface.sequelize.query(`
             CREATE INDEX bot_events_created_at_idx
                 ON bot_events (createdAt DESC);
         `);
 
-        await queryInterface.sequelize.query(`
+    await queryInterface.sequelize.query(`
             CREATE INDEX bot_events_level_created_at_idx
                 ON bot_events (level, createdAt DESC);
         `);
 
-        await queryInterface.sequelize.query(`
+    await queryInterface.sequelize.query(`
             CREATE INDEX bot_events_category_created_at_idx
                 ON bot_events (category, createdAt DESC);
         `);
-    },
+  },
 
-    down: async ({ queryInterface }) => {
-        await queryInterface.sequelize.query(`DROP TABLE IF EXISTS bot_events;`);
-    }
+  down: async ({ queryInterface }) => {
+    await queryInterface.sequelize.query(`DROP TABLE IF EXISTS bot_events;`);
+  },
 };
 
 export default migration;
