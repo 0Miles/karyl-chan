@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch, type ComponentPublicInstance } from 'vue';
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
@@ -15,9 +15,9 @@ import { useFileDrop } from '../../composables/use-file-drop';
 import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useMessageCacheStore, type ScrollPosition } from './stores/messageCacheStore';
-import { useMuteStore } from './stores/muteStore';
 import { useUnreadStore, markerGreater } from './stores/unreadStore';
 import { useTypingStore } from './stores/typingStore';
+import { useMuteControl } from './useMuteControl';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 const { t: $t } = useI18n();
@@ -112,26 +112,7 @@ const drop = useFileDrop((files) => {
 
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
 
-const muteStore = useMuteStore();
-const muteLevel = computed(() => props.channelId ? muteStore.getLevel(props.channelId) : 'all');
-const isMuted = computed(() => muteLevel.value !== 'all');
-const muteIcon = computed(() => {
-    switch (muteLevel.value) {
-        case 'none': return 'material-symbols:notifications-off-outline-rounded';
-        case 'mentions-only': return 'material-symbols:alternate-email-rounded';
-        default: return 'material-symbols:notifications-outline-rounded';
-    }
-});
-const muteTooltip = computed(() => {
-    switch (muteLevel.value) {
-        case 'none': return $t('messages.muteCycleHintFromNone');
-        case 'mentions-only': return $t('messages.muteCycleHintFromMentions');
-        default: return $t('messages.muteCycleHintFromAll');
-    }
-});
-function toggleMute() {
-    if (props.channelId) muteStore.cycle(props.channelId);
-}
+const { isMuted, muteIcon, muteTooltip, toggleMute } = useMuteControl(toRef(props, 'channelId'));
 
 // Pinned messages panel. State lives here (rather than the workspace)
 // because the trigger and the panel both render inside the conversation
