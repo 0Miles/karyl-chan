@@ -456,6 +456,11 @@ watch(() => props.channelId, (newId, oldId) => {
                 <Icon icon="material-symbols:add-2-rounded" width="20" height="20" />
             </button>
             <input ref="fileInput" type="file" multiple class="hidden" @change="onAttach" />
+            <!-- Surface-specific extras (e.g., DM-only "bot proactive
+                 actions" menu). Slot lives between attach and editor so
+                 the host's button visually groups with the other
+                 leading icons. -->
+            <slot name="leading-actions" :disabled="disabled" />
             <div
                 ref="editorRef"
                 :class="['editor', { disabled }]"

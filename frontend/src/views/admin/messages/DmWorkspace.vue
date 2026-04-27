@@ -6,7 +6,8 @@ import UserContextMenu from '../../../modules/discord-chat/UserContextMenu.vue';
 import GuildForwardPicker from './GuildForwardPicker.vue';
 import { DiscordConversation, useDiscordDm } from '../../../modules/discord-chat';
 import { forwardMessage, type GuildSummary } from '../../../api/guilds';
-import { getPins } from '../../../api/dm';
+import { getPins, runProactiveAction } from '../../../api/dm';
+import { useI18n } from 'vue-i18n';
 import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
@@ -86,6 +87,26 @@ async function onForwardPick(targetChannelId: string) {
     }
 }
 
+const { t: $t } = useI18n();
+const proactiveError = ref<string | null>(null);
+
+// Bot proactive actions — composer-menu picks land here. The conversation
+// component owns the menu UI; the workspace owns the API call so it can
+// route per-feature error handling. Today we just surface the error
+// alongside the channel error banner; chat refreshes pick up the new
+// message via the SSE stream.
+async function onProactiveAction(name: string) {
+    if (!selectedChannelId.value) return;
+    proactiveError.value = null;
+    try {
+        await runProactiveAction(selectedChannelId.value, name);
+    } catch (err) {
+        proactiveError.value = err instanceof Error && err.message
+            ? err.message
+            : $t('dmProactiveFeatures.actionFailed');
+    }
+}
+
 // Pin/jump → seed `?scrollTo=` so the workspace machine performs the
 // scroll once the message lands in the rendered window. Equivalent to
 // clicking a message link from outside the page.
@@ -162,12 +183,14 @@ watch(() => conversationRef.value?.messagesContainer, (container) => {
             :loading-messages="chat.loadingMessages.value"
             :loading-older="chat.loadingOlder.value"
             :sending="chat.sending.value"
-            :error="chat.error.value ?? channelsError"
+            :error="proactiveError ?? chat.error.value ?? channelsError"
             :editing-message-id="chat.editingMessageId.value"
             :reply-to="chat.replyTo.value"
             :pin-fetcher="getPins"
             :can-forward="true"
+            :show-proactive-features="true"
             @send="send"
+            @proactive-action="onProactiveAction"
             @reply="chat.reply"
             @cancel-reply="chat.cancelReply"
             @request-edit="chat.startEdit"

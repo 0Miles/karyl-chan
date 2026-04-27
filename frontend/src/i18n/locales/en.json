@@ -691,6 +691,14 @@
         "replyPingOnShort": "@",
         "replyPingOffShort": "@?"
     },
+    "dmProactiveFeatures": {
+        "menuTitle": "Bot proactive actions",
+        "actionFailed": "Failed to run bot action",
+        "adminLogin": {
+            "label": "Send admin login link",
+            "description": "DM the recipient a one-time admin login URL."
+        }
+    },
     "admin": {
         "title": "Admin access",
         "accessDenied": {

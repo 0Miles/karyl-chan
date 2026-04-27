@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Compon
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import MessageView from '../../libs/messages/MessageView.vue';
 import MessageComposer from '../../libs/messages/MessageComposer.vue';
+import { ProactiveFeaturesMenu } from '../dm-proactive-features';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
 import PinnedPanel from './PinnedPanel.vue';
@@ -53,6 +54,11 @@ const props = defineProps<{
      *  `browse-threads`. Hosts (the guild workspace) wire it to a modal
      *  that lists active + archived threads of the current channel. */
     canBrowseThreads?: boolean;
+    /** When true, the composer shows the bot proactive-features menu
+     *  next to the attach button. DM workspaces flip this on; guild
+     *  workspaces leave it off. The menu's entries themselves come
+     *  from `modules/dm-proactive-features/registry`. */
+    showProactiveFeatures?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -79,6 +85,10 @@ const emit = defineEmits<{
     (e: 'bulk-delete', anchorMessage: Message): void;
     /** Surfaced when the user clicks the header's threads button. */
     (e: 'browse-threads'): void;
+    /** Surfaced when the user picks an entry from the bot
+     *  proactive-features menu. The host owns the API call so it can
+     *  apply surface-specific routing / error handling. */
+    (e: 'proactive-action', name: string): void;
 }>();
 
 const composerRef = ref<InstanceType<typeof MessageComposer> | null>(null);
@@ -835,7 +845,14 @@ const replyToProp = computed(() => props.replyTo);
                 :disabled="sending"
                 @send="(payload: OutgoingMessage) => emit('send', payload)"
                 @cancel-reply="emit('cancel-reply')"
-            />
+            >
+                <template v-if="showProactiveFeatures" #leading-actions="{ disabled }">
+                    <ProactiveFeaturesMenu
+                        :disabled="disabled"
+                        @pick="(name: string) => emit('proactive-action', name)"
+                    />
+                </template>
+            </MessageComposer>
         </footer>
     </div>
 </template>

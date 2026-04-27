@@ -155,6 +155,15 @@ export async function deleteMessage(channelId: string, messageId: string): Promi
     }
 }
 
+export async function runProactiveAction(channelId: string, action: string): Promise<Message> {
+    const response = await authedFetch(
+        `/api/dm/channels/${encodeURIComponent(channelId)}/proactive/${encodeURIComponent(action)}`,
+        { method: 'POST' }
+    );
+    const body = await jsonOrThrow<{ message: Message }>(response);
+    return body.message;
+}
+
 export async function startChannel(recipientUserId: string): Promise<DmChannelSummary> {
     const response = await authedFetch('/api/dm/channels', {
         method: 'POST',

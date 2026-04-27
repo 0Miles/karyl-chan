@@ -691,6 +691,14 @@
         "replyPingOnShort": "@",
         "replyPingOffShort": "@?"
     },
+    "dmProactiveFeatures": {
+        "menuTitle": "Bot 主动功能",
+        "actionFailed": "执行 Bot 动作失败",
+        "adminLogin": {
+            "label": "发送 admin 登录链接",
+            "description": "私信发送一次性后台登录链接给此用户。"
+        }
+    },
     "admin": {
         "title": "后台权限",
         "accessDenied": {

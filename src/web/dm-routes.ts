@@ -8,6 +8,15 @@ import { avatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 import { requireCapability } from './route-guards.js';
 import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
+import { jwtService } from './jwt.service.js';
+import { resolveLoginRole } from './authorized-user.service.js';
+
+function buildBaseUrl(): string {
+    const explicit = process.env.WEB_BASE_URL?.trim();
+    if (explicit) return explicit.replace(/\/+$/, '');
+    const port = process.env.WEB_PORT ?? '3000';
+    return `http://localhost:${port}`;
+}
 
 export interface DmRoutesOptions {
     bot: Client;
@@ -238,6 +247,55 @@ export async function registerDmRoutes(server: FastifyInstance, options: DmRoute
                 request.log.error({ err }, 'failed to send DM');
                 reply.code(502).send({ error: 'Failed to send DM' });
             }
+        }
+    );
+
+    // Proactive bot actions in a DM channel — UI-triggered messages
+    // composed by the backend (not the admin's free-text input). Each
+    // action is gated on the recipient's own admin authorization, so
+    // we never leak login links to a user who isn't allowed in.
+    server.post<{ Params: { channelId: string; action: string } }>(
+        '/api/dm/channels/:channelId/proactive/:action',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'dm.message')) return;
+            const channel = await fetchDmChannel(bot, request.params.channelId);
+            if (!channel) { reply.code(404).send({ error: 'Unknown DM channel' }); return; }
+
+            if (request.params.action === 'admin-login') {
+                const recipientId = channel.recipient?.id;
+                if (!recipientId) { reply.code(400).send({ error: 'DM channel has no recipient' }); return; }
+                // Mirror admin-login-dm.events.ts: only mint a token for
+                // someone who'd actually be allowed to log in. Owner +
+                // anyone in authorized_users with a non-empty role.
+                const role = await resolveLoginRole(recipientId);
+                if (!role) { reply.code(403).send({ error: 'Recipient is not authorized to log in' }); return; }
+
+                // No source message for proactive sends — synthesize a
+                // messageId from the channel id so the JWT payload still
+                // satisfies the verifier's required-string check. The
+                // exchange endpoint treats the audit fields as opaque.
+                const { token, expiresAt } = jwtService.sign({
+                    purpose: 'login',
+                    userId: recipientId,
+                    guildId: null,
+                    channelId: channel.id,
+                    messageId: `proactive:${channel.id}`
+                });
+                const url = `${buildBaseUrl()}/admin/auth?token=${encodeURIComponent(token)}`;
+                const minutes = Math.max(1, Math.round((expiresAt - Date.now()) / 60_000));
+                try {
+                    const sent: DjsMessage = await channel.send({
+                        content: `Login link (role: ${role}, expires in ~${minutes} min):\n${url}`
+                    });
+                    return { message: toApiMessage(sent) };
+                } catch (err) {
+                    request.log.error({ err }, 'failed to send proactive admin-login DM');
+                    reply.code(502).send({ error: 'Failed to send DM' });
+                    return;
+                }
+            }
+
+            reply.code(404).send({ error: 'Unknown proactive action' });
         }
     );
 
