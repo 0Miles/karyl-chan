@@ -16,7 +16,7 @@ import { EmptyLayout } from '../../layouts';
     margin: 4rem 0;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 1.5rem 1.75rem;
 }
 .home h1 { margin: 0 0 0.75rem; font-size: 1.25rem; }

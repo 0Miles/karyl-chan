@@ -452,7 +452,7 @@ function channelIcon(channel: GuildTextChannel): string | null {
 .category-header:hover { color: var(--text); }
 .chevron {
     font-size: 0.8rem;
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
     transform: rotate(90deg);
 }
 .chevron.collapsed { transform: rotate(0deg); }
@@ -467,7 +467,7 @@ function channelIcon(channel: GuildTextChannel): string | null {
     gap: 0.35rem;
     padding: 0.3rem 0.75rem 0.3rem 1.25rem;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     margin: 0 0.25rem;
     /* Required for absolute-positioned descendants like .thread-toggle
        (the chevron sits in the row's left-padding gutter). */
@@ -545,7 +545,7 @@ function channelIcon(channel: GuildTextChannel): string | null {
     font: inherit;
     font-size: 0.85rem;
     line-height: 1;
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
 }
 .thread-toggle.collapsed { transform: translateY(-50%) rotate(0deg); }
 .thread-toggle:hover { color: var(--text); }
@@ -554,7 +554,7 @@ function channelIcon(channel: GuildTextChannel): string | null {
     margin-left: auto;
     font-variant-numeric: tabular-nums;
     background: var(--bg-surface-2);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.45rem;
     font-size: 0.72rem;
     color: var(--text-muted);

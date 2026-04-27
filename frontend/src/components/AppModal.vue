@@ -162,7 +162,7 @@ function onBackdropClick() {
     max-height: 88vh;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
     display: flex;
     flex-direction: column;

@@ -86,10 +86,10 @@ defineExpose({ reactButton });
     gap: 0.2rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--transition-base);
     z-index: 2;
 }
 .action {

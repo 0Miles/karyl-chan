@@ -165,7 +165,7 @@ function submit() {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;
@@ -180,7 +180,7 @@ function submit() {
 .ghost,
 .primary {
     padding: 0.45rem 0.9rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;

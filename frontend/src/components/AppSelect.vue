@@ -69,7 +69,7 @@ defineEmits<{
     padding: 0.25rem 0;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     color: var(--text);
     /* On mobile the dropdown renders inside AppPopover's drawer body

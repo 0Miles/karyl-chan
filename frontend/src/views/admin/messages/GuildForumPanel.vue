@@ -119,7 +119,7 @@ const sortedPosts = computed(() =>
     align-items: center;
     gap: 0.5rem;
     padding: 0.55rem 0.75rem;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     cursor: pointer;
     background: var(--bg-surface);
     border: 1px solid var(--border);
@@ -131,7 +131,7 @@ const sortedPosts = computed(() =>
 .post-count {
     font-variant-numeric: tabular-nums;
     background: var(--bg-surface-2);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.72rem;
     color: var(--text-muted);
@@ -140,7 +140,7 @@ const sortedPosts = computed(() =>
     font-size: 0.72rem;
     color: var(--text-muted);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0 0.4rem;
 }
 .muted { color: var(--text-muted); }

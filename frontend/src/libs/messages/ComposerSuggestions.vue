@@ -36,7 +36,7 @@ const emit = defineEmits<{
 .suggestions {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.12);
     max-height: 240px;
     overflow-y: auto;

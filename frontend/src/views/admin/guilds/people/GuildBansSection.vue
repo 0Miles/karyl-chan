@@ -84,7 +84,7 @@ async function onUnban(b: GuildBanEntry) {
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.75rem 0.95rem;
     display: flex;
     flex-direction: column;
@@ -101,7 +101,7 @@ async function onUnban(b: GuildBanEntry) {
 .count-pill {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.78rem;
     font-weight: 500;
@@ -133,7 +133,7 @@ async function onUnban(b: GuildBanEntry) {
 .ghost {
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.3rem 0.65rem;
     font: inherit;
     font-size: 0.82rem;
@@ -148,7 +148,7 @@ async function onUnban(b: GuildBanEntry) {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;

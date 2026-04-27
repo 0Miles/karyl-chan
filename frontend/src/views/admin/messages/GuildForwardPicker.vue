@@ -252,7 +252,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     box-sizing: border-box;
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -265,7 +265,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     flex-shrink: 0;
     width: 22px;
     height: 22px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     object-fit: cover;
 }
 .dest-icon-fallback {
@@ -295,7 +295,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     flex-shrink: 0;
     font-size: 0.9rem;
     color: var(--text-muted);
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
     transform: rotate(90deg);
 }
 .chevron.open { transform: rotate(270deg); }
@@ -331,7 +331,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     padding: 0.4rem 0.6rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--text);
     font: inherit;
     font-size: 0.9rem;
@@ -355,7 +355,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     align-items: center;
     gap: 0.6rem;
     padding: 0.5rem 0.6rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text);
 }

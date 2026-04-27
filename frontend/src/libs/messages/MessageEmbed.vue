@@ -101,7 +101,7 @@ function preferProxy(image: { url: string; proxyUrl?: string }): string {
     padding: 0.5rem 0.75rem;
     background: var(--bg-surface-2);
     border-left: 4px solid var(--accent);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     /* Clamp width against the parent on narrow viewports — bare max-width
        alone let content push us wider than the chat column on mobile. */
     max-width: min(480px, 100%);
@@ -191,13 +191,13 @@ function preferProxy(image: { url: string; proxyUrl?: string }): string {
     max-height: 360px;
     /* object-fit keeps tall / wide images from warping when we clamp. */
     object-fit: contain;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .thumbnail {
     max-width: 80px;
     max-height: 80px;
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     display: block;
 }
 .footer {
@@ -226,7 +226,7 @@ function preferProxy(image: { url: string; proxyUrl?: string }): string {
     max-width: 100%;
     max-height: 360px;
     object-fit: contain;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
 }
 
 /* Very narrow viewports: stack the thumbnail above the body instead of

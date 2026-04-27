@@ -424,7 +424,7 @@ onMounted(refresh);
 .count {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.8rem;
 }
@@ -492,7 +492,7 @@ onMounted(refresh);
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.55rem 0.75rem;
 }
 </style>

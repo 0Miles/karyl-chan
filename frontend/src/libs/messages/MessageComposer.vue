@@ -523,7 +523,7 @@ watch(() => props.channelId, (newId, oldId) => {
 .composer {
     display: flex;
     flex-direction: column;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.4rem 0.5rem;
     background: var(--bg-surface-2);
     color: var(--text);
@@ -544,7 +544,7 @@ watch(() => props.channelId, (newId, oldId) => {
     gap: 0.2rem;
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.1rem 0.4rem;
     cursor: pointer;
     color: var(--text-muted);
@@ -575,7 +575,7 @@ watch(() => props.channelId, (newId, oldId) => {
     gap: 0.25rem;
     align-items: center;
     background: var(--bg-surface-2);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 2px 6px;
     font-size: 0.8rem;
 }
@@ -624,13 +624,13 @@ watch(() => props.channelId, (newId, oldId) => {
 .icon-button {
     background: none;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     width: 32px;
     height: 32px;
     cursor: pointer;
     flex-shrink: 0;
     color: var(--text);
-    transition: background-color 0.2s;
+    transition: background-color var(--transition-slow);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -645,7 +645,7 @@ watch(() => props.channelId, (newId, oldId) => {
     overflow-y: auto;
     padding: 0.4rem 0.5rem;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text);
     font: inherit;
@@ -706,7 +706,7 @@ watch(() => props.channelId, (newId, oldId) => {
     max-width: 320px;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     display: flex;
     flex-direction: column;
@@ -719,7 +719,7 @@ watch(() => props.channelId, (newId, oldId) => {
     padding: 0.5rem 0.6rem;
     background: none;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--text);
     cursor: pointer;
     text-align: left;

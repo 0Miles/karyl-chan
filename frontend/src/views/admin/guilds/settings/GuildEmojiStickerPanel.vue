@@ -266,7 +266,7 @@ function onPickStickerFile(event: Event) {
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.75rem 1rem;
     margin-bottom: 0.75rem;
 }
@@ -280,7 +280,7 @@ function onPickStickerFile(event: Event) {
 .count-pill {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.78rem;
 }
@@ -289,7 +289,7 @@ function onPickStickerFile(event: Event) {
     background: var(--accent);
     color: var(--text-on-accent);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.25rem 0.7rem;
     cursor: pointer;
     font-size: 0.78rem;
@@ -312,7 +312,7 @@ function onPickStickerFile(event: Event) {
     gap: 0.2rem;
     padding: 0.4rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface-2);
 }
 .emoji-img { width: 48px; height: 48px; object-fit: contain; }
@@ -341,7 +341,7 @@ function onPickStickerFile(event: Event) {
     gap: 0.2rem;
     padding: 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface-2);
 }
 .sticker-img { width: 80px; height: 80px; object-fit: contain; }
@@ -372,7 +372,7 @@ function onPickStickerFile(event: Event) {
 .field input[type="file"] {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -386,7 +386,7 @@ function onPickStickerFile(event: Event) {
 .ghost,
 .primary {
     padding: 0.45rem 0.9rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;

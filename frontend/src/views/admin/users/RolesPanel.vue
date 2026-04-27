@@ -375,7 +375,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     cursor: pointer;
     font: inherit;
     font-size: 0.88rem;
@@ -390,7 +390,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     padding: 0.3rem 0.7rem;
     background: none;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     color: var(--text);
     cursor: pointer;
     font: inherit;
@@ -402,7 +402,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     width: 36px;
     height: 36px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     cursor: pointer;
     display: inline-flex;
@@ -430,7 +430,7 @@ function summariseCaps(role: AdminRole): CapSummary {
 .role-card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.85rem 1rem;
     display: flex;
     flex-direction: column;
@@ -461,7 +461,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     min-width: 0;
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -496,7 +496,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     padding: 0.15rem 0.55rem;
     background: var(--accent-bg);
     color: var(--accent-text-strong);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 0.75rem;
 }
@@ -534,7 +534,7 @@ function summariseCaps(role: AdminRole): CapSummary {
 .field input {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;

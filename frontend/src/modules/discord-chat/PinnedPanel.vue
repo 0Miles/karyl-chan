@@ -120,7 +120,7 @@ function timestamp(message: Message): string {
     max-height: 60vh;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
     z-index: 30;
     display: flex;
@@ -156,7 +156,7 @@ function timestamp(message: Message): string {
     gap: 0.6rem;
     padding: 0.5rem 0.85rem;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .pin-item:hover { background: var(--bg-surface-hover); }
 .pin-avatar {

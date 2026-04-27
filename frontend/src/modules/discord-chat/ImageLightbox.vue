@@ -110,7 +110,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
     max-width: min(92vw, 1400px);
     max-height: 82vh;
     object-fit: contain;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: #000;
 }
 .lb-caption {
@@ -124,7 +124,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
 .lb-counter {
     background: rgba(255, 255, 255, 0.12);
     padding: 0 0.45rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
 }
 .lb-nav, .lb-close {
     background: rgba(255, 255, 255, 0.08);

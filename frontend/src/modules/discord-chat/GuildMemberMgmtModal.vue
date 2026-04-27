@@ -243,7 +243,7 @@ const titleText = computed(() => {
 .field select {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -264,7 +264,7 @@ const titleText = computed(() => {
     align-items: center;
     gap: 0.5rem;
     padding: 0.3rem 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
 }
 .roles label:hover { background: var(--bg-surface-hover); }
@@ -287,7 +287,7 @@ const titleText = computed(() => {
 .ghost,
 .primary {
     padding: 0.45rem 0.9rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;

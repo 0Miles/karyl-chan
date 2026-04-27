@@ -313,7 +313,7 @@ async function submit() {
 .field textarea {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -328,14 +328,14 @@ async function submit() {
     flex-direction: column;
     gap: 0.3rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.4rem 0.7rem;
     margin: 0;
 }
 .checks legend { color: var(--text-muted); font-size: 0.78rem; padding: 0 0.3rem; }
 .actions-fs {
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.5rem 0.7rem;
     margin: 0;
     display: flex;
@@ -358,7 +358,7 @@ async function submit() {
 .add { align-self: flex-start; }
 .ghost,
 .primary {
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.85rem;
     font: inherit;
     font-size: 0.85rem;
@@ -388,7 +388,7 @@ async function submit() {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;

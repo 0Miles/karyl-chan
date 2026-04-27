@@ -50,7 +50,7 @@ const emit = defineEmits<{
     max-height: 80vh;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
@@ -70,7 +70,7 @@ const emit = defineEmits<{
 .src-icon {
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     padding: 4px;
     color: var(--text);

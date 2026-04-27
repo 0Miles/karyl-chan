@@ -123,7 +123,7 @@ const roleLabel = computed(() => {
     padding: 1.25rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     align-items: flex-start;
 }
 @media (max-width: 520px) {
@@ -168,7 +168,7 @@ const roleLabel = computed(() => {
     padding: 0.1rem 0.6rem;
     background: var(--accent);
     color: var(--text-on-accent);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.03em;
@@ -196,7 +196,7 @@ const roleLabel = computed(() => {
     padding: 0.15rem 0.5rem;
     background: var(--accent-bg);
     color: var(--accent-text-strong);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.78rem;
 }
 .cap-chip code { background: transparent; padding: 0; }
@@ -212,7 +212,7 @@ const roleLabel = computed(() => {
     padding: 1rem 1.25rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
 }
 .settings-card h3 {
     margin: 0 0 0.75rem;

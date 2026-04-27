@@ -299,7 +299,7 @@ onUnmounted(() => {
 button {
     padding: 0.4rem 0.8rem;
     border: 1px solid var(--border-strong);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     cursor: pointer;
@@ -317,7 +317,7 @@ button:disabled {
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 1rem 1.25rem;
 }
 .card h2 {
@@ -345,7 +345,7 @@ dd {
 .pill {
     display: inline-block;
     padding: 0.1rem 0.5rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.8rem;
     font-weight: 500;
     text-transform: lowercase;
@@ -445,7 +445,7 @@ dd {
 .count-pill {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.75rem;
     font-weight: 500;
@@ -462,7 +462,7 @@ dd {
     display: flex;
     gap: 0.5rem;
     padding: 0.4rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     text-decoration: none;
     color: inherit;
 }

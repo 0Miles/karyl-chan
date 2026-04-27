@@ -108,12 +108,12 @@ const { pinsOpen, pinsLoading, pinsError, pinsList, togglePins, onPinJump } = us
 .header-action {
     background: none;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 4px;
     cursor: pointer;
     color: var(--text-muted);
     line-height: 0;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 .header-action:hover { background: var(--bg-surface-hover); color: var(--text); }
 .header-action.active { color: var(--accent-text-strong); border-color: var(--accent); }

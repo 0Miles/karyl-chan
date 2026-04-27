@@ -208,7 +208,7 @@ function fmtValue(v: unknown): string {
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.75rem 0.95rem;
     display: flex;
     flex-direction: column;
@@ -230,7 +230,7 @@ function fmtValue(v: unknown): string {
 .field select {
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -280,7 +280,7 @@ function fmtValue(v: unknown): string {
     font-size: 1rem;
     color: var(--text-muted);
     transform: rotate(90deg);
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
 }
 .chevron.open { transform: rotate(270deg); }
 .changes {
@@ -288,7 +288,7 @@ function fmtValue(v: unknown): string {
     margin: 0.4rem 0 0;
     padding: 0.4rem 0.55rem;
     background: var(--bg-surface);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
@@ -317,7 +317,7 @@ function fmtValue(v: unknown): string {
 .ghost {
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.35rem 0.85rem;
     font: inherit;
     font-size: 0.85rem;
@@ -330,7 +330,7 @@ function fmtValue(v: unknown): string {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.35rem 0.85rem;
     font: inherit;
     font-size: 0.85rem;
@@ -342,7 +342,7 @@ function fmtValue(v: unknown): string {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;

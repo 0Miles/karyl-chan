@@ -198,7 +198,7 @@ async function sendDm() {
     width: 300px;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
     overflow: hidden;
 }
@@ -262,7 +262,7 @@ async function sendDm() {
 }
 .skeleton-line {
     height: 0.9rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .skeleton-line-name { width: 55%; margin-top: 0.3rem; }
 .skeleton-line-tag { width: 35%; }
@@ -347,7 +347,7 @@ async function sendDm() {
     gap: 0.3rem;
     padding: 0.1rem 0.5rem 0.1rem 0.4rem;
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.72rem;
     color: var(--text);
     background: var(--bg-surface-2);
@@ -369,7 +369,7 @@ async function sendDm() {
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     font: inherit;
     font-weight: 500;

@@ -451,7 +451,7 @@ const replyToProp = computed(() => props.replyTo);
     inset: 0;
     background: rgba(88, 101, 242, 0.18);
     border: 2px dashed var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -462,7 +462,7 @@ const replyToProp = computed(() => props.replyTo);
     background: var(--bg-surface);
     color: var(--text-strong);
     padding: 0.75rem 1.5rem;
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     font-weight: 600;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }

@@ -45,7 +45,7 @@ const emit = defineEmits<{
 .cell {
     background: none;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 4px;
     cursor: pointer;
     display: flex;

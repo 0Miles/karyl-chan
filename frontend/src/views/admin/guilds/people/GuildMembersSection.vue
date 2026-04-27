@@ -163,7 +163,7 @@ function onNickname(m: GuildMemberRow) {
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.75rem 0.95rem;
     display: flex;
     flex-direction: column;
@@ -186,7 +186,7 @@ function onNickname(m: GuildMemberRow) {
 .count-pill {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.78rem;
     font-weight: 500;
@@ -196,7 +196,7 @@ function onNickname(m: GuildMemberRow) {
     min-width: 160px;
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -259,7 +259,7 @@ function onNickname(m: GuildMemberRow) {
 .ghost {
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.25rem 0.55rem;
     font: inherit;
     font-size: 0.78rem;
@@ -276,7 +276,7 @@ function onNickname(m: GuildMemberRow) {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;

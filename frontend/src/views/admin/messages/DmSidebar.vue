@@ -195,7 +195,7 @@ function formatTimestamp(iso: string | null): string {
     flex-shrink: 0;
     background: none;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     width: 32px;
     height: 32px;
     cursor: pointer;
@@ -216,7 +216,7 @@ function formatTimestamp(iso: string | null): string {
     flex: 1;
     padding: 0.3rem 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -226,7 +226,7 @@ function formatTimestamp(iso: string | null): string {
     background: var(--accent);
     color: var(--text-on-accent);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
 }
 .start-form button:disabled { opacity: 0.5; }

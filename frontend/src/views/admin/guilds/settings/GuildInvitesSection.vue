@@ -57,7 +57,7 @@ const emit = defineEmits<{
 .card {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.85rem 1rem;
     display: flex;
     flex-direction: column;
@@ -80,7 +80,7 @@ const emit = defineEmits<{
 .count-pill {
     background: var(--bg-surface-2);
     color: var(--text-muted);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.5rem;
     font-size: 0.78rem;
 }
@@ -91,7 +91,7 @@ const emit = defineEmits<{
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.3rem 0.7rem;
     font: inherit;
     font-size: 0.8rem;
@@ -102,7 +102,7 @@ const emit = defineEmits<{
 .invite-fresh {
     background: var(--accent-bg);
     color: var(--accent-text-strong);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
     display: flex;

@@ -312,7 +312,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
 .field input[type="number"] {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -323,7 +323,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
     width: 60px;
     height: 32px;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     cursor: pointer;
 }
@@ -331,7 +331,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
 .check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
 .permissions {
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.5rem 0.7rem 0.7rem;
     margin: 0;
     display: flex;
@@ -376,7 +376,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.4rem 0.55rem;
     font-size: 0.82rem;
     margin: 0;
@@ -394,7 +394,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
 .ghost,
 .primary {
     padding: 0.45rem 0.9rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;

@@ -48,7 +48,7 @@ const gridStyle = computed(() =>
     height: 100%;
     min-height: 0;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     color: var(--text);
     overflow: hidden;

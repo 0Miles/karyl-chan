@@ -73,7 +73,7 @@ onMounted(async () => {
     margin: 4rem auto;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 1.5rem 1.75rem;
 }
 .auth h1 {
@@ -91,7 +91,7 @@ onMounted(async () => {
 pre {
     background: var(--code-bg);
     padding: 0.6rem 0.8rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-size: 0.95rem;
     margin: 0.5rem 0;
 }

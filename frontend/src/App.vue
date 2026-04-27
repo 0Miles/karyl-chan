@@ -414,7 +414,7 @@ function navigate() {
     font-size: 0.95rem;
     cursor: pointer;
     padding: 0.3rem 0.4rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .overlay-back:hover { background: var(--bg-surface-hover); }
 .overlay-toggle {
@@ -427,9 +427,9 @@ function navigate() {
     cursor: pointer;
     width: 36px;
     height: 36px;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0;
-    transition: background 0.15s;
+    transition: background var(--transition-base);
 }
 .overlay-toggle:hover { background: var(--bg-surface-hover); }
 .overlay-toggle:active { background: var(--bg-surface-active); }

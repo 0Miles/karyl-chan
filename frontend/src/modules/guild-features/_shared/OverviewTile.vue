@@ -52,7 +52,7 @@ const linkTo = computed(() => {
 .tile {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.6rem 0.8rem;
     display: flex;
     align-items: center;
@@ -60,7 +60,7 @@ const linkTo = computed(() => {
     color: inherit;
     text-decoration: none;
     cursor: pointer;
-    transition: background-color 0.12s, border-color 0.12s;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .tile:hover {
     background: var(--bg-surface-hover);

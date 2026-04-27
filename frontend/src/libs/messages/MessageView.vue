@@ -423,7 +423,7 @@ div.author-click:hover {
     width: 100%;
     padding: 0.4rem 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface-2);
     color: var(--text);
     font: inherit;
@@ -444,7 +444,7 @@ div.author-click:hover {
     border: 1px solid var(--border);
     background: var(--bg-surface);
     color: var(--text);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
 }
 .edit-actions button.primary {
@@ -460,7 +460,7 @@ div.author-click:hover {
     padding: 0.25rem 0.6rem;
     background: var(--bg-surface-2);
     border: 1px solid var(--border);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     color: var(--text);
     font: inherit;
     font-size: 0.78rem;
@@ -473,7 +473,7 @@ div.author-click:hover {
 .thread-chip-count {
     background: var(--accent-bg);
     color: var(--accent-text-strong);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     padding: 0 0.4rem;
     font-size: 0.7rem;
     font-variant-numeric: tabular-nums;
@@ -504,7 +504,7 @@ div.author-click:hover {
     border-left: 3px solid var(--accent);
     padding: 0.3rem 0.6rem;
     background: var(--bg-surface-2);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .forward-snap-head {
     display: flex;

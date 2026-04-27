@@ -334,7 +334,7 @@ function subLinkTo(key: string) {
 .tab {
     background: var(--bg-surface-2);
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.4rem 0.95rem;
     cursor: pointer;
     color: var(--text);
@@ -411,7 +411,7 @@ function subLinkTo(key: string) {
 .sub-side-tab {
     background: none;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     padding: 0.5rem 0.7rem;
     text-align: left;
     color: var(--text-muted);

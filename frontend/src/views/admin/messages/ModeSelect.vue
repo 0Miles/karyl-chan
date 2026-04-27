@@ -108,7 +108,7 @@ function select(mode: string) {
     gap: 0.5rem;
     padding: 0.35rem 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -136,7 +136,7 @@ function select(mode: string) {
     flex-shrink: 0;
     width: 20px;
     height: 20px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     object-fit: cover;
 }
 .icon-fallback {
@@ -168,7 +168,7 @@ function select(mode: string) {
     flex-shrink: 0;
     font-size: 0.9rem;
     color: var(--text-muted);
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
     transform: rotate(90deg);
 }
 .chevron.open { transform: rotate(270deg); }
@@ -199,7 +199,7 @@ function select(mode: string) {
     flex-shrink: 0;
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     object-fit: cover;
 }
 .mode-dropdown li .icon-fallback {

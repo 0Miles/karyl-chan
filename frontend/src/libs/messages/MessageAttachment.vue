@@ -82,7 +82,7 @@ function open() {
     max-height: 360px;
     width: auto;
     height: auto;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     cursor: zoom-in;
     display: block;
     object-fit: contain;
@@ -90,7 +90,7 @@ function open() {
 .video {
     max-width: min(420px, 100%);
     max-height: 320px;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
 }
 .audio {
     width: 320px;
@@ -101,7 +101,7 @@ function open() {
     flex-direction: column;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     text-decoration: none;
     color: var(--text);
     background: var(--bg-surface-2);

@@ -383,7 +383,7 @@ function categoryLabel(id: string): string {
     display: flex;
     flex-direction: column;
     background: var(--bg-surface);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
     overflow: hidden;
 }
@@ -400,7 +400,7 @@ function categoryLabel(id: string): string {
     box-sizing: border-box;
     padding: 0.4rem 0.6rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface-2);
     color: var(--text);
     font: inherit;
@@ -422,7 +422,7 @@ function categoryLabel(id: string): string {
 .tab {
     background: var(--bg-surface-2);
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.25rem 0.7rem;
     cursor: pointer;
     color: var(--text);
@@ -437,7 +437,7 @@ function categoryLabel(id: string): string {
 .subtab {
     background: none;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     padding: 0.15rem 0.55rem;
     cursor: pointer;
     color: var(--text-muted);

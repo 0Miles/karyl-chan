@@ -182,7 +182,7 @@ function pick(action: ContextMenuAction) {
     max-width: 240px;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
     padding: 0.25rem;
     z-index: 90;
@@ -202,7 +202,7 @@ function pick(action: ContextMenuAction) {
     color: var(--text);
     font: inherit;
     font-size: 0.88rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 .ctx-item:hover { background: var(--bg-surface-hover); }
 .ctx-item.danger { color: var(--danger); }

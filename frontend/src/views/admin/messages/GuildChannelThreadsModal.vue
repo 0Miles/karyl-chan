@@ -159,7 +159,7 @@ function pick(thread: GuildActiveThread) {
     align-items: center;
     gap: 0.5rem;
     padding: 0.55rem 0.6rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     color: var(--text);
 }

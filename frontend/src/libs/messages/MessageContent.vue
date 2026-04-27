@@ -206,7 +206,7 @@ export default defineComponent({
 .message-content :deep(.code-block) {
     background: var(--code-bg);
     padding: 0.6rem 0.8rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 0.85rem;
     overflow-x: auto;
@@ -260,7 +260,7 @@ export default defineComponent({
     border-radius: 3px;
     padding: 0 2px;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background var(--transition-base) ease;
 }
 .message-content :deep(.spoiler.revealed) {
     background: var(--spoiler-revealed-bg);

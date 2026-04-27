@@ -173,7 +173,7 @@ function pick(value: V) {
     gap: 0.4rem;
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -195,7 +195,7 @@ function pick(value: V) {
 .chevron {
     flex-shrink: 0;
     color: var(--text-muted);
-    transition: transform 0.15s;
+    transition: transform var(--transition-base);
     transform: rotate(90deg);
     font-size: 0.95rem;
 }
@@ -213,7 +213,7 @@ function pick(value: V) {
     width: 100%;
     padding: 0.35rem 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;

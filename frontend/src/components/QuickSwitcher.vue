@@ -218,7 +218,7 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKey));
     width: min(92vw, 560px);
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
@@ -273,6 +273,6 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKey));
     font-family: ui-monospace, SFMono-Regular, monospace;
     font-size: 0.7rem;
 }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.12s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity var(--transition-fast) ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

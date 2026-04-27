@@ -303,7 +303,7 @@ const matchSummary = computed(() =>
     box-sizing: border-box;
     padding: 0.45rem 0.65rem 0.45rem 2rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -320,7 +320,7 @@ const matchSummary = computed(() =>
     background: var(--accent);
     color: var(--text-on-accent);
     border: 1px solid var(--accent);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     cursor: pointer;
     font: inherit;
     font-size: 0.88rem;
@@ -353,8 +353,8 @@ const matchSummary = computed(() =>
     padding: 0.6rem 0.85rem;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    transition: opacity 0.15s;
+    border-radius: var(--radius-lg);
+    transition: opacity var(--transition-base);
     padding: 16px;
 }
 .user-row.pending { opacity: 0.55; }
@@ -394,7 +394,7 @@ const matchSummary = computed(() =>
     padding: 0.05rem 0.5rem;
     background: var(--accent);
     color: var(--text-on-accent);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -417,7 +417,7 @@ const matchSummary = computed(() =>
     width: 36px;
     height: 36px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     cursor: pointer;
     display: inline-flex;
@@ -448,7 +448,7 @@ const matchSummary = computed(() =>
 .field select {
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -464,7 +464,7 @@ const matchSummary = computed(() =>
     padding: 0.45rem 0.9rem;
     background: none;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     color: var(--text);
     cursor: pointer;
     font: inherit;

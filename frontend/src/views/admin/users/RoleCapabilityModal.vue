@@ -313,7 +313,7 @@ function onConfirm() {
 .search {
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     background: var(--bg-surface);
     color: var(--text);
     font: inherit;
@@ -336,10 +336,10 @@ function onConfirm() {
     align-items: flex-start;
     padding: 0.55rem 0.7rem;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     cursor: pointer;
     background: var(--bg-surface);
-    transition: background-color 0.12s, border-color 0.12s;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 .cap:hover { background: var(--bg-surface-hover); }
 .cap.granted {
@@ -382,7 +382,7 @@ function onConfirm() {
 }
 .guild-section {
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     background: var(--bg-surface);
     overflow: hidden;
 }
@@ -449,7 +449,7 @@ function onConfirm() {
     padding: 0.2rem 0.6rem;
     background: var(--accent-bg);
     color: var(--accent-text-strong);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     font-size: 0.76rem;
     font-weight: 500;
     margin-right: auto;
@@ -457,7 +457,7 @@ function onConfirm() {
 .actions .ghost,
 .actions .primary {
     padding: 0.45rem 0.95rem;
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;

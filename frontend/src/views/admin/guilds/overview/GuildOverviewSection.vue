@@ -124,7 +124,7 @@ const rolesCount = computed(() => props.roles.length);
 .stat {
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 0.6rem 0.8rem;
     display: flex;
     align-items: center;

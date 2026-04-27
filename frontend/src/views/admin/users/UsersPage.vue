@@ -159,7 +159,7 @@ onMounted(loadAll);
     padding: 0.55rem 0.75rem;
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.35);
-    border-radius: 6px;
+    border-radius: var(--radius-base);
     display: flex;
     align-items: center;
     gap: 0.5rem;
