@@ -18,6 +18,7 @@ import { useTypingIndicator } from './useTypingIndicator';
 import { useMuteControl } from './useMuteControl';
 import { usePinnedMessages } from './usePinnedMessages';
 import { useScrollMemory } from './useScrollMemory';
+import { useMessageContextMenu } from './useMessageContextMenu';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 const { t: $t } = useI18n();
@@ -143,125 +144,21 @@ async function copySourceToClipboard() {
     try { await navigator.clipboard.writeText(sourceModalMessage.value.content ?? ''); } catch { /* ignore */ }
 }
 
-// Context menu (right-click / long-press). The action set is computed
-// per-message so the menu shows edit/delete only on the bot's own
-// messages. Mark-unread anchors to the message immediately preceding
-// `target` so reopening the channel surfaces the divider above it.
-const ctxMenu = ref<{ x: number; y: number; messageId: string } | null>(null);
-const LONG_PRESS_MS = 500;
-let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-
-function openContextMenu(event: MouseEvent | TouchEvent, message: Message) {
-    const point = 'touches' in event && event.touches.length > 0
-        ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
-        : { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY };
-    ctxMenu.value = { x: point.x, y: point.y, messageId: message.id };
-}
-
-function onMessageContextMenu(event: MouseEvent, message: Message) {
-    // Allow the OS native menu when the user is right-clicking inside
-    // an editor (compose / edit textbox) so they can paste / spell-check.
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('[contenteditable="true"], textarea, input')) return;
-    event.preventDefault();
-    openContextMenu(event, message);
-}
-
-function onMessageTouchStart(event: TouchEvent, message: Message) {
-    if (event.touches.length !== 1) return;
-    if (longPressTimer) clearTimeout(longPressTimer);
-    longPressTimer = setTimeout(() => {
-        longPressTimer = null;
-        openContextMenu(event, message);
-    }, LONG_PRESS_MS);
-}
-
-function onMessageTouchEnd() {
-    if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-    }
-}
-
-const ctxActions = computed<ContextMenuAction[]>(() => {
-    if (!ctxMenu.value) return [];
-    const message = props.messages.find(m => m.id === ctxMenu.value!.messageId);
-    if (!message) return [];
-    const actions: ContextMenuAction[] = [
-        { key: 'react', label: $t('messages.react'), icon: 'material-symbols:add-reaction-outline-rounded' },
-        { key: 'reply', label: $t('messages.reply'), icon: 'material-symbols:reply-rounded' }
-    ];
-    if (isOwn(message)) {
-        actions.push({ key: 'edit', label: $t('messages.edit'), icon: 'material-symbols:edit-rounded' });
-    }
-    if (props.canForward) {
-        actions.push({ key: 'forward', label: $t('messages.forward'), icon: 'material-symbols:forward-rounded' });
-    }
-    actions.push({ key: 'copy-text', label: $t('messages.copyText'), icon: 'material-symbols:content-copy-outline-rounded' });
-    actions.push({ key: 'copy-link', label: $t('messages.copyLink'), icon: 'material-symbols:link-rounded' });
-    actions.push({ key: 'copy-id', label: $t('messages.copyId'), icon: 'material-symbols:fingerprint-rounded' });
-    actions.push({ key: 'view-source', label: $t('messages.viewSource'), icon: 'material-symbols:code-rounded' });
-    actions.push({ key: 'mark-unread', label: $t('messages.markUnread'), icon: 'material-symbols:mark-as-unread-outline-rounded' });
-    if (props.canModerate) {
-        actions.push({
-            key: message.pinned ? 'unpin' : 'pin',
-            label: $t(message.pinned ? 'messageMgmt.unpin' : 'messageMgmt.pin'),
-            icon: 'material-symbols:keep-outline-rounded'
-        });
-        actions.push({ key: 'bulk-delete', label: $t('messageMgmt.bulkDelete'), icon: 'material-symbols:delete-sweep-outline-rounded', danger: true });
-    }
-    if (isOwn(message)) {
-        actions.push({ key: 'delete', label: $t('messages.delete'), icon: 'material-symbols:delete-rounded', danger: true });
-    } else if (props.canModerate) {
-        actions.push({ key: 'mod-delete', label: $t('messageMgmt.deleteAny'), icon: 'material-symbols:delete-rounded', danger: true });
-    }
-    return actions;
+// Context menu (right-click / long-press).
+const { ctxMenu, ctxActions, onMessageContextMenu, onMessageTouchStart, onMessageTouchEnd, onContextPick } = useMessageContextMenu({
+    messages: toRef(props, 'messages'),
+    botUserId: toRef(props, 'botUserId'),
+    canForward: toRef(props, 'canForward'),
+    canModerate: toRef(props, 'canModerate'),
+    channelId: toRef(props, 'channelId'),
+    emit: (event: string, message: Message) => (emit as (e: string, m: Message) => void)(event, message),
+    onShowSource: (message) => { sourceModalMessage.value = message; },
+    onStartReact: (message, btn) => {
+        reactingButton.value = btn;
+        reactingMessageId.value = message.id;
+    },
+    onCopyLink: (message) => copyMessageLink(message),
 });
-
-async function copyToClipboard(text: string) {
-    try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
-}
-
-function onContextPick(actionKey: string) {
-    const ctx = ctxMenu.value;
-    if (!ctx) return;
-    const message = props.messages.find(m => m.id === ctx.messageId);
-    if (!message) return;
-    switch (actionKey) {
-        case 'react': {
-            // Anchor the picker on the row the user right-clicked so it
-            // doesn't drift to wherever the inline action button last
-            // landed. The DOM lookup runs inside the same tick the menu
-            // closes, so the row is still mounted.
-            const row = document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(message.id)}"]`);
-            reactingButton.value = (row as HTMLButtonElement | null) ?? null;
-            reactingMessageId.value = message.id;
-            break;
-        }
-        case 'reply': emit('reply', message); break;
-        case 'copy-text': void copyToClipboard(message.content ?? ''); break;
-        case 'copy-link': void copyToClipboard(messageUrl(message)); break;
-        case 'copy-id': void copyToClipboard(message.id); break;
-        case 'forward': emit('forward', message); break;
-        case 'view-source':
-            sourceModalMessage.value = message;
-            break;
-        case 'mark-unread': {
-            // Anchor lastSeen at the message immediately before this one
-            // so the target message becomes the first unread.
-            const idx = props.messages.findIndex(m => m.id === message.id);
-            const predecessor = idx > 0 ? props.messages[idx - 1].id : null;
-            if (props.channelId) unreadStore.markUnreadFrom(props.channelId, predecessor);
-            break;
-        }
-        case 'edit': emit('request-edit', message); break;
-        case 'delete': emit('delete', message); break;
-        case 'pin': emit('pin', message); break;
-        case 'unpin': emit('unpin', message); break;
-        case 'mod-delete': emit('mod-delete', message); break;
-        case 'bulk-delete': emit('bulk-delete', message); break;
-    }
-}
 
 
 const unreadDividerIndex = computed<number>(() => {
