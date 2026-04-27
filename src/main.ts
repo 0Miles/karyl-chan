@@ -43,12 +43,11 @@ bot.once("ready", async () => {
   const userId = bot.user?.id ?? "unknown";
   await bot.guilds.fetch();
   const guildCount = bot.guilds.cache.size;
-  botEventLog.record(
-    "info",
-    "bot",
-    `Bot ready: ${userTag}`,
-    { userTag, userId, guildCount },
-  );
+  botEventLog.record("info", "bot", `Bot ready: ${userTag}`, {
+    userTag,
+    userId,
+    guildCount,
+  });
   await bot.initApplicationCommands();
 
   // Pre-cache the owner's DM channel. discord.js silently drops
@@ -191,8 +190,15 @@ async function run() {
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
     const webHost = process.env.WEB_HOST ?? "0.0.0.0";
-    webServer = await startWebServer({ port: webPort, host: webHost, bot, dmInbox: dmInboxService });
-    const isHttps = !!(process.env.SSL_CERT_PATH?.trim() && process.env.SSL_KEY_PATH?.trim());
+    webServer = await startWebServer({
+      port: webPort,
+      host: webHost,
+      bot,
+      dmInbox: dmInboxService,
+    });
+    const isHttps = !!(
+      process.env.SSL_CERT_PATH?.trim() && process.env.SSL_KEY_PATH?.trim()
+    );
     botEventLog.record("info", "web", `Web server started on :${webPort}`, {
       port: webPort,
       https: isHttps,
@@ -205,23 +211,18 @@ async function run() {
     console.error(ex);
     const msg = ex instanceof Error ? ex.message : String(ex);
     const errorType = ex instanceof Error ? ex.constructor.name : "unknown";
-    botEventLog.record(
-      "error",
-      "web",
-      `Startup failed: ${msg}`,
-      { phase: "main", errorType },
-    );
+    botEventLog.record("error", "web", `Startup failed: ${msg}`, {
+      phase: "main",
+      errorType,
+    });
     resetBot();
   }
 }
 
 async function resetBot(reason = "unknown") {
-  botEventLog.record(
-    "error",
-    "bot",
-    `Bot reset triggered: ${reason}`,
-    { phase: "startup" },
-  );
+  botEventLog.record("error", "bot", `Bot reset triggered: ${reason}`, {
+    phase: "startup",
+  });
   bot.destroy();
   if (webServer) {
     await webServer.close();

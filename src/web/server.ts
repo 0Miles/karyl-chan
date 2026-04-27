@@ -457,16 +457,16 @@ export async function createWebServer(
       // than waiting for TTL. The Authorization header arrives even
       // though /api/auth/* is excluded from the hook.
       const header = request.headers.authorization;
-      const accessToken = header?.startsWith("Bearer ") ? header.slice(7) : null;
+      const accessToken = header?.startsWith("Bearer ")
+        ? header.slice(7)
+        : null;
       const userId = accessToken ? auth.verifyAccessToken(accessToken) : null;
       if (accessToken) auth.revokeAccess(accessToken);
       if (userId) {
-        botEventLog.record(
-          "info",
-          "auth",
-          `Admin logout: ${userId}`,
-          { userId, refreshRevoked },
-        );
+        botEventLog.record("info", "auth", `Admin logout: ${userId}`, {
+          userId,
+          refreshRevoked,
+        });
       }
       reply.code(204).send();
     },

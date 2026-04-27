@@ -1,9 +1,9 @@
-import { MessageReaction, PartialMessageReaction, Role } from 'discord.js';
-import type { ArgsOf, Client } from 'discordx';
-import { Discord, On } from 'discordx';
-import { findRoleReceiveMessage } from '../models/role-receive-message.model.js';
-import { findRoleEmojiInGroup } from '../models/role-emoji.model.js';
-import { botEventLog } from '../web/bot-event-log.js';
+import { MessageReaction, PartialMessageReaction, Role } from "discord.js";
+import type { ArgsOf, Client } from "discordx";
+import { Discord, On } from "discordx";
+import { findRoleReceiveMessage } from "../models/role-receive-message.model.js";
+import { findRoleEmojiInGroup } from "../models/role-emoji.model.js";
+import { botEventLog } from "../web/bot-event-log.js";
 
 /**
  * Hydrate a partial reaction (and its parent message) before we read
@@ -17,24 +17,26 @@ import { botEventLog } from '../web/bot-event-log.js';
  * round-trips to Discord and rebuilds a full Reaction + Message so the
  * downstream lookups have what they need.
  */
-async function hydrateReaction(messageReaction: MessageReaction | PartialMessageReaction): Promise<MessageReaction | null> {
-    if (messageReaction.partial) {
-        try {
-            await messageReaction.fetch();
-        } catch (err) {
-            console.error('role-emoji: failed to fetch partial reaction:', err);
-            return null;
-        }
+async function hydrateReaction(
+  messageReaction: MessageReaction | PartialMessageReaction,
+): Promise<MessageReaction | null> {
+  if (messageReaction.partial) {
+    try {
+      await messageReaction.fetch();
+    } catch (err) {
+      console.error("role-emoji: failed to fetch partial reaction:", err);
+      return null;
     }
-    if (messageReaction.message.partial) {
-        try {
-            await messageReaction.message.fetch();
-        } catch (err) {
-            console.error('role-emoji: failed to fetch partial message:', err);
-            return null;
-        }
+  }
+  if (messageReaction.message.partial) {
+    try {
+      await messageReaction.message.fetch();
+    } catch (err) {
+      console.error("role-emoji: failed to fetch partial message:", err);
+      return null;
     }
-    return messageReaction as MessageReaction;
+  }
+  return messageReaction as MessageReaction;
 }
 
 /**
@@ -42,94 +44,126 @@ async function hydrateReaction(messageReaction: MessageReaction | PartialMessage
  * null when the message isn't being watched, the emoji isn't in the
  * bound group, or the mapped role has been deleted from the guild.
  */
-async function getRoleForReaction(messageReaction: MessageReaction): Promise<Role | null> {
-    const guildId = messageReaction.message.guildId;
-    if (!guildId) return null;
-    const channelId = messageReaction.message.channelId;
-    const messageId = messageReaction.message.id;
-    const watched = await findRoleReceiveMessage(guildId, channelId, messageId);
-    if (!watched) return null;
+async function getRoleForReaction(
+  messageReaction: MessageReaction,
+): Promise<Role | null> {
+  const guildId = messageReaction.message.guildId;
+  if (!guildId) return null;
+  const channelId = messageReaction.message.channelId;
+  const messageId = messageReaction.message.id;
+  const watched = await findRoleReceiveMessage(guildId, channelId, messageId);
+  if (!watched) return null;
 
-    const groupId = watched.getDataValue('groupId') as number;
-    const emojiId = messageReaction.emoji.id ?? '';
-    const emojiChar = emojiId ? '' : (messageReaction.emoji.name ?? '');
-    const roleEmoji = await findRoleEmojiInGroup(groupId, emojiChar, emojiId);
-    if (!roleEmoji) return null;
-    const roleId = roleEmoji.getDataValue('roleId') as string;
-    return messageReaction.message.guild?.roles.cache.get(roleId) ?? null;
+  const groupId = watched.getDataValue("groupId") as number;
+  const emojiId = messageReaction.emoji.id ?? "";
+  const emojiChar = emojiId ? "" : (messageReaction.emoji.name ?? "");
+  const roleEmoji = await findRoleEmojiInGroup(groupId, emojiChar, emojiId);
+  if (!roleEmoji) return null;
+  const roleId = roleEmoji.getDataValue("roleId") as string;
+  return messageReaction.message.guild?.roles.cache.get(roleId) ?? null;
 }
 
 @Discord()
 export class RoleEmojiEvents {
-    @On()
-    async messageReactionAdd([messageReaction, user]: ArgsOf<'messageReactionAdd'>, client: Client): Promise<void> {
-        try {
-            if (user.id === client.user?.id) return;
-            const hydrated = await hydrateReaction(messageReaction);
-            if (!hydrated) return;
-            const role = await getRoleForReaction(hydrated);
-            if (!role) return;
-            // Members aren't pre-fetched at startup — `cache.find` would
-            // miss anyone whose presence the bot hasn't observed yet.
-            // `members.fetch(id)` returns the cached entry on a hit and
-            // round-trips to Discord on a miss, so it works either way.
-            const member = await hydrated.message.guild?.members.fetch(user.id).catch(() => null);
-            if (!member) return;
-            try {
-                await member.roles.add(role);
-                botEventLog.record('info', 'feature', `Role auto-granted via reaction: ${role.name}`, {
-                    guildId: hydrated.message.guildId,
-                    channelId: hydrated.message.channelId,
-                    messageId: hydrated.message.id,
-                    userId: user.id,
-                    roleId: role.id,
-                    emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? '',
-                });
-            } catch (roleErr) {
-                botEventLog.record('error', 'feature', `Role grant/revoke failed: ${(roleErr as Error).message}`, {
-                    guildId: hydrated.message.guildId,
-                    userId: user.id,
-                    roleId: role.id,
-                    action: 'add',
-                });
-                throw roleErr;
-            }
-        } catch (ex) {
-            console.error('role-emoji messageReactionAdd failed:', ex);
-        }
+  @On()
+  async messageReactionAdd(
+    [messageReaction, user]: ArgsOf<"messageReactionAdd">,
+    client: Client,
+  ): Promise<void> {
+    try {
+      if (user.id === client.user?.id) return;
+      const hydrated = await hydrateReaction(messageReaction);
+      if (!hydrated) return;
+      const role = await getRoleForReaction(hydrated);
+      if (!role) return;
+      // Members aren't pre-fetched at startup — `cache.find` would
+      // miss anyone whose presence the bot hasn't observed yet.
+      // `members.fetch(id)` returns the cached entry on a hit and
+      // round-trips to Discord on a miss, so it works either way.
+      const member = await hydrated.message.guild?.members
+        .fetch(user.id)
+        .catch(() => null);
+      if (!member) return;
+      try {
+        await member.roles.add(role);
+        botEventLog.record(
+          "info",
+          "feature",
+          `Role auto-granted via reaction: ${role.name}`,
+          {
+            guildId: hydrated.message.guildId,
+            channelId: hydrated.message.channelId,
+            messageId: hydrated.message.id,
+            userId: user.id,
+            roleId: role.id,
+            emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? "",
+          },
+        );
+      } catch (roleErr) {
+        botEventLog.record(
+          "error",
+          "feature",
+          `Role grant/revoke failed: ${(roleErr as Error).message}`,
+          {
+            guildId: hydrated.message.guildId,
+            userId: user.id,
+            roleId: role.id,
+            action: "add",
+          },
+        );
+        throw roleErr;
+      }
+    } catch (ex) {
+      console.error("role-emoji messageReactionAdd failed:", ex);
     }
+  }
 
-    @On()
-    async messageReactionRemove([messageReaction, user]: ArgsOf<'messageReactionRemove'>, client: Client): Promise<void> {
-        try {
-            if (user.id === client.user?.id) return;
-            const hydrated = await hydrateReaction(messageReaction);
-            if (!hydrated) return;
-            const role = await getRoleForReaction(hydrated);
-            if (!role) return;
-            const member = await hydrated.message.guild?.members.fetch(user.id).catch(() => null);
-            if (!member) return;
-            try {
-                await member.roles.remove(role);
-                botEventLog.record('info', 'feature', `Role auto-revoked via reaction: ${role.name}`, {
-                    guildId: hydrated.message.guildId,
-                    channelId: hydrated.message.channelId,
-                    messageId: hydrated.message.id,
-                    userId: user.id,
-                    roleId: role.id,
-                    emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? '',
-                });
-            } catch (roleErr) {
-                botEventLog.record('error', 'feature', `Role grant/revoke failed: ${(roleErr as Error).message}`, {
-                    guildId: hydrated.message.guildId,
-                    userId: user.id,
-                    roleId: role.id,
-                    action: 'remove',
-                });
-                throw roleErr;
-            }
-        } catch (ex) {
-            console.error('role-emoji messageReactionRemove failed:', ex);
-        }
+  @On()
+  async messageReactionRemove(
+    [messageReaction, user]: ArgsOf<"messageReactionRemove">,
+    client: Client,
+  ): Promise<void> {
+    try {
+      if (user.id === client.user?.id) return;
+      const hydrated = await hydrateReaction(messageReaction);
+      if (!hydrated) return;
+      const role = await getRoleForReaction(hydrated);
+      if (!role) return;
+      const member = await hydrated.message.guild?.members
+        .fetch(user.id)
+        .catch(() => null);
+      if (!member) return;
+      try {
+        await member.roles.remove(role);
+        botEventLog.record(
+          "info",
+          "feature",
+          `Role auto-revoked via reaction: ${role.name}`,
+          {
+            guildId: hydrated.message.guildId,
+            channelId: hydrated.message.channelId,
+            messageId: hydrated.message.id,
+            userId: user.id,
+            roleId: role.id,
+            emoji: hydrated.emoji.id ?? hydrated.emoji.name ?? "",
+          },
+        );
+      } catch (roleErr) {
+        botEventLog.record(
+          "error",
+          "feature",
+          `Role grant/revoke failed: ${(roleErr as Error).message}`,
+          {
+            guildId: hydrated.message.guildId,
+            userId: user.id,
+            roleId: role.id,
+            action: "remove",
+          },
+        );
+        throw roleErr;
+      }
+    } catch (ex) {
+      console.error("role-emoji messageReactionRemove failed:", ex);
     }
+  }
 }
