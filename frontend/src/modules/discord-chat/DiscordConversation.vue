@@ -6,7 +6,7 @@ import MessageComposer from '../../libs/messages/MessageComposer.vue';
 import { ProactiveFeaturesMenu } from '../dm-proactive-features';
 import MediaPickerPopover from '../../libs/messages/picker/MediaPickerPopover.vue';
 import MessageContextMenu, { type ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
-import PinnedPanel from './PinnedPanel.vue';
+import ConversationHeader from './ConversationHeader.vue';
 import MessageActionBar from './MessageActionBar.vue';
 import MessageSourceModal from './MessageSourceModal.vue';
 import DiscordUserCardPopover from './DiscordUserCardPopover.vue';
@@ -17,11 +17,8 @@ import { useShiftKey } from '../../composables/use-shift-key';
 import type { Message, MessageReference, OutgoingMessage } from '../../libs/messages/types';
 import { useUnreadStore, markerGreater } from './stores/unreadStore';
 import { useTypingIndicator } from './useTypingIndicator';
-import { useMuteControl } from './useMuteControl';
-import { usePinnedMessages } from './usePinnedMessages';
 import { useScrollMemory } from './useScrollMemory';
 import { useMessageContextMenu } from './useMessageContextMenu';
-import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 const { t: $t } = useI18n();
 
@@ -114,18 +111,6 @@ const drop = useFileDrop((files) => {
 });
 
 const isOwn = (message: Message) => !!props.botUserId && message.author.id === props.botUserId;
-
-const { isMuted, muteIcon, muteTooltip, toggleMute } = useMuteControl(toRef(props, 'channelId'));
-
-// Pinned messages panel. State lives here (rather than the workspace)
-// because the trigger and the panel both render inside the conversation
-// header — keeping the open/close + cached list co-located avoids a
-// prop+emit ping-pong. Fetched lazily on first open per channel.
-const { pinsOpen, pinsLoading, pinsError, pinsList, togglePins, onPinJump } = usePinnedMessages({
-    channelId: toRef(props, 'channelId'),
-    pinFetcher: toRef(props, 'pinFetcher'),
-    emit: (event, id) => emit(event, id),
-});
 
 // Typing indicator: pull users actively typing in the current channel.
 const { typingLabel } = useTypingIndicator(toRef(props, 'channelId'));
@@ -301,51 +286,20 @@ const replyToProp = computed(() => props.replyTo);
         <div v-if="drop.isDragging.value" class="drop-overlay">
             <div class="drop-banner">{{ $t('messages.dropFiles') }}</div>
         </div>
-        <header v-if="channelId" class="conv-header">
-            <slot name="header">
-                <span class="title">{{ headerTitle }}</span>
-                <span v-if="headerSubtitle" class="subtitle">{{ headerSubtitle }}</span>
-                <span class="header-spacer"></span>
-                <button
-                    v-if="canBrowseThreads"
-                    type="button"
-                    class="header-action"
-                    :title="$t('threads.view')"
-                    :aria-label="$t('threads.view')"
-                    @click="emit('browse-threads')"
-                >
-                    <Icon icon="material-symbols:forum-outline-rounded" width="18" height="18" />
-                </button>
-                <button
-                    v-if="pinFetcher"
-                    type="button"
-                    :class="['header-action', { active: pinsOpen }]"
-                    :title="$t('messages.pinnedMessages')"
-                    :aria-label="$t('messages.pinnedMessages')"
-                    data-pins-trigger
-                    @click="togglePins"
-                >
-                    <Icon icon="material-symbols:keep-outline-rounded" width="18" height="18" />
-                </button>
-                <button
-                    type="button"
-                    :class="['header-action', { active: isMuted }]"
-                    :title="muteTooltip"
-                    :aria-label="muteTooltip"
-                    @click="toggleMute"
-                >
-                    <Icon :icon="muteIcon" width="18" height="18" />
-                </button>
-            </slot>
-            <PinnedPanel
-                :visible="pinsOpen"
-                :loading="pinsLoading"
-                :error="pinsError"
-                :messages="pinsList"
-                @close="pinsOpen = false"
-                @jump="onPinJump"
-            />
-        </header>
+        <ConversationHeader
+            v-if="channelId"
+            :channel-id="channelId"
+            :header-title="headerTitle"
+            :header-subtitle="headerSubtitle"
+            :can-browse-threads="canBrowseThreads"
+            :pin-fetcher="pinFetcher"
+            @browse-threads="emit('browse-threads')"
+            @jump-to-message="(id) => emit('jump-to-message', id)"
+        >
+            <template v-if="$slots.header" #default>
+                <slot name="header" />
+            </template>
+        </ConversationHeader>
         <p v-if="error" class="error">{{ error }}</p>
         <DynamicScroller
             ref="scrollerRef"
@@ -502,40 +456,6 @@ const replyToProp = computed(() => props.replyTo);
     font-weight: 600;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
-.conv-header {
-    height: 54px;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    /* Anchor for the absolutely-positioned PinnedPanel below. */
-    position: relative;
-}
-@media (max-width: 768px) {
-    .conv-header {
-        height: auto;
-    }
-}
-.title { font-weight: 600; color: var(--text-strong); }
-.subtitle {
-    color: var(--text-faint);
-    font-size: 0.8rem;
-    font-family: ui-monospace, SFMono-Regular, monospace;
-}
-.header-spacer { flex: 1; }
-.header-action {
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 4px;
-    cursor: pointer;
-    color: var(--text-muted);
-    line-height: 0;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.header-action:hover { background: var(--bg-surface-hover); color: var(--text); }
-.header-action.active { color: var(--accent-text-strong); border-color: var(--accent); }
 .error { color: var(--danger); margin: 0.5rem 1rem; }
 .messages { flex: 1; overflow-y: auto; padding: 0.5rem 0; }
 .center { text-align: center; margin: 2rem 0; }
