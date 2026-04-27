@@ -313,7 +313,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg);
+    background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.9rem;
@@ -324,7 +324,7 @@ const totalSelected = computed(() => permissionFlags.value.size);
     height: 32px;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg);
+    background: var(--bg-surface);
     cursor: pointer;
 }
 .check-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }

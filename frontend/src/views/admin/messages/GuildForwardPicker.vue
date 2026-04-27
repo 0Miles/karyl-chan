@@ -253,7 +253,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     padding: 0.4rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg);
+    background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.9rem;
@@ -329,7 +329,7 @@ const errorMessage = computed(() => selected.value === DM_KEY ? dmError.value : 
     width: 100%;
     box-sizing: border-box;
     padding: 0.4rem 0.6rem;
-    background: var(--bg);
+    background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text);

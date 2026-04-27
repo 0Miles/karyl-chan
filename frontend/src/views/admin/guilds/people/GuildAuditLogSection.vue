@@ -231,7 +231,7 @@ function fmtValue(v: unknown): string {
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg);
+    background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.85rem;
@@ -287,7 +287,7 @@ function fmtValue(v: unknown): string {
     list-style: none;
     margin: 0.4rem 0 0;
     padding: 0.4rem 0.55rem;
-    background: var(--bg);
+    background: var(--bg-surface);
     border-radius: 4px;
     display: flex;
     flex-direction: column;

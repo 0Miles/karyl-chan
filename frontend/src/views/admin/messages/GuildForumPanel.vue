@@ -87,7 +87,7 @@ const sortedPosts = computed(() =>
     flex-direction: column;
     height: 100%;
     min-height: 0;
-    background: var(--bg);
+    background: var(--bg-surface);
 }
 .forum-header {
     display: flex;

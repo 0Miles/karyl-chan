@@ -314,7 +314,7 @@ function onConfirm() {
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: var(--bg);
+    background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.88rem;
@@ -338,7 +338,7 @@ function onConfirm() {
     border: 1px solid var(--border);
     border-radius: 6px;
     cursor: pointer;
-    background: var(--bg);
+    background: var(--bg-surface);
     transition: background-color 0.12s, border-color 0.12s;
 }
 .cap:hover { background: var(--bg-surface-hover); }

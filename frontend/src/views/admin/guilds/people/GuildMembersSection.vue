@@ -197,7 +197,7 @@ function onNickname(m: GuildMemberRow) {
     padding: 0.35rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 4px;
-    background: var(--bg);
+    background: var(--bg-surface);
     color: var(--text);
     font: inherit;
     font-size: 0.85rem;
