@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { AdminAuditEntry } from '../../../api/types';
-import { computed } from 'vue';
+import { useRelativeTime } from '../../../composables/use-relative-time';
 
 const props = defineProps<{
     entries: AdminAuditEntry[];
     loading: boolean;
     permissionDenied: boolean;
+    error?: string | null;
 }>();
+
+const { relativeTime } = useRelativeTime();
 
 /** Map action token to a human-readable label */
 function actionLabel(action: string): { verb: string; noun: string } {
@@ -40,19 +43,6 @@ function actionLabel(action: string): { verb: string; noun: string } {
     };
 }
 
-/** Relative time: "3m ago", "2h ago", "4d ago" */
-function relativeTime(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const secs = Math.floor(diff / 1000);
-    if (secs < 60)  return `${secs}s ago`;
-    const mins = Math.floor(secs / 60);
-    if (mins < 60)  return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-}
-
 /** Short actor ID: last 6 chars */
 function shortId(id: string): string {
     return id.slice(-6);
@@ -76,10 +66,16 @@ function dotClass(action: string): string {
 </script>
 
 <template>
-    <section class="activity" aria-label="Recent admin activity">
+    <section class="activity" :aria-label="$t('dashboard.activity.title')">
         <h2 class="section-title">{{ $t('dashboard.activity.title') }}</h2>
 
-        <p v-if="permissionDenied" class="no-perm">{{ $t('dashboard.noPermission') }}</p>
+        <!-- Error banner -->
+        <div v-if="error" class="error-banner" role="alert">
+            <span class="error-icon" aria-hidden="true">!</span>
+            {{ error }}
+        </div>
+
+        <p v-else-if="permissionDenied" class="no-perm">{{ $t('dashboard.noPermission') }}</p>
 
         <div v-else-if="loading && !entries.length" class="feed">
             <div v-for="i in 5" :key="i" class="feed-item feed-item--skel">
@@ -146,6 +142,26 @@ function dotClass(action: string): string {
     letter-spacing: 0.1em;
     color: var(--text-muted);
     margin: 0;
+}
+
+/* ─── Error banner ───────────────────────────────────────────────── */
+.error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.9rem;
+    background: rgba(237, 66, 69, 0.1);
+    border: 1px solid rgba(237, 66, 69, 0.35);
+    border-radius: var(--radius-lg);
+    color: #ed4245;
+    font-size: 0.8rem;
+}
+
+.error-icon {
+    font-weight: 800;
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .no-perm,

@@ -331,7 +331,30 @@
             "emptyFiltered": "沒有 {level} 等級的事件。",
             "filterAriaLabel": "依等級篩選",
             "contextShow": "ctx",
-            "contextHide": "收起"
+            "contextHide": "收起",
+            "level": {
+                "info": "資訊",
+                "warn": "警告",
+                "error": "錯誤"
+            },
+            "category": {
+                "bot": "機器人",
+                "auth": "驗證",
+                "feature": "功能",
+                "web": "網路",
+                "error": "錯誤"
+            }
+        },
+        "relTime": {
+            "today": "今天",
+            "yesterday": "昨天",
+            "daysAgo": "{n} 天前",
+            "monthsAgo": "{n} 個月前",
+            "yearsAgo": "{n} 年前",
+            "never": "從未",
+            "secsAgo": "{n} 秒前",
+            "minsAgo": "{n} 分鐘前",
+            "hoursAgo": "{n} 小時前"
         },
         "activity": {
             "title": "最近管理操作",

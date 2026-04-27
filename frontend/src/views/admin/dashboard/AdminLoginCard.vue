@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminLoginEntry } from '../../../api/types';
+import { useRelativeTime } from '../../../composables/use-relative-time';
 
 defineProps<{
     admins: AdminLoginEntry[];
@@ -8,18 +9,7 @@ defineProps<{
     error?: string | null;
 }>();
 
-function relativeTime(iso: string | null): string {
-    if (!iso) return 'Never';
-    const diff = Date.now() - new Date(iso).getTime();
-    const secs = Math.floor(diff / 1000);
-    if (secs < 60) return `${secs}s ago`;
-    const mins = Math.floor(secs / 60);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-}
+const { relativeTime } = useRelativeTime();
 
 /** Truncate long user IDs to show last 8 chars, prefixed with ellipsis */
 function shortId(id: string): string {
@@ -28,7 +18,7 @@ function shortId(id: string): string {
 </script>
 
 <template>
-    <section class="login-card" aria-label="Admin login status">
+    <section class="login-card" :aria-label="$t('dashboard.adminLogin.title')">
         <h2 class="section-title">{{ $t('dashboard.adminLogin.title') }}</h2>
 
         <!-- Error banner -->

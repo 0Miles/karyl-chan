@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { BotEvent, BotEventLevel } from '../../../api/types';
+import { useI18n } from 'vue-i18n';
+import type { BotEvent, BotEventLevel, BotEventCategory } from '../../../api/types';
+import { useRelativeTime } from '../../../composables/use-relative-time';
 
 const props = defineProps<{
     events: BotEvent[];
@@ -8,6 +10,9 @@ const props = defineProps<{
     permissionDenied: boolean;
     error?: string | null;
 }>();
+
+const { t } = useI18n();
+const { relativeTime } = useRelativeTime();
 
 /** Active level filter; null = show all */
 const activeLevel = ref<BotEventLevel | null>(null);
@@ -21,16 +26,12 @@ function toggleLevel(level: BotEventLevel) {
     activeLevel.value = activeLevel.value === level ? null : level;
 }
 
-/** Relative time */
-function relativeTime(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const secs = Math.floor(diff / 1000);
-    if (secs < 60) return `${secs}s ago`;
-    const mins = Math.floor(secs / 60);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
+function levelLabel(level: BotEventLevel): string {
+    return t(`dashboard.botEvents.level.${level}`);
+}
+
+function categoryLabel(category: BotEventCategory): string {
+    return t(`dashboard.botEvents.category.${category}`);
 }
 
 /** Count per level for filter chip badges */
@@ -62,7 +63,7 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
 </script>
 
 <template>
-    <section class="events-card" aria-label="Bot event log">
+    <section class="events-card" :aria-label="$t('dashboard.botEvents.title')">
         <!-- Header + filter chips -->
         <div class="card-header">
             <h2 class="section-title">{{ $t('dashboard.botEvents.title') }}</h2>
@@ -77,7 +78,7 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
                     :aria-pressed="activeLevel === level"
                     @click="toggleLevel(level)"
                 >
-                    {{ level }}
+                    {{ levelLabel(level) }}
                     <span v-if="levelCount(level)" class="chip-count">{{ levelCount(level) }}</span>
                 </button>
             </div>
@@ -128,7 +129,7 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
                 <div class="event-body">
                     <div class="event-top">
                         <!-- Category badge -->
-                        <span class="category-badge">{{ event.category }}</span>
+                        <span class="category-badge">{{ categoryLabel(event.category) }}</span>
                         <!-- Message -->
                         <span class="event-message">{{ event.message }}</span>
                     </div>
@@ -216,6 +217,11 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
     color: var(--text);
 }
 
+.chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 /* Inactive state when another chip is active */
 .chip:not(.chip--active) {
     opacity: 0.6;
@@ -235,6 +241,13 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
     font-size: 0.62rem;
     opacity: 0.75;
     font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+    .chip {
+        min-height: 36px;
+        padding: 0.25rem 0.65rem;
+    }
 }
 
 /* ─── Error / no-perm / empty ────────────────────────────────────── */
@@ -393,6 +406,12 @@ const LEVEL_ORDER: BotEventLevel[] = ['info', 'warn', 'error'];
 
 .ctx-toggle:hover {
     opacity: 0.7;
+}
+
+.ctx-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* ─── Context box ────────────────────────────────────────────────── */

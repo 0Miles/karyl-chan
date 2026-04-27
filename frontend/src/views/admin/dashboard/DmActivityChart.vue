@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 const props = defineProps<{
     data: { date: string; count: number }[];
+    error?: string | null;
 }>();
 
 const chartMax = computed(() => {
@@ -49,7 +50,12 @@ function heightPct(count: number): number {
             <span class="section-subtitle">{{ $t('dashboard.dmChart.subtitle') }}</span>
         </h2>
 
-        <div v-if="!data.length" class="empty-chart">
+        <div v-if="error" class="error-chart" role="alert">
+            <span class="error-icon" aria-hidden="true">!</span>
+            {{ error }}
+        </div>
+
+        <div v-else-if="!data.length" class="empty-chart">
             <p>{{ $t('dashboard.dmChart.empty') }}</p>
         </div>
 
@@ -130,6 +136,25 @@ function heightPct(count: number): number {
     text-transform: none;
     letter-spacing: 0;
     font-weight: 400;
+}
+
+.error-chart {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.9rem;
+    background: rgba(237, 66, 69, 0.1);
+    border: 1px solid rgba(237, 66, 69, 0.35);
+    border-radius: var(--radius-lg);
+    color: #ed4245;
+    font-size: 0.8rem;
+}
+
+.error-icon {
+    font-weight: 800;
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .empty-chart {

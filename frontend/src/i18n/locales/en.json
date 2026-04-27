@@ -331,7 +331,30 @@
             "emptyFiltered": "No {level} events.",
             "filterAriaLabel": "Filter by level",
             "contextShow": "ctx",
-            "contextHide": "hide"
+            "contextHide": "hide",
+            "level": {
+                "info": "info",
+                "warn": "warn",
+                "error": "error"
+            },
+            "category": {
+                "bot": "bot",
+                "auth": "auth",
+                "feature": "feature",
+                "web": "web",
+                "error": "error"
+            }
+        },
+        "relTime": {
+            "today": "today",
+            "yesterday": "yesterday",
+            "daysAgo": "{n}d ago",
+            "monthsAgo": "{n}mo ago",
+            "yearsAgo": "{n}y ago",
+            "never": "Never",
+            "secsAgo": "{n}s ago",
+            "minsAgo": "{n}m ago",
+            "hoursAgo": "{n}h ago"
         },
         "activity": {
             "title": "Recent admin activity",

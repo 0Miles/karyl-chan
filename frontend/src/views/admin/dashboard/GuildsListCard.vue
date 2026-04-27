@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router';
 import type { GuildSummary } from '../../../api/guilds';
+import { useRelativeTime } from '../../../composables/use-relative-time';
 
 defineProps<{
     guilds: GuildSummary[];
@@ -8,17 +9,7 @@ defineProps<{
     error?: string | null;
 }>();
 
-function relativeJoin(iso: string | null): string {
-    if (!iso) return '—';
-    const diff = Date.now() - new Date(iso).getTime();
-    const days = Math.floor(diff / 86_400_000);
-    if (days < 1) return 'today';
-    if (days === 1) return 'yesterday';
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    return `${Math.floor(months / 12)}y ago`;
-}
+const { relativeJoin } = useRelativeTime();
 
 function initials(name: string): string {
     return name
@@ -30,7 +21,7 @@ function initials(name: string): string {
 </script>
 
 <template>
-    <section class="guilds-card" aria-label="Guild list">
+    <section class="guilds-card" :aria-label="$t('dashboard.guilds.title')">
         <div class="card-header">
             <h2 class="section-title">{{ $t('dashboard.guilds.title') }}</h2>
             <RouterLink to="/admin/guilds" class="view-all-link">
@@ -94,7 +85,7 @@ function initials(name: string): string {
 
                 <!-- Quick link -->
                 <RouterLink
-                    :to="`/admin/guilds?selected=${guild.id}`"
+                    :to="`/admin/guilds?guild=${guild.id}`"
                     class="guild-link"
                     :aria-label="`${$t('dashboard.guilds.settings')} — ${guild.name}`"
                 >
@@ -134,10 +125,16 @@ function initials(name: string): string {
     color: var(--accent-text);
     text-decoration: none;
     transition: opacity var(--transition-fast) ease;
+    border-radius: var(--radius-sm);
 }
 
 .view-all-link:hover {
     opacity: 0.75;
+}
+
+.view-all-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* ─── Error banner ───────────────────────────────────────────────── */
@@ -265,16 +262,31 @@ function initials(name: string): string {
     border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
     opacity: 0.7;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
     transition:
         opacity var(--transition-fast) ease,
         background var(--transition-fast) ease;
 }
 
-.guild-link:hover,
+.guild-link:hover {
+    opacity: 1;
+    background: var(--accent-bg);
+}
+
 .guild-link:focus-visible {
     opacity: 1;
     background: var(--accent-bg);
-    outline: none;
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .guild-link {
+        min-height: 40px;
+        padding: 0.3rem 0.75rem;
+    }
 }
 
 /* ─── Skeleton ───────────────────────────────────────────────────── */

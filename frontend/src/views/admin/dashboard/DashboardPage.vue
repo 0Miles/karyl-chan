@@ -241,6 +241,7 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
             <StatusHero
                 :bot="bot"
                 :loading="loadingBot"
+                :error="errorBot"
             />
 
             <!-- ── 2. Needs attention (conditional) ──────────────────── -->
@@ -256,8 +257,9 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
             <!-- ── 4. Middle two-col row: Chart + Admin Login ─────────── -->
             <div class="mid-row">
                 <DmActivityChart
-                    v-if="!loadingStats && dmActivity.length"
+                    v-if="!loadingStats && (dmActivity.length || errorStats)"
                     :data="dmActivity"
+                    :error="errorStats"
                     class="mid-chart"
                 />
                 <div v-else-if="loadingStats" class="mid-chart chart-skel">
@@ -291,6 +293,7 @@ const dmActivity = computed(() => systemStats.value?.dmActivity ?? []);
                     :entries="auditEntries"
                     :loading="loadingAudit"
                     :permission-denied="auditDenied"
+                    :error="errorAudit"
                     class="bottom-activity"
                 />
             </div>

@@ -4,6 +4,7 @@ import type { BotStatus } from '../../../api/types';
 defineProps<{
     bot: BotStatus | null;
     loading: boolean;
+    error?: string | null;
 }>();
 
 function formatDuration(seconds: number): string {
@@ -22,6 +23,12 @@ function formatDuration(seconds: number): string {
 
 <template>
     <div class="hero" :class="{ 'hero--loading': loading && !bot }">
+        <!-- Error banner (shown above all states) -->
+        <div v-if="error" class="hero-error" role="alert">
+            <span class="error-icon" aria-hidden="true">!</span>
+            {{ error }}
+        </div>
+
         <!-- Loading skeleton -->
         <template v-if="loading && !bot">
             <div class="hero-identity">
@@ -107,6 +114,29 @@ function formatDuration(seconds: number): string {
     border-radius: var(--radius-xl);
     border-left: 4px solid var(--accent);
     flex-wrap: wrap;
+}
+
+/* ─── Error banner (inside hero) ────────────────────────────────── */
+.hero-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: rgba(237, 66, 69, 0.1);
+    border: 1px solid rgba(237, 66, 69, 0.35);
+    border-radius: var(--radius-sm);
+    color: #ed4245;
+    font-size: 0.8rem;
+    flex-basis: 100%;
+    order: -1;
+}
+
+.error-icon {
+    font-weight: 800;
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 /* ─── Identity block ─────────────────────────────────────────────── */

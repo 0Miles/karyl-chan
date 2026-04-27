@@ -331,7 +331,30 @@
             "emptyFiltered": "没有 {level} 级别的事件。",
             "filterAriaLabel": "按级别筛选",
             "contextShow": "ctx",
-            "contextHide": "收起"
+            "contextHide": "收起",
+            "level": {
+                "info": "信息",
+                "warn": "警告",
+                "error": "错误"
+            },
+            "category": {
+                "bot": "机器人",
+                "auth": "验证",
+                "feature": "功能",
+                "web": "网络",
+                "error": "错误"
+            }
+        },
+        "relTime": {
+            "today": "今天",
+            "yesterday": "昨天",
+            "daysAgo": "{n} 天前",
+            "monthsAgo": "{n} 个月前",
+            "yearsAgo": "{n} 年前",
+            "never": "从未",
+            "secsAgo": "{n} 秒前",
+            "minsAgo": "{n} 分钟前",
+            "hoursAgo": "{n} 小时前"
         },
         "activity": {
             "title": "近期管理操作",
