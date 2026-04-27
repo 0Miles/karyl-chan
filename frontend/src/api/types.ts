@@ -33,3 +33,26 @@ export interface SystemStats {
     dmChannelCount: number;
     dmActivity: { date: string; count: number }[];
 }
+
+export interface AdminAuditEntry {
+    id: number;
+    actorUserId: string;
+    action: string;
+    target: string | null;
+    context: Record<string, unknown> | null;
+    createdAt: string;
+    previousHash: string | null;
+    hash: string;
+}
+
+export interface FeatureSummary {
+    todoChannels: number;
+    pictureOnlyChannels: number;
+    rconForwardChannels: number;
+    roleEmojiGroups: number;
+    roleEmojis: number;
+    authorizedUsers: number;
+    adminRoles: number;
+    capabilityGrants: number;
+    distinctGuilds: number;
+}

@@ -1,4 +1,5 @@
 import { ApiError, authedFetch } from './client';
+import type { AdminAuditEntry } from './types';
 
 export interface AdminRole {
     name: string;
@@ -145,4 +146,12 @@ export async function revokeRoleCapability(role: string, capability: string): Pr
         } catch { /* noop */ }
         throw new ApiError(response.status, message);
     }
+}
+
+export async function fetchRecentAudit(limit = 20, before?: number): Promise<AdminAuditEntry[]> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (before !== undefined) params.set('before', String(before));
+    const response = await authedFetch(`/api/admin/audit?${params.toString()}`);
+    const body = await json<{ entries: AdminAuditEntry[] }>(response);
+    return body.entries;
 }
