@@ -64,6 +64,7 @@ const displayName = computed(() =>
 // hasn't loaded yet so we don't briefly flash links before hiding them.
 const userCaps = computed(() => currentUser.user?.capabilities ?? []);
 const canOpenAdminPanel = computed(() => hasAdminCapability(userCaps.value, 'admin'));
+const canManageBehaviors = computed(() => hasAdminCapability(userCaps.value, 'behavior.manage'));
 const canSeeMessages = computed(() => hasAdminCapability(userCaps.value, 'dm.message')
     || accessibleGuildIds(userCaps.value) === 'all'
     || (accessibleGuildIds(userCaps.value) as Set<string>).size > 0);
@@ -162,6 +163,7 @@ function navigate() {
                         <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
                     </RouterLink>
                     <RouterLink v-if="canSeeGuilds" to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
+                    <RouterLink v-if="canManageBehaviors || canOpenAdminPanel" to="/admin/behaviors">{{ $t('app.nav.behaviors') }}</RouterLink>
                     <RouterLink v-if="canOpenAdminPanel" to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <AppMenu placement="bottom-end" :offset="[0, 10]">
                         <template #trigger>
@@ -250,6 +252,7 @@ function navigate() {
                             <span v-if="unreadStore.hasAttention" class="nav-dot" aria-hidden="true"></span>
                         </RouterLink>
                         <RouterLink v-if="canSeeGuilds" to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
+                        <RouterLink v-if="canManageBehaviors || canOpenAdminPanel" to="/admin/behaviors" @click="navigate">{{ $t('app.nav.behaviors') }}</RouterLink>
                         <RouterLink v-if="canOpenAdminPanel" to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>

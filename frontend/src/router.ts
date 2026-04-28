@@ -56,6 +56,16 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true, requiresCapability: ['admin'] satisfies RouteCapability[] }
     },
     {
+        path: '/admin/behaviors',
+        name: 'behaviors',
+        component: () => import('./views/admin/behaviors/BehaviorsPage.vue'),
+        // Either the broad admin token or the dedicated behavior.manage
+        // grant unlocks the page; per-target scoped tokens are a phase-2
+        // extension and will satisfy this guard via behavior.manage when
+        // they ship.
+        meta: { requiresAuth: true, requiresCapability: ['admin', 'behavior.manage'] satisfies RouteCapability[] }
+    },
+    {
         path: '/admin/profile',
         name: 'profile',
         component: () => import('./views/admin/profile/ProfilePage.vue'),

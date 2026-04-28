@@ -5,6 +5,7 @@
             "dashboard": "Dashboard",
             "messages": "Messages",
             "guilds": "Servers",
+            "behaviors": "Behaviors",
             "admin": "Admin access",
             "profile": "Profile",
             "signOut": "Sign out",
@@ -27,6 +28,10 @@
         "refresh": "Refresh",
         "archived": "Archived",
         "save": "Save",
+        "saving": "Saving…",
+        "add": "Add",
+        "delete": "Delete",
+        "remove": "Remove",
         "updated": "Updated {time}",
         "failedToLoad": "Failed to load: {error}",
         "search": "Search…",
@@ -908,6 +913,7 @@
             "guild.message": "Read + write messages and reactions in every server's channels",
             "guild.manage": "Manage members, roles, settings, and bot features in every server",
             "system.read": "View system event log and runtime stats",
+            "behavior.manage": "Manage all targets and rules of the webhook behavior module",
             "guildScoped": {
                 "message": "Read + write messages and reactions in this server only.",
                 "manage": "Manage members, roles, settings, and bot features in this server only."
@@ -929,5 +935,76 @@
         "nothingRecent": "Nothing recent yet.",
         "noCustomEmoji": "No custom emoji available.",
         "noGuildStickers": "No server stickers available."
+    },
+    "behaviors": {
+        "page": {
+            "pickTarget": "Pick a target from the sidebar."
+        },
+        "sidebar": {
+            "title": "Targets",
+            "addTooltip": "Add a target",
+            "allDms": "All DMs",
+            "allDmsHint": "Applies to every DM sender",
+            "userKindHint": "Individual user DM",
+            "groupMemberCount": "{count} members"
+        },
+        "modal": {
+            "addTarget": "Add a target",
+            "kindLabel": "Target kind",
+            "kindUser": "Individual user",
+            "kindGroup": "User group",
+            "userIdLabel": "Discord user ID",
+            "userIdPlaceholder": "Paste the user's Discord ID (snowflake)",
+            "userIdInvalid": "Please enter a valid Discord user ID.",
+            "groupNameLabel": "Group name",
+            "groupNamePlaceholder": "e.g. VIP, partners",
+            "groupNameRequired": "Please enter a group name.",
+            "create": "Create"
+        },
+        "workspace": {
+            "kindAllDms": "All DMs",
+            "kindUser": "Individual user",
+            "kindGroup": "User group",
+            "addBehavior": "Add behavior",
+            "deleteTargetTooltip": "Delete this target",
+            "deleteTargetConfirm": "Delete \"{label}\"? All behaviors and members underneath will also be removed.",
+            "groupNameLabel": "Group name",
+            "membersToggle": "Members ({count})",
+            "memberIdPlaceholder": "Discord user ID",
+            "memberIdInvalid": "Please enter a valid Discord user ID.",
+            "membersEmpty": "No members yet.",
+            "newBehaviorDefaultTitle": "New behavior",
+            "empty": "No behaviors configured yet."
+        },
+        "card": {
+            "title": "Title",
+            "description": "Description",
+            "triggerType": "Trigger type",
+            "triggerStartsWith": "Starts with",
+            "triggerEndsWith": "Ends with",
+            "triggerRegex": "Regular expression",
+            "triggerValue": "Trigger value",
+            "forwardType": "Forward type",
+            "forwardOneTime": "One-time forward",
+            "forwardContinuous": "Continuous forward",
+            "targetId": "Target",
+            "webhookUrl": "Webhook URL",
+            "webhookUrlSetHint": "(leave empty to keep)",
+            "stopOnMatch": "Block subsequent evaluation when matched",
+            "tagContinuous": "Continuous forward",
+            "tagContinuousShort": "Continuous",
+            "tagStop": "Stops further evaluation when matched",
+            "tagStopShort": "Stop",
+            "toggleEnabled": "Enabled (click to disable)",
+            "toggleDisabled": "Disabled (click to enable)",
+            "previewStartsWith": "starts: {value}",
+            "previewEndsWith": "ends: {value}",
+            "previewRegex": "regex: {value}",
+            "titleRequired": "Title is required.",
+            "triggerValueRequired": "Trigger value is required.",
+            "regexInvalid": "Trigger value is not a valid regex.",
+            "deleteConfirm": "Delete behavior \"{title}\"?",
+            "dragHint": "Drag to reorder"
+        }
     }
 }

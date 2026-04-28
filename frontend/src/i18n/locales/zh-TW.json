@@ -5,6 +5,7 @@
             "dashboard": "儀表板",
             "messages": "訊息",
             "guilds": "伺服器",
+            "behaviors": "行為",
             "admin": "後台權限",
             "profile": "個人資料",
             "signOut": "登出",
@@ -27,6 +28,10 @@
         "refresh": "重新整理",
         "archived": "已封存",
         "save": "儲存",
+        "saving": "儲存中…",
+        "add": "新增",
+        "delete": "刪除",
+        "remove": "移除",
         "updated": "已於 {time} 更新",
         "failedToLoad": "載入失敗:{error}",
         "search": "搜尋…",
@@ -908,6 +913,7 @@
             "guild.message": "讀寫所有伺服器頻道的訊息與反應",
             "guild.manage": "管理所有伺服器的成員、角色、設定與 bot 功能",
             "system.read": "查看系統事件記錄與統計資訊",
+            "behavior.manage": "管理 webhook 行為模組的所有目標對象與行為設定",
             "guildScoped": {
                 "message": "僅限於此伺服器讀寫頻道訊息與反應。",
                 "manage": "僅限於此伺服器管理成員、角色、設定與 bot 功能。"
@@ -929,5 +935,76 @@
         "nothingRecent": "尚未使用過任何項目。",
         "noCustomEmoji": "沒有可用的自訂表情。",
         "noGuildStickers": "沒有可用的伺服器貼圖。"
+    },
+    "behaviors": {
+        "page": {
+            "pickTarget": "請從左側選擇一個目標對象。"
+        },
+        "sidebar": {
+            "title": "目標對象",
+            "addTooltip": "新增目標對象",
+            "allDms": "所有私訊",
+            "allDmsHint": "所有私訊使用者皆適用",
+            "userKindHint": "個別使用者私訊",
+            "groupMemberCount": "{count} 名成員"
+        },
+        "modal": {
+            "addTarget": "新增目標對象",
+            "kindLabel": "目標種類",
+            "kindUser": "個別使用者",
+            "kindGroup": "使用者組",
+            "userIdLabel": "Discord 使用者 ID",
+            "userIdPlaceholder": "請貼上使用者的 Discord ID(雪花格式)",
+            "userIdInvalid": "請輸入合法的 Discord 使用者 ID。",
+            "groupNameLabel": "組名",
+            "groupNamePlaceholder": "例如:VIP、合作夥伴",
+            "groupNameRequired": "請輸入組名。",
+            "create": "建立"
+        },
+        "workspace": {
+            "kindAllDms": "所有私訊",
+            "kindUser": "個別使用者",
+            "kindGroup": "使用者組",
+            "addBehavior": "新增行為",
+            "deleteTargetTooltip": "刪除此目標對象",
+            "deleteTargetConfirm": "確定要刪除「{label}」?其下所有行為與成員會一併移除。",
+            "groupNameLabel": "組名",
+            "membersToggle": "成員清單({count})",
+            "memberIdPlaceholder": "Discord 使用者 ID",
+            "memberIdInvalid": "請輸入合法的 Discord 使用者 ID。",
+            "membersEmpty": "目前沒有成員。",
+            "newBehaviorDefaultTitle": "新行為",
+            "empty": "目前沒有設定行為。"
+        },
+        "card": {
+            "title": "標題",
+            "description": "說明",
+            "triggerType": "觸發類型",
+            "triggerStartsWith": "開頭符合",
+            "triggerEndsWith": "結尾符合",
+            "triggerRegex": "正則表達式",
+            "triggerValue": "觸發內容",
+            "forwardType": "轉發類型",
+            "forwardOneTime": "一次性轉發",
+            "forwardContinuous": "持續轉發",
+            "targetId": "目標對象",
+            "webhookUrl": "Webhook URL",
+            "webhookUrlSetHint": "(留空表示維持原值)",
+            "stopOnMatch": "命中後阻止後續判定",
+            "tagContinuous": "持續轉發",
+            "tagContinuousShort": "持續",
+            "tagStop": "命中後阻止後續判定",
+            "tagStopShort": "停止後續",
+            "toggleEnabled": "已啟用 (點擊停用)",
+            "toggleDisabled": "已停用 (點擊啟用)",
+            "previewStartsWith": "開頭：{value}",
+            "previewEndsWith": "結尾：{value}",
+            "previewRegex": "regex：{value}",
+            "titleRequired": "請輸入標題。",
+            "triggerValueRequired": "請輸入觸發內容。",
+            "regexInvalid": "正則表達式格式錯誤。",
+            "deleteConfirm": "確定要刪除行為「{title}」?",
+            "dragHint": "拖曳排序"
+        }
     }
 }
