@@ -45,7 +45,7 @@ const DESCRIPTION_MAX = 2000;
 const TRIGGER_VALUE_MAX = 2000;
 const GROUP_NAME_MAX = 80;
 const WEBHOOK_URL_MAX = 1000;
-const WEBHOOK_MASK = '••••••••';
+const WEBHOOK_SECRET_MAX = 200;
 
 const TRIGGER_TYPES: BehaviorTriggerType[] = ['startswith', 'endswith', 'regex'];
 const FORWARD_TYPES: BehaviorForwardType[] = ['one_time', 'continuous'];
@@ -81,12 +81,19 @@ async function fetchProfile(bot: Client | undefined, userId: string): Promise<Us
     }
 }
 
-function maskBehavior(row: BehaviorRow): Omit<BehaviorRow, 'webhookUrl'> & { webhookUrlSet: boolean } {
-    // The decrypted URL is private to the dispatch path. Admin UI gets a
-    // boolean — "is one configured?" — plus the mask placeholder; full
-    // value never leaves the process.
-    const { webhookUrl, ...rest } = row;
-    return { ...rest, webhookUrlSet: !!webhookUrl };
+/**
+ * Decrypt the URL + secret before handing them to the admin UI. Both
+ * fields round-trip in plaintext: the URL is operator config (treated
+ * as plain config like a host:port) and the secret is needed to
+ * verify it matches what the receiving server expects. They remain
+ * AES-encrypted at rest.
+ */
+function decryptedView(row: BehaviorRow): BehaviorRow {
+    return {
+        ...row,
+        webhookUrl: row.webhookUrl ? decryptSecret(row.webhookUrl) : row.webhookUrl,
+        webhookSecret: row.webhookSecret ? decryptSecret(row.webhookSecret) : null
+    };
 }
 
 function isValidWebhookUrl(value: string): boolean {
@@ -375,7 +382,7 @@ export async function registerBehaviorRoutes(
                 return;
             }
             const rows = await findBehaviorsByTarget(id);
-            return { behaviors: rows.map(maskBehavior) };
+            return { behaviors: rows.map(decryptedView) };
         }
     );
 
@@ -400,6 +407,7 @@ export async function registerBehaviorRoutes(
             const triggerValue = body.triggerValue;
             const forwardType = body.forwardType;
             const webhookUrl = body.webhookUrl;
+            const webhookSecret = body.webhookSecret;
             const stopOnMatch = body.stopOnMatch;
             const enabled = body.enabled;
 
@@ -431,6 +439,16 @@ export async function registerBehaviorRoutes(
                 reply.code(400).send({ error: 'webhookUrl required (must be a valid http/https URL)' });
                 return;
             }
+            // Optional HMAC secret. Empty string / absent / null = no
+            // signing. Non-empty must fit within bound.
+            let encryptedSecret: string | null = null;
+            if (typeof webhookSecret === 'string' && webhookSecret.length > 0) {
+                if (webhookSecret.length > WEBHOOK_SECRET_MAX) {
+                    reply.code(400).send({ error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars` });
+                    return;
+                }
+                encryptedSecret = encryptSecret(webhookSecret);
+            }
             const created = await createBehavior({
                 targetId: id,
                 title: title.trim(),
@@ -439,13 +457,14 @@ export async function registerBehaviorRoutes(
                 triggerValue,
                 forwardType: forwardType as BehaviorForwardType,
                 webhookUrl: encryptSecret(webhookUrl),
+                webhookSecret: encryptedSecret,
                 stopOnMatch: !!stopOnMatch,
                 enabled: enabled === undefined ? true : !!enabled
             });
             await recordAudit(request.authUserId ?? 'unknown', 'behavior.create', String(created.id), {
-                targetId: id, triggerType, forwardType, stopOnMatch: !!stopOnMatch
+                targetId: id, triggerType, forwardType, stopOnMatch: !!stopOnMatch, signed: !!encryptedSecret
             });
-            return { behavior: maskBehavior(created) };
+            return { behavior: decryptedView(created) };
         }
     );
 
@@ -511,14 +530,28 @@ export async function registerBehaviorRoutes(
                 update.forwardType = body.forwardType as BehaviorForwardType;
             }
             if (body.webhookUrl !== undefined) {
-                // Empty string / null = "leave existing untouched". Any other
-                // value must be a valid URL and gets re-encrypted.
-                if (typeof body.webhookUrl === 'string' && body.webhookUrl.length > 0 && body.webhookUrl !== WEBHOOK_MASK) {
-                    if (body.webhookUrl.length > WEBHOOK_URL_MAX || !isValidWebhookUrl(body.webhookUrl)) {
-                        reply.code(400).send({ error: 'webhookUrl must be a valid http/https URL' });
-                        return;
-                    }
-                    update.webhookUrl = encryptSecret(body.webhookUrl);
+                // URL is required on the row, so no "clear" semantics —
+                // only "set to a new value". Empty string is rejected;
+                // omit the field to leave it untouched.
+                if (typeof body.webhookUrl !== 'string'
+                    || body.webhookUrl.length === 0
+                    || body.webhookUrl.length > WEBHOOK_URL_MAX
+                    || !isValidWebhookUrl(body.webhookUrl)) {
+                    reply.code(400).send({ error: 'webhookUrl must be a valid http/https URL' });
+                    return;
+                }
+                update.webhookUrl = encryptSecret(body.webhookUrl);
+            }
+            if (body.webhookSecret !== undefined) {
+                // null OR empty string = clear the secret (disable signing).
+                // Non-empty string = encrypt + set. Field omitted = no change.
+                if (body.webhookSecret === null || body.webhookSecret === '') {
+                    update.webhookSecret = null;
+                } else if (typeof body.webhookSecret === 'string' && body.webhookSecret.length <= WEBHOOK_SECRET_MAX) {
+                    update.webhookSecret = encryptSecret(body.webhookSecret);
+                } else {
+                    reply.code(400).send({ error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars` });
+                    return;
                 }
             }
             if (body.stopOnMatch !== undefined) {
@@ -542,19 +575,23 @@ export async function registerBehaviorRoutes(
             }
 
             const updated = await updateBehavior(behaviorId, update);
-            // Editing webhookUrl, target, or trigger mid-stream invalidates
-            // any active continuous session bound to this behavior — drop
-            // the session so the user re-enters via the new flow rather
-            // than continuing to feed messages into stale config.
-            if (update.webhookUrl !== undefined || update.targetId !== undefined ||
-                update.triggerType !== undefined || update.triggerValue !== undefined ||
-                update.forwardType !== undefined || update.enabled === false) {
+            // Editing webhookUrl / webhookSecret / target / trigger /
+            // forwardType mid-stream invalidates any active continuous
+            // session bound to this behavior — drop the session so the
+            // user re-enters via the new flow rather than continuing to
+            // feed messages into stale config (or, in the case of
+            // webhookSecret, signing with a key the server no longer
+            // recognises).
+            if (update.webhookUrl !== undefined || update.webhookSecret !== undefined ||
+                update.targetId !== undefined || update.triggerType !== undefined ||
+                update.triggerValue !== undefined || update.forwardType !== undefined ||
+                update.enabled === false) {
                 await endSessionsForBehavior(behaviorId);
             }
             await recordAudit(request.authUserId ?? 'unknown', 'behavior.update', String(behaviorId), {
                 fields: Object.keys(update)
             });
-            return { behavior: updated ? maskBehavior(updated) : null };
+            return { behavior: updated ? decryptedView(updated) : null };
         }
     );
 
@@ -621,6 +658,3 @@ export async function registerBehaviorRoutes(
     );
 }
 
-// Re-export so the dispatcher path can reuse the same constants without
-// introducing a circular import.
-export { decryptSecret as decryptBehaviorWebhook, WEBHOOK_MASK };

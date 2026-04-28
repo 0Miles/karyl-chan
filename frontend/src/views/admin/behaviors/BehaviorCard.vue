@@ -42,8 +42,9 @@ interface Draft {
     stopOnMatch: boolean;
     enabled: boolean;
     targetId: number;
-    /** Empty string = leave existing webhook URL untouched. */
     webhookUrl: string;
+    /** Empty = no signing (clear). Server stores AES-encrypted; UI shows plaintext. */
+    webhookSecret: string;
 }
 
 function draftFrom(row: BehaviorRow): Draft {
@@ -56,7 +57,8 @@ function draftFrom(row: BehaviorRow): Draft {
         stopOnMatch: row.stopOnMatch,
         enabled: row.enabled,
         targetId: row.targetId,
-        webhookUrl: ''
+        webhookUrl: row.webhookUrl,
+        webhookSecret: row.webhookSecret ?? ''
     };
 }
 
@@ -78,7 +80,8 @@ const dirty = computed(() => {
         || draft.stopOnMatch !== b.stopOnMatch
         || draft.enabled !== b.enabled
         || draft.targetId !== b.targetId
-        || draft.webhookUrl.trim().length > 0;
+        || draft.webhookUrl !== b.webhookUrl
+        || draft.webhookSecret !== (b.webhookSecret ?? '');
 });
 
 const triggerSummary = computed(() => {
@@ -124,6 +127,10 @@ async function onSave() {
             return;
         }
     }
+    if (!draft.webhookUrl.trim()) {
+        error.value = t('behaviors.card.webhookUrlRequired');
+        return;
+    }
     saving.value = true;
     try {
         const movedTarget = draft.targetId !== props.behavior.targetId ? draft.targetId : null;
@@ -135,13 +142,17 @@ async function onSave() {
             forwardType: draft.forwardType,
             stopOnMatch: draft.stopOnMatch,
             enabled: draft.enabled,
-            targetId: draft.targetId
+            targetId: draft.targetId,
+            webhookUrl: draft.webhookUrl.trim()
         };
-        const newUrl = draft.webhookUrl.trim();
-        if (newUrl) patch.webhookUrl = newUrl;
+        // Only include webhookSecret in the patch if it actually changed
+        // — sending it on every save is harmless but generates noise in
+        // the audit log's `fields` list.
+        const currentSecret = props.behavior.webhookSecret ?? '';
+        if (draft.webhookSecret !== currentSecret) {
+            patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+        }
         const updated = await updateBehavior(props.behavior.id, patch);
-        // Reset webhookUrl draft so subsequent edits don't keep the old text.
-        draft.webhookUrl = '';
         if (movedTarget !== null) {
             emit('moved', updated.id, movedTarget);
         } else {
@@ -266,15 +277,27 @@ async function onDelete() {
                 </label>
 
                 <label class="field full">
-                    <span class="label">
-                        {{ t('behaviors.card.webhookUrl') }}
-                        <span v-if="behavior.webhookUrlSet" class="hint">{{ t('behaviors.card.webhookUrlSetHint') }}</span>
-                    </span>
+                    <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
                     <input
                         v-model="draft.webhookUrl"
                         type="text"
-                        :placeholder="behavior.webhookUrlSet ? '••••••••' : 'https://discord.com/api/webhooks/…'"
+                        placeholder="https://discord.com/api/webhooks/…"
                         maxlength="1000"
+                    />
+                </label>
+
+                <label class="field full">
+                    <span class="label">
+                        {{ t('behaviors.card.webhookSecret') }}
+                        <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
+                    </span>
+                    <input
+                        v-model="draft.webhookSecret"
+                        type="text"
+                        :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
+                        maxlength="200"
+                        autocomplete="off"
+                        spellcheck="false"
                     />
                 </label>
 

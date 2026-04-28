@@ -35,6 +35,7 @@ Session 狀態存於 `behavior_sessions` 表(以 user 為主鍵)，bot 重啟後
 | `triggerValue` | trigger 的字串值 |
 | `forwardType` | `one_time` / `continuous` |
 | `webhookUrl` | 目的 webhook 完整 URL，AES-256-GCM 加密儲存 |
+| `webhookSecret` | 選填的 HMAC 共用密鑰；設定後啟用雙向簽名驗證(見下方專段),AES-256-GCM 加密儲存 |
 | `sortOrder` | 同一 target 下的判定順序，可拖曳調整 |
 | `stopOnMatch` | 命中後是否阻止後續行為被判定 |
 | `enabled` | 是否啟用 |
@@ -96,24 +97,63 @@ Session 狀態存於 `behavior_sessions` 表(以 user 為主鍵)，bot 重啟後
   - `content` 部分 relay 回 user 的 DM
   - 含 `[BEHAVIOR:END]` token 即結束 session(token 從 relay 內容中 strip)
 
-dispatch 失敗(網路 / 4xx / 5xx)會寫入 `bot_events`，session 維持原狀(continuous 不會自動斷)；user 端可隨時 `/break` 強制結束。
+dispatch 失敗(網路 / 4xx / 5xx / 簽名驗證失敗)會寫入 `bot_events`，session 維持原狀(continuous 不會自動斷)；user 端可隨時 `/break` 強制結束。
+
+## Webhook 簽名驗證(雙向)
+
+每個 behavior 可選填 `webhookSecret`(AES-256-GCM 加密儲存)。**設定後啟用 HMAC-SHA256 雙向驗證**：
+
+| 方向 | Headers | 簽名計算 |
+|---|---|---|
+| Bot → 服務端(POST) | `X-Karyl-Timestamp: <unix>`、`X-Karyl-Signature: v0=<hex>` | `HMAC_SHA256(secret, "v0:" + timestamp + ":" + body)` |
+| 服務端 → Bot(response) | 同上兩個 header | 同上計算式,但 body 是 response body |
+
+- **Replay 防護**：timestamp 與接收端時鐘差 > 300s 直接拒絕
+- **比對方式**：`crypto.timingSafeEqual` 防 timing-attack
+- **Strict 模式**：secret 已設定但 response 缺 header / 簽名錯誤 / timestamp 過期 → 整次 dispatch 視為失敗,**不會 relay 內容回 user**(避免轉發偽造訊息)
+- **未設 secret**：兩邊都不簽不驗,沿用未驗證的 round-trip(向後相容既有 behavior)
+- **scheme 版本**：簽名值前綴 `v0=`,未來換算法直接 bump 為 `v1=`,新舊可共存解析
+
+服務端實作參考(Node.js)：
+```js
+import crypto from 'node:crypto';
+
+function verify(req, body, secret) {
+  const ts = req.headers['x-karyl-timestamp'];
+  const sig = req.headers['x-karyl-signature'];
+  if (!ts || !sig) return false;
+  if (Math.abs(Math.floor(Date.now()/1000) - Number(ts)) > 300) return false;
+  const expected = 'v0=' + crypto.createHmac('sha256', secret)
+    .update(`v0:${ts}:${body}`).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+
+function sign(body, secret) {
+  const ts = Math.floor(Date.now()/1000).toString();
+  const sig = 'v0=' + crypto.createHmac('sha256', secret)
+    .update(`v0:${ts}:${body}`).digest('hex');
+  return { 'X-Karyl-Timestamp': ts, 'X-Karyl-Signature': sig };
+}
+```
 
 ## 安全注意事項
 
-- `webhookUrl` 用 `utils/crypto.encryptSecret` AES-256-GCM 加密；admin web 永遠不回傳明文，編輯時用 `••••••••` 顯示，留空＝不變
+- `webhookUrl` 與 `webhookSecret` 皆以 `utils/crypto.encryptSecret` AES-256-GCM 加密儲存於 DB
+- admin web 介面對 admin **回傳明文**(secret 是雙方共用必須能讀回對齊),encrypt 只防止 DB 直接外洩
 - 所有 admin web 寫入(targets / members / behaviors / reorder)皆寫入 `admin_audit_log`(hash chain)
-- behavior 的 webhookUrl / triggerType / triggerValue / forwardType 任何變動，會自動清掉該 behavior 的 active session(避免舊 session 用新設定的部分屬性繼續跑)
+- behavior 的 webhookUrl / webhookSecret / triggerType / triggerValue / forwardType 任何變動,會自動清掉該 behavior 的 active session(避免舊 session 用新設定的部分屬性繼續跑;尤其是 secret 換掉後舊 session 簽名會被服務端拒絕)
 
 ## 實作位置
 
 | 檔案 | 功能 |
 |---|---|
 | `src/migrations/20260428080843-webhook-behavior.ts` | schema migration |
+| `src/migrations/20260428090428-behavior-webhook-secret.ts` | webhookSecret 欄位 migration |
 | `src/models/behavior-target.model.ts` | target CRUD + `ensureAllDmsTarget` |
 | `src/models/behavior-target-member.model.ts` | group 成員 CRUD |
 | `src/models/behavior.model.ts` | behavior CRUD + reorder |
 | `src/models/behavior-session.model.ts` | session CRUD |
-| `src/services/webhook-dispatch.service.ts` | webhook POST + `[BEHAVIOR:END]` 偵測 |
+| `src/services/webhook-dispatch.service.ts` | webhook POST + HMAC 簽名/驗證 + `[BEHAVIOR:END]` 偵測 |
 | `src/utils/behavior-trigger.ts` | 純函式 `matchesTrigger` / `describeTrigger` |
 | `src/events/webhook-behavior.events.ts` | DM messageCreate handler |
 | `src/commands/manual.commands.ts` | `/manual` slash |

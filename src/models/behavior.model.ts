@@ -59,6 +59,10 @@ export const Behavior = sequelize.define('Behavior', {
         type: DataTypes.TEXT,
         allowNull: false
     },
+    webhookSecret: {
+        type: DataTypes.TEXT,
+        allowNull: true
+    },
     sortOrder: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -89,6 +93,12 @@ export interface BehaviorRow {
     forwardType: BehaviorForwardType;
     /** Encrypted at rest. Decrypt via utils/crypto.decryptSecret before use. */
     webhookUrl: string;
+    /**
+     * Optional HMAC secret (encrypted at rest). When set, the dispatcher
+     * signs each outgoing POST and requires a matching signature on the
+     * webhook's response. NULL means "no signing/verification".
+     */
+    webhookSecret: string | null;
     sortOrder: number;
     stopOnMatch: boolean;
     enabled: boolean;
@@ -104,6 +114,7 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
         triggerValue: model.getDataValue('triggerValue') as string,
         forwardType: model.getDataValue('forwardType') as BehaviorForwardType,
         webhookUrl: model.getDataValue('webhookUrl') as string,
+        webhookSecret: (model.getDataValue('webhookSecret') as string | null) ?? null,
         sortOrder: model.getDataValue('sortOrder') as number,
         stopOnMatch: !!model.getDataValue('stopOnMatch'),
         enabled: !!model.getDataValue('enabled')
@@ -150,6 +161,8 @@ export interface NewBehaviorInput {
     triggerValue: string;
     forwardType: BehaviorForwardType;
     webhookUrl: string;
+    /** Pass an encrypted value to enable HMAC signing; omit / null to skip. */
+    webhookSecret?: string | null;
     stopOnMatch?: boolean;
     enabled?: boolean;
 }
@@ -170,6 +183,7 @@ export const createBehavior = async (input: NewBehaviorInput): Promise<BehaviorR
         triggerValue: input.triggerValue,
         forwardType: input.forwardType,
         webhookUrl: input.webhookUrl,
+        webhookSecret: input.webhookSecret ?? null,
         sortOrder: nextSort,
         stopOnMatch: input.stopOnMatch ?? false,
         enabled: input.enabled ?? true
@@ -185,6 +199,11 @@ export interface BehaviorUpdate {
     forwardType?: BehaviorForwardType;
     /** Pass an encrypted value to overwrite; omit / undefined to keep current. */
     webhookUrl?: string;
+    /**
+     * Pass an encrypted value to set, `null` to clear (disable signing),
+     * `undefined` to keep current.
+     */
+    webhookSecret?: string | null;
     stopOnMatch?: boolean;
     enabled?: boolean;
     targetId?: number;

@@ -36,9 +36,14 @@ export interface BehaviorRow {
     sortOrder: number;
     stopOnMatch: boolean;
     enabled: boolean;
-    /** True when the server has a webhook URL stored. The actual URL is
-     *  never returned — submit a non-empty value to overwrite. */
-    webhookUrlSet: boolean;
+    /** Plaintext webhook URL — encrypted at rest, decrypted for the UI. */
+    webhookUrl: string;
+    /**
+     * Optional HMAC shared secret. When set, the bot signs each
+     * outbound POST and requires a signed response. `null` = no
+     * signing/verification.
+     */
+    webhookSecret: string | null;
 }
 
 export interface NewBehaviorPayload {
@@ -48,6 +53,8 @@ export interface NewBehaviorPayload {
     triggerValue: string;
     forwardType: BehaviorForwardType;
     webhookUrl: string;
+    /** Empty / omitted = no signing. Non-empty = enable HMAC signing. */
+    webhookSecret?: string;
     stopOnMatch?: boolean;
     enabled?: boolean;
 }
@@ -58,8 +65,13 @@ export interface BehaviorPatch {
     triggerType?: BehaviorTriggerType;
     triggerValue?: string;
     forwardType?: BehaviorForwardType;
-    /** Empty string / omitted = leave existing value untouched. */
+    /** Required-when-present: must be a valid http/https URL. Omit to leave untouched. */
     webhookUrl?: string;
+    /**
+     * Empty string / null = clear (disable signing). Non-empty = set.
+     * Omit to leave untouched.
+     */
+    webhookSecret?: string | null;
     stopOnMatch?: boolean;
     enabled?: boolean;
     targetId?: number;
