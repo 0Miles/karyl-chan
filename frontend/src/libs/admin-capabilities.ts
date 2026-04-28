@@ -13,7 +13,8 @@ export const GLOBAL_CAPABILITY_KEYS = [
     'dm.message',
     'guild.message',
     'guild.manage',
-    'system.read'
+    'system.read',
+    'behavior.manage'
 ] as const;
 
 export type GlobalCapability = typeof GLOBAL_CAPABILITY_KEYS[number];

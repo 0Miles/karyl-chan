@@ -15,6 +15,7 @@ import {
 } from "./web/authorized-user.service.js";
 import { botEventLog } from "./web/bot-event-log.js";
 import { runPendingMigrations } from "./migrations/runner.js";
+import { ensureAllDmsTarget } from "./models/behavior-target.model.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -153,6 +154,12 @@ async function run() {
     // fresh-sync'd DBs don't trip over them.
     await sequelize.sync();
     const migrations = await runPendingMigrations();
+    // The webhook-behavior migration seeds the all_dms singleton row,
+    // but a fresh install where sequelize.sync() created the table
+    // first leaves the migration's CREATE-guarded INSERT a no-op for
+    // that branch. Belt-and-suspenders: ensure id=1 exists so the
+    // sidebar's "all DMs" pinned tab always has a stable id to point at.
+    await ensureAllDmsTarget();
     if (migrations.length > 0) {
       botEventLog.record(
         "info",

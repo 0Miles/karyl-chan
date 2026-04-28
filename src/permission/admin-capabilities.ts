@@ -28,7 +28,8 @@ export const GLOBAL_CAPABILITY_DESCRIPTIONS = {
     'dm.message': '讀寫 DM 對話列表、訊息、未讀數與反應',
     'guild.message': '讀寫所有公會的頻道訊息、反應',
     'guild.manage': '管理所有公會的成員、角色、設定與 bot 功能',
-    'system.read': '查看系統事件記錄與統計資訊'
+    'system.read': '查看系統事件記錄與統計資訊',
+    'behavior.manage': '管理 webhook 行為模組的所有目標對象與行為設定'
 } as const;
 
 export type GlobalCapability = keyof typeof GLOBAL_CAPABILITY_DESCRIPTIONS;
