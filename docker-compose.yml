@@ -51,10 +51,14 @@ services:
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - BOT_OWNER_ID=${BOT_OWNER_ID:-}
-      # The DM login link's base URL. Defaults to the loopback so a
+      # The DM login link's base URL. Derived from WEB_PORT so a
       # developer clicking the link in Discord on the same machine
-      # lands on this container's port mapping.
-      - WEB_BASE_URL=${WEB_BASE_URL:-http://localhost:${WEB_PORT:-902}}
+      # lands on this container's port mapping. We deliberately do NOT
+      # forward host-side WEB_BASE_URL: that variable's `npm run dev`
+      # value (vite on 5173) would override the docker mapping (902).
+      # Override via docker-compose.override.yml if you front this with
+      # a reverse proxy / tunnel.
+      - WEB_BASE_URL=http://localhost:${WEB_PORT:-902}
       # Container internal port stays 3000; host mapping below is
       # what external callers and the host browser hit.
       - WEB_PORT=3000

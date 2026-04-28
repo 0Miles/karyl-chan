@@ -152,6 +152,7 @@ export async function createWebServer(
   server.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
+    if (request.url === "/api/health") return;
     if (!authEnabled) {
       // Dev-only branch (production fails to boot without
       // BOT_OWNER_ID; see the guard above). Hand requests a
