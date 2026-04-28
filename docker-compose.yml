@@ -1,30 +1,112 @@
-version: '3.8'
+# Local docker test deployment of karyl-chan.
+#
+# This compose file is the docker-based counterpart to `npm run dev`:
+# build the bot from the current source, run it as a container, and
+# expose it on the host so sibling test projects can interact with
+# it. Plain HTTP — see the comment block at the bottom for HTTPS
+# deployment.
+#
+# Usage
+# -----
+#
+#   # 1. One-time per host: create the shared network. Sibling
+#   #    projects join it as `external: true` so they can resolve
+#   #    karyl-chan by its container name.
+#   docker network create karyl-chan-net
+#
+#   # 2. Build & run from the local source tree.
+#   docker compose up --build
+#
+#   # 3. Wipe the SQLite volume for a clean slate.
+#   docker compose down -v
+#
+# Sibling project snippet
+# -----------------------
+#
+#   services:
+#     my-webhook-server:
+#       networks: [karyl-chan-net]
+#   networks:
+#     karyl-chan-net:
+#       external: true
+#
+# karyl-chan can then POST to http://my-webhook-server:<port>/... and
+# my-webhook-server can POST back to http://karyl-chan:3000/... .
 
 services:
   bot:
-    image: karyl-chan-bot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: karyl-chan-bot:local
+    container_name: karyl-chan
     env_file:
       - .env
     environment:
-      - NODE_ENV=${NODE_ENV:-production}
+      # `development` here gates two behaviours in src/web/server.ts:
+      # the BOT_OWNER_ID enforcement and the log level. Default to dev
+      # so the local container can boot with BOT_OWNER_ID unset for
+      # quick API poking from a sibling project.
+      - NODE_ENV=${NODE_ENV:-development}
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
-      # 若要使用 /rcon-forward-channel 功能需設定（openssl rand -hex 32）；其他功能不需要
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-      # Bot 持有者的 Discord user id（僅此 id 可透過私訊 bot 取得 admin 登入連結）
-      # 未設定時 /api/* 不啟用驗證（僅本機 dev 暫用）
       - BOT_OWNER_ID=${BOT_OWNER_ID:-}
-      # 前端對外網址，bot 私訊回傳的登入連結會以此為 base
-      - WEB_BASE_URL=${WEB_BASE_URL:-}
-      # container 內固定聽 3000，host 用 WEB_PORT 對映出去
+      # The DM login link's base URL. Defaults to the loopback so a
+      # developer clicking the link in Discord on the same machine
+      # lands on this container's port mapping.
+      - WEB_BASE_URL=${WEB_BASE_URL:-http://localhost:${WEB_PORT:-902}}
+      # Container internal port stays 3000; host mapping below is
+      # what external callers and the host browser hit.
       - WEB_PORT=3000
-      # host 的 CERTS_DIR 會 mount 到 /certs，底下須有 fullchain.pem 與 privkey.pem
-      - SSL_CERT_PATH=/certs/fullchain.pem
-      - SSL_KEY_PATH=/certs/privkey.pem
     ports:
       - "${WEB_PORT:-902}:3000"
     volumes:
       - karyl-chan-data:/usr/src/app/data
-      - ${CERTS_DIR:?CERTS_DIR is required (host absolute path to cert dir)}:/certs:ro
+    networks:
+      - karyl-chan-net
+    restart: unless-stopped
+    healthcheck:
+      # Pure-node healthcheck — the runtime image doesn't ship curl
+      # or wget, but node itself is always available. Sibling projects
+      # can `depends_on: { karyl-chan: { condition: service_healthy } }`
+      # so they don't fire requests at a half-booted bot.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "require('http').get('http://localhost:3000/api/health',
+          r => process.exit(r.statusCode === 200 ? 0 : 1))
+          .on('error', () => process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
 volumes:
   karyl-chan-data:
+
+networks:
+  # External so `docker compose down` doesn't tear it down and break
+  # neighbouring projects that have it mounted. Created once per host
+  # via `docker network create karyl-chan-net`.
+  karyl-chan-net:
+    external: true
+    name: karyl-chan-net
+
+# --- HTTPS notes ---
+#
+# Local testing runs HTTP. If you want to test the TLS code path
+# (e.g. validating a real cert chain) add a docker-compose.override.yml
+# alongside this file:
+#
+#   services:
+#     bot:
+#       environment:
+#         - SSL_CERT_PATH=/certs/fullchain.pem
+#         - SSL_KEY_PATH=/certs/privkey.pem
+#       volumes:
+#         - ${CERTS_DIR}:/certs:ro
+#
+# `docker compose up` automatically merges docker-compose.override.yml
+# on top of this file, so the override is picked up without a
+# `-f` flag. The acme.sh + Cloudflare DNS-01 setup that produces
+# fullchain.pem / privkey.pem is documented in .env.example.
