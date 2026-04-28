@@ -99,14 +99,35 @@ function toggleOpen() {
     emit('toggle', open.value);
 }
 
-async function onToggleEnabled() {
+// Local visual state for the enable toggle. v-model'ing the prop
+// directly was visually flickering: clicking the checkbox triggered
+// an immediate re-render (saving=true), which Vue evaluated against
+// the still-stale `props.behavior.enabled` and slammed `el.checked`
+// back to the old value before the API response landed and the parent
+// emitted the new prop. Driving the input from a local ref keeps the
+// click's optimistic state visible across the whole save round-trip;
+// the watcher reconciles the ref to the prop after the parent updates.
+const enabledLocal = ref(props.behavior.enabled);
+watch(() => props.behavior.enabled, (next) => {
+    enabledLocal.value = next;
+});
+
+async function onToggleEnabled(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const next = target.checked;
+    if (next === props.behavior.enabled) return;
+    enabledLocal.value = next;
     saving.value = true;
     error.value = null;
     try {
-        const updated = await updateBehavior(props.behavior.id, { enabled: !props.behavior.enabled });
+        const updated = await updateBehavior(props.behavior.id, { enabled: next });
         emit('updated', updated);
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
+        // Revert the optimistic flip — the parent never gets to push a
+        // new prop in the failure path, so the watcher above won't
+        // restore it for us.
+        enabledLocal.value = props.behavior.enabled;
     } finally {
         saving.value = false;
     }
@@ -181,7 +202,7 @@ async function onDelete() {
 </script>
 
 <template>
-    <article :class="['card', { 'is-disabled': !behavior.enabled }]">
+    <article :class="['card', { 'is-disabled': !enabledLocal }]">
         <header class="card-head">
             <button
                 type="button"
@@ -223,10 +244,10 @@ async function onDelete() {
             </span>
             <label
                 class="toggle"
-                :title="behavior.enabled ? t('behaviors.card.toggleEnabled') : t('behaviors.card.toggleDisabled')"
+                :title="enabledLocal ? t('behaviors.card.toggleEnabled') : t('behaviors.card.toggleDisabled')"
                 @click.stop
             >
-                <input type="checkbox" :checked="behavior.enabled" :disabled="saving" @change="onToggleEnabled" />
+                <input type="checkbox" :checked="enabledLocal" :disabled="saving" @change="onToggleEnabled" />
                 <span class="slider" aria-hidden="true"></span>
             </label>
             <AppMenu placement="bottom-end" :offset="[0, 6]">
