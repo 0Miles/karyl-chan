@@ -18,11 +18,12 @@ import type { Migration } from "./runner.js";
  */
 const migration: Migration = {
   up: async ({ queryInterface }) => {
-    const tableInfo = (await queryInterface.describeTable("behaviors").catch(() => null)) as
-      | Record<string, unknown>
-      | null;
+    const tableInfo = (await queryInterface
+      .describeTable("behaviors")
+      .catch(() => null)) as Record<string, unknown> | null;
     if (!tableInfo) return;
-    if (Object.prototype.hasOwnProperty.call(tableInfo, "webhookSecret")) return;
+    if (Object.prototype.hasOwnProperty.call(tableInfo, "webhookSecret"))
+      return;
     await queryInterface.sequelize.query(`
       ALTER TABLE behaviors ADD COLUMN webhookSecret TEXT NULL;
     `);
@@ -35,7 +36,7 @@ const migration: Migration = {
     // on rollback — keeping a NULL column is forward-compatible with
     // the prior code path.
     await queryInterface.sequelize.query(
-      `-- intentional no-op: webhookSecret remains in place on rollback`
+      `-- intentional no-op: webhookSecret remains in place on rollback`,
     );
   },
 };
