@@ -38,6 +38,20 @@
 | `rcon.execute` | 觸發 RCON 轉發 | 在 watched 頻道發送 trigger prefix 訊息 |
 | `role-emoji.manage` | Role emoji 映射 | `/role-emoji add/remove/list/watch-message/stop-watch-message` |
 
+## Admin Web Capability 清單
+
+Admin 後台另有獨立的 capability 體系，儲存在 `admin_role_capabilities`，與上面的 guild-scoped capability 平行運作。`admin` 為超級權限，永遠通過。
+
+| Capability | 說明 |
+|---|---|
+| `admin` | 完整後台權限，無視其他所有 capability 檢查 |
+| `dm.message` | 讀寫 DM 對話列表、訊息、未讀數與反應 |
+| `guild.message` | 讀寫所有公會頻道的訊息、反應 |
+| `guild.manage` | 管理所有公會的成員、角色、設定與 bot 功能 |
+| `guild:<guildId>.<message\|manage>` | 上面兩者的單公會版本 |
+| `system.read` | 查看系統事件記錄與統計資訊 |
+| `behavior.manage` | 管理 webhook 行為模組(目標對象與行為設定) |
+
 ## `/permission` 指令
 
 僅 guild owner 與 Administrator 可用（雙層：Discord `defaultMemberPermissions: '8'` + runtime 檢查）。

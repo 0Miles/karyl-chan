@@ -36,6 +36,8 @@ npm run start   # nodemon + ts-node 開發模式，檔案變更自動 reload
 ```
 src/
   commands/                    # Slash 指令 (@Discord @Slash)
+    break.commands.ts
+    manual.commands.ts
     permission.commands.ts
     picture-only-channel.commands.ts
     rcon-forward-channel.commands.ts
