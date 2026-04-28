@@ -2,6 +2,8 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+import AppMenu from '../../../components/AppMenu.vue';
+import AppMenuItem from '../../../components/AppMenuItem.vue';
 import {
     type BehaviorForwardType,
     type BehaviorPatch,
@@ -227,6 +229,22 @@ async function onDelete() {
                 <input type="checkbox" :checked="behavior.enabled" :disabled="saving" @change="onToggleEnabled" />
                 <span class="slider" aria-hidden="true"></span>
             </label>
+            <AppMenu placement="bottom-end" :offset="[0, 6]">
+                <template #trigger>
+                    <button
+                        type="button"
+                        class="menu-trigger"
+                        :title="t('behaviors.card.moreActions')"
+                        :aria-label="t('behaviors.card.moreActions')"
+                    >
+                        <Icon icon="material-symbols:more-vert" width="18" height="18" />
+                    </button>
+                </template>
+                <AppMenuItem :disabled="saving" danger @click="onDelete">
+                    <Icon icon="material-symbols:delete-outline-rounded" width="16" height="16" />
+                    {{ t('common.delete') }}
+                </AppMenuItem>
+            </AppMenu>
         </header>
 
         <div v-if="open" class="card-body">
@@ -310,10 +328,6 @@ async function onDelete() {
             <p v-if="error" class="error" role="alert">{{ error }}</p>
 
             <footer class="actions">
-                <button type="button" class="danger" :disabled="saving" @click="onDelete">
-                    <Icon icon="material-symbols:delete-outline-rounded" width="16" height="16" />
-                    {{ t('common.delete') }}
-                </button>
                 <span class="spacer" />
                 <button type="button" class="primary" :disabled="!dirty || saving" @click="onSave">
                     {{ saving ? t('common.saving') : t('common.save') }}
@@ -424,6 +438,21 @@ async function onDelete() {
 .toggle input:checked + .slider { background: var(--accent); }
 .toggle input:checked + .slider::before { transform: translateX(14px); }
 
+.menu-trigger {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.menu-trigger:hover { background: var(--bg-surface-hover); color: var(--text); }
+
 .card-body {
     padding: 0.75rem;
     display: flex;
@@ -437,8 +466,19 @@ async function onDelete() {
 }
 .field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .field.full { grid-column: 1 / -1; }
-.field.inline { flex-direction: row; align-items: center; gap: 0.4rem; cursor: pointer; }
-.field.inline input { accent-color: var(--accent); }
+.field.inline { flex-direction: row; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.2rem 0; }
+/* Checkbox inputs in inline fields must NOT inherit the .field input
+   width:100% / padding rules — those are for text inputs and would
+   stretch the checkbox to fill the row. */
+.field.inline input[type="checkbox"] {
+    width: auto;
+    min-width: 0;
+    flex-shrink: 0;
+    padding: 0;
+    margin: 0;
+    accent-color: var(--accent);
+}
+.field.inline span { color: var(--text); font-size: 0.9rem; }
 .label {
     font-size: 0.75rem;
     color: var(--text-muted);
@@ -493,12 +533,6 @@ async function onDelete() {
     border-color: var(--accent);
 }
 .actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
-.actions .danger {
-    color: var(--danger);
-    border-color: rgba(239, 68, 68, 0.4);
-    background: var(--bg-surface);
-}
-.actions .danger:disabled { opacity: 0.55; }
 
 @media (max-width: 640px) {
     .grid { grid-template-columns: 1fr; }
