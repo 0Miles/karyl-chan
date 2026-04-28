@@ -48,9 +48,19 @@ function clientKey(request: import("fastify").FastifyRequest): string {
  */
 const SSE_PATHS = new Set<string>(["/api/dm/events", "/api/guilds/events"]);
 
+/**
+ * Strip any query string from a request URL. fastify's `request.url`
+ * is the raw URL including `?…` — every path matcher in the auth hook
+ * must compare against this stripped form, otherwise a query string
+ * would slip past `===` checks (e.g. `/api/health?cb=1` would be
+ * treated as a different path than `/api/health`).
+ */
+function pathOnly(url: string): string {
+  return url.split("?", 1)[0];
+}
+
 function isEventStreamPath(url: string): boolean {
-  const path = url.split("?", 1)[0];
-  return SSE_PATHS.has(path);
+  return SSE_PATHS.has(pathOnly(url));
 }
 import { registerDmRoutes } from "./dm-routes.js";
 import { registerDiscordRoutes } from "./discord-routes.js";
@@ -152,7 +162,7 @@ export async function createWebServer(
   server.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
-    if (request.url === "/api/health") return;
+    if (pathOnly(request.url) === "/api/health") return;
     if (!authEnabled) {
       // Dev-only branch (production fails to boot without
       // BOT_OWNER_ID; see the guard above). Hand requests a
