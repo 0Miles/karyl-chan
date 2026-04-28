@@ -1,3 +1,34 @@
+/**
+ * Popover composable — three layers in this single file. Big on purpose:
+ * the imperative createPopover() relies on closure-shared mutable state
+ * (popperInstance, isVisible, animation counters, leave/enter flags,
+ * etc.) across ~25 internal helpers. Splitting it into multiple files
+ * would force that state into a class or a passed-around context
+ * object — both noisier than the closure for no architectural win.
+ *
+ * Layout:
+ *   1. Types + utility exports             (~lines 30 – 380)
+ *      TriggerType, PopoverOptions, PopoverInstance, UsePopoverOptions,
+ *      UsePopoverReturn, PLACEMENTS, createVirtualElement{,FromEvent},
+ *      getScrollParent{,s}, ensurePopoverStyle, DEFAULT_OPTIONS
+ *
+ *   2. createPopover() — imperative API    (~lines 380 – 1050)
+ *      Internal sub-sections (search by header comments):
+ *        • animation:         isPlacementAnimation … performLeaveTransition
+ *        • popper lifecycle:  buildPopperOptions, show, hide, toggle, update
+ *        • event listeners:   clearEventListeners, setupCloseListeners,
+ *                             setupTriggerListeners, setupAllEventListeners
+ *        • public API:        setOptions, destroy, updateReference
+ *
+ *   3. usePopover() — reactive Vue wrapper (~lines 1050 – 1220)
+ *      Wraps createPopover with refs, watches options changes, manages
+ *      click-outside / escape stacks, exposes Vue-friendly Ref<bool>.
+ *
+ * If you need to extend: prefer adding helpers inside the relevant
+ * sub-section of createPopover over breaking out a sibling file —
+ * everything in here references the same closure state.
+ */
+
 import { createPopper } from '@popperjs/core'
 import type {
     Instance as PopperInstance,
