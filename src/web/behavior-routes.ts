@@ -1,0 +1,626 @@
+import type { Client } from 'discordx';
+import type { FastifyInstance } from 'fastify';
+import { requireCapability } from './route-guards.js';
+import { recordAudit } from './admin-audit.service.js';
+import { avatarUrlFor } from './message-mapper.js';
+import { isSnowflake, isBoundedString, isNonEmptyString } from './validators.js';
+import { decryptSecret, encryptSecret } from '../utils/crypto.js';
+import {
+    ALL_DMS_TARGET_ID,
+    createGroupTarget,
+    createUserTarget,
+    deleteBehaviorTarget,
+    findAllBehaviorTargets,
+    findBehaviorTargetById,
+    findGroupTargetByName,
+    findUserTarget,
+    renameGroupTarget,
+    type BehaviorTargetKind
+} from '../models/behavior-target.model.js';
+import {
+    addGroupMember,
+    findGroupMembers,
+    removeGroupMember,
+    replaceGroupMembers
+} from '../models/behavior-target-member.model.js';
+import {
+    createBehavior,
+    deleteBehavior,
+    findBehaviorById,
+    findBehaviorsByTarget,
+    reorderBehaviors,
+    updateBehavior,
+    type BehaviorForwardType,
+    type BehaviorRow,
+    type BehaviorTriggerType
+} from '../models/behavior.model.js';
+import { endSessionsForBehavior } from '../models/behavior-session.model.js';
+
+export interface BehaviorRoutesOptions {
+    bot?: Client;
+}
+
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 2000;
+const TRIGGER_VALUE_MAX = 2000;
+const GROUP_NAME_MAX = 80;
+const WEBHOOK_URL_MAX = 1000;
+const WEBHOOK_MASK = '••••••••';
+
+const TRIGGER_TYPES: BehaviorTriggerType[] = ['startswith', 'endswith', 'regex'];
+const FORWARD_TYPES: BehaviorForwardType[] = ['one_time', 'continuous'];
+
+interface UserProfile {
+    id: string;
+    username: string;
+    globalName: string | null;
+    avatarUrl: string;
+}
+
+const PROFILE_TTL_MS = 5 * 60 * 1000;
+const profileCache = new Map<string, { profile: UserProfile | null; expiresAt: number }>();
+
+async function fetchProfile(bot: Client | undefined, userId: string): Promise<UserProfile | null> {
+    if (!bot) return null;
+    const cached = profileCache.get(userId);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) return cached.profile;
+    try {
+        const user = await bot.users.fetch(userId);
+        const profile: UserProfile = {
+            id: user.id,
+            username: user.username,
+            globalName: user.globalName ?? null,
+            avatarUrl: avatarUrlFor(user.id, user.avatar)
+        };
+        profileCache.set(userId, { profile, expiresAt: now + PROFILE_TTL_MS });
+        return profile;
+    } catch {
+        profileCache.set(userId, { profile: null, expiresAt: now + PROFILE_TTL_MS });
+        return null;
+    }
+}
+
+function maskBehavior(row: BehaviorRow): Omit<BehaviorRow, 'webhookUrl'> & { webhookUrlSet: boolean } {
+    // The decrypted URL is private to the dispatch path. Admin UI gets a
+    // boolean — "is one configured?" — plus the mask placeholder; full
+    // value never leaves the process.
+    const { webhookUrl, ...rest } = row;
+    return { ...rest, webhookUrlSet: !!webhookUrl };
+}
+
+function isValidWebhookUrl(value: string): boolean {
+    try {
+        const u = new URL(value);
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+function isValidRegex(value: string): boolean {
+    try {
+        new RegExp(value);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function registerBehaviorRoutes(
+    server: FastifyInstance,
+    options: BehaviorRoutesOptions = {}
+): Promise<void> {
+    const { bot } = options;
+
+    // ───────────────────────── targets ─────────────────────────
+
+    server.get('/api/behaviors/targets', async (request, reply) => {
+        if (!requireCapability(request, reply, 'behavior.manage')) return;
+        const targets = await findAllBehaviorTargets();
+        // Embed user profile for kind='user' rows so the sidebar can
+        // render avatar + display name without a second round-trip per
+        // entry (mirrors how DM channel summaries embed recipient).
+        const enriched = await Promise.all(targets.map(async (t) => {
+            if (t.kind !== 'user' || !t.userId) {
+                return { ...t, profile: null as UserProfile | null };
+            }
+            return { ...t, profile: await fetchProfile(bot, t.userId) };
+        }));
+        // Group-member counts for kind='group' rows so the sidebar can
+        // show "Group X (N members)" without N+1 queries.
+        const memberCounts = new Map<number, number>();
+        for (const t of enriched) {
+            if (t.kind === 'group') {
+                const members = await findGroupMembers(t.id);
+                memberCounts.set(t.id, members.length);
+            }
+        }
+        return {
+            targets: enriched.map(t => ({
+                id: t.id,
+                kind: t.kind,
+                userId: t.userId,
+                groupName: t.groupName,
+                profile: t.profile,
+                memberCount: t.kind === 'group' ? (memberCounts.get(t.id) ?? 0) : null
+            }))
+        };
+    });
+
+    server.post<{ Body: { kind?: unknown; userId?: unknown; groupName?: unknown } }>(
+        '/api/behaviors/targets',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const kind = request.body?.kind;
+            if (kind !== 'user' && kind !== 'group') {
+                reply.code(400).send({ error: 'kind must be "user" or "group"' });
+                return;
+            }
+            if (kind === 'user') {
+                const userId = request.body?.userId;
+                if (!isSnowflake(userId)) {
+                    reply.code(400).send({ error: 'userId must be a Discord snowflake' });
+                    return;
+                }
+                const existing = await findUserTarget(userId);
+                if (existing) {
+                    reply.code(409).send({ error: 'target already exists', target: existing });
+                    return;
+                }
+                const created = await createUserTarget(userId);
+                await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.create', String(created.id), {
+                    kind, userId
+                });
+                return { target: created };
+            }
+            const groupName = request.body?.groupName;
+            if (!isBoundedString(groupName, GROUP_NAME_MAX)) {
+                reply.code(400).send({ error: `groupName required (max ${GROUP_NAME_MAX} chars)` });
+                return;
+            }
+            const trimmed = groupName.trim();
+            const dup = await findGroupTargetByName(trimmed);
+            if (dup) {
+                reply.code(409).send({ error: 'group with that name already exists', target: dup });
+                return;
+            }
+            const created = await createGroupTarget(trimmed);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.create', String(created.id), {
+                kind, groupName: trimmed
+            });
+            return { target: created };
+        }
+    );
+
+    server.patch<{ Params: { id: string }; Body: { groupName?: unknown } }>(
+        '/api/behaviors/targets/:id',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target) {
+                reply.code(404).send({ error: 'target not found' });
+                return;
+            }
+            if (target.kind !== 'group') {
+                reply.code(400).send({ error: 'only group targets are renameable' });
+                return;
+            }
+            const groupName = request.body?.groupName;
+            if (!isBoundedString(groupName, GROUP_NAME_MAX)) {
+                reply.code(400).send({ error: `groupName required (max ${GROUP_NAME_MAX} chars)` });
+                return;
+            }
+            const trimmed = groupName.trim();
+            const dup = await findGroupTargetByName(trimmed);
+            if (dup && dup.id !== id) {
+                reply.code(409).send({ error: 'group with that name already exists' });
+                return;
+            }
+            await renameGroupTarget(id, trimmed);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.rename', String(id), {
+                groupName: trimmed
+            });
+            return { target: { ...target, groupName: trimmed } };
+        }
+    );
+
+    server.delete<{ Params: { id: string } }>(
+        '/api/behaviors/targets/:id',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            if (id === ALL_DMS_TARGET_ID) {
+                reply.code(400).send({ error: 'all_dms target is not deletable' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target) {
+                reply.code(404).send({ error: 'target not found' });
+                return;
+            }
+            await deleteBehaviorTarget(id);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.delete', String(id), {
+                kind: target.kind, userId: target.userId, groupName: target.groupName
+            });
+            return { ok: true };
+        }
+    );
+
+    // ───────────────────────── group members ─────────────────────────
+
+    server.get<{ Params: { id: string } }>(
+        '/api/behaviors/targets/:id/members',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target || target.kind !== 'group') {
+                reply.code(404).send({ error: 'group target not found' });
+                return;
+            }
+            const userIds = await findGroupMembers(id);
+            const members = await Promise.all(userIds.map(async (uid) => ({
+                userId: uid,
+                profile: await fetchProfile(bot, uid)
+            })));
+            return { members };
+        }
+    );
+
+    server.post<{ Params: { id: string }; Body: { userId?: unknown } }>(
+        '/api/behaviors/targets/:id/members',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target || target.kind !== 'group') {
+                reply.code(404).send({ error: 'group target not found' });
+                return;
+            }
+            const userId = request.body?.userId;
+            if (!isSnowflake(userId)) {
+                reply.code(400).send({ error: 'userId must be a Discord snowflake' });
+                return;
+            }
+            await addGroupMember(id, userId);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.member.add', String(id), { userId });
+            return { ok: true, member: { userId, profile: await fetchProfile(bot, userId) } };
+        }
+    );
+
+    server.delete<{ Params: { id: string; userId: string } }>(
+        '/api/behaviors/targets/:id/members/:userId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            const userId = request.params.userId;
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            if (!isSnowflake(userId)) {
+                reply.code(400).send({ error: 'invalid user id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target || target.kind !== 'group') {
+                reply.code(404).send({ error: 'group target not found' });
+                return;
+            }
+            await removeGroupMember(id, userId);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.member.remove', String(id), { userId });
+            return { ok: true };
+        }
+    );
+
+    server.put<{ Params: { id: string }; Body: { userIds?: unknown } }>(
+        '/api/behaviors/targets/:id/members',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target || target.kind !== 'group') {
+                reply.code(404).send({ error: 'group target not found' });
+                return;
+            }
+            const userIds = request.body?.userIds;
+            if (!Array.isArray(userIds) || userIds.some(u => !isSnowflake(u))) {
+                reply.code(400).send({ error: 'userIds must be array of Discord snowflakes' });
+                return;
+            }
+            await replaceGroupMembers(id, userIds as string[]);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.target.member.replace', String(id), {
+                count: userIds.length
+            });
+            return { ok: true };
+        }
+    );
+
+    // ───────────────────────── behaviors ─────────────────────────
+
+    server.get<{ Params: { id: string } }>(
+        '/api/behaviors/targets/:id/behaviors',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target) {
+                reply.code(404).send({ error: 'target not found' });
+                return;
+            }
+            const rows = await findBehaviorsByTarget(id);
+            return { behaviors: rows.map(maskBehavior) };
+        }
+    );
+
+    server.post<{ Params: { id: string }; Body: Record<string, unknown> }>(
+        '/api/behaviors/targets/:id/behaviors',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target) {
+                reply.code(404).send({ error: 'target not found' });
+                return;
+            }
+            const body = request.body ?? {};
+            const title = body.title;
+            const description = body.description;
+            const triggerType = body.triggerType;
+            const triggerValue = body.triggerValue;
+            const forwardType = body.forwardType;
+            const webhookUrl = body.webhookUrl;
+            const stopOnMatch = body.stopOnMatch;
+            const enabled = body.enabled;
+
+            if (!isBoundedString(title, TITLE_MAX)) {
+                reply.code(400).send({ error: `title required (max ${TITLE_MAX} chars)` });
+                return;
+            }
+            if (description !== undefined && (typeof description !== 'string' || description.length > DESCRIPTION_MAX)) {
+                reply.code(400).send({ error: `description max ${DESCRIPTION_MAX} chars` });
+                return;
+            }
+            if (typeof triggerType !== 'string' || !TRIGGER_TYPES.includes(triggerType as BehaviorTriggerType)) {
+                reply.code(400).send({ error: `triggerType must be one of ${TRIGGER_TYPES.join('|')}` });
+                return;
+            }
+            if (!isBoundedString(triggerValue, TRIGGER_VALUE_MAX)) {
+                reply.code(400).send({ error: `triggerValue required (max ${TRIGGER_VALUE_MAX} chars)` });
+                return;
+            }
+            if (triggerType === 'regex' && !isValidRegex(triggerValue)) {
+                reply.code(400).send({ error: 'triggerValue is not a valid regex' });
+                return;
+            }
+            if (typeof forwardType !== 'string' || !FORWARD_TYPES.includes(forwardType as BehaviorForwardType)) {
+                reply.code(400).send({ error: `forwardType must be one of ${FORWARD_TYPES.join('|')}` });
+                return;
+            }
+            if (!isNonEmptyString(webhookUrl) || webhookUrl.length > WEBHOOK_URL_MAX || !isValidWebhookUrl(webhookUrl)) {
+                reply.code(400).send({ error: 'webhookUrl required (must be a valid http/https URL)' });
+                return;
+            }
+            const created = await createBehavior({
+                targetId: id,
+                title: title.trim(),
+                description: typeof description === 'string' ? description : '',
+                triggerType: triggerType as BehaviorTriggerType,
+                triggerValue,
+                forwardType: forwardType as BehaviorForwardType,
+                webhookUrl: encryptSecret(webhookUrl),
+                stopOnMatch: !!stopOnMatch,
+                enabled: enabled === undefined ? true : !!enabled
+            });
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.create', String(created.id), {
+                targetId: id, triggerType, forwardType, stopOnMatch: !!stopOnMatch
+            });
+            return { behavior: maskBehavior(created) };
+        }
+    );
+
+    server.patch<{ Params: { behaviorId: string }; Body: Record<string, unknown> }>(
+        '/api/behaviors/behaviors/:behaviorId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const behaviorId = Number(request.params.behaviorId);
+            if (!Number.isInteger(behaviorId) || behaviorId <= 0) {
+                reply.code(400).send({ error: 'invalid behavior id' });
+                return;
+            }
+            const existing = await findBehaviorById(behaviorId);
+            if (!existing) {
+                reply.code(404).send({ error: 'behavior not found' });
+                return;
+            }
+
+            const body = request.body ?? {};
+            const update: Parameters<typeof updateBehavior>[1] = {};
+
+            if (body.title !== undefined) {
+                if (!isBoundedString(body.title, TITLE_MAX)) {
+                    reply.code(400).send({ error: `title max ${TITLE_MAX} chars` });
+                    return;
+                }
+                update.title = (body.title as string).trim();
+            }
+            if (body.description !== undefined) {
+                if (typeof body.description !== 'string' || body.description.length > DESCRIPTION_MAX) {
+                    reply.code(400).send({ error: `description max ${DESCRIPTION_MAX} chars` });
+                    return;
+                }
+                update.description = body.description;
+            }
+            if (body.triggerType !== undefined) {
+                if (typeof body.triggerType !== 'string' || !TRIGGER_TYPES.includes(body.triggerType as BehaviorTriggerType)) {
+                    reply.code(400).send({ error: `triggerType must be one of ${TRIGGER_TYPES.join('|')}` });
+                    return;
+                }
+                update.triggerType = body.triggerType as BehaviorTriggerType;
+            }
+            if (body.triggerValue !== undefined) {
+                if (!isBoundedString(body.triggerValue, TRIGGER_VALUE_MAX)) {
+                    reply.code(400).send({ error: `triggerValue max ${TRIGGER_VALUE_MAX} chars` });
+                    return;
+                }
+                update.triggerValue = body.triggerValue as string;
+            }
+            // Validate regex against the resulting (post-patch) state so a
+            // type-only or value-only change still gets checked.
+            const finalType = (update.triggerType ?? existing.triggerType) as BehaviorTriggerType;
+            const finalValue = (update.triggerValue ?? existing.triggerValue) as string;
+            if (finalType === 'regex' && !isValidRegex(finalValue)) {
+                reply.code(400).send({ error: 'triggerValue is not a valid regex' });
+                return;
+            }
+            if (body.forwardType !== undefined) {
+                if (typeof body.forwardType !== 'string' || !FORWARD_TYPES.includes(body.forwardType as BehaviorForwardType)) {
+                    reply.code(400).send({ error: `forwardType must be one of ${FORWARD_TYPES.join('|')}` });
+                    return;
+                }
+                update.forwardType = body.forwardType as BehaviorForwardType;
+            }
+            if (body.webhookUrl !== undefined) {
+                // Empty string / null = "leave existing untouched". Any other
+                // value must be a valid URL and gets re-encrypted.
+                if (typeof body.webhookUrl === 'string' && body.webhookUrl.length > 0 && body.webhookUrl !== WEBHOOK_MASK) {
+                    if (body.webhookUrl.length > WEBHOOK_URL_MAX || !isValidWebhookUrl(body.webhookUrl)) {
+                        reply.code(400).send({ error: 'webhookUrl must be a valid http/https URL' });
+                        return;
+                    }
+                    update.webhookUrl = encryptSecret(body.webhookUrl);
+                }
+            }
+            if (body.stopOnMatch !== undefined) {
+                update.stopOnMatch = !!body.stopOnMatch;
+            }
+            if (body.enabled !== undefined) {
+                update.enabled = !!body.enabled;
+            }
+            if (body.targetId !== undefined) {
+                const newTargetId = Number(body.targetId);
+                if (!Number.isInteger(newTargetId) || newTargetId <= 0) {
+                    reply.code(400).send({ error: 'invalid targetId' });
+                    return;
+                }
+                const newTarget = await findBehaviorTargetById(newTargetId);
+                if (!newTarget) {
+                    reply.code(404).send({ error: 'new target not found' });
+                    return;
+                }
+                update.targetId = newTargetId;
+            }
+
+            const updated = await updateBehavior(behaviorId, update);
+            // Editing webhookUrl, target, or trigger mid-stream invalidates
+            // any active continuous session bound to this behavior — drop
+            // the session so the user re-enters via the new flow rather
+            // than continuing to feed messages into stale config.
+            if (update.webhookUrl !== undefined || update.targetId !== undefined ||
+                update.triggerType !== undefined || update.triggerValue !== undefined ||
+                update.forwardType !== undefined || update.enabled === false) {
+                await endSessionsForBehavior(behaviorId);
+            }
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.update', String(behaviorId), {
+                fields: Object.keys(update)
+            });
+            return { behavior: updated ? maskBehavior(updated) : null };
+        }
+    );
+
+    server.delete<{ Params: { behaviorId: string } }>(
+        '/api/behaviors/behaviors/:behaviorId',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const behaviorId = Number(request.params.behaviorId);
+            if (!Number.isInteger(behaviorId) || behaviorId <= 0) {
+                reply.code(400).send({ error: 'invalid behavior id' });
+                return;
+            }
+            const existing = await findBehaviorById(behaviorId);
+            if (!existing) {
+                reply.code(404).send({ error: 'behavior not found' });
+                return;
+            }
+            await deleteBehavior(behaviorId);
+            // CASCADE on behavior_sessions takes care of session cleanup,
+            // but log it explicitly for the audit trail.
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.delete', String(behaviorId), {
+                targetId: existing.targetId
+            });
+            return { ok: true };
+        }
+    );
+
+    server.patch<{ Params: { id: string }; Body: { orderedIds?: unknown } }>(
+        '/api/behaviors/targets/:id/behaviors/reorder',
+        async (request, reply) => {
+            if (!requireCapability(request, reply, 'behavior.manage')) return;
+            const id = Number(request.params.id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.code(400).send({ error: 'invalid target id' });
+                return;
+            }
+            const target = await findBehaviorTargetById(id);
+            if (!target) {
+                reply.code(404).send({ error: 'target not found' });
+                return;
+            }
+            const orderedIds = request.body?.orderedIds;
+            if (!Array.isArray(orderedIds) || !orderedIds.every(n => Number.isInteger(n) && (n as number) > 0)) {
+                reply.code(400).send({ error: 'orderedIds must be an array of positive integers' });
+                return;
+            }
+            // Validate that the supplied set matches the target's current
+            // behavior set exactly — protects against stale UI state
+            // resequencing the wrong rows.
+            const current = await findBehaviorsByTarget(id);
+            const currentIds = new Set(current.map(b => b.id));
+            const submittedIds = new Set(orderedIds as number[]);
+            if (currentIds.size !== submittedIds.size ||
+                [...currentIds].some(cid => !submittedIds.has(cid))) {
+                reply.code(409).send({ error: 'orderedIds does not match the current behavior set; refresh and retry' });
+                return;
+            }
+            await reorderBehaviors(id, orderedIds as number[]);
+            await recordAudit(request.authUserId ?? 'unknown', 'behavior.reorder', String(id), {
+                count: orderedIds.length
+            });
+            return { ok: true };
+        }
+    );
+}
+
+// Re-export so the dispatcher path can reuse the same constants without
+// introducing a circular import.
+export { decryptSecret as decryptBehaviorWebhook, WEBHOOK_MASK };

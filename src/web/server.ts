@@ -63,6 +63,7 @@ import { registerSystemRoutes } from "./system-routes.js";
 import { registerAdminManagementRoutes } from "./admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
+import { registerBehaviorRoutes } from "./behavior-routes.js";
 import { requireAnyCapability } from "./route-guards.js";
 import { botEventLog } from "./bot-event-log.js";
 import { shouldRecord } from "./bot-event-dedup.js";
@@ -484,6 +485,7 @@ export async function createWebServer(
   await registerAdminManagementRoutes(server, { bot });
   await registerAdminLoginStatusRoutes(server);
   await registerBotEventRoutes(server);
+  await registerBehaviorRoutes(server, { bot });
 
   if (bot) {
     server.get("/api/bot/status", async (request, reply) => {
