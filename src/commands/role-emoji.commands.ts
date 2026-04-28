@@ -18,7 +18,7 @@ import {
     findRoleEmojiGroupByName,
     removeRoleEmojiGroup
 } from '../models/role-emoji-group.model.js';
-import { requireCapability } from '../permission/permission-check.js';
+import { requireDiscordCapability } from '../permission/permission-check.js';
 
 const EMOJI_REGEX = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/;
 const DEFAULT_GROUP_NAME = 'default';
@@ -40,7 +40,7 @@ export class RoleEmojiCommands {
         }) name: string,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         const trimmed = name.trim();
         if (!trimmed) {
             await command.reply({ content: 'Group name cannot be empty.', flags: 'Ephemeral' });
@@ -77,7 +77,7 @@ export class RoleEmojiCommands {
         }) name: string,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
             const existing = await findRoleEmojiGroupByName(guildId, name.trim());
@@ -101,7 +101,7 @@ export class RoleEmojiCommands {
     @Slash({ name: 'list', description: 'List emoji groups and their mappings' })
     @SlashGroup('group', 'role-emoji')
     async groupList(command: CommandInteraction): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
             const groups = await findAllRoleEmojiGroups(guildId);
@@ -163,7 +163,7 @@ export class RoleEmojiCommands {
         }) groupName: string | undefined,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
             const resolvedName = (groupName ?? '').trim() || DEFAULT_GROUP_NAME;
@@ -232,7 +232,7 @@ export class RoleEmojiCommands {
         }) emoji: string,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         const guildId = command.guildId as string;
         try {
             const group = await findRoleEmojiGroupByName(guildId, groupName.trim());
@@ -288,7 +288,7 @@ export class RoleEmojiCommands {
         }) groupName: string | undefined,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         // Reacting with N emoji is N REST round-trips and easily blows
         // past Discord's 3-second interaction window — defer up front so
         // the user sees a "thinking…" spinner instead of "interaction
@@ -404,7 +404,7 @@ export class RoleEmojiCommands {
         }) messageId: string,
         command: CommandInteraction
     ): Promise<void> {
-        if (!(await requireCapability(command, 'role-emoji.manage'))) return;
+        if (!(await requireDiscordCapability(command, 'role-emoji.manage'))) return;
         await command.deferReply({ flags: 'Ephemeral' }).catch(() => { /* already replied */ });
         const guildId = command.guildId as string;
         try {

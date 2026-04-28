@@ -3,7 +3,7 @@ import { CommandInteraction, ModalBuilder, ModalSubmitInteraction, TextInputBuil
 import { Discord, ModalComponent, Slash, SlashGroup } from 'discordx';
 import { FAILED_COLOR, SUCCEEDED_COLOR } from '../utils/constant.js';
 import { encryptSecret } from '../utils/crypto.js';
-import { requireCapability } from '../permission/permission-check.js';
+import { requireDiscordCapability } from '../permission/permission-check.js';
 
 @Discord()
 @SlashGroup({ description: 'Manage rcon forward channel', name: 'rcon-forward-channel', defaultMemberPermissions: '16' })
@@ -11,7 +11,7 @@ import { requireCapability } from '../permission/permission-check.js';
 export class RconForwardChannelCommands {
     @Slash({ name: 'watch', description: 'Watch this channel as a rcon forward channel' })
     async watchChannel(command: CommandInteraction): Promise<void> {
-        if (!(await requireCapability(command, 'rcon.configure'))) return;
+        if (!(await requireDiscordCapability(command, 'rcon.configure'))) return;
         const existingRecord = await RconForwardChannel.findOne({
             where: {
                 channelId: command.channelId,
@@ -166,7 +166,7 @@ export class RconForwardChannelCommands {
 
     @Slash({ name: 'stop-watch', description: 'Stop watching this channel as a rcon forward channel' })
     async stopWatchChannel(command: CommandInteraction): Promise<void> {
-        if (!(await requireCapability(command, 'rcon.configure'))) return;
+        if (!(await requireDiscordCapability(command, 'rcon.configure'))) return;
         const existingRecord = await RconForwardChannel.findOne({
             where: {
                 channelId: command.channelId,
@@ -197,7 +197,7 @@ export class RconForwardChannelCommands {
 
     @Slash({ name: 'status', description: 'Check this channel status' })
     async status(command: CommandInteraction): Promise<void> {
-        if (!(await requireCapability(command, 'rcon.configure'))) return;
+        if (!(await requireDiscordCapability(command, 'rcon.configure'))) return;
         const existingRecord = await RconForwardChannel.findOne({
             where: {
                 channelId: command.channelId,
@@ -220,7 +220,7 @@ export class RconForwardChannelCommands {
     @Slash({ name: 'edit', description: 'Edit rcon forward parameter' })
     async edit(
         command: CommandInteraction): Promise<void> {
-        if (!(await requireCapability(command, 'rcon.configure'))) return;
+        if (!(await requireDiscordCapability(command, 'rcon.configure'))) return;
         const existingRecord = await RconForwardChannel.findOne({
             where: {
                 channelId: command.channelId,
