@@ -42,7 +42,6 @@ interface Draft {
     triggerValue: string;
     forwardType: BehaviorForwardType;
     stopOnMatch: boolean;
-    enabled: boolean;
     targetId: number;
     webhookUrl: string;
     /** Empty = no signing (clear). Server stores AES-encrypted; UI shows plaintext. */
@@ -57,7 +56,6 @@ function draftFrom(row: BehaviorRow): Draft {
         triggerValue: row.triggerValue,
         forwardType: row.forwardType,
         stopOnMatch: row.stopOnMatch,
-        enabled: row.enabled,
         targetId: row.targetId,
         webhookUrl: row.webhookUrl,
         webhookSecret: row.webhookSecret ?? ''
@@ -68,8 +66,26 @@ const draft = reactive<Draft>(draftFrom(props.behavior));
 const saving = ref(false);
 const error = ref<string | null>(null);
 
+// `enabled` is intentionally NOT part of `draft`. The toggle has its
+// own immediate PATCH path and must not be coupled to the Save button's
+// patch payload — otherwise flipping the toggle and pressing Save before
+// the toggle's PATCH lands pushes a stale value back to the server.
+// `enabledLocal` is the single source of truth for the toggle UI;
+// `props.behavior.enabled` is reconciled into it via the watch below.
+const enabledLocal = ref(props.behavior.enabled);
+
 watch(() => props.behavior, (next) => {
     Object.assign(draft, draftFrom(next));
+});
+
+// Keep the toggle reconciled to server truth whenever the prop's
+// `enabled` actually changes. This watches the primitive directly
+// (not the prop reference) so it fires even if the parent mutates the
+// row in place — and stays quiet during in-flight optimistic flips
+// (the parent only re-emits AFTER the PATCH lands, by which point
+// `next` matches what we already wrote).
+watch(() => props.behavior.enabled, (next) => {
+    enabledLocal.value = next;
 });
 
 const dirty = computed(() => {
@@ -80,7 +96,6 @@ const dirty = computed(() => {
         || draft.triggerValue !== b.triggerValue
         || draft.forwardType !== b.forwardType
         || draft.stopOnMatch !== b.stopOnMatch
-        || draft.enabled !== b.enabled
         || draft.targetId !== b.targetId
         || draft.webhookUrl !== b.webhookUrl
         || draft.webhookSecret !== (b.webhookSecret ?? '');
@@ -99,23 +114,9 @@ function toggleOpen() {
     emit('toggle', open.value);
 }
 
-// Local visual state for the enable toggle. v-model'ing the prop
-// directly was visually flickering: clicking the checkbox triggered
-// an immediate re-render (saving=true), which Vue evaluated against
-// the still-stale `props.behavior.enabled` and slammed `el.checked`
-// back to the old value before the API response landed and the parent
-// emitted the new prop. Driving the input from a local ref keeps the
-// click's optimistic state visible across the whole save round-trip;
-// the watcher reconciles the ref to the prop after the parent updates.
-const enabledLocal = ref(props.behavior.enabled);
-watch(() => props.behavior.enabled, (next) => {
-    enabledLocal.value = next;
-});
-
-async function onToggleEnabled(event: Event) {
-    const target = event.target as HTMLInputElement;
-    const next = target.checked;
-    if (next === props.behavior.enabled) return;
+async function onToggleEnabled() {
+    if (saving.value) return;
+    const next = !enabledLocal.value;
     enabledLocal.value = next;
     saving.value = true;
     error.value = null;
@@ -124,9 +125,6 @@ async function onToggleEnabled(event: Event) {
         emit('updated', updated);
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
-        // Revert the optimistic flip — the parent never gets to push a
-        // new prop in the failure path, so the watcher above won't
-        // restore it for us.
         enabledLocal.value = props.behavior.enabled;
     } finally {
         saving.value = false;
@@ -164,10 +162,13 @@ async function onSave() {
             triggerValue: draft.triggerValue,
             forwardType: draft.forwardType,
             stopOnMatch: draft.stopOnMatch,
-            enabled: draft.enabled,
             targetId: draft.targetId,
             webhookUrl: draft.webhookUrl.trim()
         };
+        // `enabled` is intentionally NOT touched by Save — the toggle
+        // owns it through its own PATCH path. Mixing them caused a race
+        // where flipping the toggle then pressing Save reverted the
+        // server-side enabled to whatever Save's stale draft held.
         // Only include webhookSecret in the patch if it actually changed
         // — sending it on every save is harmless but generates noise in
         // the audit log's `fields` list.
@@ -242,14 +243,17 @@ async function onDelete() {
                 <Icon icon="material-symbols:stop-circle-outline-rounded" width="13" height="13" />
                 {{ t('behaviors.card.tagStopShort') }}
             </span>
-            <label
-                class="toggle"
+            <button
+                type="button"
+                role="switch"
+                :class="['toggle', { on: enabledLocal }]"
                 :title="enabledLocal ? t('behaviors.card.toggleEnabled') : t('behaviors.card.toggleDisabled')"
-                @click.stop
+                :aria-checked="enabledLocal ? 'true' : 'false'"
+                :disabled="saving"
+                @click.stop="onToggleEnabled"
             >
-                <input type="checkbox" :checked="enabledLocal" :disabled="saving" @change="onToggleEnabled" />
                 <span class="slider" aria-hidden="true"></span>
-            </label>
+            </button>
             <AppMenu placement="bottom-end" :offset="[0, 6]">
                 <template #trigger>
                     <button
@@ -436,8 +440,11 @@ async function onDelete() {
     height: 18px;
     flex-shrink: 0;
     cursor: pointer;
+    border: none;
+    padding: 0;
+    background: none;
 }
-.toggle input { opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.toggle:disabled { cursor: not-allowed; opacity: 0.6; }
 .slider {
     position: absolute;
     inset: 0;
@@ -456,8 +463,8 @@ async function onDelete() {
     border-radius: 50%;
     transition: transform 0.15s;
 }
-.toggle input:checked + .slider { background: var(--accent); }
-.toggle input:checked + .slider::before { transform: translateX(14px); }
+.toggle.on .slider { background: var(--accent); }
+.toggle.on .slider::before { transform: translateX(14px); }
 
 .menu-trigger {
     flex-shrink: 0;
