@@ -23,6 +23,12 @@ const { t } = useI18n();
 const props = defineProps<{
     target: BehaviorTargetSummary;
     targets: BehaviorTargetSummary[];
+    /**
+     * Catalog-mutating actions (delete target, rename group, add /
+     * remove member) require `admin` or `behavior.manage`. Scoped
+     * users still see / edit behaviors but the catalog buttons hide.
+     */
+    canManageCatalog?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -235,7 +241,7 @@ const headerTitle = computed(() => {
                 {{ t('behaviors.workspace.addBehavior') }}
             </button>
             <button
-                v-if="target.kind !== 'all_dms'"
+                v-if="target.kind !== 'all_dms' && canManageCatalog"
                 type="button"
                 class="danger ghost"
                 :title="t('behaviors.workspace.deleteTargetTooltip')"
@@ -245,7 +251,7 @@ const headerTitle = computed(() => {
             </button>
         </header>
 
-        <section v-if="target.kind === 'group'" class="group-section">
+        <section v-if="target.kind === 'group' && canManageCatalog" class="group-section">
             <div class="rename-row">
                 <label class="field">
                     <span class="label">{{ t('behaviors.workspace.groupNameLabel') }}</span>

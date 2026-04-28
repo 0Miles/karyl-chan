@@ -897,10 +897,14 @@
                 "global": "全域",
                 "globalHint": "套用至 bot 所有伺服器與所有功能介面。",
                 "perGuild": "個別伺服器",
-                "perGuildHint": "將相同範圍限定到單一伺服器,與全域權限為相加關係,不會覆蓋。"
+                "perGuildHint": "將相同範圍限定到單一伺服器,與全域權限為相加關係,不會覆蓋。",
+                "perBehaviorTarget": "個別行為目標",
+                "perBehaviorTargetHint": "授權該角色管理特定行為目標下的行為(不可增刪目標本身,需 behavior.manage 才能調整目標清單)。"
             },
             "searchGuilds": "搜尋伺服器…",
             "noGuilds": "沒有符合條件的伺服器。",
+            "searchBehaviorTargets": "搜尋目標對象…",
+            "noBehaviorTargets": "沒有符合條件的行為目標。",
             "noGlobalCaps": "尚未授予任何全域權限。",
             "perGuildSummary": "已授予 {count} 個個別伺服器權限",
             "pendingChanges": "已修改 {count} 項",
@@ -954,7 +958,7 @@
             "kindUser": "個別使用者",
             "kindGroup": "使用者組",
             "userIdLabel": "Discord 使用者 ID",
-            "userIdPlaceholder": "請貼上使用者的 Discord ID(雪花格式)",
+            "userIdPlaceholder": "請貼上使用者的 Discord ID,例如 123456789012345678",
             "userIdInvalid": "請輸入合法的 Discord 使用者 ID。",
             "groupNameLabel": "組名",
             "groupNamePlaceholder": "例如:VIP、合作夥伴",
@@ -1007,7 +1011,8 @@
             "triggerValueRequired": "請輸入觸發內容。",
             "regexInvalid": "正則表達式格式錯誤。",
             "deleteConfirm": "確定要刪除行為「{title}」?",
-            "dragHint": "拖曳排序"
+            "dragHint": "拖曳排序",
+            "moreActions": "更多操作"
         }
     }
 }

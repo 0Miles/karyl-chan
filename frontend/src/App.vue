@@ -9,7 +9,7 @@ import { provideAppShell } from './composables/use-app-shell';
 import { useBreakpoint } from './composables/use-breakpoint';
 import { useDrawer } from './composables/use-drawer';
 import { useCurrentUserStore } from './stores/currentUserStore';
-import { accessibleGuildIds, hasAdminCapability } from './libs/admin-capabilities';
+import { accessibleBehaviorTargetIds, accessibleGuildIds, hasAdminCapability } from './libs/admin-capabilities';
 import { useDmStore } from './modules/discord-chat/stores/dmStore';
 import { useGuildChannelStore } from './modules/discord-chat/stores/guildChannelStore';
 import { useUnreadStore } from './modules/discord-chat/stores/unreadStore';
@@ -64,7 +64,14 @@ const displayName = computed(() =>
 // hasn't loaded yet so we don't briefly flash links before hiding them.
 const userCaps = computed(() => currentUser.user?.capabilities ?? []);
 const canOpenAdminPanel = computed(() => hasAdminCapability(userCaps.value, 'admin'));
-const canManageBehaviors = computed(() => hasAdminCapability(userCaps.value, 'behavior.manage'));
+const canManageBehaviors = computed(() => {
+    if (hasAdminCapability(userCaps.value, 'behavior.manage')) return true;
+    // Scoped users (behavior:<id>.manage) also reach the page — the
+    // page itself filters the sidebar to the targets they're allowed
+    // to see.
+    const access = accessibleBehaviorTargetIds(userCaps.value);
+    return access === 'all' || access.size > 0;
+});
 const canSeeMessages = computed(() => hasAdminCapability(userCaps.value, 'dm.message')
     || accessibleGuildIds(userCaps.value) === 'all'
     || (accessibleGuildIds(userCaps.value) as Set<string>).size > 0);

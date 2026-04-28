@@ -54,11 +54,19 @@ export type GuildGlobalCapability = `guild.${GuildScope}`;
 export type GuildScopedCapability = `guild:${string}.${GuildScope}`;
 
 /**
+ * Per-target behavior scope. Granting `behavior:42.manage` lets the
+ * holder CRUD behaviors UNDER target id 42, but NOT add or delete
+ * targets themselves — that's reserved for `admin` / `behavior.manage`.
+ */
+export type BehaviorScopedCapability = `behavior:${string}.manage`;
+
+/**
  * Any token persisted in `admin_role_capabilities`.
  */
-export type AdminCapability = GlobalCapability | GuildScopedCapability;
+export type AdminCapability = GlobalCapability | GuildScopedCapability | BehaviorScopedCapability;
 
 const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
+const SCOPED_BEHAVIOR_RE = /^behavior:([^.:]+)\.manage$/;
 
 function isGlobalCapability(value: string): value is GlobalCapability {
     return Object.prototype.hasOwnProperty.call(GLOBAL_CAPABILITY_DESCRIPTIONS, value);
@@ -70,12 +78,24 @@ function parseScopedGuild(value: string): { guildId: string; scope: GuildScope }
     return { guildId: m[1], scope: m[2] as GuildScope };
 }
 
+function parseScopedBehavior(value: string): { targetId: string } | null {
+    const m = SCOPED_BEHAVIOR_RE.exec(value);
+    if (!m) return null;
+    return { targetId: m[1] };
+}
+
 export function isAdminCapability(value: string): value is AdminCapability {
-    return isGlobalCapability(value) || parseScopedGuild(value) !== null;
+    return isGlobalCapability(value)
+        || parseScopedGuild(value) !== null
+        || parseScopedBehavior(value) !== null;
 }
 
 export function makeGuildScopedCapability(guildId: string, scope: GuildScope): GuildScopedCapability {
     return `guild:${guildId}.${scope}`;
+}
+
+export function makeBehaviorScopedCapability(targetId: number | string): BehaviorScopedCapability {
+    return `behavior:${targetId}.manage`;
 }
 
 /**
@@ -138,6 +158,47 @@ export function accessibleGuildIds(
         if (cap === 'guild.message' || cap === 'guild.manage') return 'all';
         const parsed = parseScopedGuild(cap);
         if (parsed) ids.add(parsed.guildId);
+    }
+    return ids;
+}
+
+/**
+ * Pure evaluator for behavior-target-bound routes. Satisfied by:
+ *   - `admin`
+ *   - `behavior.manage`             (full module)
+ *   - `behavior:<targetId>.manage`  (matching per-target scope)
+ *
+ * Adding/removing TARGETS themselves is NOT covered here — those
+ * mutate the catalog and stay restricted to admin / behavior.manage
+ * (call hasAdminCapability(caps, 'behavior.manage') for that).
+ */
+export function hasBehaviorCapability(
+    granted: Iterable<AdminCapability>,
+    targetId: number | string
+): boolean {
+    const scopedToken = makeBehaviorScopedCapability(targetId);
+    for (const cap of granted) {
+        if (cap === 'admin') return true;
+        if (cap === 'behavior.manage') return true;
+        if (cap === scopedToken) return true;
+    }
+    return false;
+}
+
+/**
+ * Returns the set of behavior target ids the user can see, or `'all'`
+ * when they hold `admin` / `behavior.manage` (no filter needed). Pure
+ * mirror of accessibleGuildIds for the per-target token namespace.
+ */
+export function accessibleBehaviorTargetIds(
+    granted: Iterable<AdminCapability>
+): 'all' | Set<string> {
+    const ids = new Set<string>();
+    for (const cap of granted) {
+        if (cap === 'admin') return 'all';
+        if (cap === 'behavior.manage') return 'all';
+        const parsed = parseScopedBehavior(cap);
+        if (parsed) ids.add(parsed.targetId);
     }
     return ids;
 }

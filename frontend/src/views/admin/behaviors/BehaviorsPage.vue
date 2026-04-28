@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n';
 import { SidebarLayout } from '../../../layouts';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { useAppShell } from '../../../composables/use-app-shell';
+import { useCurrentUserStore } from '../../../stores/currentUserStore';
+import { hasAdminCapability } from '../../../libs/admin-capabilities';
 import BehaviorSidebar from './BehaviorSidebar.vue';
 import BehaviorWorkspace from './BehaviorWorkspace.vue';
 import AddTargetModal from './AddTargetModal.vue';
@@ -12,6 +14,17 @@ import { listTargets, type BehaviorTargetSummary } from '../../../api/behavior';
 const { t } = useI18n();
 const { isMobile } = useBreakpoint();
 const { closeOverlay } = useAppShell();
+const currentUser = useCurrentUserStore();
+
+// Catalog-mutating actions (add/delete target, manage group members /
+// rename) require `admin` or `behavior.manage`. Scoped users
+// (`behavior:<id>.manage`) can CRUD behaviors UNDER targets they
+// were granted but not the catalog itself — hide those buttons in the
+// UI to match what the backend will refuse.
+const canManageCatalog = computed(() => {
+    const caps = currentUser.user?.capabilities ?? [];
+    return hasAdminCapability(caps, 'behavior.manage');
+});
 
 const targets = ref<BehaviorTargetSummary[]>([]);
 const selectedId = ref<number | null>(null);
@@ -75,6 +88,7 @@ function onGroupRenamed(id: number, name: string) {
                 :targets="targets"
                 :selected-id="selectedId"
                 :loading="loading"
+                :can-add-target="canManageCatalog"
                 @select="onSelect"
                 @add="modalOpen = true"
             />
@@ -85,6 +99,7 @@ function onGroupRenamed(id: number, name: string) {
             :key="selectedTarget.id"
             :target="selectedTarget"
             :targets="targets"
+            :can-manage-catalog="canManageCatalog"
             @target-deleted="onTargetDeleted"
             @group-member-changed="onMemberCountChanged"
             @group-renamed="onGroupRenamed"
@@ -93,6 +108,7 @@ function onGroupRenamed(id: number, name: string) {
         <div v-else class="placeholder muted">{{ t('behaviors.page.pickTarget') }}</div>
 
         <AddTargetModal
+            v-if="canManageCatalog"
             :visible="modalOpen"
             @close="modalOpen = false"
             @created="onTargetCreated"

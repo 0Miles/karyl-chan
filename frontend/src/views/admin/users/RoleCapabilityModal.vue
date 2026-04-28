@@ -5,8 +5,10 @@ import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import AppTabs from '../../../components/AppTabs.vue';
 import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import { listTargets, type BehaviorTargetSummary } from '../../../api/behavior';
 import {
     GLOBAL_CAPABILITY_KEYS,
+    makeBehaviorScopedCapability,
     makeGuildScopedCapability,
     type GuildScope
 } from '../../../libs/admin-capabilities';
@@ -40,10 +42,11 @@ const { t } = useI18n();
 
 const visible = computed(() => props.role !== null);
 
-const tab = ref<'global' | 'per-guild'>('global');
+const tab = ref<'global' | 'per-guild' | 'per-behavior-target'>('global');
 const tabs = computed(() => [
     { key: 'global', label: t('admin.roles.capabilityTabs.global'), icon: 'material-symbols:tune-rounded' },
-    { key: 'per-guild', label: t('admin.roles.capabilityTabs.perGuild'), icon: 'material-symbols:groups-outline-rounded' }
+    { key: 'per-guild', label: t('admin.roles.capabilityTabs.perGuild'), icon: 'material-symbols:groups-outline-rounded' },
+    { key: 'per-behavior-target', label: t('admin.roles.capabilityTabs.perBehaviorTarget'), icon: 'material-symbols:forum-outline-rounded' }
 ]);
 
 // Guild list is shared across opens — fetched once on first show. The
@@ -53,6 +56,14 @@ const tabs = computed(() => [
 const guilds = ref<GuildSummary[]>([]);
 const guildsLoading = ref(false);
 const search = ref('');
+
+// Behavior targets — same lazy-fetch pattern as guilds. The opening
+// admin user always carries `admin` (this modal is reachable only
+// from the user-management page, itself admin-gated), so listTargets
+// returns the full catalog regardless of the editor's per-target
+// grants on their own account.
+const behaviorTargets = ref<BehaviorTargetSummary[]>([]);
+const behaviorTargetsLoading = ref(false);
 
 // ── Pending edits — committed only on Confirm ────────────────────────
 //
@@ -76,15 +87,27 @@ watch([visible, () => props.role?.name], ([open, _name]) => {
 });
 
 watch(visible, async (open) => {
-    if (!open || guilds.value.length > 0) return;
-    guildsLoading.value = true;
-    try {
-        guilds.value = await listGuilds();
-    } catch {
-        // Surface nothing — the parent already shows API errors at the
-        // page level. The list just stays empty.
-    } finally {
-        guildsLoading.value = false;
+    if (!open) return;
+    if (guilds.value.length === 0) {
+        guildsLoading.value = true;
+        try {
+            guilds.value = await listGuilds();
+        } catch {
+            // Surface nothing — the parent already shows API errors at the
+            // page level. The list just stays empty.
+        } finally {
+            guildsLoading.value = false;
+        }
+    }
+    if (behaviorTargets.value.length === 0) {
+        behaviorTargetsLoading.value = true;
+        try {
+            behaviorTargets.value = await listTargets();
+        } catch {
+            // Same: silent — empty list is OK as a fallback.
+        } finally {
+            behaviorTargetsLoading.value = false;
+        }
     }
 });
 
@@ -150,6 +173,29 @@ function scopedToken(guildId: string, scope: GuildScope): string {
     return makeGuildScopedCapability(guildId, scope);
 }
 
+function behaviorScopedToken(targetId: number): string {
+    return makeBehaviorScopedCapability(targetId);
+}
+
+function behaviorTargetLabel(t2: BehaviorTargetSummary): string {
+    if (t2.kind === 'all_dms') return t('behaviors.sidebar.allDms');
+    if (t2.kind === 'user') {
+        return t2.profile?.globalName ?? t2.profile?.username ?? t2.userId ?? '?';
+    }
+    return t2.groupName ?? '?';
+}
+
+const filteredBehaviorTargets = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (!needle) return behaviorTargets.value;
+    return behaviorTargets.value.filter(t2 => {
+        const label = behaviorTargetLabel(t2).toLowerCase();
+        const idMatch = String(t2.id).includes(needle);
+        const userIdMatch = (t2.userId ?? '').includes(needle);
+        return label.includes(needle) || idMatch || userIdMatch;
+    });
+});
+
 function modalTitle(): string {
     return props.role ? t('admin.roles.capabilityModalTitle', { name: props.role.name }) : '';
 }
@@ -213,7 +259,7 @@ function onConfirm() {
 
                 <!-- Per-guild capabilities — same row style as global,
                      but grouped under each server header. -->
-                <section v-else class="pane">
+                <section v-else-if="tab === 'per-guild'" class="pane">
                     <p class="hint">{{ t('admin.roles.capabilityTabs.perGuildHint') }}</p>
                     <input
                         v-model="search"
@@ -262,6 +308,55 @@ function onConfirm() {
                             </ul>
                         </article>
                     </div>
+                </section>
+
+                <!-- Per-target behavior capabilities. Granting one of
+                     these lets the holder CRUD behaviors UNDER that
+                     specific target without giving them the full
+                     `behavior.manage` token; adding/removing targets
+                     stays admin-only. -->
+                <section v-else class="pane">
+                    <p class="hint">{{ t('admin.roles.capabilityTabs.perBehaviorTargetHint') }}</p>
+                    <input
+                        v-model="search"
+                        type="search"
+                        class="search"
+                        :placeholder="t('admin.roles.searchBehaviorTargets')"
+                    />
+                    <p v-if="behaviorTargetsLoading" class="muted">{{ t('common.loading') }}</p>
+                    <p v-else-if="filteredBehaviorTargets.length === 0" class="muted">
+                        {{ t('admin.roles.noBehaviorTargets') }}
+                    </p>
+                    <ul v-else class="cap-list">
+                        <li
+                            v-for="t2 in filteredBehaviorTargets"
+                            :key="t2.id"
+                            :class="[
+                                'cap',
+                                {
+                                    granted: isGranted(behaviorScopedToken(t2.id)),
+                                    pending: pendingGrants.has(behaviorScopedToken(t2.id)) || pendingRevokes.has(behaviorScopedToken(t2.id))
+                                }
+                            ]"
+                            @click="toggle(behaviorScopedToken(t2.id))"
+                        >
+                            <input
+                                type="checkbox"
+                                tabindex="-1"
+                                :checked="isGranted(behaviorScopedToken(t2.id))"
+                                :disabled="pending"
+                                @click.stop
+                                @change="toggle(behaviorScopedToken(t2.id))"
+                            />
+                            <div class="cap-text">
+                                <code class="cap-key">{{ behaviorScopedToken(t2.id) }}</code>
+                                <span class="cap-desc">
+                                    {{ behaviorTargetLabel(t2) }}
+                                    <span class="cap-kind">· {{ t(`behaviors.workspace.kind${t2.kind === 'all_dms' ? 'AllDms' : t2.kind === 'user' ? 'User' : 'Group'}`) }}</span>
+                                </span>
+                            </div>
+                        </li>
+                    </ul>
                 </section>
             </AppTabs>
 
@@ -373,6 +468,11 @@ function onConfirm() {
     font-size: 0.76rem;
     color: var(--text-muted);
     line-height: 1.4;
+}
+.cap-kind {
+    color: var(--text-faint);
+    font-size: 0.72rem;
+    margin-left: 0.15rem;
 }
 
 .guild-sections {

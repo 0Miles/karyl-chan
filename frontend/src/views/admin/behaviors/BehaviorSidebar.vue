@@ -10,6 +10,8 @@ const props = defineProps<{
     targets: BehaviorTargetSummary[];
     selectedId: number | null;
     loading?: boolean;
+    /** When false, the `+` add-target button is suppressed (scoped users). */
+    canAddTarget?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +38,7 @@ function labelFor(target: BehaviorTargetSummary): string {
     <header class="sidebar-header">
         <span class="title">{{ t('behaviors.sidebar.title') }}</span>
         <button
+            v-if="canAddTarget"
             type="button"
             class="ghost"
             :title="t('behaviors.sidebar.addTooltip')"

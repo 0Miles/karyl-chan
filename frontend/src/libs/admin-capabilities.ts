@@ -23,20 +23,32 @@ export const GUILD_SCOPES = ['message', 'manage'] as const;
 export type GuildScope = typeof GUILD_SCOPES[number];
 
 export type GuildScopedCapability = `guild:${string}.${GuildScope}`;
+export type BehaviorScopedCapability = `behavior:${string}.manage`;
 
 /** Anything that can be persisted in the role→capability mapping. */
-export type AdminCapability = GlobalCapability | GuildScopedCapability;
+export type AdminCapability = GlobalCapability | GuildScopedCapability | BehaviorScopedCapability;
 
 const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
+const SCOPED_BEHAVIOR_RE = /^behavior:([^.:]+)\.manage$/;
 
 export function makeGuildScopedCapability(guildId: string, scope: GuildScope): GuildScopedCapability {
     return `guild:${guildId}.${scope}`;
+}
+
+export function makeBehaviorScopedCapability(targetId: number | string): BehaviorScopedCapability {
+    return `behavior:${targetId}.manage`;
 }
 
 function parseScopedGuild(value: string): { guildId: string; scope: GuildScope } | null {
     const m = SCOPED_GUILD_RE.exec(value);
     if (!m) return null;
     return { guildId: m[1], scope: m[2] as GuildScope };
+}
+
+function parseScopedBehavior(value: string): { targetId: string } | null {
+    const m = SCOPED_BEHAVIOR_RE.exec(value);
+    if (!m) return null;
+    return { targetId: m[1] };
 }
 
 /**
@@ -90,6 +102,40 @@ export function accessibleGuildIds(granted: Iterable<string>): 'all' | Set<strin
         if (cap === 'guild.message' || cap === 'guild.manage') return 'all';
         const parsed = parseScopedGuild(cap);
         if (parsed) ids.add(parsed.guildId);
+    }
+    return ids;
+}
+
+/**
+ * "Can the user CRUD behaviors under this target?" — satisfied by
+ * `admin`, `behavior.manage`, or the matching per-target token. Mirror
+ * of the backend's hasBehaviorCapability.
+ */
+export function hasBehaviorCapability(
+    granted: Iterable<string>,
+    targetId: number | string
+): boolean {
+    const scopedToken = makeBehaviorScopedCapability(targetId);
+    for (const cap of granted) {
+        if (cap === 'admin') return true;
+        if (cap === 'behavior.manage') return true;
+        if (cap === scopedToken) return true;
+    }
+    return false;
+}
+
+/**
+ * `'all'` when the user can manage every target (admin / behavior.manage),
+ * otherwise the explicit set of target ids they hold per-target tokens
+ * for. Used to filter the sidebar and gate the page.
+ */
+export function accessibleBehaviorTargetIds(granted: Iterable<string>): 'all' | Set<string> {
+    const ids = new Set<string>();
+    for (const cap of granted) {
+        if (cap === 'admin') return 'all';
+        if (cap === 'behavior.manage') return 'all';
+        const parsed = parseScopedBehavior(cap);
+        if (parsed) ids.add(parsed.targetId);
     }
     return ids;
 }

@@ -897,10 +897,14 @@
                 "global": "Global",
                 "globalHint": "Apply to every server and surface the bot reaches.",
                 "perGuild": "Per-server",
-                "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them."
+                "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them.",
+                "perBehaviorTarget": "Per-behavior-target",
+                "perBehaviorTargetHint": "Grant the role CRUD over behaviors under specific targets only. Adding/removing targets themselves still requires behavior.manage."
             },
             "searchGuilds": "Search servers…",
             "noGuilds": "No servers match this filter.",
+            "searchBehaviorTargets": "Search targets…",
+            "noBehaviorTargets": "No behavior targets match this filter.",
             "noGlobalCaps": "No global capabilities granted.",
             "perGuildSummary": "{count} per-server grant(s)",
             "pendingChanges": "{count} change(s) pending",
@@ -954,7 +958,7 @@
             "kindUser": "Individual user",
             "kindGroup": "User group",
             "userIdLabel": "Discord user ID",
-            "userIdPlaceholder": "Paste the user's Discord ID (snowflake)",
+            "userIdPlaceholder": "Paste the user's Discord ID, e.g. 123456789012345678",
             "userIdInvalid": "Please enter a valid Discord user ID.",
             "groupNameLabel": "Group name",
             "groupNamePlaceholder": "e.g. VIP, partners",
@@ -1007,7 +1011,8 @@
             "triggerValueRequired": "Trigger value is required.",
             "regexInvalid": "Trigger value is not a valid regex.",
             "deleteConfirm": "Delete behavior \"{title}\"?",
-            "dragHint": "Drag to reorder"
+            "dragHint": "Drag to reorder",
+            "moreActions": "More actions"
         }
     }
 }

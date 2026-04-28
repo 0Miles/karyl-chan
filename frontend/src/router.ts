@@ -2,17 +2,18 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { isAuthenticated } from './auth';
 import { guildFeatureRoutes } from './modules/guild-features/routes';
 import { useCurrentUserStore } from './stores/currentUserStore';
-import { accessibleGuildIds, hasAdminCapability, type GlobalCapability } from './libs/admin-capabilities';
+import { accessibleBehaviorTargetIds, accessibleGuildIds, hasAdminCapability, type GlobalCapability } from './libs/admin-capabilities';
 
 /**
  * Optional capability gate for a route. Pass either a literal global
- * capability key (`admin`, `dm.message`, `system.read`) or `'guild-any'`
- * for routes that just require some guild access. The router's
+ * capability key (`admin`, `dm.message`, `system.read`), `'guild-any'`
+ * for routes that just require some guild access, or `'behavior-any'`
+ * for routes that accept any per-target behavior token. The router's
  * beforeEach checks `meta.requiresCapability` against the current
  * user's grants and bounces unauthorized callers back to the
  * dashboard.
  */
-type RouteCapability = GlobalCapability | 'guild-any';
+type RouteCapability = GlobalCapability | 'guild-any' | 'behavior-any';
 
 // Route names stay stable so programmatic `router.replace({ name: '...' })`
 // calls elsewhere keep working — only paths moved under /admin. The root
@@ -59,11 +60,10 @@ const routes: RouteRecordRaw[] = [
         path: '/admin/behaviors',
         name: 'behaviors',
         component: () => import('./views/admin/behaviors/BehaviorsPage.vue'),
-        // Either the broad admin token or the dedicated behavior.manage
-        // grant unlocks the page; per-target scoped tokens are a phase-2
-        // extension and will satisfy this guard via behavior.manage when
-        // they ship.
-        meta: { requiresAuth: true, requiresCapability: ['admin', 'behavior.manage'] satisfies RouteCapability[] }
+        // Admin / behavior.manage / any per-target token unlocks the
+        // page; the page itself filters the sidebar to the targets the
+        // current user is allowed to see.
+        meta: { requiresAuth: true, requiresCapability: ['admin', 'behavior.manage', 'behavior-any'] satisfies RouteCapability[] }
     },
     {
         path: '/admin/profile',
@@ -109,6 +109,10 @@ router.beforeEach(async (to) => {
     const satisfied = required.some((req) => {
         if (req === 'guild-any') {
             const access = accessibleGuildIds(caps);
+            return access === 'all' || access.size > 0;
+        }
+        if (req === 'behavior-any') {
+            const access = accessibleBehaviorTargetIds(caps);
             return access === 'all' || access.size > 0;
         }
         return hasAdminCapability(caps, req);
