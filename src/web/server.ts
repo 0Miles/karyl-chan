@@ -367,9 +367,10 @@ export async function createWebServer(
         return tokens;
       } catch (err) {
         // Most plausible cause is the SQLite refresh-token persistence
-        // throwing — log the full stack at error level so it shows up
-        // in `docker logs` and surface a useful (still non-secret)
-        // message to the client instead of fastify's bare 500.
+        // throwing. The full error (which can include SQL error text,
+        // file paths, or stack traces) is logged server-side; the
+        // client gets a generic message so we don't hand probers free
+        // intel on internal state.
         const detail = err instanceof Error ? err.message : String(err);
         request.log.error({ err }, "auth.exchange: issueTokens failed");
         botEventLog.record(
@@ -378,7 +379,7 @@ export async function createWebServer(
           `Token issuance failed: ${detail}`,
           { userId: claims.userId },
         );
-        reply.code(500).send({ error: `issueTokens failed: ${detail}` });
+        reply.code(500).send({ error: "Token issuance failed" });
       }
     },
   );
