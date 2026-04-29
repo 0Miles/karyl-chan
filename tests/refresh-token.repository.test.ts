@@ -5,8 +5,8 @@ vi.hoisted(() => {
 });
 
 import { sequelize } from '../src/models/db.js';
-import { RefreshToken } from '../src/models/refresh-token.model.js';
-import { sequelizeRefreshStore } from '../src/web/refresh-token.repository.js';
+import { RefreshToken } from '../src/modules/web-core/models/refresh-token.model.js';
+import { sequelizeRefreshStore } from '../src/modules/web-core/refresh-token.repository.js';
 
 beforeAll(async () => {
     await sequelize.sync({ force: true });

@@ -43,7 +43,7 @@ services:
     env_file:
       - .env
     environment:
-      # `development` here gates two behaviours in src/web/server.ts:
+      # `development` here gates two behaviours in src/modules/web-core/server.ts:
       # the BOT_OWNER_ID enforcement and the log level. Default to dev
       # so the local container can boot with BOT_OWNER_ID unset for
       # quick API poking from a sibling project.

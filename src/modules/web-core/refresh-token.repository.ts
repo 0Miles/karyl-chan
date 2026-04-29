@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { RefreshToken } from '../models/refresh-token.model.js';
+import { RefreshToken } from './models/refresh-token.model.js';
 import type { RefreshStoreAdapter } from './auth-store.service.js';
 
 export const sequelizeRefreshStore: RefreshStoreAdapter = {

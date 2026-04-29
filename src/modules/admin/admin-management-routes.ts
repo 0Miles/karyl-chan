@@ -18,15 +18,15 @@ import {
   type GlobalCapability,
 } from "./authorized-user.service.js";
 import { listAudit, recordAudit } from "./admin-audit.service.js";
-import { avatarUrlFor } from "../../web/message-mapper.js";
-import { requireCapability } from "../../web/route-guards.js";
+import { avatarUrlFor } from "../web-core/message-mapper.js";
+import { requireCapability } from "../web-core/route-guards.js";
 import {
   isBoundedString,
   isNonEmptyString,
   isSnowflake,
   ROLE_DESCRIPTION_MAX,
   USER_NOTE_MAX,
-} from "../../web/validators.js";
+} from "../web-core/validators.js";
 import { TodoChannel } from "../builtin-features/todo-channel/todo-channel.model.js";
 import { PictureOnlyChannel } from "../builtin-features/picture-only/picture-only-channel.model.js";
 import { RconForwardChannel } from "../builtin-features/rcon-forward/rcon-forward-channel.model.js";

@@ -1,5 +1,5 @@
 import type { ChatInputCommandInteraction, Message } from "discord.js";
-import { jwtService } from "../../web/jwt.service.js";
+import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "./authorized-user.service.js";
 import { botEventLog } from "../../web/bot-event-log.js";
 

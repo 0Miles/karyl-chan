@@ -7,7 +7,7 @@ vi.hoisted(() => {
 import { sequelize } from '../src/models/db.js';
 import { DmChannel } from '../src/models/dm-channel.model.js';
 import { SqliteDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
-import type { Message } from '../src/web/message-types.js';
+import type { Message } from '../src/modules/web-core/message-types.js';
 
 const RECIPIENT: DmRecipient = {
     id: '500000000000000001',

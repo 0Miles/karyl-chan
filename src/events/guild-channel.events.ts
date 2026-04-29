@@ -10,7 +10,7 @@ import {
   type User,
 } from "discord.js";
 import { guildChannelEventBus } from "../web/guild-channel-event-bus.js";
-import { toApiMessage } from "../web/message-mapper.js";
+import { toApiMessage } from "../modules/web-core/message-mapper.js";
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,

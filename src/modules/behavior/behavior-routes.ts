@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { requireCapability } from "../../web/route-guards.js";
+import { requireCapability } from "../web-core/route-guards.js";
 import {
   accessibleBehaviorTargetIds,
   hasAdminCapability,
@@ -8,12 +8,12 @@ import {
   type AdminCapability,
 } from "../admin/admin-capabilities.js";
 import { recordAudit } from "../admin/admin-audit.service.js";
-import { avatarUrlFor } from "../../web/message-mapper.js";
+import { avatarUrlFor } from "../web-core/message-mapper.js";
 import {
   isSnowflake,
   isBoundedString,
   isNonEmptyString,
-} from "../../web/validators.js";
+} from "../web-core/validators.js";
 import { decryptSecret, encryptSecret } from "../../utils/crypto.js";
 import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./dm-slash-rebind.service.js";
 import {

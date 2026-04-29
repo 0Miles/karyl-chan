@@ -38,7 +38,7 @@ import {
   SYSTEM_BEHAVIOR_KEY_LOGIN,
   SYSTEM_BEHAVIOR_KEY_MANUAL,
 } from "../models/behavior.model.js";
-import { avatarUrlFor } from "../../../web/message-mapper.js";
+import { avatarUrlFor } from "../../web-core/message-mapper.js";
 import { botEventLog } from "../../../web/bot-event-log.js";
 
 /**

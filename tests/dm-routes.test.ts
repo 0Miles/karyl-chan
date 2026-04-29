@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
-import { createWebServer } from '../src/web/server.js';
+import { createWebServer } from '../src/modules/web-core/server.js';
 import { InMemoryDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
 import { DmEventBus } from '../src/web/dm-event-bus.js';
 

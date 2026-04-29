@@ -15,8 +15,8 @@ import {
   resolveLoginRole,
   resolveUserCapabilities,
   type AdminCapability,
-} from "../modules/admin/authorized-user.service.js";
-import { RateLimiter } from "../utils/rate-limiter.js";
+} from "../admin/authorized-user.service.js";
+import { RateLimiter } from "../../utils/rate-limiter.js";
 import fastifyMultipart from "@fastify/multipart";
 
 // Per-IP throttles for the unauthenticated auth endpoints. One-time
@@ -62,28 +62,28 @@ function pathOnly(url: string): string {
 function isEventStreamPath(url: string): boolean {
   return SSE_PATHS.has(pathOnly(url));
 }
-import { registerDmRoutes } from "./dm-routes.js";
-import { registerDiscordRoutes } from "./discord-routes.js";
+import { registerDmRoutes } from "../../web/dm-routes.js";
+import { registerDiscordRoutes } from "../../web/discord-routes.js";
 import { avatarUrlFor } from "./message-mapper.js";
-import { registerGuildsRoutes } from "./guilds-routes.js";
-import { registerGuildChannelRoutes } from "./guild-channel-routes.js";
-import { registerGuildManagementRoutes } from "./guild-management-routes.js";
-import type { DmInboxStore } from "./dm-inbox.service.js";
+import { registerGuildsRoutes } from "../../web/guilds-routes.js";
+import { registerGuildChannelRoutes } from "../../web/guild-channel-routes.js";
+import { registerGuildManagementRoutes } from "../../web/guild-management-routes.js";
+import type { DmInboxStore } from "../../web/dm-inbox.service.js";
 import { registerSystemRoutes } from "./system-routes.js";
-import { registerAdminManagementRoutes } from "../modules/admin/admin-management-routes.js";
-import { registerAdminLoginStatusRoutes } from "../modules/admin/admin-login-status-routes.js";
-import { registerBotEventRoutes } from "./bot-event-routes.js";
-import { registerBehaviorRoutes } from "../modules/behavior/behavior-routes.js";
-import { registerPluginRoutes } from "../modules/plugin-system/plugin-routes.js";
-import { registerBotFeatureRoutes } from "../modules/feature-toggle/bot-feature-routes.js";
-import { registerPluginRpcRoutes } from "../modules/plugin-system/plugin-rpc-routes.js";
+import { registerAdminManagementRoutes } from "../admin/admin-management-routes.js";
+import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-routes.js";
+import { registerBotEventRoutes } from "../../web/bot-event-routes.js";
+import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
+import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
+import { registerBotFeatureRoutes } from "../feature-toggle/bot-feature-routes.js";
+import { registerPluginRpcRoutes } from "../plugin-system/plugin-rpc-routes.js";
 import {
   pluginAuthStore,
   type PluginAuthRecord,
-} from "../modules/plugin-system/plugin-auth.service.js";
+} from "../plugin-system/plugin-auth.service.js";
 import { requireAnyCapability } from "./route-guards.js";
-import { botEventLog } from "./bot-event-log.js";
-import { shouldRecord } from "./bot-event-dedup.js";
+import { botEventLog } from "../../web/bot-event-log.js";
+import { shouldRecord } from "../../web/bot-event-dedup.js";
 
 declare module "fastify" {
   interface FastifyRequest {

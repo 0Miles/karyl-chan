@@ -5,7 +5,7 @@ import {
   pluginRegistry,
 } from "./plugin-registry.service.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
-import { requireCapability } from "../../web/route-guards.js";
+import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../../web/bot-event-log.js";
 import { shouldRecord } from "../../web/bot-event-dedup.js";
 import {

@@ -6,7 +6,7 @@ import {
     isBoundedString,
     isNonEmptyString,
     isSnowflake
-} from '../src/web/validators.js';
+} from '../src/modules/web-core/validators.js';
 
 describe('isSnowflake', () => {
     it('accepts a 17-digit numeric string', () => {

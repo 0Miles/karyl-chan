@@ -11,7 +11,7 @@ import {
   guildAccessFilter,
   requireAnyGuildCapability,
   requireGuildCapability,
-} from "./route-guards.js";
+} from "../modules/web-core/route-guards.js";
 
 export interface GuildsRoutesOptions {
   bot: Client;

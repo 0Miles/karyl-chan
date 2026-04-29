@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { ChannelType } from "discord.js";
-import { requireGuildCapability } from "./route-guards.js";
-import { isSnowflake } from "./validators.js";
+import { requireGuildCapability } from "../modules/web-core/route-guards.js";
+import { isSnowflake } from "../modules/web-core/validators.js";
 import {
   type GuildManagementRoutesOptions,
   fetchTextLike,

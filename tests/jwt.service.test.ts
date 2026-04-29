@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { randomBytes } from 'crypto';
-import { JwtService, type JwtClaims } from '../src/web/jwt.service.js';
+import { JwtService, type JwtClaims } from '../src/modules/web-core/jwt.service.js';
 
 const SECRET = randomBytes(64);
 const OTHER = randomBytes(64);

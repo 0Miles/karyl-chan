@@ -1,5 +1,5 @@
 import { DmChannel } from '../models/dm-channel.model.js';
-import type { Message as ApiMessage } from './message-types.js';
+import type { Message as ApiMessage } from '../modules/web-core/message-types.js';
 
 export interface DmRecipient {
     id: string;

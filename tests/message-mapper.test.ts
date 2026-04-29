@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message as DjsMessage } from 'discord.js';
-import { avatarUrlFor, toApiMessage } from '../src/web/message-mapper.js';
+import { avatarUrlFor, toApiMessage } from '../src/modules/web-core/message-mapper.js';
 
 const USER_ID = '347738300909617152';
 const STATIC_HASH = '67ec57b40058e6c1ebce07277874edb5';

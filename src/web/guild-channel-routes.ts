@@ -2,12 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import type { Client } from "discord.js";
 import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
-import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
-import type { MessageEmoji } from './message-types.js';
-import { guildAccessFilter, requireGuildCapability } from './route-guards.js';
+import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from '../modules/web-core/message-mapper.js';
+import type { MessageEmoji } from '../modules/web-core/message-types.js';
+import { guildAccessFilter, requireGuildCapability } from '../modules/web-core/route-guards.js';
 import { hasGuildCapability } from '../modules/admin/admin-capabilities.js';
 import type { AdminCapability } from '../modules/admin/authorized-user.service.js';
-import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
+import { DISCORD_MESSAGE_MAX, isSnowflake } from '../modules/web-core/validators.js';
 
 export interface GuildChannelRoutesOptions {
     bot: Client;

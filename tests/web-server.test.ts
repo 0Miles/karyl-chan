@@ -17,9 +17,9 @@ vi.hoisted(() => {
 });
 
 import { sequelize } from "../src/models/db.js";
-import { createWebServer } from "../src/web/server.js";
-import { AuthStore } from "../src/web/auth-store.service.js";
-import { JwtService, type JwtClaims } from "../src/web/jwt.service.js";
+import { createWebServer } from "../src/modules/web-core/server.js";
+import { AuthStore } from "../src/modules/web-core/auth-store.service.js";
+import { JwtService, type JwtClaims } from "../src/modules/web-core/jwt.service.js";
 
 interface FakeBotOptions {
   ready?: boolean;

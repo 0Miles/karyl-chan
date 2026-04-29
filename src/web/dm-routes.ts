@@ -4,11 +4,11 @@ import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from
 import { ChannelType } from 'discord.js';
 import { dmInboxService, type DmChannelSummary, type DmInboxStore } from './dm-inbox.service.js';
 import { dmEventBus, type DmEventBus } from './dm-event-bus.js';
-import { avatarUrlFor, toApiMessage } from './message-mapper.js';
-import type { MessageEmoji } from './message-types.js';
-import { requireCapability } from './route-guards.js';
-import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
-import { jwtService } from './jwt.service.js';
+import { avatarUrlFor, toApiMessage } from '../modules/web-core/message-mapper.js';
+import type { MessageEmoji } from '../modules/web-core/message-types.js';
+import { requireCapability } from '../modules/web-core/route-guards.js';
+import { DISCORD_MESSAGE_MAX, isSnowflake } from '../modules/web-core/validators.js';
+import { jwtService } from '../modules/web-core/jwt.service.js';
 import { resolveLoginRole } from '../modules/admin/authorized-user.service.js';
 
 function buildBaseUrl(): string {

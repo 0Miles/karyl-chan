@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { AuditLogEvent } from "discord.js";
-import { requireGuildCapability } from "./route-guards.js";
-import { isSnowflake } from "./validators.js";
-import { avatarUrlFor } from "./message-mapper.js";
+import { requireGuildCapability } from "../modules/web-core/route-guards.js";
+import { isSnowflake } from "../modules/web-core/validators.js";
+import { avatarUrlFor } from "../modules/web-core/message-mapper.js";
 import { guildChannelEventBus } from "./guild-channel-event-bus.js";
 import { type GuildManagementRoutesOptions } from "./guild-management-shared.js";
 import { registerGuildMemberRoutes } from "./guild-member-routes.js";

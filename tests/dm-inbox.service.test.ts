@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { InMemoryDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
-import type { Message as ApiMessage } from '../src/web/message-types.js';
+import type { Message as ApiMessage } from '../src/modules/web-core/message-types.js';
 
 const RECIPIENT: DmRecipient = {
     id: 'u1',

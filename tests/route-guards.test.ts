@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AdminCapability } from '../src/modules/admin/authorized-user.service.js';
-import { requireAnyCapability, requireCapability } from '../src/web/route-guards.js';
+import { requireAnyCapability, requireCapability } from '../src/modules/web-core/route-guards.js';
 
 /**
  * Tiny fake reply object — only the surface that route-guards touches

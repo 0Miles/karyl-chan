@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { requireGuildCapability } from "./route-guards.js";
-import { isSnowflake } from "./validators.js";
+import { requireGuildCapability } from "../modules/web-core/route-guards.js";
+import { isSnowflake } from "../modules/web-core/validators.js";
 import { TodoChannel } from "../modules/builtin-features/todo-channel/todo-channel.model.js";
 import { PictureOnlyChannel } from "../modules/builtin-features/picture-only/picture-only-channel.model.js";
 import { RconForwardChannel } from "../modules/builtin-features/rcon-forward/rcon-forward-channel.model.js";

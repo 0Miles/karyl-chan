@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthStore, type RefreshStoreAdapter } from '../src/web/auth-store.service.js';
+import { AuthStore, type RefreshStoreAdapter } from '../src/modules/web-core/auth-store.service.js';
 
 describe('AuthStore', () => {
     let store: AuthStore;

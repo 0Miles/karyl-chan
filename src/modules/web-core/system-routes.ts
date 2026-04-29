@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Client } from "discord.js";
-import type { DmInboxStore } from "./dm-inbox.service.js";
-import { sequelize } from "../models/db.js";
+import type { DmInboxStore } from "../../web/dm-inbox.service.js";
+import { sequelize } from "../../models/db.js";
 import { requireCapability } from "./route-guards.js";
 
 interface SystemRoutesOptions {

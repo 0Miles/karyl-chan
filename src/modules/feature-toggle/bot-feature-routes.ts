@@ -6,7 +6,7 @@ import {
   upsertStateRow,
   type BotFeatureStateRow,
 } from "./models/bot-feature-state.model.js";
-import { requireCapability } from "../../web/route-guards.js";
+import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../../web/bot-event-log.js";
 
 /**

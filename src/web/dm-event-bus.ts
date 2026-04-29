@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { Message } from './message-types.js';
+import type { Message } from '../modules/web-core/message-types.js';
 import type { DmChannelSummary } from './dm-inbox.service.js';
 
 export type DmEvent =

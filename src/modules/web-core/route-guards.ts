@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { AdminCapability, GlobalCapability } from '../modules/admin/authorized-user.service.js';
-import { accessibleGuildIds, hasGuildCapability, type GuildScope } from '../modules/admin/admin-capabilities.js';
+import type { AdminCapability, GlobalCapability } from '../admin/authorized-user.service.js';
+import { accessibleGuildIds, hasGuildCapability, type GuildScope } from '../admin/admin-capabilities.js';
 
 /**
  * Per-route global capability gate. The global onRequest hook already
