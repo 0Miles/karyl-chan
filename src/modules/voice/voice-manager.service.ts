@@ -26,6 +26,7 @@ import {
   type AudioPlayer,
   type DiscordGatewayAdapterCreator,
 } from "@discordjs/voice";
+import { execSync } from "child_process";
 import ffmpegStatic from "ffmpeg-static";
 import prism from "prism-media";
 import { moduleLogger } from "../../logger.js";
@@ -33,18 +34,35 @@ import { moduleLogger } from "../../logger.js";
 const log = moduleLogger("voice-manager");
 
 // prism-media looks up the ffmpeg binary via the FFMPEG_PATH env or
-// PATH. Inside our docker image, ffmpeg-static is at
-// /usr/src/app/node_modules/ffmpeg-static/ffmpeg, which is NOT on
-// PATH — so without this, prism-media throws "FFmpeg/avconv not
-// found!" at first playback. Setting FFMPEG_PATH at module load is
-// the simplest fix that survives multi-instance use.
+// PATH. We prefer a system ffmpeg (apt-installed in the runtime
+// docker image) because the ffmpeg-static prebuilt binary segfaults
+// on some Debian/glibc combinations. Falls back to ffmpeg-static
+// only when neither FFMPEG_PATH nor a PATH-resolvable ffmpeg exists
+// (covers `npm run dev` on a workstation without ffmpeg installed).
 {
   // ffmpeg-static's default export is typed loosely; at runtime it is
   // a string path (the bundled binary's location) or null in
   // unsupported environments.
   const ffmpegPath = ffmpegStatic as unknown as string | null;
-  if (ffmpegPath && !process.env.FFMPEG_PATH) {
-    process.env.FFMPEG_PATH = ffmpegPath;
+  if (!process.env.FFMPEG_PATH) {
+    try {
+      // execSync throws if `which` returns non-zero (no ffmpeg). The
+      // synchronous call is fine here — runs once at module load.
+      const fromPath = execSync("command -v ffmpeg 2>/dev/null", {
+        encoding: "utf8",
+      })
+        .trim();
+      if (fromPath) {
+        // Already resolvable via PATH — leave FFMPEG_PATH unset so
+        // prism-media uses spawn('ffmpeg', ...) directly.
+      } else if (ffmpegPath) {
+        process.env.FFMPEG_PATH = ffmpegPath;
+      }
+    } catch {
+      if (ffmpegPath) {
+        process.env.FFMPEG_PATH = ffmpegPath;
+      }
+    }
   }
 }
 
@@ -85,6 +103,7 @@ export interface JoinOptions {
  */
 export async function joinVoice(opts: JoinOptions): Promise<VoiceStatus> {
   const { guildId, channelId, adapterCreator, selfDeaf, selfMute } = opts;
+  log.info({ guildId, channelId, selfDeaf, selfMute }, "joinVoice called");
   const existing = states.get(guildId);
   if (existing && existing.channelId === channelId) {
     return getStatus(guildId);
@@ -208,7 +227,13 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // prism.FFmpeg exposes the underlying child process via .process;
   // tap stderr so we capture exec-level errors too (the 'error' event
   // above only fires for transformer-level failures).
-  const child = (ffmpeg as unknown as { process?: { stderr?: { on: (e: string, cb: (b: Buffer) => void) => void } } }).process;
+  const child = (
+    ffmpeg as unknown as {
+      process?: {
+        stderr?: { on: (e: string, cb: (b: Buffer) => void) => void };
+      };
+    }
+  ).process;
   child?.stderr?.on("data", (b: Buffer) => {
     const text = b.toString("utf8").trim();
     if (text) log.warn({ url, guildId, ffmpeg: text }, "ffmpeg stderr");
@@ -216,6 +241,10 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   const resource = createAudioResource(ffmpeg, {
     inputType: StreamType.Raw,
   });
+  log.info(
+    { url, guildId, channelId: state.channelId, ffmpegPath: process.env.FFMPEG_PATH },
+    "playUrl: spawning ffmpeg + queueing resource",
+  );
   state.player.play(resource);
   state.playingUrl = url;
 
@@ -223,11 +252,13 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // failed stream is silence in the channel. We log every transition
   // (idle→buffering→playing→idle) so we can see how far the pipeline
   // got before giving up.
+  // INFO level (not debug) so it surfaces in prod where the default
+  // is LOG_LEVEL=info; this is intended audit data, not noisy debug.
   const onStateChange = (
     oldState: { status: string },
     newState: { status: string },
   ): void => {
-    log.debug(
+    log.info(
       { url, guildId, from: oldState.status, to: newState.status },
       "audio player state change",
     );

@@ -24,6 +24,15 @@ FROM node:22-trixie-slim AS runtime
 
 WORKDIR /usr/src/app
 
+# ffmpeg is required by @discordjs/voice for audio decoding. The
+# ffmpeg-static npm binary segfaults on this Debian Trixie base
+# (glibc / linker mismatch with the prebuilt static binary), so we
+# install the apt package and let prism-media discover it via PATH.
+# --no-install-recommends keeps the image slim (~80MB vs 200MB).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production \
     SQLITE_DB_PATH=/usr/src/app/data/database.sqlite \
     WEB_PORT=3000
