@@ -632,6 +632,7 @@ export function registerRoleEmojiCommands(): void {
       ],
     },
     scope: "guild",
+    featureKey: "role-emoji",
     handler: async (interaction) => {
       const group = interaction.options.getSubcommandGroup(false);
       const sub = interaction.options.getSubcommand();

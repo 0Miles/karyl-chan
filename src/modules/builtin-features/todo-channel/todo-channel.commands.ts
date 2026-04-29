@@ -139,6 +139,7 @@ export function registerTodoChannelCommands(): void {
       ],
     },
     scope: "guild",
+    featureKey: "todo",
     handler: async (interaction) => {
       const sub = interaction.options.getSubcommand();
       if (sub === "watch") return watchChannel(interaction);

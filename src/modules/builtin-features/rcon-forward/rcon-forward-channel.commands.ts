@@ -297,6 +297,7 @@ export function registerRconForwardChannelCommands(): void {
       ],
     },
     scope: "guild",
+    featureKey: "rcon",
     handler: async (interaction) => {
       const sub = interaction.options.getSubcommand();
       if (sub === "watch") return watchChannel(interaction);

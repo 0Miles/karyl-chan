@@ -44,6 +44,14 @@ interface CommandSpec {
   scope: "global" | "guild";
   /** Routed when the chat-input command fires. */
   handler: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /**
+   * Built-in feature key that owns this command (e.g. "voice",
+   * "picture-only"). When set, the command is registered per-guild
+   * conditionally on the matching bot-feature-state row — disabling
+   * the feature in a guild deletes the slash from that guild only.
+   * Unset = legacy "always register everywhere" behaviour.
+   */
+  featureKey?: string;
 }
 
 interface ModalEntry {
@@ -137,6 +145,86 @@ export async function syncInProcessCommandsForGuild(
   }
   if (guildSpecs.length === 0) return;
   await syncGuildSpecsForGuild(guild, guildSpecs);
+}
+
+/**
+ * Toggle a built-in feature's slash command(s) on/off for a single
+ * guild. Called by the admin /api/bot-features/state PUT handler so
+ * disabling a feature in a guild also removes its slash from that
+ * guild's command picker (instead of leaving an active command that
+ * silently no-ops).
+ *
+ * `enabled === true`  → guild.commands.create for every CommandSpec
+ *                       whose featureKey matches.
+ * `enabled === false` → fetch the guild's command list, delete any
+ *                       whose name matches one of those specs.
+ */
+export async function applyFeatureGuildToggle(
+  bot: Client,
+  featureKey: string,
+  guildId: string,
+  enabled: boolean,
+): Promise<void> {
+  const guild = bot.guilds.cache.get(guildId);
+  if (!guild) {
+    botEventLog.record(
+      "warn",
+      "bot",
+      `applyFeatureGuildToggle: guild ${guildId} not in cache`,
+      { featureKey, guildId },
+    );
+    return;
+  }
+  const matching = [...commands.values()].filter(
+    (s) => s.featureKey === featureKey,
+  );
+  if (matching.length === 0) return;
+  if (enabled) {
+    for (const spec of matching) {
+      try {
+        await guild.commands.create(spec.data);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        botEventLog.record(
+          "warn",
+          "bot",
+          `applyFeatureGuildToggle: register '${spec.data.name}' in ${guildId} failed: ${msg}`,
+          { featureKey, guildId, command: spec.data.name },
+        );
+      }
+    }
+    return;
+  }
+  // Disable path — delete by name. Fetch live so we get accurate ids
+  // even if our in-memory map is stale.
+  let live;
+  try {
+    live = await guild.commands.fetch();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    botEventLog.record(
+      "warn",
+      "bot",
+      `applyFeatureGuildToggle: fetch commands ${guildId} failed: ${msg}`,
+      { featureKey, guildId },
+    );
+    return;
+  }
+  const targetNames = new Set(matching.map((s) => s.data.name));
+  for (const cmd of live.values()) {
+    if (!targetNames.has(cmd.name)) continue;
+    try {
+      await cmd.delete();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      botEventLog.record(
+        "warn",
+        "bot",
+        `applyFeatureGuildToggle: delete '${cmd.name}' in ${guildId} failed: ${msg}`,
+        { featureKey, guildId, command: cmd.name },
+      );
+    }
+  }
 }
 
 async function syncGuildSpecsForGuild(

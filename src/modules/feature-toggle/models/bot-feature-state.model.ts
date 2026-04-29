@@ -56,6 +56,7 @@ export const BUILTIN_FEATURE_KEYS = [
   "picture-only",
   "role-emoji",
   "rcon",
+  "voice",
 ] as const;
 export type BuiltinFeatureKey = (typeof BUILTIN_FEATURE_KEYS)[number];
 

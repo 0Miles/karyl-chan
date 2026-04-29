@@ -111,6 +111,7 @@ export function registerPictureOnlyChannelCommands(): void {
       ],
     },
     scope: "guild",
+    featureKey: "picture-only",
     handler: async (interaction) => {
       const sub = interaction.options.getSubcommand();
       if (sub === "watch") {

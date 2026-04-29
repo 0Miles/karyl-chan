@@ -24,7 +24,9 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
  */
 export async function registerBotFeatureRoutes(
   server: FastifyInstance,
+  options: { bot?: import("discord.js").Client } = {},
 ): Promise<void> {
+  const bot = options.bot;
   server.get("/api/bot-features/state", async (request, reply) => {
     if (!requireCapability(request, reply, "admin")) return;
     const rows = await findAllStateRows();
@@ -90,6 +92,35 @@ export async function registerBotFeatureRoutes(
           ? body.guildId
           : null;
     const row = await upsertStateRow(guildId, featureKey, body.enabled);
+    // Concrete-guild toggle: also (un)register the feature's slash
+    // command in that guild so the command picker stays consistent
+    // with the toggle. Default-state changes (guildId === null) only
+    // touch the precedence row — they don't immediately push to any
+    // specific guild's command list.
+    if (row.guildId && bot) {
+      try {
+        const { applyFeatureGuildToggle } = await import(
+          "../builtin-features/in-process-command-registry.service.js"
+        );
+        await applyFeatureGuildToggle(
+          bot,
+          featureKey,
+          row.guildId,
+          row.enabled,
+        );
+      } catch (err) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `built-in feature '${featureKey}' guild toggle sync failed`,
+          {
+            featureKey,
+            guildId: row.guildId,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
+      }
+    }
     botEventLog.record(
       "info",
       "bot",

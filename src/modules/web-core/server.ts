@@ -584,7 +584,7 @@ export async function createWebServer(
   await registerPluginRoutes(server, { bot });
   await registerPluginRpcRoutes(server, { bot });
   await registerVoiceRpcRoutes(server, { bot });
-  await registerBotFeatureRoutes(server);
+  await registerBotFeatureRoutes(server, { bot });
 
   if (bot) {
     server.get("/api/bot/status", async (request, reply) => {

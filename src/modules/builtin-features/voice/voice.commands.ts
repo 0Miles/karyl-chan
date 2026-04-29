@@ -5,15 +5,15 @@ import {
   type ChatInputCommandInteraction,
   type GuildMember,
 } from "discord.js";
-import { registerInProcessCommand } from "../builtin-features/in-process-command-registry.service.js";
+import { registerInProcessCommand } from "../in-process-command-registry.service.js";
 import {
   joinVoice,
   leaveVoice,
   playUrl,
   stopPlayback,
   getStatus,
-} from "./voice-manager.service.js";
-import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../utils/constant.js";
+} from "../../voice/voice-manager.service.js";
+import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 function ephemeralReplyError(
   command: ChatInputCommandInteraction,
@@ -191,6 +191,7 @@ export function registerVoiceCommands(): void {
       ],
     },
     scope: "guild",
+    featureKey: "voice",
     handler: async (interaction) => {
       const sub = interaction.options.getSubcommand();
       if (sub === "join") return handleJoin(interaction);
