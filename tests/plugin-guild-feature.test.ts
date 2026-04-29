@@ -108,12 +108,7 @@ describe("plugin-guild-feature model", () => {
       enabled: true,
       configJson: '{"k":"v"}',
     });
-    const updated = await updateMetricsJson(
-      1,
-      "g1",
-      "f",
-      '{"counter":42}',
-    );
+    const updated = await updateMetricsJson(1, "g1", "f", '{"counter":42}');
     expect(updated?.metricsJson).toBe('{"counter":42}');
     expect(updated?.configJson).toBe('{"k":"v"}');
     expect(updated?.enabled).toBe(true);
