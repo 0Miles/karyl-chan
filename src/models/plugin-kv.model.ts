@@ -141,40 +141,40 @@ export const incrementKv = async (
   return sequelize.transaction(
     { type: Transaction.TYPES.IMMEDIATE },
     async (tx) => {
-    const existing = await PluginKv.findOne({
-      where: { pluginId, guildId, key },
-      transaction: tx,
-    });
-    let next: number;
-    if (existing) {
-      const cur = existing.getDataValue("value") as string;
-      const parsed = Number.parseFloat(cur);
-      if (!Number.isFinite(parsed)) {
-        throw new Error(
-          `kv_increment: existing value at key '${key}' is not a finite number`,
+      const existing = await PluginKv.findOne({
+        where: { pluginId, guildId, key },
+        transaction: tx,
+      });
+      let next: number;
+      if (existing) {
+        const cur = existing.getDataValue("value") as string;
+        const parsed = Number.parseFloat(cur);
+        if (!Number.isFinite(parsed)) {
+          throw new Error(
+            `kv_increment: existing value at key '${key}' is not a finite number`,
+          );
+        }
+        next = parsed + delta;
+        const valueStr = String(next);
+        await existing.update(
+          { value: valueStr, bytes: Buffer.byteLength(valueStr, "utf8") },
+          { transaction: tx },
         );
+        return { row: rowOf(existing), value: next };
       }
-      next = parsed + delta;
+      next = delta;
       const valueStr = String(next);
-      await existing.update(
-        { value: valueStr, bytes: Buffer.byteLength(valueStr, "utf8") },
+      const created = await PluginKv.create(
+        {
+          pluginId,
+          guildId,
+          key,
+          value: valueStr,
+          bytes: Buffer.byteLength(valueStr, "utf8"),
+        },
         { transaction: tx },
       );
-      return { row: rowOf(existing), value: next };
-    }
-    next = delta;
-    const valueStr = String(next);
-    const created = await PluginKv.create(
-      {
-        pluginId,
-        guildId,
-        key,
-        value: valueStr,
-        bytes: Buffer.byteLength(valueStr, "utf8"),
-      },
-      { transaction: tx },
-    );
-    return { row: rowOf(created), value: next };
+      return { row: rowOf(created), value: next };
     },
   );
 };
