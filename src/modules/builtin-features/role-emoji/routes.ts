@@ -1,170 +1,22 @@
 import type { FastifyInstance } from "fastify";
-import { requireGuildCapability } from "../modules/web-core/route-guards.js";
-import { isSnowflake } from "../modules/web-core/validators.js";
-import { TodoChannel } from "../modules/builtin-features/todo-channel/todo-channel.model.js";
-import { PictureOnlyChannel } from "../modules/builtin-features/picture-only/picture-only-channel.model.js";
-import { RconForwardChannel } from "../modules/builtin-features/rcon-forward/rcon-forward-channel.model.js";
-import { RoleEmoji, addRoleEmoji } from "../modules/builtin-features/role-emoji/role-emoji.model.js";
-import { RoleEmojiGroup } from "../modules/builtin-features/role-emoji/role-emoji-group.model.js";
-import { RoleReceiveMessage } from "../modules/builtin-features/role-emoji/role-receive-message.model.js";
+import { requireGuildCapability } from "../../web-core/route-guards.js";
+import { isSnowflake } from "../../web-core/validators.js";
 import {
-  type GuildManagementRoutesOptions,
-  EMOJI_REGEX,
-  validateGroupId,
-} from "./guild-management-shared.js";
+  RoleEmoji,
+  addRoleEmoji,
+} from "./role-emoji.model.js";
+import { RoleEmojiGroup } from "./role-emoji-group.model.js";
+import { RoleReceiveMessage } from "./role-receive-message.model.js";
+import { EMOJI_REGEX, validateGroupId } from "./role-emoji-helpers.js";
+import type { GuildManagementRoutesOptions } from "../../../web/guild-management-shared.js";
 
-export async function registerGuildBotFeatureRoutes(
+export async function registerRoleEmojiRoutes(
   server: FastifyInstance,
-  options: GuildManagementRoutesOptions,
+  _options: GuildManagementRoutesOptions,
 ): Promise<void> {
-  // ── Bot-feature CRUD ───────────────────────────────────────────────
+  // Role-emoji groups ---------------------------------------------------
   //
-  // Mirrors the slash commands (todo-channel, picture-only, rcon, role-emoji,
-  // role-receive, capability grants) so admins can manage these from the
-  // web panel without dropping into Discord. The data lives in our local
-  // SQL models — Discord.js is only used for cosmetic name lookups.
-
-  // Todo channels ─────────────────────────────────────────────────────
-  server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
-    "/api/guilds/:guildId/feature/todo-channels",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId } = request.params;
-      const channelId = request.body?.channelId;
-      if (typeof channelId !== "string" || !isSnowflake(channelId)) {
-        reply.code(400).send({ error: "channelId required" });
-        return;
-      }
-      await TodoChannel.upsert({ channelId, guildId });
-      reply.code(204).send();
-    },
-  );
-  server.delete<{ Params: { guildId: string; channelId: string } }>(
-    "/api/guilds/:guildId/feature/todo-channels/:channelId",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId, channelId } = request.params;
-      await TodoChannel.destroy({ where: { guildId, channelId } });
-      reply.code(204).send();
-    },
-  );
-
-  // Picture-only channels ─────────────────────────────────────────────
-  server.post<{ Params: { guildId: string }; Body: { channelId?: unknown } }>(
-    "/api/guilds/:guildId/feature/picture-only-channels",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId } = request.params;
-      const channelId = request.body?.channelId;
-      if (typeof channelId !== "string" || !isSnowflake(channelId)) {
-        reply.code(400).send({ error: "channelId required" });
-        return;
-      }
-      await PictureOnlyChannel.upsert({ channelId, guildId });
-      reply.code(204).send();
-    },
-  );
-  server.delete<{ Params: { guildId: string; channelId: string } }>(
-    "/api/guilds/:guildId/feature/picture-only-channels/:channelId",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId, channelId } = request.params;
-      await PictureOnlyChannel.destroy({ where: { guildId, channelId } });
-      reply.code(204).send();
-    },
-  );
-
-  // RCON forward channels ─────────────────────────────────────────────
-  server.post<{
-    Params: { guildId: string };
-    Body: {
-      channelId?: unknown;
-      host?: unknown;
-      port?: unknown;
-      password?: unknown;
-      commandPrefix?: unknown;
-      triggerPrefix?: unknown;
-    };
-  }>("/api/guilds/:guildId/feature/rcon-channels", async (request, reply) => {
-    if (
-      !requireGuildCapability(request, reply, request.params.guildId, "manage")
-    )
-      return;
-    const { guildId } = request.params;
-    const b = request.body ?? {};
-    if (typeof b.channelId !== "string" || !isSnowflake(b.channelId)) {
-      reply.code(400).send({ error: "channelId required" });
-      return;
-    }
-    await RconForwardChannel.upsert({
-      channelId: b.channelId,
-      guildId,
-      host: typeof b.host === "string" ? b.host : null,
-      port:
-        typeof b.port === "number" && Number.isFinite(b.port)
-          ? Math.floor(b.port)
-          : null,
-      password: typeof b.password === "string" ? b.password : null,
-      commandPrefix:
-        typeof b.commandPrefix === "string" ? b.commandPrefix : null,
-      triggerPrefix:
-        typeof b.triggerPrefix === "string" ? b.triggerPrefix : null,
-    });
-    reply.code(204).send();
-  });
-  server.delete<{ Params: { guildId: string; channelId: string } }>(
-    "/api/guilds/:guildId/feature/rcon-channels/:channelId",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId, channelId } = request.params;
-      await RconForwardChannel.destroy({ where: { guildId, channelId } });
-      reply.code(204).send();
-    },
-  );
-
-  // Role-emoji groups ─────────────────────────────────────────────────
-  //
-  // Groups bucket emoji→role mappings; one guild can have many. A
+  // Groups bucket emoji->role mappings; one guild can have many. A
   // watched message can pin one or more groups (see the junction
   // routes below) so the same physical emoji can grant different
   // roles depending on which message it's reacted to.
@@ -215,7 +67,7 @@ export async function registerGuildBotFeatureRoutes(
         return;
       }
       // RoleEmojiGroup is the source of truth for "does this
-      // group belong to this guild" — the where clause rejects
+      // group belong to this guild" -- the where clause rejects
       // ids from another guild before we cascade.
       const deleted = await RoleEmojiGroup.destroy({
         where: { guildId, id: groupId },
@@ -228,7 +80,7 @@ export async function registerGuildBotFeatureRoutes(
     },
   );
 
-  // Role-emoji mapping ────────────────────────────────────────────────
+  // Role-emoji mapping --------------------------------------------------
   //
   // The `emoji` body parses with the same regex the slash command uses,
   // so the call site can pass a raw emoji literal (`👍` or `<:foo:123>`)
@@ -258,7 +110,7 @@ export async function registerGuildBotFeatureRoutes(
       reply.code(400).send({ error: "emoji required" });
       return;
     }
-    // Reject mappings against a group from another guild — the
+    // Reject mappings against a group from another guild -- the
     // (groupId, emojiId, emojiChar) PK doesn't carry guildId so
     // we have to check ownership ourselves.
     const owning = await RoleEmojiGroup.findOne({
@@ -316,7 +168,7 @@ export async function registerGuildBotFeatureRoutes(
     reply.code(204).send();
   });
 
-  // Role-receive messages ─────────────────────────────────────────────
+  // Role-receive messages -----------------------------------------------
   server.post<{
     Params: { guildId: string };
     Body: { channelId?: unknown; messageId?: unknown; groupId?: unknown };

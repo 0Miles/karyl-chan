@@ -11,7 +11,10 @@ import { registerGuildRoleRoutes } from "./guild-role-routes.js";
 import { registerGuildSettingsRoutes } from "./guild-settings-routes.js";
 import { registerGuildAutomodRoutes } from "./guild-automod-routes.js";
 import { registerGuildChannelMgmtRoutes } from "./guild-channel-mgmt-routes.js";
-import { registerGuildBotFeatureRoutes } from "./guild-bot-feature-routes.js";
+import { registerTodoChannelRoutes } from "../modules/builtin-features/todo-channel/routes.js";
+import { registerPictureOnlyChannelRoutes } from "../modules/builtin-features/picture-only/routes.js";
+import { registerRconForwardChannelRoutes } from "../modules/builtin-features/rcon-forward/routes.js";
+import { registerRoleEmojiRoutes } from "../modules/builtin-features/role-emoji/routes.js";
 
 export type { GuildManagementRoutesOptions };
 
@@ -39,7 +42,10 @@ export async function registerGuildManagementRoutes(
   await registerGuildSettingsRoutes(server, options);
   await registerGuildAutomodRoutes(server, options);
   await registerGuildChannelMgmtRoutes(server, options, events);
-  await registerGuildBotFeatureRoutes(server, options);
+  await registerTodoChannelRoutes(server, options);
+  await registerPictureOnlyChannelRoutes(server, options);
+  await registerRconForwardChannelRoutes(server, options);
+  await registerRoleEmojiRoutes(server, options);
 
   // ── Audit log ──────────────────────────────────────────────────────
 
