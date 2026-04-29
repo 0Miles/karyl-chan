@@ -10,6 +10,13 @@ export const PluginCommand = sequelize.define(
     guildId: { type: DataTypes.STRING, allowNull: true },
     name: { type: DataTypes.STRING, allowNull: false },
     discordCommandId: { type: DataTypes.STRING, allowNull: true },
+    /**
+     * NULL = top-level `manifest.commands[]` row (truly global).
+     * non-NULL = declared under `manifest.guild_features[<key>].commands[]`,
+     * gated by the per-guild feature toggle. Reconcile uses this to
+     * decide which rows correspond to which feature when a toggle flips.
+     */
+    featureKey: { type: DataTypes.STRING, allowNull: true },
     manifestJson: { type: DataTypes.TEXT, allowNull: false },
   },
   {
@@ -24,6 +31,7 @@ export interface PluginCommandRow {
   guildId: string | null;
   name: string;
   discordCommandId: string | null;
+  featureKey: string | null;
   manifestJson: string;
 }
 
@@ -35,6 +43,7 @@ function rowOf(model: InstanceType<typeof PluginCommand>): PluginCommandRow {
     name: model.getDataValue("name") as string,
     discordCommandId:
       (model.getDataValue("discordCommandId") as string | null) ?? null,
+    featureKey: (model.getDataValue("featureKey") as string | null) ?? null,
     manifestJson: model.getDataValue("manifestJson") as string,
   };
 }
@@ -103,6 +112,7 @@ export interface UpsertPluginCommandInput {
   guildId: string | null;
   name: string;
   discordCommandId: string | null;
+  featureKey?: string | null;
   manifestJson: string;
 }
 
@@ -119,6 +129,7 @@ export const upsertPluginCommand = async (
   if (existing) {
     await existing.update({
       discordCommandId: input.discordCommandId,
+      featureKey: input.featureKey ?? null,
       manifestJson: input.manifestJson,
     });
     return rowOf(existing);
@@ -128,9 +139,26 @@ export const upsertPluginCommand = async (
     guildId: input.guildId,
     name: input.name,
     discordCommandId: input.discordCommandId,
+    featureKey: input.featureKey ?? null,
     manifestJson: input.manifestJson,
   });
   return rowOf(created);
+};
+
+export const findPluginCommandsByFeature = async (
+  pluginId: number,
+  featureKey: string,
+): Promise<PluginCommandRow[]> => {
+  const rows = await PluginCommand.findAll({
+    where: { pluginId, featureKey },
+  });
+  return rows.map(rowOf);
+};
+
+export const deletePluginCommandRow = async (
+  rowId: number,
+): Promise<void> => {
+  await PluginCommand.destroy({ where: { id: rowId } });
 };
 
 export const deletePluginCommandsByPlugin = async (

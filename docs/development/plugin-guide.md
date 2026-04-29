@@ -228,6 +228,13 @@ DM bot 隨意打字 → 看到 `收到\n<原文>` 回覆 = 端對端通。
       ],
       "overview_metrics": [       // plugin 推送的 counters(Phase 3)
         { "key": "blocked_today", "label": "今日攔截", "type": "counter" }
+      ],
+      "commands": [               // 0..N — 此 feature 的 guild-scoped 指令
+        {                         //   per-guild 註冊;feature 在某 guild
+          "name": "warn",         //   被 toggle 關掉時,Discord 端會把
+          "description": "...",   //   command 從該 guild 刪除,user 看不到
+          "options": [...]
+        }
       ]
     }
   ],
@@ -242,18 +249,22 @@ DM bot 隨意打字 → 看到 `收到\n<原文>` 回覆 = 端對端通。
     }
   ],
 
-  "commands": [                   // 0..N。Discord application command schema
-    {
-      "name": "ping",             // ^[a-z0-9][a-z0-9-]{0,31}$
-      "description": "...",       // 必填
-      "scope": "global",          // Phase 1.5 一律當 global 處理
-      "default_member_permissions": "MANAGE_CHANNELS",  // 暫未串到 Discord(Phase 2 補)
-      "default_ephemeral": true,                         // bot defer 時用
-      "required_capability": "myplugin.manage",          // 若設,bot 在 dispatch 前驗 admin capability(暫未 enforce)
-      "dm_permission": false,
+  "commands": [                   // 0..N。**頂層 commands = 真正的全域指令**
+    {                             // 永遠以 application-global 註冊,
+      "name": "ping",             // 跨 DM + 所有 guild 都看得到。
+      "description": "...",       // 不被任何 per-guild feature toggle 影響;
+      "default_ephemeral": true,  // 只跟 plugin 整體 enabled flag 連動。
+      "contexts": ["Guild", "BotDM", "PrivateChannel"],
+      "integration_types": ["guild_install", "user_install"],
+      "default_member_permissions": "MANAGE_GUILD",
       "options": [...]            // Discord option 樹,見下節
     }
   ],
+  // 🔑 對比:
+  //   manifest.commands[]                       → 全域指令(/account /relay)
+  //   manifest.guild_features[].commands[]     → guild feature 指令
+  //                                              per-guild 註冊,toggle 直接控制可見性
+  // 同一份 manifest 內所有指令名稱必須唯一(不分階層)。
 
   "events_subscribed_global": [], // 不綁特定 feature 的 plugin-level event 訂閱(rare)
 

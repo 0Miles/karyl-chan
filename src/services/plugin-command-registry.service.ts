@@ -10,12 +10,15 @@ import {
   type ChannelType,
 } from "discord.js";
 import {
+  deletePluginCommandRow,
   deletePluginCommandsByPlugin,
   findCommandCollisions,
+  findPluginCommandsByFeature,
   findPluginCommandsByPlugin,
   upsertPluginCommand,
   type PluginCommandRow,
 } from "../models/plugin-command.model.js";
+import { findFeatureRowsByPlugin } from "../models/plugin-guild-feature.model.js";
 import { findAllPlugins, type PluginRow } from "../models/plugin.model.js";
 import { botEventLog } from "../web/bot-event-log.js";
 import type {
@@ -321,11 +324,17 @@ export class PluginCommandRegistry {
       );
       return;
     }
-    const declared = manifest.commands ?? [];
+    const globalCommands = manifest.commands ?? [];
     const existing = await findPluginCommandsByPlugin(plugin.id);
-    const existingByName = new Map(existing.map((r) => [r.name, r]));
+    // Two halves of `existing` to reconcile separately:
+    //   - global rows (featureKey null, guildId null)
+    //   - feature rows (featureKey non-null, guildId per-guild)
+    // Track each row so anything not re-registered this pass becomes
+    // stale and gets cleaned at the end.
+    const stale = new Map(existing.map((r) => [r.id, r]));
 
-    for (const cmd of declared) {
+    // ── Top-level (truly global) commands ────────────────────────
+    for (const cmd of globalCommands) {
       let data: ApplicationCommandData;
       try {
         data = manifestToApplicationCommand(cmd);
@@ -340,21 +349,16 @@ export class PluginCommandRegistry {
         continue;
       }
       try {
-        // Phase 1.5: register every plugin command globally regardless
-        // of cmd.scope. global commands are available in every guild
-        // automatically, simpler than fanning out per-guild creates
-        // and dealing with cache lag. cmd.scope='guild' is honored in
-        // a future iteration when we have per-feature-per-guild
-        // wiring.
         const created = await bot.application.commands.create(data);
-        await upsertPluginCommand({
+        const upserted = await upsertPluginCommand({
           pluginId: plugin.id,
           guildId: null,
           name: cmd.name,
           discordCommandId: created.id,
+          featureKey: null,
           manifestJson: JSON.stringify(cmd),
         });
-        existingByName.delete(cmd.name);
+        stale.delete(upserted.id);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         botEventLog.record(
@@ -365,11 +369,146 @@ export class PluginCommandRegistry {
         );
       }
     }
-    // Anything left in existingByName was registered last time but is
-    // gone from the manifest now — delete from Discord and from our
-    // table.
-    for (const stale of existingByName.values()) {
-      await this.deleteOne(stale);
+
+    // ── Per-feature commands ─────────────────────────────────────
+    // For each feature with declared commands, find which guilds have
+    // that feature enabled (per plugin_guild_features), then register
+    // the feature's commands into those guilds. Disabled-by-default +
+    // no row = NOT enabled (stricter than "no row → fall through to
+    // manifest default" because feature commands ride along with the
+    // user's explicit on/off state — no row means the operator hasn't
+    // chosen, default to OFF for command visibility).
+    const featureRows = await findFeatureRowsByPlugin(plugin.id);
+    const enabledByFeature = new Map<string, string[]>();
+    for (const r of featureRows) {
+      if (!r.enabled) continue;
+      const list = enabledByFeature.get(r.featureKey) ?? [];
+      list.push(r.guildId);
+      enabledByFeature.set(r.featureKey, list);
+    }
+    for (const feature of manifest.guild_features ?? []) {
+      const cmds = feature.commands ?? [];
+      if (cmds.length === 0) continue;
+      const enabledGuilds = enabledByFeature.get(feature.key) ?? [];
+      for (const cmd of cmds) {
+        const stalesForCmd = [...stale.values()].filter(
+          (r) => r.featureKey === feature.key && r.name === cmd.name,
+        );
+        for (const guildId of enabledGuilds) {
+          const upsertResult = await this.registerFeatureCommandInGuild(
+            plugin,
+            feature.key,
+            guildId,
+            cmd,
+          );
+          if (upsertResult) stale.delete(upsertResult.id);
+        }
+        // Stales for this (feature, name) pair: rows that exist but
+        // the feature is no longer enabled in that guild — delete
+        // (loop above only marks-not-stale guilds where feature is
+        // currently enabled).
+        void stalesForCmd; // walked into the final stale-cleanup
+      }
+    }
+
+    // ── Cleanup: anything left in `stale` is a row that did not get
+    // re-confirmed this pass (manifest dropped the command, feature
+    // got disabled in that guild, etc.). Delete from Discord + DB.
+    for (const r of stale.values()) {
+      await this.deleteOne(r);
+    }
+  }
+
+  /**
+   * Register one feature command in one guild. Used by both `sync`
+   * (initial walk) and the per-guild toggle hook (when admin flips a
+   * feature on for a guild). Idempotent — discord.js create is upsert.
+   */
+  async registerFeatureCommandInGuild(
+    plugin: PluginRow,
+    featureKey: string,
+    guildId: string,
+    cmd: ManifestCommand,
+  ): Promise<PluginCommandRow | null> {
+    const bot = this.getBot();
+    if (!bot) return null;
+    const guild = bot.guilds.cache.get(guildId);
+    if (!guild) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin-commands: bot not in guild ${guildId}, skipping ${plugin.pluginKey}/${featureKey}/${cmd.name}`,
+      );
+      return null;
+    }
+    let data: ApplicationCommandData;
+    try {
+      data = manifestToApplicationCommand(cmd);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin-commands: '${plugin.pluginKey}/${featureKey}/${cmd.name}' invalid: ${msg}`,
+        { pluginId: plugin.id, featureKey, cmd: cmd.name },
+      );
+      return null;
+    }
+    try {
+      const created = await guild.commands.create(data);
+      return upsertPluginCommand({
+        pluginId: plugin.id,
+        guildId,
+        name: cmd.name,
+        discordCommandId: created.id,
+        featureKey,
+        manifestJson: JSON.stringify(cmd),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin-commands: Discord create (guild ${guildId}) failed for '${plugin.pluginKey}/${featureKey}/${cmd.name}': ${msg}`,
+        { pluginId: plugin.id, featureKey, guildId, cmd: cmd.name },
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Hook for the per-guild feature toggle. Called when admin flips
+   * `plugin_guild_features.enabled` for a (pluginId, guildId,
+   * featureKey) — pushes the corresponding feature commands to (or
+   * deletes them from) that guild's Discord application command list.
+   */
+  async syncFeatureCommandsForGuild(
+    plugin: PluginRow,
+    featureKey: string,
+    guildId: string,
+    enabled: boolean,
+    manifest: PluginManifest,
+  ): Promise<void> {
+    const feature = manifest.guild_features?.find((f) => f.key === featureKey);
+    const cmds = feature?.commands ?? [];
+    if (cmds.length === 0) return;
+    if (enabled) {
+      for (const cmd of cmds) {
+        await this.registerFeatureCommandInGuild(
+          plugin,
+          featureKey,
+          guildId,
+          cmd,
+        );
+      }
+    } else {
+      // Find every row we registered for (plugin, feature) that lives
+      // in this guild and delete it. Rows for other guilds keep their
+      // state; we only care about this single guild's worth.
+      const rows = await findPluginCommandsByFeature(plugin.id, featureKey);
+      for (const r of rows) {
+        if (r.guildId === guildId) await this.deleteOne(r);
+      }
     }
   }
 
@@ -382,6 +521,9 @@ export class PluginCommandRegistry {
     for (const r of rows) {
       await this.deleteOne(r);
     }
+    // Belt-and-braces: deleteOne removes each row individually, but if
+    // any row was missing a discordCommandId and we early-returned
+    // halfway, the DB might still have ghosts. Sweep the table.
     await deletePluginCommandsByPlugin(pluginId);
   }
 
@@ -415,26 +557,30 @@ export class PluginCommandRegistry {
 
   private async deleteOne(row: PluginCommandRow): Promise<void> {
     const bot = this.getBot();
-    if (!bot || !bot.application) return;
-    if (!row.discordCommandId) return;
-    try {
-      if (row.guildId) {
-        const guild = bot.guilds.cache.get(row.guildId);
-        if (guild) await guild.commands.delete(row.discordCommandId);
-      } else {
-        await bot.application.commands.delete(row.discordCommandId);
+    if (bot && bot.application && row.discordCommandId) {
+      try {
+        if (row.guildId) {
+          const guild = bot.guilds.cache.get(row.guildId);
+          if (guild) await guild.commands.delete(row.discordCommandId);
+        } else {
+          await bot.application.commands.delete(row.discordCommandId);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // 404 is fine (command already gone); other errors get logged
+        // but don't throw — we still want to drop the DB row.
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin-commands: Discord delete '${row.name}' failed: ${msg}`,
+          { pluginId: row.pluginId, cmd: row.name },
+        );
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // 404 is fine (command already gone); other errors get logged
-      // but don't throw — we still want to drop the DB row.
-      botEventLog.record(
-        "warn",
-        "bot",
-        `plugin-commands: Discord delete '${row.name}' failed: ${msg}`,
-        { pluginId: row.pluginId, cmd: row.name },
-      );
     }
+    // Always drop the DB row so the next reconcile doesn't re-walk
+    // a stale entry. (deleteOne is also called from cleanup paths
+    // where the Discord side may already be gone.)
+    await deletePluginCommandRow(row.id);
   }
 }
 

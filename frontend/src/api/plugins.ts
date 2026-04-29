@@ -46,6 +46,15 @@ export interface PluginManifest {
     description?: string;
     events_subscribed?: string[];
     surfaces?: string[];
+    /**
+     * Slash commands declared inside this feature, registered per-
+     * guild and gated by the per-guild feature toggle.
+     */
+    commands?: Array<{
+      name: string;
+      description: string;
+      scope?: "guild" | "global";
+    }>;
   }>;
   dm_behaviors?: Array<{
     key: string;

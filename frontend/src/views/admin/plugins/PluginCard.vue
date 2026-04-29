@@ -122,7 +122,16 @@ const lastHeartbeat = computed(() => {
 
 const dmBehaviorCount = computed(() => props.plugin.manifest?.dm_behaviors?.length ?? 0);
 const guildFeatureCount = computed(() => props.plugin.manifest?.guild_features?.length ?? 0);
-const commandCount = computed(() => props.plugin.manifest?.commands?.length ?? 0);
+// Top-level (truly global) commands and per-feature commands count
+// separately — they have different runtime gating semantics, so the
+// admin UI surfaces both.
+const globalCommandCount = computed(() => props.plugin.manifest?.commands?.length ?? 0);
+const featureCommandCount = computed(() =>
+    (props.plugin.manifest?.guild_features ?? []).reduce(
+        (n, f) => n + (f.commands?.length ?? 0), 0
+    )
+);
+const commandCount = computed(() => globalCommandCount.value + featureCommandCount.value);
 const rpcScopes = computed(() => props.plugin.manifest?.rpc_methods_used ?? []);
 const description = computed(() => props.plugin.manifest?.plugin.description ?? '');
 

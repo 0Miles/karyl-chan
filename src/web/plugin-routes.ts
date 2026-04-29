@@ -377,6 +377,32 @@ export async function registerPluginRoutes(
         enabled,
         configJson,
       });
+      // If the admin flipped enabled, sync the feature's guild-scoped
+      // commands accordingly: enabled → register them in this guild;
+      // disabled → delete them. Idempotent for "config-only" patches
+      // (enabled === undefined) where no toggle change happened.
+      if (enabled !== undefined) {
+        const { pluginCommandRegistry } = await import(
+          "../services/plugin-command-registry.service.js"
+        );
+        const pluginRow = await pluginRegistry.findById(pluginId);
+        const manifestObj = pluginRow
+          ? (safeParse(pluginRow.manifestJson) as PluginManifest | null)
+          : null;
+        if (pluginRow && manifestObj) {
+          await pluginCommandRegistry
+            .syncFeatureCommandsForGuild(
+              pluginRow,
+              featureKey,
+              guildId,
+              enabled,
+              manifestObj,
+            )
+            .catch(() => {
+              /* logged inside the registry */
+            });
+        }
+      }
       botEventLog.record(
         "info",
         "bot",
@@ -697,9 +723,7 @@ export async function registerPluginRoutes(
       reply.code(400).send({ error: "invalid plugin id" });
       return;
     }
-    const plugin = (await pluginRegistry.list()).find(
-      (p) => p.id === pluginId,
-    );
+    const plugin = (await pluginRegistry.list()).find((p) => p.id === pluginId);
     if (!plugin) {
       reply.code(404).send({ error: "plugin not found" });
       return;

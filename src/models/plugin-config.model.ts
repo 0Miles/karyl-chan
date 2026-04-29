@@ -79,7 +79,9 @@ export const upsertConfigKey = async (
     // never touches plugin-self rows; a plugin RPC writing through
     // config.set never lands on an admin-owned schema field. Mixing
     // would surprise both sides.
-    const existingSource = existing.getDataValue("source") as PluginConfigSource;
+    const existingSource = existing.getDataValue(
+      "source",
+    ) as PluginConfigSource;
     if (existingSource !== source) {
       throw new Error(
         `plugin-config: cannot overwrite '${key}' (owner=${existingSource}, attempted=${source})`,

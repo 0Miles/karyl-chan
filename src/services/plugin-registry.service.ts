@@ -1,6 +1,7 @@
 import {
   expireStalePlugins,
   findAllPlugins,
+  findPluginById,
   findPluginByKey,
   setPluginEnabled as setEnabledModel,
   touchHeartbeat,
@@ -104,6 +105,17 @@ export interface ManifestGuildFeature {
   config_schema?: ManifestConfigField[];
   surfaces?: string[];
   overview_metrics?: Array<{ key: string; label: string; type: string }>;
+  /**
+   * Slash commands that belong to this guild_feature. They register
+   * per-guild and are gated by the same per-guild toggle that
+   * controls the feature itself — toggle off → commands deleted from
+   * Discord for that guild; toggle on → commands re-registered.
+   *
+   * This is distinct from top-level `manifest.commands[]`, which
+   * register globally and stay visible regardless of any per-guild
+   * feature state.
+   */
+  commands?: ManifestCommand[];
 }
 
 export interface ManifestDmBehavior {
@@ -209,6 +221,34 @@ export function validateManifest(input: unknown): ManifestValidation {
   // shape beyond this. Stricter checks (e.g. valid Discord option
   // types) live in the command-registration layer where they're
   // actionable.
+  // Track every command name across the whole manifest (top-level +
+  // every feature) — Discord-side a feature command and a global
+  // command sharing a name in the same guild would collide visually,
+  // and our reverse-lookup index is a flat (name, guildId) pair.
+  const seenNames = new Set<string>();
+  const validateCommand = (
+    c: ManifestCommand,
+    origin: string,
+  ): { ok: false; error: string } | null => {
+    if (!c.name || !c.description) {
+      return { ok: false, error: `${origin}: name + description required` };
+    }
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(c.name)) {
+      return {
+        ok: false,
+        error: `${origin}: command.name '${c.name}' invalid (Discord constraint: ^[a-z0-9][a-z0-9-]{0,31}$)`,
+      };
+    }
+    if (seenNames.has(c.name)) {
+      return {
+        ok: false,
+        error: `${origin}: command.name '${c.name}' is declared more than once in the manifest`,
+      };
+    }
+    seenNames.add(c.name);
+    return null;
+  };
+
   for (const f of (m.guild_features as ManifestGuildFeature[] | undefined) ??
     []) {
     if (!f.key || !f.name) {
@@ -217,6 +257,10 @@ export function validateManifest(input: unknown): ManifestValidation {
         error: "every guild_feature requires key + name",
       };
     }
+    for (const c of f.commands ?? []) {
+      const fail = validateCommand(c, `guild_features[${f.key}].commands`);
+      if (fail) return fail;
+    }
   }
   for (const b of (m.dm_behaviors as ManifestDmBehavior[] | undefined) ?? []) {
     if (!b.key || !b.name) {
@@ -224,18 +268,8 @@ export function validateManifest(input: unknown): ManifestValidation {
     }
   }
   for (const c of (m.commands as ManifestCommand[] | undefined) ?? []) {
-    if (!c.name || !c.description) {
-      return {
-        ok: false,
-        error: "every command requires name + description",
-      };
-    }
-    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(c.name)) {
-      return {
-        ok: false,
-        error: `command.name '${c.name}' invalid (Discord constraint: ^[a-z0-9][a-z0-9-]{0,31}$)`,
-      };
-    }
+    const fail = validateCommand(c, "commands");
+    if (fail) return fail;
   }
   return { ok: true, manifest: input as PluginManifest };
 }
@@ -421,6 +455,10 @@ export class PluginRegistry {
 
   async findByKey(pluginKey: string): Promise<PluginRow | null> {
     return findPluginByKey(pluginKey);
+  }
+
+  async findById(pluginId: number): Promise<PluginRow | null> {
+    return findPluginById(pluginId);
   }
 
   /**
