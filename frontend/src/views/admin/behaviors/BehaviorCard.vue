@@ -424,25 +424,13 @@ async function onDelete() {
                     </select>
                 </label>
 
-                <fieldset class="field full type-picker">
-                    <legend class="label">{{ t('behaviors.card.dispatchType') }}</legend>
-                    <label class="type-option" :class="{ active: draft.type === 'webhook' }">
-                        <input type="radio" :value="'webhook'" v-model="draft.type" />
-                        <Icon icon="material-symbols:webhook" width="16" height="16" />
-                        <span>
-                            <strong>{{ t('behaviors.card.dispatchTypeWebhook') }}</strong>
-                            <small>{{ t('behaviors.card.dispatchTypeWebhookHint') }}</small>
-                        </span>
-                    </label>
-                    <label class="type-option" :class="{ active: draft.type === 'plugin' }">
-                        <input type="radio" :value="'plugin'" v-model="draft.type" />
-                        <Icon icon="material-symbols:extension-outline" width="16" height="16" />
-                        <span>
-                            <strong>{{ t('behaviors.card.dispatchTypePlugin') }}</strong>
-                            <small>{{ t('behaviors.card.dispatchTypePluginHint') }}</small>
-                        </span>
-                    </label>
-                </fieldset>
+                <label class="field">
+                    <span class="label">{{ t('behaviors.card.dispatchType') }}</span>
+                    <select v-model="draft.type">
+                        <option value="webhook">{{ t('behaviors.card.dispatchTypeWebhook') }}</option>
+                        <option value="plugin">{{ t('behaviors.card.dispatchTypePlugin') }}</option>
+                    </select>
+                </label>
 
                 <template v-if="draft.type === 'webhook'">
                     <label class="field full">
@@ -582,50 +570,6 @@ async function onDelete() {
 .tag-continuous { background: var(--accent-bg); color: var(--accent-text-strong); }
 .tag-stop { background: var(--warn-bg); color: var(--warn-text); }
 .tag-plugin { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
-
-.type-picker {
-    border: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-.type-picker .label {
-    margin-bottom: 0.1rem;
-    padding: 0;
-}
-.type-option {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 0.7rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-page);
-    cursor: pointer;
-    transition: border-color 0.1s, background 0.1s;
-}
-.type-option:hover { border-color: var(--accent); }
-.type-option.active {
-    border-color: var(--accent);
-    background: var(--accent-bg, var(--bg-surface));
-}
-.type-option input[type="radio"] {
-    margin: 0;
-    accent-color: var(--accent);
-    flex-shrink: 0;
-}
-.type-option > svg, .type-option > .iconify { color: var(--text-muted); flex-shrink: 0; }
-.type-option.active > svg, .type-option.active > .iconify { color: var(--accent); }
-.type-option > span {
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-    min-width: 0;
-}
-.type-option strong { font-weight: 600; color: var(--text); font-size: 0.9rem; }
-.type-option small { color: var(--text-muted); font-size: 0.78rem; line-height: 1.35; }
 
 .toggle {
     position: relative;

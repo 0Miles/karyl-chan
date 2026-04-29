@@ -929,9 +929,7 @@ export async function registerBehaviorRoutes(
         // plugin row is dead weight and could mislead future
         // operators. webhookSecret cleared because the plugin path
         // uses KARYL_PLUGIN_SECRET, not a per-behavior secret.
-        update.webhookUrl = encryptSecret(
-          `plugin://${plugin.pluginKey}/${bk}`,
-        );
+        update.webhookUrl = encryptSecret(`plugin://${plugin.pluginKey}/${bk}`);
         update.webhookSecret = null;
       } else {
         // webhook: caller must supply webhookUrl (already validated
@@ -945,8 +943,7 @@ export async function registerBehaviorRoutes(
           body.webhookUrl === undefined
         ) {
           reply.code(400).send({
-            error:
-              "switching from plugin to webhook requires a webhookUrl",
+            error: "switching from plugin to webhook requires a webhookUrl",
           });
           return;
         }
