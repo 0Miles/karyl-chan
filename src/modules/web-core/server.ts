@@ -83,6 +83,7 @@ import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
 import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
 import { registerBotFeatureRoutes } from "../feature-toggle/bot-feature-routes.js";
 import { registerPluginRpcRoutes } from "../plugin-system/plugin-rpc-routes.js";
+import { registerVoiceRpcRoutes } from "../voice/voice-rpc.js";
 import {
   pluginAuthStore,
   type PluginAuthRecord,
@@ -582,6 +583,7 @@ export async function createWebServer(
   await registerBehaviorRoutes(server, { bot });
   await registerPluginRoutes(server, { bot });
   await registerPluginRpcRoutes(server, { bot });
+  await registerVoiceRpcRoutes(server, { bot });
   await registerBotFeatureRoutes(server);
 
   if (bot) {
