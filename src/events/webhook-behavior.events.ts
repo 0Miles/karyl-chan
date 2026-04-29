@@ -28,6 +28,7 @@ import {
   dispatchWebhook,
   type DispatchResult,
 } from "../services/webhook-dispatch.service.js";
+import { dispatchPluginDmBehavior } from "../services/plugin-dispatch.service.js";
 import { avatarUrlFor } from "../web/message-mapper.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
@@ -127,6 +128,49 @@ async function dispatchAndHandle(
   message: DjsMessage,
   behavior: BehaviorRow,
 ): Promise<DispatchResult> {
+  const payload = buildPayload(message);
+
+  // Phase 1 plugin dispatch path. Behavior rows discriminated by
+  // `type`: 'plugin' rows route through the plugin's DM behavior
+  // endpoint (URL resolved live from plugins.url, HMAC signed with
+  // KARYL_PLUGIN_SECRET); 'webhook' rows keep the legacy direct-POST
+  // path that decrypts the per-behavior URL/secret.
+  if (behavior.type === "plugin") {
+    if (behavior.pluginId == null || !behavior.pluginBehaviorKey) {
+      botEventLog.record(
+        "error",
+        "error",
+        `webhook-behavior: plugin behavior ${behavior.id} missing pluginId or pluginBehaviorKey`,
+        { behaviorId: behavior.id },
+      );
+      return {
+        ok: false,
+        error: "plugin behavior misconfigured",
+        ended: false,
+        relayContent: "",
+      };
+    }
+    const result = await dispatchPluginDmBehavior({
+      pluginId: behavior.pluginId,
+      behaviorKey: behavior.pluginBehaviorKey,
+      payload,
+    });
+    if (!result.ok) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `webhook-behavior: plugin dispatch failed for behavior ${behavior.id} (${result.error ?? "unknown"})`,
+        { behaviorId: behavior.id, status: result.status },
+      );
+      return result;
+    }
+    if (result.relayContent) {
+      await relayBack(message, result.relayContent);
+    }
+    return result;
+  }
+
+  // Legacy webhook path — unchanged.
   let url: string;
   let secret: string | null = null;
   try {
@@ -149,7 +193,6 @@ async function dispatchAndHandle(
       relayContent: "",
     };
   }
-  const payload = buildPayload(message);
   const result = await dispatchWebhook(url, payload, { secret });
   if (!result.ok) {
     botEventLog.record(

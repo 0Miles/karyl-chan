@@ -45,6 +45,8 @@ import {
   type BehaviorTriggerType,
 } from "../models/behavior.model.js";
 import { endSessionsForBehavior } from "../models/behavior-session.model.js";
+import { findPluginById } from "../models/plugin.model.js";
+import type { PluginManifest } from "../services/plugin-registry.service.js";
 
 export interface BehaviorRoutesOptions {
   bot?: Client;
@@ -560,6 +562,15 @@ export async function registerBehaviorRoutes(
       const webhookSecret = body.webhookSecret;
       const stopOnMatch = body.stopOnMatch;
       const enabled = body.enabled;
+      // Plugin discriminator. Default 'webhook' keeps every existing
+      // create-call working. type='plugin' switches the dispatch path
+      // and ignores webhookUrl/webhookSecret in favour of pluginId +
+      // pluginBehaviorKey.
+      const rawType = body.type;
+      const behaviorType: "webhook" | "plugin" =
+        rawType === "plugin" ? "plugin" : "webhook";
+      const pluginIdInput = body.pluginId;
+      const pluginBehaviorKeyInput = body.pluginBehaviorKey;
 
       if (!isBoundedString(title, TITLE_MAX)) {
         reply
@@ -611,29 +622,85 @@ export async function registerBehaviorRoutes(
           });
         return;
       }
-      if (
-        !isNonEmptyString(webhookUrl) ||
-        webhookUrl.length > WEBHOOK_URL_MAX ||
-        !isValidWebhookUrl(webhookUrl)
-      ) {
-        reply
-          .code(400)
-          .send({
+      // Per-type validation. Webhook rows need a real URL + optional
+      // HMAC secret. Plugin rows need pluginId + pluginBehaviorKey
+      // and ignore webhookUrl/secret entirely (a placeholder URL is
+      // synthesized to satisfy the NOT NULL column).
+      let encryptedUrlField: string;
+      let encryptedSecret: string | null = null;
+      let resolvedPluginId: number | null = null;
+      let resolvedPluginBehaviorKey: string | null = null;
+      if (behaviorType === "webhook") {
+        if (
+          !isNonEmptyString(webhookUrl) ||
+          webhookUrl.length > WEBHOOK_URL_MAX ||
+          !isValidWebhookUrl(webhookUrl)
+        ) {
+          reply.code(400).send({
             error: "webhookUrl required (must be a valid http/https URL)",
           });
-        return;
-      }
-      // Optional HMAC secret. Empty string / absent / null = no
-      // signing. Non-empty must fit within bound.
-      let encryptedSecret: string | null = null;
-      if (typeof webhookSecret === "string" && webhookSecret.length > 0) {
-        if (webhookSecret.length > WEBHOOK_SECRET_MAX) {
-          reply
-            .code(400)
-            .send({ error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars` });
           return;
         }
-        encryptedSecret = encryptSecret(webhookSecret);
+        if (typeof webhookSecret === "string" && webhookSecret.length > 0) {
+          if (webhookSecret.length > WEBHOOK_SECRET_MAX) {
+            reply
+              .code(400)
+              .send({
+                error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars`,
+              });
+            return;
+          }
+          encryptedSecret = encryptSecret(webhookSecret);
+        }
+        encryptedUrlField = encryptSecret(webhookUrl);
+      } else {
+        // type === 'plugin'
+        const pluginId = Number(pluginIdInput);
+        if (!Number.isInteger(pluginId) || pluginId <= 0) {
+          reply.code(400).send({ error: "pluginId required for type=plugin" });
+          return;
+        }
+        if (
+          typeof pluginBehaviorKeyInput !== "string" ||
+          pluginBehaviorKeyInput.length === 0 ||
+          pluginBehaviorKeyInput.length > 80
+        ) {
+          reply
+            .code(400)
+            .send({ error: "pluginBehaviorKey required for type=plugin" });
+          return;
+        }
+        // Verify the plugin exists and exposes the requested
+        // dm_behavior. Do this upfront so a misconfigured behavior
+        // never reaches the dispatcher.
+        const plugin = await findPluginById(pluginId);
+        if (!plugin) {
+          reply.code(404).send({ error: `plugin id=${pluginId} not found` });
+          return;
+        }
+        let manifest: PluginManifest | null = null;
+        try {
+          manifest = JSON.parse(plugin.manifestJson) as PluginManifest;
+        } catch {
+          /* malformed manifest — fall through to behavior_key check fail */
+        }
+        const declared = manifest?.dm_behaviors?.some(
+          (b) => b.key === pluginBehaviorKeyInput,
+        );
+        if (!declared) {
+          reply.code(400).send({
+            error: `plugin '${plugin.pluginKey}' does not declare dm_behavior key='${pluginBehaviorKeyInput}'`,
+          });
+          return;
+        }
+        resolvedPluginId = pluginId;
+        resolvedPluginBehaviorKey = pluginBehaviorKeyInput;
+        // Synthesize a non-functional placeholder for the NOT NULL
+        // webhookUrl column. The dispatcher reads plugins.url at
+        // dispatch time and never decrypts this placeholder.
+        encryptedUrlField = encryptSecret(
+          `plugin://${plugin.pluginKey}/${pluginBehaviorKeyInput}`,
+        );
       }
       const created = await createBehavior({
         targetId: id,
@@ -642,10 +709,13 @@ export async function registerBehaviorRoutes(
         triggerType: triggerType as BehaviorTriggerType,
         triggerValue,
         forwardType: forwardType as BehaviorForwardType,
-        webhookUrl: encryptSecret(webhookUrl),
+        webhookUrl: encryptedUrlField,
         webhookSecret: encryptedSecret,
         stopOnMatch: !!stopOnMatch,
         enabled: enabled === undefined ? true : !!enabled,
+        type: behaviorType,
+        pluginId: resolvedPluginId,
+        pluginBehaviorKey: resolvedPluginBehaviorKey,
       });
       await recordAudit(
         request.authUserId ?? "unknown",
@@ -657,6 +727,9 @@ export async function registerBehaviorRoutes(
           forwardType,
           stopOnMatch: !!stopOnMatch,
           signed: !!encryptedSecret,
+          type: behaviorType,
+          pluginId: resolvedPluginId,
+          pluginBehaviorKey: resolvedPluginBehaviorKey,
         },
       );
       return { behavior: decryptedView(created) };
