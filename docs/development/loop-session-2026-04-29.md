@@ -130,3 +130,55 @@ defaultMemberPermissions=32(MANAGE_GUILD)。
 4. 你回來時 docker 全跑著,可以直接驗。
 
 — Loop ended at 04:32 CST 2026-04-29.
+
+---
+
+## 後續 autonomous wakeups (04:32 → 07:57)
+
+> 用戶回來前的 4 個 wakeups,做的都是「不會改壞功能的健壯性 / 可維護性
+> 提升」,不開新功能。
+
+### 健壯性 fix
+
+- `51f6564` plugin event-dispatch 失敗 log 加 `shouldRecord` dedup
+  per (pluginId, eventType, failure-class) 一分鐘一次。Plugin 連續
+  500 不會再炸 bot_event_log 一秒一條。
+- `7c160ac` / `8ee2757` (accounting) 新 RPC `storage.kv_increment`
+  with per-key in-process promise mutex。Accounting plugin 的
+  `nextId()` 已換用,實測 10 個並發 add 都拿到不同 id。文件 D2 已
+  標記為 fixed 並記下「不要走回頭路用 IMMEDIATE transaction,因為
+  :memory: SQLite 跑不過」的踩坑紀錄(`80d3a30` / `bb59673`)。
+
+### 測試擴增 (314 → 331 cases)
+
+- `199f8ab` 新 `tests/plugin-kv.test.ts` 6 case 覆蓋 incrementKv,
+  含 10-way race regression。**順便修 2 個既有測試 bit-rot**:
+  - `tests/permission.test.ts` import 已被 `f635664` 刪除的檔案,
+    刪除整個檔案。
+  - `tests/web-server.test.ts` 兩個 auth-gate case 打的是
+    `/api/health`,但 `5183a8b` 把 health whitelist 掉了 → 401
+    變 200。改打 `/api/dm/channels`。
+- `6fe1cfa` 新 `tests/plugin-feature-default.test.ts` 7 case 蓋
+  Tier 4 的 operator-override 表。
+- `3d85117` 新 `tests/plugin-guild-feature.test.ts` 8 case 蓋 per-
+  guild plugin feature row CRUD。
+
+CI(`.github/workflows/docker-publish.yml`)會跑 `npm run build` +
+`npm run test:typecheck` + `npm test`,目前三項都綠 → merge 到 main
+不會被 CI 擋。
+
+### 整體狀態 (07:57)
+
+```
+karyl-chan        → 2h up, healthy (port 902)
+echo-webhook      → 5h up, healthy
+accounting-plugin → 3h up, healthy (atomic counter version)
+messaging-plugin  → 4h up, healthy
+
+最近 50 分鐘 bot 0 個 warn/error。
+總提交數 (since Tier 1 base 4978a11):20 commits。
+測試:331/331 通過。
+```
+
+— Loop autonomous phase ended at 07:57 CST. 下一個 wakeup 排在 08:48,
+   接近你 9:00 回來的時間就停。
