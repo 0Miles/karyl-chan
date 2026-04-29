@@ -2,6 +2,8 @@ import type { Client } from "discordx";
 import {
   ApplicationCommandOptionType,
   ApplicationCommandType,
+  ApplicationIntegrationType,
+  InteractionContextType,
   type ApplicationCommandData,
   type ApplicationCommandOptionData,
   type ChannelType,
@@ -112,23 +114,46 @@ function manifestOptionToData(
   return base as unknown as ApplicationCommandOptionData;
 }
 
+const CONTEXT_MAP: Record<string, InteractionContextType> = {
+  Guild: InteractionContextType.Guild,
+  BotDM: InteractionContextType.BotDM,
+  PrivateChannel: InteractionContextType.PrivateChannel,
+};
+
+const INTEGRATION_MAP: Record<string, ApplicationIntegrationType> = {
+  guild_install: ApplicationIntegrationType.GuildInstall,
+  user_install: ApplicationIntegrationType.UserInstall,
+};
+
 function manifestToApplicationCommand(
   cmd: ManifestCommand,
 ): ApplicationCommandData {
-  const data = {
+  const data: Record<string, unknown> = {
     type: ApplicationCommandType.ChatInput,
     name: cmd.name,
     description: cmd.description,
     dmPermission: cmd.dm_permission ?? undefined,
     options: (cmd.options ?? []).map(manifestOptionToData),
-  } as ApplicationCommandData;
+  };
+  if (cmd.contexts && cmd.contexts.length > 0) {
+    const mapped = cmd.contexts
+      .map((c) => CONTEXT_MAP[c])
+      .filter((c): c is InteractionContextType => c !== undefined);
+    if (mapped.length > 0) data.contexts = mapped;
+  }
+  if (cmd.integration_types && cmd.integration_types.length > 0) {
+    const mapped = cmd.integration_types
+      .map((t) => INTEGRATION_MAP[t])
+      .filter((t): t is ApplicationIntegrationType => t !== undefined);
+    if (mapped.length > 0) data.integrationTypes = mapped;
+  }
   // default_member_permissions is a Discord permission name like
   // "MANAGE_CHANNELS"; discord.js v14 expects a bigint string. Phase 1
   // we just pass through unset; future work translates the string to
   // PermissionFlagsBits[name].toString(). Plugins still get filtered
   // by Discord-side permissions if they set the right value via
   // their own admin (we won't surface this in v1).
-  return data;
+  return data as unknown as ApplicationCommandData;
 }
 
 export class ManifestCommandError extends Error {

@@ -54,6 +54,22 @@ export interface ManifestCommand {
   default_ephemeral?: boolean;
   required_capability?: string;
   dm_permission?: boolean;
+  /**
+   * Discord interaction context restriction. Modern replacement for
+   * `dm_permission`. Set to e.g. ["BotDM","PrivateChannel"] for a
+   * DM-only command, or ["Guild","BotDM","PrivateChannel"] to allow
+   * everywhere. When omitted, Discord's default ([Guild]) applies.
+   */
+  contexts?: ("Guild" | "BotDM" | "PrivateChannel")[];
+  /**
+   * Where the bot can be installed for this command to be visible.
+   * "guild_install" = traditional bot-in-server install,
+   * "user_install" = personal-attach install. Most plugins want
+   * ["guild_install","user_install"] so DM commands work when the
+   * user has user-installed the bot. When omitted, Discord defaults
+   * to ["guild_install"] only.
+   */
+  integration_types?: ("guild_install" | "user_install")[];
   options?: ManifestCommandOption[];
 }
 
