@@ -29,6 +29,7 @@ import {
   seedDefaultRoles,
 } from "./web/authorized-user.service.js";
 import { botEventLog } from "./web/bot-event-log.js";
+import { shouldRecord } from "./web/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 import {
   ALL_DMS_TARGET_ID,
@@ -72,6 +73,44 @@ export const bot = new Client({
 
   silent: false,
 });
+
+// @discordjs/rest auto-clears its bearer token whenever ANY request
+// returns 401 (see node_modules/@discordjs/rest/dist/index.js:759 —
+// `if (status === 401 && requestData.auth) manager.setToken(null)`).
+// Discord returns 401 for many resource-specific reasons that don't
+// mean the bot token is invalid (a single user.fetch on an unknown
+// id, a sticker fetch in a guild we lost permissions in, etc.). Once
+// the token is cleared every subsequent REST call throws "Expected
+// token to be set" and the dashboard / DM features all 502 until the
+// bot is restarted.
+//
+// Workaround: wrap setToken so a null clear is rejected when we
+// still hold the original BOT_TOKEN env. If the token is genuinely
+// revoked, login() and other gateway-level handshakes fail loud; we
+// don't need REST's heuristic to second-guess that. Logged once per
+// 60s via shouldRecord so the operator notices but isn't drowned.
+{
+  const realToken = process.env.BOT_TOKEN?.trim() ?? "";
+  if (realToken) {
+    const restAny = bot.rest as unknown as {
+      setToken: (t: string | null) => unknown;
+    };
+    const origSetToken = restAny.setToken.bind(restAny);
+    restAny.setToken = (t: string | null) => {
+      if (t === null) {
+        if (shouldRecord("rest-token-auto-clear")) {
+          botEventLog.record(
+            "warn",
+            "bot",
+            "REST.setToken(null) ignored — likely a 401 from a single resource fetch, not a real auth failure",
+          );
+        }
+        return origSetToken(realToken);
+      }
+      return origSetToken(t);
+    };
+  }
+}
 
 // discord.js v14 emits 'ready' (with a one-time DeprecationWarning at
 // boot); 'clientReady' is the v15 rename and is NOT emitted in v14
