@@ -33,37 +33,42 @@ import { moduleLogger } from "../../logger.js";
 
 const log = moduleLogger("voice-manager");
 
-// prism-media looks up the ffmpeg binary via the FFMPEG_PATH env or
-// PATH. We prefer a system ffmpeg (apt-installed in the runtime
-// docker image) because the ffmpeg-static prebuilt binary segfaults
-// on some Debian/glibc combinations. Falls back to ffmpeg-static
-// only when neither FFMPEG_PATH nor a PATH-resolvable ffmpeg exists
-// (covers `npm run dev` on a workstation without ffmpeg installed).
+// prism-media's ffmpeg discovery order is:
+//   1. process.env.FFMPEG_PATH
+//   2. require('ffmpeg-static')
+//   3. spawn('ffmpeg' | 'avconv' | ...) from PATH
+//
+// Step 2 wins over PATH, so even with apt's ffmpeg installed, prism
+// silently uses the ffmpeg-static binary — which segfaults on
+// Debian Trixie. We therefore force FFMPEG_PATH to PATH-resolved
+// ffmpeg whenever we can find one, falling back to ffmpeg-static
+// only when no system ffmpeg exists (covers `npm run dev` on a
+// workstation without it installed).
 {
-  // ffmpeg-static's default export is typed loosely; at runtime it is
-  // a string path (the bundled binary's location) or null in
-  // unsupported environments.
-  const ffmpegPath = ffmpegStatic as unknown as string | null;
-  if (!process.env.FFMPEG_PATH) {
+  let resolved: string | null = null;
+  if (process.env.FFMPEG_PATH) {
+    resolved = process.env.FFMPEG_PATH;
+  } else {
     try {
-      // execSync throws if `which` returns non-zero (no ffmpeg). The
-      // synchronous call is fine here — runs once at module load.
       const fromPath = execSync("command -v ffmpeg 2>/dev/null", {
         encoding: "utf8",
-      })
-        .trim();
+      }).trim();
       if (fromPath) {
-        // Already resolvable via PATH — leave FFMPEG_PATH unset so
-        // prism-media uses spawn('ffmpeg', ...) directly.
-      } else if (ffmpegPath) {
-        process.env.FFMPEG_PATH = ffmpegPath;
+        resolved = fromPath;
+        process.env.FFMPEG_PATH = fromPath;
       }
     } catch {
+      // command -v exited non-zero; no system ffmpeg.
+    }
+    if (!resolved) {
+      const ffmpegPath = ffmpegStatic as unknown as string | null;
       if (ffmpegPath) {
+        resolved = ffmpegPath;
         process.env.FFMPEG_PATH = ffmpegPath;
       }
     }
   }
+  log.info({ ffmpegPath: resolved }, "voice-manager: ffmpeg resolved");
 }
 
 interface GuildVoiceState {
@@ -242,7 +247,12 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
     inputType: StreamType.Raw,
   });
   log.info(
-    { url, guildId, channelId: state.channelId, ffmpegPath: process.env.FFMPEG_PATH },
+    {
+      url,
+      guildId,
+      channelId: state.channelId,
+      ffmpegPath: process.env.FFMPEG_PATH,
+    },
     "playUrl: spawning ffmpeg + queueing resource",
   );
   state.player.play(resource);
