@@ -66,6 +66,7 @@ import {
   syncInProcessCommandsForGuild,
   syncInProcessCommandsToDiscord,
 } from "./services/in-process-command-registry.service.js";
+import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { issueLoginLinkForInteraction } from "./services/admin-login.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
@@ -142,11 +143,12 @@ bot.once("ready", async () => {
     userId,
     guildCount,
   });
-  await bot.initApplicationCommands();
-  // In-process command registry sync. Phase 1 of the discordx removal:
-  // the registry exists alongside discordx and stays empty until
-  // commands move over (Phase 2). Currently a no-op; placed here so
-  // boot order is established before any feature uses it.
+  // discordx's initApplicationCommands previously registered the four
+  // in-process commands (picture-only / role-emoji / todo-channel /
+  // rcon-forward). Phase 2 of the discordx removal moved those onto
+  // our own registry — discordx no longer owns any @Slash classes,
+  // so calling initApplicationCommands now would just delete-then-
+  // we-recreate the commands. Skip it; the registry handles sync.
   await syncInProcessCommandsToDiscord(bot);
 
   // Pre-cache the owner's DM channel. discord.js silently drops
@@ -217,7 +219,6 @@ bot.on("guildCreate", async (guild) => {
     guildName: guild.name,
     memberCount: guild.memberCount,
   });
-  await bot.initApplicationCommands();
   await syncInProcessCommandsForGuild(guild);
 });
 
@@ -451,6 +452,10 @@ bot.on(
 async function run() {
   try {
     await importx(dirname(import.meta.url) + "/{events,commands}/**/*.{ts,js}");
+    // Register in-process commands that have moved off discordx onto
+    // our own registry. Subsequent phases of the migration will move
+    // events + the remaining commands here too.
+    bootstrapInProcessFeatures();
     // sync() creates any tables missing on fresh installs; migrations
     // layer on top for schema evolution that sync() wouldn't attempt
     // (new columns, renames, index changes). Migrations are expected
