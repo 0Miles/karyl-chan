@@ -9,6 +9,7 @@ import {
 } from "../models/plugin.model.js";
 import { pluginAuthStore, PluginAuthStore } from "../web/plugin-auth.service.js";
 import { botEventLog } from "../web/bot-event-log.js";
+import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 
 /**
  * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
@@ -282,6 +283,15 @@ export class PluginRegistry {
         version: manifest.plugin.version,
       },
     );
+    // Refresh the event subscription index so this plugin's
+    // events_subscribed start receiving fan-out immediately.
+    await rebuildEventIndex().catch((err) => {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `rebuildEventIndex after register failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
     return { plugin: persisted, manifest, token: real.token };
   }
 
@@ -304,6 +314,14 @@ export class PluginRegistry {
     const row = await setEnabledModel(pluginId, enabled);
     if (row && !enabled) {
       this.auth.revokeByPluginId(pluginId);
+    }
+    // Toggling enabled flips whether this plugin appears in event
+    // dispatch fan-out; rebuild so the change takes effect on the
+    // next inbound event without waiting for the next bot restart.
+    if (row) {
+      await rebuildEventIndex().catch(() => {
+        /* logged inside the bridge */
+      });
     }
     return row;
   }

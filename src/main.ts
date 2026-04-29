@@ -1,8 +1,16 @@
 import "reflect-metadata";
 
 import { dirname, importx } from "@discordx/importer";
-import type { DMChannel, Interaction, Message } from "discord.js";
-import { Events, IntentsBitField, Partials } from "discord.js";
+import type {
+  DMChannel,
+  Interaction,
+  Message,
+  MessageReaction,
+  PartialMessageReaction,
+  PartialUser,
+  User,
+} from "discord.js";
+import { ChannelType, Events, IntentsBitField, Partials } from "discord.js";
 import { Client } from "discordx";
 import { sequelize } from "./models/db.js";
 import { startWebServer } from "./web/server.js";
@@ -17,6 +25,10 @@ import { botEventLog } from "./web/bot-event-log.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 import { ensureAllDmsTarget } from "./models/behavior-target.model.js";
 import { pluginRegistry } from "./services/plugin-registry.service.js";
+import {
+  dispatchEventToPlugins,
+  rebuildEventIndex,
+} from "./services/plugin-event-bridge.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -107,7 +119,95 @@ bot.on("messageCreate", async (message: Message) => {
   } catch (error) {
     console.error("executeCommand failed:", error);
   }
+  // Plugin event fan-out. We classify the message into one of two
+  // event types (dm.message_create / guild.message_create) and let
+  // the bridge fan it out to every plugin that subscribed in its
+  // manifest. Bot's own messages are excluded so a plugin that
+  // sends via RPC doesn't get its own send echoed back.
+  if (message.author.bot) return;
+  if (message.channel.type === ChannelType.DM) {
+    dispatchEventToPlugins("dm.message_create", serializeMessageForPlugin(message));
+  } else if (message.guildId) {
+    dispatchEventToPlugins(
+      "guild.message_create",
+      serializeMessageForPlugin(message),
+    );
+  }
 });
+
+bot.on(
+  "messageReactionAdd",
+  async (
+    reaction: MessageReaction | PartialMessageReaction,
+    user: User | PartialUser,
+  ) => {
+    if (user.bot) return;
+    // Only guild reactions for now — DM reactions don't carry a
+    // guildId and most plugins that care (role-emoji etc.) want guild.
+    if (!reaction.message.guildId) return;
+    dispatchEventToPlugins("guild.message_reaction_add", {
+      message_id: reaction.message.id,
+      channel_id: reaction.message.channelId,
+      guild_id: reaction.message.guildId,
+      user_id: user.id,
+      emoji: {
+        id: reaction.emoji.id ?? null,
+        name: reaction.emoji.name ?? null,
+        animated: reaction.emoji.animated ?? false,
+      },
+    });
+  },
+);
+
+bot.on(
+  "messageReactionRemove",
+  async (
+    reaction: MessageReaction | PartialMessageReaction,
+    user: User | PartialUser,
+  ) => {
+    if (user.bot) return;
+    if (!reaction.message.guildId) return;
+    dispatchEventToPlugins("guild.message_reaction_remove", {
+      message_id: reaction.message.id,
+      channel_id: reaction.message.channelId,
+      guild_id: reaction.message.guildId,
+      user_id: user.id,
+      emoji: {
+        id: reaction.emoji.id ?? null,
+        name: reaction.emoji.name ?? null,
+        animated: reaction.emoji.animated ?? false,
+      },
+    });
+  },
+);
+
+/**
+ * Trim a Discord message down to the JSON shape plugins receive.
+ * Don't send the entire djs Message object — it's huge and includes
+ * circular references. Plugins that need more can RPC back for it.
+ */
+function serializeMessageForPlugin(message: Message): Record<string, unknown> {
+  return {
+    id: message.id,
+    channel_id: message.channelId,
+    guild_id: message.guildId ?? null,
+    content: message.content ?? "",
+    author: {
+      id: message.author.id,
+      username: message.author.username,
+      global_name: message.author.globalName,
+      bot: message.author.bot,
+    },
+    attachments: [...message.attachments.values()].map((a) => ({
+      id: a.id,
+      url: a.url,
+      filename: a.name,
+      content_type: a.contentType,
+      size: a.size,
+    })),
+    timestamp: message.createdAt.toISOString(),
+  };
+}
 
 // Re-emit messageCreate for DMs from users whose DM channel wasn't already
 // cached. discord.js's MessageCreateAction silently drops these because
@@ -201,6 +301,12 @@ async function run() {
     // beat doesn't trigger). Runs in-process; unref'd so it doesn't
     // hold the event loop alive on shutdown.
     pluginRegistry.startReaper();
+    // Build the in-memory event subscription index from rows already
+    // in the plugins table. Without this, plugins that registered
+    // before the last bot restart wouldn't receive events until they
+    // re-registered (next heartbeat). With this, events flow as soon
+    // as plugins are alive again.
+    await rebuildEventIndex();
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
     const webHost = process.env.WEB_HOST ?? "0.0.0.0";
