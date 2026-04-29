@@ -61,6 +61,11 @@ import {
   setPluginCommandBotClient,
 } from "./services/plugin-command-registry.service.js";
 import { dispatchInteractionToPlugin } from "./services/plugin-interaction-dispatch.service.js";
+import {
+  dispatchInProcessInteraction,
+  syncInProcessCommandsForGuild,
+  syncInProcessCommandsToDiscord,
+} from "./services/in-process-command-registry.service.js";
 import { issueLoginLinkForInteraction } from "./services/admin-login.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
@@ -138,6 +143,11 @@ bot.once("ready", async () => {
     guildCount,
   });
   await bot.initApplicationCommands();
+  // In-process command registry sync. Phase 1 of the discordx removal:
+  // the registry exists alongside discordx and stays empty until
+  // commands move over (Phase 2). Currently a no-op; placed here so
+  // boot order is established before any feature uses it.
+  await syncInProcessCommandsToDiscord(bot);
 
   // Pre-cache the owner's DM channel. discord.js silently drops
   // MESSAGE_CREATE events for DM channels that aren't already cached
@@ -208,6 +218,7 @@ bot.on("guildCreate", async (guild) => {
     memberCount: guild.memberCount,
   });
   await bot.initApplicationCommands();
+  await syncInProcessCommandsForGuild(guild);
 });
 
 bot.on("guildDelete", (guild) => {
@@ -267,6 +278,18 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
     } catch (error) {
       console.error("user slash-command dispatch failed:", error);
     }
+  }
+
+  // In-process slash commands + modal-submit handlers (the bot's
+  // own features: picture-only-channel / role-emoji / todo-channel /
+  // rcon-forward-channel and any future ones). The registry dispatches
+  // by name; returns false when nothing matched, so we fall through
+  // to plugin / discordx.
+  try {
+    const claimed = await dispatchInProcessInteraction(interaction);
+    if (claimed) return;
+  } catch (error) {
+    console.error("in-process interaction dispatch failed:", error);
   }
 
   // Plugin commands take a fast path: we look the command up in our

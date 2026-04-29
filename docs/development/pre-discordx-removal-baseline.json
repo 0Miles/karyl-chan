@@ -1,0 +1,461 @@
+{
+  "capturedAt": "2026-04-29T11:39:35.699Z",
+  "globals": [
+    {
+      "name": "manual",
+      "type": 1,
+      "contexts": [
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": null,
+      "options": []
+    },
+    {
+      "name": "break",
+      "type": 1,
+      "contexts": [
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": null,
+      "options": []
+    },
+    {
+      "name": "login",
+      "type": 1,
+      "contexts": [
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": null,
+      "options": []
+    },
+    {
+      "name": "account",
+      "type": 1,
+      "contexts": [
+        0,
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": null,
+      "options": [
+        {
+          "name": "add",
+          "type": 1,
+          "options": [
+            {
+              "name": "amount",
+              "type": 10
+            },
+            {
+              "name": "category",
+              "type": 3
+            },
+            {
+              "name": "note",
+              "type": 3
+            }
+          ]
+        },
+        {
+          "name": "list",
+          "type": 1,
+          "options": [
+            {
+              "name": "days",
+              "type": 4
+            }
+          ]
+        },
+        {
+          "name": "balance",
+          "type": 1,
+          "options": [
+            {
+              "name": "days",
+              "type": 4
+            }
+          ]
+        },
+        {
+          "name": "remove",
+          "type": 1,
+          "options": [
+            {
+              "name": "id",
+              "type": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "relay",
+      "type": 1,
+      "contexts": [
+        0,
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": "32",
+      "options": [
+        {
+          "name": "user",
+          "type": 1,
+          "options": [
+            {
+              "name": "target",
+              "type": 6
+            },
+            {
+              "name": "content",
+              "type": 3
+            }
+          ]
+        },
+        {
+          "name": "channel",
+          "type": 1,
+          "options": [
+            {
+              "name": "target",
+              "type": 7
+            },
+            {
+              "name": "content",
+              "type": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reply",
+      "type": 1,
+      "contexts": [
+        1,
+        2
+      ],
+      "integration_types": [
+        0,
+        1
+      ],
+      "default_member_permissions": null,
+      "options": []
+    }
+  ],
+  "perGuild": {
+    "Gmail (406580298541957120)": [
+      {
+        "name": "role-emoji",
+        "type": 1,
+        "options": [
+          {
+            "name": "add",
+            "type": 1,
+            "options": [
+              {
+                "name": "emoji",
+                "type": 3
+              },
+              {
+                "name": "role",
+                "type": 8
+              },
+              {
+                "name": "group",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "group",
+            "type": 2,
+            "options": [
+              {
+                "name": "list",
+                "type": 1
+              },
+              {
+                "name": "remove",
+                "type": 1
+              },
+              {
+                "name": "add",
+                "type": 1
+              }
+            ]
+          },
+          {
+            "name": "remove",
+            "type": 1,
+            "options": [
+              {
+                "name": "group",
+                "type": 3
+              },
+              {
+                "name": "emoji",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": [
+              {
+                "name": "message-id",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": [
+              {
+                "name": "message-id",
+                "type": 3
+              },
+              {
+                "name": "group",
+                "type": 3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "todo-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "check-cache",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "rcon-forward-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "edit",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "status",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "picture-only-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      }
+    ],
+    "tutor (1258392899486224425)": [
+      {
+        "name": "picture-only-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "rcon-forward-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "edit",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "status",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      },
+      {
+        "name": "role-emoji",
+        "type": 1,
+        "options": [
+          {
+            "name": "add",
+            "type": 1,
+            "options": [
+              {
+                "name": "emoji",
+                "type": 3
+              },
+              {
+                "name": "role",
+                "type": 8
+              },
+              {
+                "name": "group",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "group",
+            "type": 2,
+            "options": [
+              {
+                "name": "list",
+                "type": 1
+              },
+              {
+                "name": "remove",
+                "type": 1
+              },
+              {
+                "name": "add",
+                "type": 1
+              }
+            ]
+          },
+          {
+            "name": "remove",
+            "type": 1,
+            "options": [
+              {
+                "name": "group",
+                "type": 3
+              },
+              {
+                "name": "emoji",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": [
+              {
+                "name": "message-id",
+                "type": 3
+              }
+            ]
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": [
+              {
+                "name": "message-id",
+                "type": 3
+              },
+              {
+                "name": "group",
+                "type": 3
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "todo-channel",
+        "type": 1,
+        "options": [
+          {
+            "name": "check-cache",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "stop-watch",
+            "type": 1,
+            "options": []
+          },
+          {
+            "name": "watch",
+            "type": 1,
+            "options": []
+          }
+        ]
+      }
+    ]
+  }
+}
