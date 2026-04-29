@@ -63,10 +63,30 @@ watch(() => props.target.id, (id) => {
     void load(id);
 }, { immediate: true });
 
-// Load plugins once on mount; refreshed implicitly when the workspace
+// Plugin list pre-loaded once for every BehaviorCard to use in its
+// type=plugin form (plugin select + dm_behavior key select). One
+// fetch instead of N+1 from each card. Declared up here (before the
+// kick-off call below) because function-hoisting moves the declaration
+// of `loadPlugins` to the top of the script-setup scope but does NOT
+// hoist `plugins` (it's a const) — calling loadPlugins before its
+// body's reference to `plugins` is in scope hits a TDZ at runtime.
+const plugins = ref<PluginRecord[]>([]);
+
+async function loadPlugins() {
+    try {
+        plugins.value = await listPlugins();
+    } catch {
+        // Non-fatal: cards just won't be able to switch to type=plugin
+        // until plugins is populated. Errors here aren't shown to the
+        // user — they'll see the empty plugin select.
+        plugins.value = [];
+    }
+}
+
+// Load once on mount; refreshed implicitly when the workspace
 // remounts (target switch, page reload). For a long-lived session
-// this means newly registered plugins won't show up until reload —
-// acceptable for Phase 1.
+// newly registered plugins won't show up until reload — acceptable
+// for Phase 1.
 void loadPlugins();
 
 function teardownSortable() {
@@ -111,22 +131,6 @@ watch(behaviors, async () => {
 });
 
 onBeforeUnmount(teardownSortable);
-
-// Plugin list pre-loaded once for every BehaviorCard to use in its
-// type=plugin form (plugin select + dm_behavior key select). One
-// fetch instead of N+1 from each card.
-const plugins = ref<PluginRecord[]>([]);
-
-async function loadPlugins() {
-    try {
-        plugins.value = await listPlugins();
-    } catch {
-        // Non-fatal: cards just won't be able to switch to type=plugin
-        // until plugins is populated. Errors here aren't shown to the
-        // user — they'll see the empty plugin select.
-        plugins.value = [];
-    }
-}
 
 async function onAddBehavior() {
     if (loading.value) return;
