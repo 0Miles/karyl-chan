@@ -130,10 +130,12 @@ const peopleSubs = computed(() => [
 // adding a new feature folder + entry there is enough to surface it
 // here. The `_bot` master sub-tab pins to the front and lists every
 // built-in + plugin feature with a single on/off switch per row;
-// per-feature settings still live on each feature's own sub.
+// per-feature settings still live on each feature's own sub. Labelled
+// "功能管理" rather than "Bot 功能" since the primary tab already
+// says "Bot 功能" and a duplicate would be confusing.
 const BOT_FEATURES_SUB = '_bot';
 const featuresSubs = computed(() => [
-    { key: BOT_FEATURES_SUB, label: 'Bot 功能' },
+    { key: BOT_FEATURES_SUB, label: '功能管理' },
     ...guildFeatures.map(p => ({ key: p.name, label: $t(p.labelKey) }))
 ]);
 const currentSubTabs = computed(() => {

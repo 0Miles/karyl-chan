@@ -576,7 +576,7 @@ async function onDelete() {
                     </label>
                 </template>
 
-                <template v-else>
+                <template v-else-if="draft.type === 'plugin'">
                     <div class="field full">
                         <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
                         <AppSelectField
@@ -599,6 +599,9 @@ async function onDelete() {
                         <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
                     </div>
                 </template>
+                <!-- type === 'system': no extra plugin/webhook fields; the
+                     row is bot-internal and only triggerType /
+                     triggerValue are editable (gated above). -->
 
                 <label class="field full inline">
                     <input type="checkbox" v-model="draft.stopOnMatch" :disabled="isSystem" />

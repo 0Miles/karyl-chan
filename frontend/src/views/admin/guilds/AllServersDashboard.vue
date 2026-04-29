@@ -505,6 +505,12 @@ onMounted(refresh);
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.82rem;
+    /* Without flex-shrink:0 the button collapses when the sibling
+       description in `.page-header` is long — characters inside the
+       inline-flex layout get squeezed before whitespace, so the icon
+       and label overlap (`btn` looks "squashed"). */
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .btn:hover:not(:disabled) { background: var(--bg-surface-hover); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }

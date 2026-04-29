@@ -139,7 +139,7 @@ watch(() => props.guildId, refresh);
     <article class="bot-features-panel">
         <header class="panel-header">
             <div>
-                <h3>Bot 功能(此伺服器)</h3>
+                <h3>功能管理(此伺服器)</h3>
                 <p class="muted">
                     在此切換每個內建或 Plugin 功能在此伺服器的開關。內建功能的詳細設定可在對應的子分頁進行調整;
                     若想統一改變所有伺服器的預設值,請到「所有伺服器 → Bot 功能」頁面。
