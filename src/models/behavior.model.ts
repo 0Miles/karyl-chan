@@ -2,7 +2,11 @@ import { DataTypes } from "sequelize";
 import { sequelize } from "./db.js";
 import { BehaviorTarget } from "./behavior-target.model.js";
 
-export type BehaviorTriggerType = "startswith" | "endswith" | "regex";
+export type BehaviorTriggerType =
+  | "startswith"
+  | "endswith"
+  | "regex"
+  | "slash_command";
 export type BehaviorForwardType = "one_time" | "continuous";
 
 /**
@@ -89,7 +93,7 @@ export const Behavior = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: "webhook",
-      validate: { isIn: [["webhook", "plugin"]] },
+      validate: { isIn: [["webhook", "plugin", "system"]] },
     },
     pluginId: {
       type: DataTypes.INTEGER,
@@ -106,7 +110,16 @@ export const Behavior = sequelize.define(
   },
 );
 
-export type BehaviorType = "webhook" | "plugin";
+export type BehaviorType = "webhook" | "plugin" | "system";
+
+/**
+ * Stable subkey used to identify which built-in system behavior a
+ * type='system' row implements. Stored in pluginBehaviorKey so we
+ * don't add a fresh column. Only one value is supported today —
+ * the admin-login DM/slash flow — but the discriminator leaves room
+ * for future system flows (e.g. /manual, /break) to migrate in.
+ */
+export const SYSTEM_BEHAVIOR_KEY_LOGIN = "admin-login";
 
 export interface BehaviorRow {
   id: number;
@@ -320,4 +333,58 @@ export const reorderBehaviors = async (
       );
     }
   });
+};
+
+/**
+ * Look up a singleton system behavior by its `pluginBehaviorKey`
+ * subkey. Returns null if the row hasn't been seeded yet.
+ */
+export const findSystemBehaviorByKey = async (
+  key: string,
+): Promise<BehaviorRow | null> => {
+  const row = await Behavior.findOne({
+    where: { type: "system", pluginBehaviorKey: key },
+  });
+  return row ? rowOf(row) : null;
+};
+
+/**
+ * Idempotent seed of the admin-login system behavior. Called from
+ * main.ts at startup, after migrations and the all_dms target seed.
+ *
+ * The row is treated as a permanent system fixture by behavior-routes
+ * (DELETE refused, most fields locked from PATCH). Defaults:
+ *   - target = ALL_DMS_TARGET_ID (1)
+ *   - type = 'system', pluginBehaviorKey = SYSTEM_BEHAVIOR_KEY_LOGIN
+ *   - triggerType = 'slash_command', triggerValue = 'login'
+ *     (admin can switch to startswith / regex etc. later if they
+ *     want a chat-text alternative; the dispatcher still routes any
+ *     match to the admin-login service)
+ *   - stopOnMatch = true (system rows always halt evaluation)
+ *   - sortOrder = -1000 so the row sorts above any user-created row
+ *   - webhookUrl = placeholder ("system://admin-login") to satisfy
+ *     the NOT NULL column; never read at dispatch time
+ */
+export const ensureSystemLoginBehavior = async (
+  allDmsTargetId: number,
+): Promise<BehaviorRow> => {
+  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_LOGIN);
+  if (existing) return existing;
+  const created = await Behavior.create({
+    targetId: allDmsTargetId,
+    title: "發送登入連結",
+    description: "私訊 bot `/login`(或符合觸發條件)時,發送一次性 admin 登入連結給授權使用者。系統行為,不可刪除或更換目標對象。",
+    triggerType: "slash_command",
+    triggerValue: "login",
+    forwardType: "one_time",
+    webhookUrl: "system://admin-login",
+    webhookSecret: null,
+    sortOrder: -1000,
+    stopOnMatch: true,
+    enabled: true,
+    type: "system",
+    pluginId: null,
+    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_LOGIN,
+  });
+  return rowOf(created);
 };

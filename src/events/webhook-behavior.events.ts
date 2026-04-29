@@ -29,6 +29,8 @@ import {
   type DispatchResult,
 } from "../services/webhook-dispatch.service.js";
 import { dispatchPluginDmBehavior } from "../services/plugin-dispatch.service.js";
+import { issueLoginLinkAndReply } from "../services/admin-login.service.js";
+import { SYSTEM_BEHAVIOR_KEY_LOGIN } from "../models/behavior.model.js";
 import { avatarUrlFor } from "../web/message-mapper.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
@@ -129,6 +131,37 @@ async function dispatchAndHandle(
   behavior: BehaviorRow,
 ): Promise<DispatchResult> {
   const payload = buildPayload(message);
+
+  // System behaviors. type='system' rows are bot-built-in flows
+  // (currently only admin-login DM issuance) that route to a service
+  // function instead of an external URL or plugin. The dispatcher
+  // surfaces them under the same trigger / stopOnMatch / target
+  // model as user behaviors so admins can edit triggerType /
+  // triggerValue / enabled in the same UI.
+  if (behavior.type === "system") {
+    const subkey = behavior.pluginBehaviorKey;
+    if (subkey === SYSTEM_BEHAVIOR_KEY_LOGIN) {
+      const ok = await issueLoginLinkAndReply(message);
+      return {
+        ok,
+        ended: false,
+        relayContent: "",
+        ...(ok ? {} : { error: "admin login not authorized or send failed" }),
+      };
+    }
+    botEventLog.record(
+      "warn",
+      "bot",
+      `webhook-behavior: unknown system behavior subkey ${subkey ?? "(null)"} on behavior ${behavior.id}`,
+      { behaviorId: behavior.id, subkey },
+    );
+    return {
+      ok: false,
+      error: `unknown system behavior subkey: ${subkey ?? "(null)"}`,
+      ended: false,
+      relayContent: "",
+    };
+  }
 
   // Phase 1 plugin dispatch path. Behavior rows discriminated by
   // `type`: 'plugin' rows route through the plugin's DM behavior

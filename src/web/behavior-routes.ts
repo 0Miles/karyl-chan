@@ -63,6 +63,7 @@ const TRIGGER_TYPES: BehaviorTriggerType[] = [
   "startswith",
   "endswith",
   "regex",
+  "slash_command",
 ];
 const FORWARD_TYPES: BehaviorForwardType[] = ["one_time", "continuous"];
 
@@ -755,6 +756,21 @@ export async function registerBehaviorRoutes(
     const body = request.body ?? {};
     const update: Parameters<typeof updateBehavior>[1] = {};
 
+    // System behaviors are bot-built-in fixtures with locked-down
+    // edits: only triggerType / triggerValue / enabled may change.
+    // Refuse anything else loudly so the UI's read-only fields can't
+    // be bypassed by hand-crafting the patch body.
+    if (existing.type === "system") {
+      const allowed = new Set(["triggerType", "triggerValue", "enabled"]);
+      const offending = Object.keys(body).filter((k) => !allowed.has(k));
+      if (offending.length > 0) {
+        reply.code(400).send({
+          error: `system behavior fields locked: cannot modify ${offending.join(", ")}`,
+        });
+        return;
+      }
+    }
+
     if (body.title !== undefined) {
       if (!isBoundedString(body.title, TITLE_MAX)) {
         reply.code(400).send({ error: `title max ${TITLE_MAX} chars` });
@@ -997,6 +1013,12 @@ export async function registerBehaviorRoutes(
         return;
       }
       if (!requireBehaviorTarget(request, reply, existing.targetId)) return;
+      if (existing.type === "system") {
+        reply.code(400).send({
+          error: "system behaviors cannot be deleted",
+        });
+        return;
+      }
       await deleteBehavior(behaviorId);
       // CASCADE on behavior_sessions takes care of session cleanup,
       // but log it explicitly for the audit trail.
@@ -1038,8 +1060,12 @@ export async function registerBehaviorRoutes(
       }
       // Validate that the supplied set matches the target's current
       // behavior set exactly — protects against stale UI state
-      // resequencing the wrong rows.
-      const current = await findBehaviorsByTarget(id);
+      // resequencing the wrong rows. System behaviors are excluded
+      // from reorder (they pin to a fixed sortOrder=-1000 above
+      // user rows).
+      const current = (await findBehaviorsByTarget(id)).filter(
+        (b) => b.type !== "system",
+      );
       const currentIds = new Set(current.map((b) => b.id));
       const submittedIds = new Set(orderedIds as number[]);
       if (

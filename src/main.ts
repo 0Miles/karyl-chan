@@ -30,7 +30,15 @@ import {
 } from "./web/authorized-user.service.js";
 import { botEventLog } from "./web/bot-event-log.js";
 import { runPendingMigrations } from "./migrations/runner.js";
-import { ensureAllDmsTarget } from "./models/behavior-target.model.js";
+import {
+  ALL_DMS_TARGET_ID,
+  ensureAllDmsTarget,
+} from "./models/behavior-target.model.js";
+import {
+  ensureSystemLoginBehavior,
+  findSystemBehaviorByKey,
+  SYSTEM_BEHAVIOR_KEY_LOGIN,
+} from "./models/behavior.model.js";
 import { pluginRegistry } from "./services/plugin-registry.service.js";
 import {
   dispatchEventToPlugins,
@@ -41,6 +49,7 @@ import {
   setPluginCommandBotClient,
 } from "./services/plugin-command-registry.service.js";
 import { dispatchInteractionToPlugin } from "./services/plugin-interaction-dispatch.service.js";
+import { issueLoginLinkForInteraction } from "./services/admin-login.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -128,14 +137,38 @@ bot.once("ready", async () => {
   console.log("Bot started");
 });
 
-const DM_ONLY_COMMANDS: Array<{ name: string; description: string }> = [
+// Static system commands: in-process commands (manual / break) that
+// must be GLOBAL with DM-only contexts even though discordx's
+// botGuilds=every-guild config tries to register them per-guild.
+const STATIC_DM_ONLY_COMMANDS: Array<{ name: string; description: string }> = [
   { name: "manual", description: "查看你在私訊可用的行為列表" },
   { name: "break", description: "結束目前正在進行的持續轉發" },
 ];
 
 async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
   if (!bot.application) return;
-  const targetNames = new Set(DM_ONLY_COMMANDS.map((c) => c.name));
+
+  // Pull dynamic system-behavior slash commands from the DB. Today only
+  // admin-login can set triggerType='slash_command'; future system
+  // flows go in the same channel.
+  const dynamicCommands: Array<{ name: string; description: string }> = [];
+  const sysLogin = await findSystemBehaviorByKey(
+    SYSTEM_BEHAVIOR_KEY_LOGIN,
+  ).catch(() => null);
+  if (
+    sysLogin &&
+    sysLogin.enabled &&
+    sysLogin.triggerType === "slash_command" &&
+    sysLogin.triggerValue.length > 0
+  ) {
+    dynamicCommands.push({
+      name: sysLogin.triggerValue,
+      description: "取得 admin 後台一次性登入連結(僅授權使用者)",
+    });
+  }
+
+  const allCommands = [...STATIC_DM_ONLY_COMMANDS, ...dynamicCommands];
+  const desiredNames = new Set(allCommands.map((c) => c.name));
 
   // 1) Remove from every guild discordx pushed them to. We can't tell
   //    discordx "register these globally" from the @Slash level, but
@@ -144,7 +177,7 @@ async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
     try {
       const cmds = await guild.commands.fetch();
       for (const cmd of cmds.values()) {
-        if (targetNames.has(cmd.name)) {
+        if (desiredNames.has(cmd.name)) {
           await guild.commands.delete(cmd.id).catch(() => {});
         }
       }
@@ -153,15 +186,43 @@ async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
     }
   }
 
-  // 2) Register globally with DM-only contexts. Skips creation if the
-  //    same name is already global with the right context list (avoids
-  //    making Discord re-propagate on every bot restart).
+  // 2) Reconcile globals. Three outcomes per existing global command:
+  //    - in desired list with matching shape: leave alone
+  //    - in desired list but wrong shape: edit
+  //    - not in desired list AND name was previously a system-managed
+  //      one (e.g. user changed system login triggerValue from 'login'
+  //      → 'auth'): delete the stale /login. We don't currently
+  //      remember which commands we've ever registered, so the heuristic
+  //      is: delete any global command whose name doesn't appear in any
+  //      @Slash-decorated in-process command AND isn't in our desired
+  //      list. discordx in-process commands are guild-only so we don't
+  //      have to be too clever about distinguishing.
   const existing = await bot.application.commands.fetch();
   const existingByName = new Map(existing.map((c) => [c.name, c]));
 
-  for (const meta of DM_ONLY_COMMANDS) {
+  // Delete stale globals that look like ours but aren't desired.
+  // STATIC commands' names are eternal; for dynamic ones, scan
+  // global commands and drop unfamiliar ones if they have the
+  // DM-only context shape (heuristic: short, lower-case slug).
+  for (const [name, cmd] of existingByName) {
+    if (desiredNames.has(name)) continue;
+    if (STATIC_DM_ONLY_COMMANDS.some((c) => c.name === name)) continue;
+    // Only sweep names this function might have created. Crude
+    // signal: presence of BotDM context (set only by us right now).
+    const ctxs = (cmd as unknown as { contexts?: number[] }).contexts;
+    if (
+      ctxs &&
+      ctxs.length > 0 &&
+      ctxs.every((c) => c === InteractionContextType.BotDM ||
+        c === InteractionContextType.PrivateChannel)
+    ) {
+      await bot.application.commands.delete(cmd.id).catch(() => {});
+    }
+  }
+
+  for (const meta of allCommands) {
     const already = existingByName.get(meta.name);
-    if (already) continue; // good enough — global registration sticks
+    if (already) continue; // global registration sticks; no-op
     try {
       await bot.application.commands.create({
         type: ApplicationCommandType.ChatInput,
@@ -200,6 +261,27 @@ bot.on("guildDelete", (guild) => {
 });
 
 bot.on("interactionCreate", async (interaction: Interaction) => {
+  // System slash-command behaviors take the highest-priority path:
+  // an admin can edit the system login behavior's triggerValue (e.g.
+  // change /login to /auth) and the registered slash command updates
+  // accordingly. Match by behavior triggerValue rather than a hard-
+  // coded command name so the BehaviorsPage stays the source of truth.
+  if (interaction.isChatInputCommand()) {
+    try {
+      const sys = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_LOGIN);
+      if (
+        sys &&
+        sys.enabled &&
+        sys.triggerType === "slash_command" &&
+        sys.triggerValue === interaction.commandName
+      ) {
+        await issueLoginLinkForInteraction(interaction);
+        return;
+      }
+    } catch (error) {
+      console.error("system slash-command dispatch failed:", error);
+    }
+  }
   // Plugin commands take a fast path: we look the command up in our
   // own table first. If it's a plugin command, we defer the reply
   // (Discord's 3-second clock starts ticking the moment the
@@ -372,6 +454,10 @@ async function run() {
     // that branch. Belt-and-suspenders: ensure id=1 exists so the
     // sidebar's "all DMs" pinned tab always has a stable id to point at.
     await ensureAllDmsTarget();
+    // Seed the admin-login system behavior. Idempotent — only inserts
+    // a row when one isn't already present, so admin edits to trigger
+    // type / value across restarts persist.
+    await ensureSystemLoginBehavior(ALL_DMS_TARGET_ID);
     if (migrations.length > 0) {
       botEventLog.record(
         "info",

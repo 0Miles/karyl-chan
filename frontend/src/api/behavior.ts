@@ -1,7 +1,11 @@
 import { ApiError, authedFetch } from "./client";
 
 export type BehaviorTargetKind = "all_dms" | "user" | "group";
-export type BehaviorTriggerType = "startswith" | "endswith" | "regex";
+export type BehaviorTriggerType =
+  | "startswith"
+  | "endswith"
+  | "regex"
+  | "slash_command";
 export type BehaviorForwardType = "one_time" | "continuous";
 
 export interface BehaviorUserProfile {
@@ -25,7 +29,7 @@ export interface BehaviorGroupMember {
   profile: BehaviorUserProfile | null;
 }
 
-export type BehaviorType = "webhook" | "plugin";
+export type BehaviorType = "webhook" | "plugin" | "system";
 
 export interface BehaviorRow {
   id: number;

@@ -1,8 +1,8 @@
-import { parse } from 'discord-markdown-parser';
+import { parse } from "discord-markdown-parser";
 
 export interface ASTNode {
-    type: string;
-    [key: string]: unknown;
+  type: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -17,14 +17,18 @@ export interface ASTNode {
  * keeps the failure visible during development without spamming users.
  */
 export function parseMessageContent(text: string): ASTNode[] {
-    if (!text) return [];
-    try {
-        return parse(text, 'extended') as ASTNode[];
-    } catch (err) {
-        if (typeof console !== 'undefined') {
-            // eslint-disable-next-line no-console
-            console.warn('[markdown] parse failed, falling back to plain text:', err, text.slice(0, 200));
-        }
-        return [{ type: 'text', content: text } as ASTNode];
+  if (!text) return [];
+  try {
+    return parse(text, "extended") as ASTNode[];
+  } catch (err) {
+    if (typeof console !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[markdown] parse failed, falling back to plain text:",
+        err,
+        text.slice(0, 200),
+      );
     }
+    return [{ type: "text", content: text } as ASTNode];
+  }
 }

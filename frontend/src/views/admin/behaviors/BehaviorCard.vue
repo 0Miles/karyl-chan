@@ -103,6 +103,12 @@ watch(() => props.behavior.enabled, (next) => {
     enabledLocal.value = next;
 });
 
+// System behaviors are bot-built-in fixtures (admin-login etc.).
+// Most fields are locked from edit; only triggerType / triggerValue
+// / enabled are user-controllable. Drag handle, delete menu, and
+// move-target select are hidden in the template.
+const isSystem = computed(() => props.behavior.type === 'system');
+
 // Plugins offering at least one dm_behavior (eligible for selection
 // in this card). Inactive / disabled / no-dm-behavior plugins are
 // omitted so the user can't pick a routing target that won't fire.
@@ -131,6 +137,13 @@ const selectedDmBehaviorSupportsContinuous = computed(() => {
 
 const dirty = computed(() => {
     const b = props.behavior;
+    // System rows are field-locked except for trigger and enabled.
+    // enabled has its own toggle path; only trigger* gets the Save
+    // button.
+    if (b.type === 'system') {
+        return draft.triggerType !== b.triggerType
+            || draft.triggerValue !== b.triggerValue;
+    }
     // Type / plugin fields are part of dirtiness so a freshly added
     // webhook card switched to plugin (without other changes) still
     // lights up the Save button.
@@ -192,14 +205,23 @@ watch(selectedDmBehaviorSupportsContinuous, (supports) => {
 });
 
 // Option lists for AppSelectField (it wants {value,label}[]).
-const typeOptions = computed(() => [
-    { value: 'webhook' as BehaviorType, label: t('behaviors.card.behaviorTypeWebhook') },
-    { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
-]);
+const typeOptions = computed(() => {
+    if (isSystem.value) {
+        // System rows display a single read-only "system" option so the
+        // selector visibly reflects the locked state without crashing
+        // AppSelectField (it requires the model value to be present).
+        return [{ value: 'system' as BehaviorType, label: t('behaviors.card.behaviorTypeSystem') }];
+    }
+    return [
+        { value: 'webhook' as BehaviorType, label: t('behaviors.card.behaviorTypeWebhook') },
+        { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
+    ];
+});
 const triggerTypeOptions = computed(() => [
     { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
     { value: 'endswith' as BehaviorTriggerType, label: t('behaviors.card.triggerEndsWith') },
     { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
+    { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
 ]);
 const forwardTypeOptions = computed(() => [
     { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },
@@ -291,6 +313,25 @@ async function onSave() {
             return;
         }
     }
+    // System rows are locked to trigger* + enabled; build the
+    // narrowest possible patch and short-circuit the rest of the
+    // save path so we never accidentally send a forbidden field.
+    if (isSystem.value) {
+        const patch: BehaviorPatch = {};
+        if (draft.triggerType !== props.behavior.triggerType) patch.triggerType = draft.triggerType;
+        if (draft.triggerValue !== props.behavior.triggerValue) patch.triggerValue = draft.triggerValue;
+        if (Object.keys(patch).length === 0) return;
+        saving.value = true;
+        try {
+            const updated = await updateBehavior(props.behavior.id, patch);
+            emit('updated', updated);
+        } catch (err) {
+            error.value = err instanceof Error ? err.message : String(err);
+        } finally {
+            saving.value = false;
+        }
+        return;
+    }
     saving.value = true;
     try {
         const movedTarget = draft.targetId !== props.behavior.targetId ? draft.targetId : null;
@@ -361,9 +402,10 @@ async function onDelete() {
 </script>
 
 <template>
-    <article :class="['card', { 'is-disabled': !enabledLocal }]">
+    <article :class="['card', { 'is-disabled': !enabledLocal, 'is-system': isSystem }]">
         <header class="card-head">
             <button
+                v-if="!isSystem"
                 type="button"
                 class="drag-handle"
                 :title="t('behaviors.card.dragHint')"
@@ -371,6 +413,9 @@ async function onDelete() {
             >
                 <Icon icon="material-symbols:drag-indicator" width="18" height="18" />
             </button>
+            <span v-else class="drag-handle drag-handle--locked" :title="t('behaviors.card.systemRowLocked')" aria-hidden="true">
+                <Icon icon="material-symbols:lock-outline" width="16" height="16" />
+            </span>
             <button
                 type="button"
                 class="title-btn"
@@ -409,6 +454,14 @@ async function onDelete() {
                 <Icon icon="material-symbols:extension-outline" width="13" height="13" />
                 {{ t('behaviors.card.tagPluginShort') }}
             </span>
+            <span
+                v-if="isSystem"
+                class="tag tag-system"
+                :title="t('behaviors.card.tagSystem')"
+            >
+                <Icon icon="material-symbols:settings-outline" width="13" height="13" />
+                {{ t('behaviors.card.tagSystemShort') }}
+            </span>
             <button
                 type="button"
                 role="switch"
@@ -420,7 +473,7 @@ async function onDelete() {
             >
                 <span class="slider" aria-hidden="true"></span>
             </button>
-            <AppMenu placement="bottom-end" :offset="[0, 6]">
+            <AppMenu v-if="!isSystem" placement="bottom-end" :offset="[0, 6]">
                 <template #trigger>
                     <button
                         type="button"
@@ -442,12 +495,12 @@ async function onDelete() {
             <div class="grid">
                 <label class="field full">
                     <span class="label">{{ t('behaviors.card.title') }}</span>
-                    <input v-model="draft.title" type="text" maxlength="200" />
+                    <input v-model="draft.title" type="text" maxlength="200" :readonly="isSystem" />
                 </label>
 
                 <label class="field full">
                     <span class="label">{{ t('behaviors.card.description') }}</span>
-                    <textarea v-model="draft.description" rows="2" maxlength="2000" />
+                    <textarea v-model="draft.description" rows="2" maxlength="2000" :readonly="isSystem" />
                 </label>
 
                 <div class="field">
@@ -462,12 +515,12 @@ async function onDelete() {
 
                 <div class="field">
                     <span class="label">{{ t('behaviors.card.targetId') }}</span>
-                    <AppSelectField v-model="draft.targetId" :options="targetOptions" />
+                    <AppSelectField v-model="draft.targetId" :options="targetOptions" :disabled="isSystem" />
                 </div>
 
                 <div class="field">
                     <span class="label">{{ t('behaviors.card.behaviorType') }}</span>
-                    <AppSelectField v-model="draft.type" :options="typeOptions" />
+                    <AppSelectField v-model="draft.type" :options="typeOptions" :disabled="isSystem" />
                 </div>
 
                 <template v-if="draft.type === 'webhook'">
@@ -525,7 +578,7 @@ async function onDelete() {
                 </template>
 
                 <label class="field full inline">
-                    <input type="checkbox" v-model="draft.stopOnMatch" />
+                    <input type="checkbox" v-model="draft.stopOnMatch" :disabled="isSystem" />
                     <span>{{ t('behaviors.card.stopOnMatch') }}</span>
                 </label>
             </div>

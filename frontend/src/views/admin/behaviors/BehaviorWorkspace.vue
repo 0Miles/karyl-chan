@@ -100,6 +100,13 @@ function teardownSortable() {
 // each card is the only handle so a click on the title-button or form
 // fields doesn't initiate a drag. onEnd POSTs the new order to the
 // backend; on failure we revert to the server's last-known order.
+// System rows are pinned above the user list and not part of the
+// sortable container; user rows alone go through SortableJS. Reorder
+// PATCH only carries user-row ids — system rows hold their fixed
+// sortOrder server-side regardless of the patch.
+const systemBehaviors = computed(() => behaviors.value.filter(b => b.type === 'system'));
+const userBehaviors = computed(() => behaviors.value.filter(b => b.type !== 'system'));
+
 async function ensureSortable() {
     teardownSortable();
     if (!listRef.value) return;
@@ -110,13 +117,16 @@ async function ensureSortable() {
         onEnd: async (evt) => {
             const { oldIndex, newIndex } = evt;
             if (oldIndex == null || newIndex == null || oldIndex === newIndex) return;
-            const next = behaviors.value.slice();
-            const [moved] = next.splice(oldIndex, 1);
-            next.splice(newIndex, 0, moved);
+            // Reorder operates on the user-only list; the sortable
+            // container only contains user rows so oldIndex / newIndex
+            // are already user-list indices.
+            const userList = userBehaviors.value.slice();
+            const [moved] = userList.splice(oldIndex, 1);
+            userList.splice(newIndex, 0, moved);
             const previous = behaviors.value;
-            behaviors.value = next;
+            behaviors.value = [...systemBehaviors.value, ...userList];
             try {
-                await reorderBehaviors(props.target.id, next.map(b => b.id));
+                await reorderBehaviors(props.target.id, userList.map(b => b.id));
             } catch (err) {
                 error.value = err instanceof Error ? err.message : String(err);
                 behaviors.value = previous;
@@ -337,9 +347,24 @@ const headerTitle = computed(() => {
         </p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
 
+        <!-- System rows sit above the sortable container — pinned, not
+             draggable, no delete. Render them in a separate v-for so
+             SortableJS (attached to listRef below) only sees user rows
+             and indices stay aligned with the reorder PATCH payload. -->
+        <div v-if="systemBehaviors.length > 0" class="system-list card-list">
+            <BehaviorCard
+                v-for="b in systemBehaviors"
+                :key="b.id"
+                :behavior="b"
+                :targets="targets"
+                :plugins="plugins"
+                @updated="onUpdated"
+            />
+        </div>
+
         <div ref="listRef" class="card-list">
             <BehaviorCard
-                v-for="b in behaviors"
+                v-for="b in userBehaviors"
                 :key="b.id"
                 :behavior="b"
                 :targets="targets"

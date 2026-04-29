@@ -12,6 +12,10 @@ import type { BehaviorTriggerType } from '../models/behavior.model.js';
  *     Invalid patterns are guarded: we return false (no match) and
  *     leave it to upstream validation (route layer rejects invalid
  *     regex on save) to surface a fix.
+ *   - 'slash_command': always returns false in the messageCreate
+ *     path. Slash-command triggers fire from interactionCreate
+ *     instead, where the dispatcher matches command name to
+ *     triggerValue directly.
  */
 export function matchesTrigger(
     triggerType: BehaviorTriggerType,
@@ -31,6 +35,7 @@ export function matchesTrigger(
             return false;
         }
     }
+    // slash_command: handled outside the messageCreate path.
     return false;
 }
 
@@ -43,5 +48,6 @@ export function describeTrigger(triggerType: BehaviorTriggerType, triggerValue: 
     const truncated = triggerValue.length > 60 ? `${triggerValue.slice(0, 57)}…` : triggerValue;
     if (triggerType === 'startswith') return `開頭：${truncated}`;
     if (triggerType === 'endswith') return `結尾：${truncated}`;
+    if (triggerType === 'slash_command') return `指令：/${truncated}`;
     return `regex：${truncated}`;
 }
