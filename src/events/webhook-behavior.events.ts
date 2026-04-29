@@ -101,7 +101,14 @@ async function collectApplicableBehaviors(
   });
   result.push(...allBehaviors);
 
-  return result;
+  // System behaviors must evaluate before any user-defined trigger so
+  // an admin who edits a user-target rule that happens to share a
+  // trigger value (e.g. user-target startswith 'login') can't shadow
+  // the system flow. Lift them to the front regardless of the
+  // user→group→all_dms hierarchy push order above.
+  const systemRows = result.filter((b) => b.type === "system");
+  const userRows = result.filter((b) => b.type !== "system");
+  return [...systemRows, ...userRows];
 }
 
 /**

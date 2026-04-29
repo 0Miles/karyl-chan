@@ -213,8 +213,11 @@ async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
     if (
       ctxs &&
       ctxs.length > 0 &&
-      ctxs.every((c) => c === InteractionContextType.BotDM ||
-        c === InteractionContextType.PrivateChannel)
+      ctxs.every(
+        (c) =>
+          c === InteractionContextType.BotDM ||
+          c === InteractionContextType.PrivateChannel,
+      )
     ) {
       await bot.application.commands.delete(cmd.id).catch(() => {});
     }

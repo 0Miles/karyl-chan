@@ -1,6 +1,7 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "./db.js";
 import { BehaviorTarget } from "./behavior-target.model.js";
+import { encryptSecret } from "../utils/crypto.js";
 
 export type BehaviorTriggerType =
   | "startswith"
@@ -47,7 +48,7 @@ export const Behavior = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        isIn: [["startswith", "endswith", "regex"]],
+        isIn: [["startswith", "endswith", "regex", "slash_command"]],
       },
     },
     triggerValue: {
@@ -373,11 +374,16 @@ export const ensureSystemLoginBehavior = async (
   const created = await Behavior.create({
     targetId: allDmsTargetId,
     title: "發送登入連結",
-    description: "私訊 bot `/login`(或符合觸發條件)時,發送一次性 admin 登入連結給授權使用者。系統行為,不可刪除或更換目標對象。",
+    description:
+      "私訊 bot `/login`(或符合觸發條件)時,發送一次性 admin 登入連結給授權使用者。系統行為,不可刪除或更換目標對象。",
     triggerType: "slash_command",
     triggerValue: "login",
     forwardType: "one_time",
-    webhookUrl: "system://admin-login",
+    // Encrypted at rest like every other webhookUrl. The placeholder is
+    // never decrypted at dispatch (system rows route to a service, not
+    // an external URL) — keeping the same envelope avoids confusing
+    // decryptedView callers that expect ciphertext on every row.
+    webhookUrl: encryptSecret("system://admin-login"),
     webhookSecret: null,
     sortOrder: -1000,
     stopOnMatch: true,

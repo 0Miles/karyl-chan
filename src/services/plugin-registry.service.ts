@@ -417,6 +417,16 @@ export class PluginRegistry {
             { pluginId: id, cutoff: cutoff.toISOString() },
           );
         }
+        // If we just expired anything, rebuild the event subscription
+        // index so dispatch stops fanning out events to the dead
+        // plugin. Without this the index would still hold the id and
+        // every event hit a wasted findPluginById round-trip until
+        // the next register/setEnabled triggered a rebuild.
+        if (ids.length > 0) {
+          await rebuildEventIndex().catch(() => {
+            /* logged inside the bridge */
+          });
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         botEventLog.record("error", "error", `Plugin reaper failed: ${msg}`);

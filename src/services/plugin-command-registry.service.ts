@@ -142,20 +142,42 @@ export class PluginCommandRegistry {
   constructor(private getBot: () => Client | null) {}
 
   /**
+   * Names that bot infrastructure already owns at the global Discord
+   * application command level. Includes:
+   *   - in-process @Slash decorators that we've explicitly hoisted
+   *     to global registration (manual / break)
+   *   - system-behavior triggerValues that get registered globally
+   *     (login — the admin-login flow's slash command)
+   * Plugins that try to ship a command with these names get a 400
+   * out of register, with the same error path as plugin-vs-plugin
+   * collisions. Future system flows append here.
+   */
+  private static readonly RESERVED_COMMAND_NAMES = new Set([
+    "manual",
+    "break",
+    "login",
+  ]);
+
+  /**
    * Refuse to register a plugin if its manifest commands collide
-   * with another plugin's. Called from PluginRegistry.register
-   * BEFORE the plugin row is upserted, so on rejection nothing is
-   * persisted and the plugin retries with a corrected manifest.
-   *
-   * Note: collisions with discordx in-process commands are NOT
-   * checked here — those are managed through a different mechanism.
-   * Operator responsibility for now (Phase 2).
+   * with another plugin's, or with a reserved bot-internal command.
+   * Called from PluginRegistry.register BEFORE the plugin row is
+   * upserted, so on rejection nothing is persisted and the plugin
+   * retries with a corrected manifest.
    */
   async assertNoCollisions(
     incomingPluginKey: string,
     incomingPluginId: number,
     manifest: PluginManifest,
   ): Promise<void> {
+    for (const cmd of manifest.commands ?? []) {
+      if (PluginCommandRegistry.RESERVED_COMMAND_NAMES.has(cmd.name)) {
+        throw new ManifestCommandError(
+          `command '${cmd.name}' is reserved for bot internals; ` +
+            `'${incomingPluginKey}' must rename it`,
+        );
+      }
+    }
     for (const cmd of manifest.commands ?? []) {
       const guildIds: Array<string | null> = [];
       // Phase 1.5: 'guild' scope means "every guild the bot is in"

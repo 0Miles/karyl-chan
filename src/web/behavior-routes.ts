@@ -612,6 +612,18 @@ export async function registerBehaviorRoutes(
         reply.code(400).send({ error: "triggerValue is not a valid regex" });
         return;
       }
+      // type='plugin' + triggerType='slash_command' is a dead combo:
+      // the plugin's slash commands are registered through its
+      // manifest.commands[] and routed by plugin-interaction-dispatch,
+      // NOT through the behavior table. A behavior row with this
+      // combo would never fire.
+      if (behaviorType === "plugin" && triggerType === "slash_command") {
+        reply.code(400).send({
+          error:
+            "type='plugin' cannot use triggerType='slash_command'; declare slash commands in the plugin's manifest.commands instead",
+        });
+        return;
+      }
       if (
         typeof forwardType !== "string" ||
         !FORWARD_TYPES.includes(forwardType as BehaviorForwardType)
@@ -935,6 +947,19 @@ export async function registerBehaviorRoutes(
         if (!manifest?.dm_behaviors?.some((b) => b.key === bk)) {
           reply.code(400).send({
             error: `plugin '${plugin.pluginKey}' does not declare dm_behavior key='${bk}'`,
+          });
+          return;
+        }
+        // Reject the dead combo type=plugin × triggerType=slash_command
+        // BEFORE persisting the type switch. Both `update.triggerType`
+        // (already validated above) and `existing.triggerType` are
+        // candidates depending on whether the same patch changed
+        // trigger; check both. (Same combo blocked on POST/createBehavior.)
+        const effectiveTrigger = update.triggerType ?? existing.triggerType;
+        if (effectiveTrigger === "slash_command") {
+          reply.code(400).send({
+            error:
+              "type='plugin' cannot use triggerType='slash_command'; declare slash commands in the plugin's manifest.commands instead",
           });
           return;
         }

@@ -77,7 +77,9 @@ async function mintLoginLink(
   return { ok: true, url, minutesUntilExpiry, role };
 }
 
-function formatLoginReply(result: Extract<LoginLinkResult, { ok: true }>): string {
+function formatLoginReply(
+  result: Extract<LoginLinkResult, { ok: true }>,
+): string {
   return `Login link (role: ${result.role}, expires in ~${result.minutesUntilExpiry} min):\n${result.url}`;
 }
 
@@ -101,12 +103,9 @@ export async function issueLoginLinkAndReply(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("admin-login issue failed (message):", err);
-    botEventLog.record(
-      "error",
-      "feature",
-      `Admin login DM failed: ${msg}`,
-      { userId: message.author.id },
-    );
+    botEventLog.record("error", "feature", `Admin login DM failed: ${msg}`, {
+      userId: message.author.id,
+    });
     return false;
   }
 }
@@ -148,12 +147,9 @@ export async function issueLoginLinkForInteraction(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("admin-login issue failed (interaction):", err);
-    botEventLog.record(
-      "error",
-      "feature",
-      `Admin login slash failed: ${msg}`,
-      { userId: interaction.user.id },
-    );
+    botEventLog.record("error", "feature", `Admin login slash failed: ${msg}`, {
+      userId: interaction.user.id,
+    });
     return false;
   }
 }

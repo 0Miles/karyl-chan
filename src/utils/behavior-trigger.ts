@@ -1,4 +1,4 @@
-import type { BehaviorTriggerType } from '../models/behavior.model.js';
+import type { BehaviorTriggerType } from "../models/behavior.model.js";
 
 /**
  * Evaluate whether a DM message body matches a behavior trigger.
@@ -18,25 +18,25 @@ import type { BehaviorTriggerType } from '../models/behavior.model.js';
  *     triggerValue directly.
  */
 export function matchesTrigger(
-    triggerType: BehaviorTriggerType,
-    triggerValue: string,
-    content: string
+  triggerType: BehaviorTriggerType,
+  triggerValue: string,
+  content: string,
 ): boolean {
-    if (triggerType === 'startswith') {
-        return content.startsWith(triggerValue);
+  if (triggerType === "startswith") {
+    return content.startsWith(triggerValue);
+  }
+  if (triggerType === "endswith") {
+    return content.endsWith(triggerValue);
+  }
+  if (triggerType === "regex") {
+    try {
+      return new RegExp(triggerValue).test(content);
+    } catch {
+      return false;
     }
-    if (triggerType === 'endswith') {
-        return content.endsWith(triggerValue);
-    }
-    if (triggerType === 'regex') {
-        try {
-            return new RegExp(triggerValue).test(content);
-        } catch {
-            return false;
-        }
-    }
-    // slash_command: handled outside the messageCreate path.
-    return false;
+  }
+  // slash_command: handled outside the messageCreate path.
+  return false;
 }
 
 /**
@@ -44,10 +44,14 @@ export function matchesTrigger(
  * sidebar summaries. Truncates the value at 60 chars so a long regex
  * doesn't blow up an embed field.
  */
-export function describeTrigger(triggerType: BehaviorTriggerType, triggerValue: string): string {
-    const truncated = triggerValue.length > 60 ? `${triggerValue.slice(0, 57)}…` : triggerValue;
-    if (triggerType === 'startswith') return `開頭：${truncated}`;
-    if (triggerType === 'endswith') return `結尾：${truncated}`;
-    if (triggerType === 'slash_command') return `指令：/${truncated}`;
-    return `regex：${truncated}`;
+export function describeTrigger(
+  triggerType: BehaviorTriggerType,
+  triggerValue: string,
+): string {
+  const truncated =
+    triggerValue.length > 60 ? `${triggerValue.slice(0, 57)}…` : triggerValue;
+  if (triggerType === "startswith") return `開頭：${truncated}`;
+  if (triggerType === "endswith") return `結尾：${truncated}`;
+  if (triggerType === "slash_command") return `指令：/${truncated}`;
+  return `regex：${truncated}`;
 }

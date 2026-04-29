@@ -204,6 +204,17 @@ watch(selectedDmBehaviorSupportsContinuous, (supports) => {
     }
 });
 
+// Same self-healing for the type=plugin × triggerType=slash_command
+// dead combo: if user switches an existing slash_command behavior
+// to plugin type, coerce trigger back to startswith so the form
+// stays valid. Backend rejects this combo on save anyway; doing it
+// here removes the misleading saved-but-broken intermediate state.
+watch(() => draft.type, (next) => {
+    if (next === 'plugin' && draft.triggerType === 'slash_command') {
+        draft.triggerType = 'startswith';
+    }
+});
+
 // Option lists for AppSelectField (it wants {value,label}[]).
 const typeOptions = computed(() => {
     if (isSystem.value) {
@@ -217,12 +228,23 @@ const typeOptions = computed(() => {
         { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
     ];
 });
-const triggerTypeOptions = computed(() => [
-    { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
-    { value: 'endswith' as BehaviorTriggerType, label: t('behaviors.card.triggerEndsWith') },
-    { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
-    { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
-]);
+const triggerTypeOptions = computed(() => {
+    const all = [
+        { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
+        { value: 'endswith' as BehaviorTriggerType, label: t('behaviors.card.triggerEndsWith') },
+        { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
+        { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
+    ];
+    // Plugin behaviors register their slash commands through the
+    // plugin's own manifest.commands[] mechanism, NOT via behavior
+    // triggers. Hide the option so the form can't produce a dead
+    // (type=plugin, trigger=slash_command) row that the bot would
+    // never actually fire. Backend ALSO rejects this combo on save.
+    if (draft.type === 'plugin') {
+        return all.filter(o => o.value !== 'slash_command');
+    }
+    return all;
+});
 const forwardTypeOptions = computed(() => [
     { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },
     { value: 'continuous' as BehaviorForwardType, label: t('behaviors.card.forwardContinuous') },
