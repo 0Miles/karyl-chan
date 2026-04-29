@@ -73,6 +73,10 @@ export const bot = new Client({
   silent: false,
 });
 
+// discord.js v14 emits 'ready' (with a one-time DeprecationWarning at
+// boot); 'clientReady' is the v15 rename and is NOT emitted in v14
+// yet. Stick with 'ready' until the v14→v15 migration; the warning is
+// noisy but harmless.
 bot.once("ready", async () => {
   const userTag = bot.user?.tag ?? "unknown";
   const userId = bot.user?.id ?? "unknown";
