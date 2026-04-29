@@ -192,9 +192,7 @@ export async function dispatchInProcessInteraction(
     return true;
   }
   if (interaction.isModalSubmit()) {
-    const entry = modals.find((m) =>
-      interaction.customId.startsWith(m.prefix),
-    );
+    const entry = modals.find((m) => interaction.customId.startsWith(m.prefix));
     if (!entry) return false;
     try {
       await entry.handler(interaction);

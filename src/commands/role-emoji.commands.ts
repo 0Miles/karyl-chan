@@ -103,10 +103,7 @@ async function groupRemove(
       });
       return;
     }
-    await removeRoleEmojiGroup(
-      guildId,
-      existing.getDataValue("id") as number,
-    );
+    await removeRoleEmojiGroup(guildId, existing.getDataValue("id") as number);
     await command.reply({
       embeds: [
         {
@@ -165,9 +162,7 @@ async function groupList(command: ChatInputCommandInteraction): Promise<void> {
 
 // ── mappings (top-level) ────────────────────────────────────────────────
 
-async function mappingAdd(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function mappingAdd(command: ChatInputCommandInteraction): Promise<void> {
   const emoji = command.options.getString("emoji", true);
   const role = command.options.getRole("role", true) as Role;
   const groupNameRaw = command.options.getString("group", false);
@@ -433,9 +428,7 @@ async function watch(command: ChatInputCommandInteraction): Promise<void> {
   }
 }
 
-async function stopWatch(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function stopWatch(command: ChatInputCommandInteraction): Promise<void> {
   await command.deferReply({ flags: "Ephemeral" }).catch(() => {});
   const messageId = command.options.getString("message-id", true);
   const guildId = command.guildId as string;

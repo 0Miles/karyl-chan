@@ -22,9 +22,10 @@ function memberRow(guildId: string, m: GuildMember): VoiceMember {
   };
 }
 
-function channelMembers(
-  channel: VoiceBasedChannel,
-): { channelId: string; members: VoiceMember[] } {
+function channelMembers(channel: VoiceBasedChannel): {
+  channelId: string;
+  members: VoiceMember[];
+} {
   return {
     channelId: channel.id,
     members: [...channel.members.values()].map((m) =>

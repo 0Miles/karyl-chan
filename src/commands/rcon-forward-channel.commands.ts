@@ -139,9 +139,7 @@ async function stopWatchChannel(
   }
 }
 
-async function status(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function status(command: ChatInputCommandInteraction): Promise<void> {
   const existingRecord = await RconForwardChannel.findOne({
     where: { channelId: command.channelId, guildId: command.guildId },
   });
@@ -155,7 +153,9 @@ async function status(
     );
   } else {
     await command.reply({
-      embeds: [{ color: FAILED_COLOR, title: "Current channel is not being watched." }],
+      embeds: [
+        { color: FAILED_COLOR, title: "Current channel is not being watched." },
+      ],
       flags: "Ephemeral",
     });
   }
@@ -177,7 +177,9 @@ async function edit(command: ChatInputCommandInteraction): Promise<void> {
     );
   } else {
     await command.reply({
-      embeds: [{ color: FAILED_COLOR, title: "Current channel is not being watched." }],
+      embeds: [
+        { color: FAILED_COLOR, title: "Current channel is not being watched." },
+      ],
       flags: "Ephemeral",
     });
   }
