@@ -74,17 +74,22 @@ services:
       # Pure-node healthcheck — the runtime image doesn't ship curl
       # or wget, but node itself is always available. Sibling projects
       # can `depends_on: { karyl-chan: { condition: service_healthy } }`
-      # so they don't fire requests at a half-booted bot.
+      # so they don't fire requests at a half-booted bot. We probe
+      # /api/health/ready (not /api/health) so "healthy" means the
+      # full boot path completed — migrations + DB + Discord gateway.
+      # /api/health stays as a liveness alias for any older clients.
       test:
         - CMD-SHELL
         - >-
-          node -e "require('http').get('http://localhost:3000/api/health',
+          node -e "require('http').get('http://localhost:3000/api/health/ready',
           r => process.exit(r.statusCode === 200 ? 0 : 1))
           .on('error', () => process.exit(1))"
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 30s
+      # Longer start_period — Discord gateway handshake + guild fetch
+      # can take 30-60s after the web server already accepts requests.
+      start_period: 90s
 
 volumes:
   karyl-chan-data:

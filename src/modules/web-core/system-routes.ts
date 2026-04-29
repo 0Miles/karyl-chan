@@ -3,6 +3,7 @@ import type { Client } from "discord.js";
 import type { DmInboxStore } from "../dm-inbox/dm-inbox.service.js";
 import { sequelize } from "../../db.js";
 import { requireCapability } from "./route-guards.js";
+import { getReadiness } from "./readiness.js";
 
 interface SystemRoutesOptions {
   bot?: Client;
@@ -14,6 +15,52 @@ export async function registerSystemRoutes(
   options: SystemRoutesOptions = {},
 ): Promise<void> {
   const { bot, dmInbox } = options;
+
+  // Liveness: am I still alive? Cheap, always 200 unless the process
+  // is wedged. Use this for container restart probes / load-balancer
+  // dead-instance detection. /api/health is kept as a backwards-compat
+  // alias so existing docker-compose healthchecks and frontend clients
+  // don't change behaviour.
+  const livenessHandler = async () => ({
+    status: "ok",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+  server.get("/api/health", livenessHandler);
+  server.get("/api/health/live", livenessHandler);
+
+  // Readiness: am I ready to serve real traffic? Gates on the three
+  // boot signals (migrations + db + bot ready) plus a live db
+  // authenticate roundtrip so we catch DB outages mid-flight. Sibling
+  // containers that need to wait for full boot should hit this path
+  // (e.g. `wget -qO- http://karyl-chan:3000/api/health/ready`).
+  server.get("/api/health/ready", async (_request, reply) => {
+    const r = getReadiness();
+    let dbOk = false;
+    let dbError: string | undefined;
+    try {
+      await sequelize.authenticate();
+      dbOk = true;
+    } catch (err) {
+      dbError = err instanceof Error ? err.message : String(err);
+    }
+    const allReady = r.ready && dbOk;
+    const body = {
+      status: allReady ? "ready" : "not_ready",
+      checks: {
+        migrations: r.migrations,
+        bot: r.bot,
+        bootDb: r.db,
+        liveDb: dbOk,
+        ...(dbError ? { dbError } : {}),
+      },
+      timestamp: new Date().toISOString(),
+    };
+    if (!allReady) {
+      reply.code(503);
+    }
+    return body;
+  });
 
   server.get("/api/system/stats", async (request, reply) => {
     if (!requireCapability(request, reply, "system.read")) return;

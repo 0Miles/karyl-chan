@@ -24,6 +24,7 @@ import { Client } from "discord.js";
 import { sequelize } from "./db.js";
 import { config } from "./config.js";
 import { startWebServer } from "./modules/web-core/server.js";
+import { setReady } from "./modules/web-core/readiness.js";
 import { dmInboxService } from "./modules/dm-inbox/dm-inbox.service.js";
 import { authStore } from "./modules/web-core/auth-store.service.js";
 import { sequelizeRefreshStore } from "./modules/web-core/refresh-token.repository.js";
@@ -143,6 +144,7 @@ bot.once("ready", async () => {
     userId,
     guildCount,
   });
+  setReady("bot", true);
   // discordx's initApplicationCommands previously registered the four
   // in-process commands (picture-only / role-emoji / todo-channel /
   // rcon-forward). Phase 2 of the discordx removal moved those onto
@@ -464,7 +466,9 @@ async function run() {
     // to be idempotent / guard against already-applied changes so
     // fresh-sync'd DBs don't trip over them.
     await sequelize.sync();
+    setReady("db", true);
     const migrations = await runPendingMigrations();
+    setReady("migrations", true);
     // The webhook-behavior migration seeds the all_dms singleton row,
     // but a fresh install where sequelize.sync() created the table
     // first leaves the migration's CREATE-guarded INSERT a no-op for

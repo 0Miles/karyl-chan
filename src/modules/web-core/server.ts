@@ -177,7 +177,15 @@ export async function createWebServer(
   server.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
-    if (pathOnly(request.url) === "/api/health") return;
+    {
+      const healthPath = pathOnly(request.url);
+      if (
+        healthPath === "/api/health" ||
+        healthPath === "/api/health/live" ||
+        healthPath === "/api/health/ready"
+      )
+        return;
+    }
     // Plugin-facing endpoints have their own auth model (setup secret
     // for register, plugin bearer token for heartbeat). Admin
     // endpoints under /api/plugins still go through this hook below.
@@ -524,13 +532,10 @@ export async function createWebServer(
     },
   );
 
-  server.get("/api/health", async () => {
-    return {
-      status: "ok",
-      uptime: process.uptime(),
-      timestamp: new Date().toISOString(),
-    };
-  });
+  // /api/health, /api/health/live, /api/health/ready are registered
+  // by registerSystemRoutes() (web-core/system-routes.ts). They're
+  // kept there because readiness checks need the DB + readiness state
+  // that are owned by the bootstrap path, not by the web layer itself.
 
   const bot = options.bot;
   await registerAdminManagementRoutes(server, { bot });
