@@ -103,20 +103,16 @@ plugin_kv (
 RPC 改:`storage.kv_get({ bucket_type, bucket_id, key })`。配額也按
 bucketType 分(per-user 量級 vs per-guild 量級不同)。
 
-### 🟡 KV 沒有 atomic increment (D2)
+### ✅ KV 沒有 atomic increment (D2) — FIXED 2026-04-29
 
-Accounting plugin 的 `nextId()` 是 read-modify-write,兩個請求同時進
-來會撞 counter:取得相同 cur,各自 +1 寫回相同 next,結果丟失一筆。
-實務上 DM 連點兩次間隔 >> race window,但這是 footgun。
+新增 `storage.kv_increment` RPC,後端用 SQLite `BEGIN IMMEDIATE`
+transaction 取得 write lock 再 read-modify-write,搭配 db.ts 的
+`busy_timeout = 3000` 序列化並發 increments。Accounting plugin 的
+`nextId()` 已換用此 RPC,8 個並發 add 都拿到不同 id。
 
-**新增 RPC**:
-```http
-POST /api/plugin/storage.kv_increment
-{ "guild_id" /* or future bucket */, "key", "delta": 1 }
-→ { "value": 42 }
-```
-後端用 SQL `UPDATE ... SET value=value+? RETURNING value`(SQLite
-3.35+ 支援 RETURNING)。
+註:不要回頭改用 `BEGIN DEFERRED` — DEFERRED 拿 read lock 才開始,
+要寫的時候才升級成 write,multiple deferred 升級時搶不到的會立刻
+SQLITE_BUSY 而非等 busy_timeout(那只給連線級鎖等待)。
 
 ### 🟡 KV list 是 N+1 fetch (D3)
 
