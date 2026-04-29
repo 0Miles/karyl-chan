@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import { RconForwardChannel } from "./rcon-forward-channel.model.js";
-import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { FAILED_COLOR } from "../../../utils/constant.js";
 import { RconQueueService } from "./rcon-queue.service.js";
 import { RconConnectionService } from "./rcon-connection.service.js";

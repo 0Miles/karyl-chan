@@ -12,7 +12,7 @@ import {
   findFeatureRowsByPlugin,
   upsertFeatureRow,
   updateMetricsJson,
-} from "../src/models/plugin-guild-feature.model.js";
+} from "../src/modules/feature-toggle/models/plugin-guild-feature.model.js";
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });

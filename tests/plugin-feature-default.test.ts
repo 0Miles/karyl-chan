@@ -11,7 +11,7 @@ import {
   findFeatureDefault,
   findFeatureDefaultsByPlugin,
   upsertFeatureDefault,
-} from "../src/models/plugin-feature-default.model.js";
+} from "../src/modules/feature-toggle/models/plugin-feature-default.model.js";
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });

@@ -1,5 +1,5 @@
 import { DataTypes, Op } from "sequelize";
-import { sequelize } from "./db.js";
+import { sequelize } from "../../../models/db.js";
 
 /**
  * In-process feature on/off state. See migration

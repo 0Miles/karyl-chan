@@ -5,9 +5,9 @@ import {
   isKnownBuiltinFeature,
   upsertStateRow,
   type BotFeatureStateRow,
-} from "../models/bot-feature-state.model.js";
-import { requireCapability } from "./route-guards.js";
-import { botEventLog } from "./bot-event-log.js";
+} from "./models/bot-feature-state.model.js";
+import { requireCapability } from "../../web/route-guards.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Admin endpoints for the bot's in-process feature on/off table.

@@ -12,12 +12,12 @@ import {
   findFeatureRowsByGuild,
   findFeatureRowsByPlugin,
   upsertFeatureRow,
-} from "../../models/plugin-guild-feature.model.js";
+} from "../feature-toggle/models/plugin-guild-feature.model.js";
 import {
   findAllFeatureDefaults,
   upsertFeatureDefault,
   type PluginFeatureDefaultRow,
-} from "../../models/plugin-feature-default.model.js";
+} from "../feature-toggle/models/plugin-feature-default.model.js";
 import {
   findConfigByPluginAndSource,
   upsertConfigKey,

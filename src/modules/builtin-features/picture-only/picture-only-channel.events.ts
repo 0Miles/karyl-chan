@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import { PictureOnlyChannel } from "./picture-only-channel.model.js";
-import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { botEventLog } from "../../../web/bot-event-log.js";
 import { shouldRecord } from "../../../web/bot-event-dedup.js";
 

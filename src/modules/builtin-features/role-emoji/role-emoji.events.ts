@@ -6,7 +6,7 @@ import {
 } from "discord.js";
 import { findRoleReceiveMessage } from "./role-receive-message.model.js";
 import { findRoleEmojiInGroup } from "./role-emoji.model.js";
-import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { botEventLog } from "../../../web/bot-event-log.js";
 
 /**
