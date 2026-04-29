@@ -32,6 +32,13 @@ export interface PluginManifest {
     guild_kv_quota_kb?: number;
     requires_secrets?: boolean;
   };
+  config_schema?: Array<{
+    key: string;
+    type: string;
+    label: string;
+    description?: string;
+    required?: boolean;
+  }>;
   guild_features?: Array<{
     key: string;
     name: string;
@@ -103,4 +110,58 @@ export async function setPluginEnabled(
     plugin: { id: number; pluginKey: string; enabled: boolean };
   }>(r);
   return body.plugin;
+}
+
+// ─── Plugin-level config (admin-editable) ──────────────────────────
+
+export interface PluginConfigField {
+  key: string;
+  type:
+    | "text"
+    | "textarea"
+    | "number"
+    | "boolean"
+    | "select"
+    | "channel"
+    | "role"
+    | "user"
+    | "url"
+    | "secret"
+    | "regex";
+  label: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ value: string; label: string }>;
+}
+
+export interface PluginConfigValue {
+  key: string;
+  set: boolean;
+  /** For secret fields the API returns "********" instead of plaintext. */
+  value: string | null;
+}
+
+export interface PluginConfigPayload {
+  schema: PluginConfigField[];
+  values: PluginConfigValue[];
+}
+
+export async function getPluginConfig(
+  id: number,
+): Promise<PluginConfigPayload> {
+  const r = await authedFetch(`/api/plugins/${id}/config`);
+  return jsonOrThrow<PluginConfigPayload>(r);
+}
+
+export async function setPluginConfig(
+  id: number,
+  values: Record<string, string | null>,
+): Promise<{ accepted: string[]; skipped: string[] }> {
+  const r = await authedFetch(`/api/plugins/${id}/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values }),
+  });
+  return jsonOrThrow<{ accepted: string[]; skipped: string[] }>(r);
 }

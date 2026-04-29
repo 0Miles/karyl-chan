@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
-import { setPluginEnabled, type PluginRecord } from '../../../api/plugins';
+import {
+    getPluginConfig,
+    setPluginConfig,
+    setPluginEnabled,
+    type PluginConfigField,
+    type PluginRecord
+} from '../../../api/plugins';
 
 const props = defineProps<{
     plugin: PluginRecord;
@@ -24,8 +30,76 @@ const error = ref<string | null>(null);
 const enabledLocal = ref(props.plugin.enabled);
 // Watch the prop in case the parent reloads the list and hands us a
 // fresh PluginRecord with a different `enabled`.
-import { watch } from 'vue';
 watch(() => props.plugin.enabled, (next) => { enabledLocal.value = next; });
+
+// Plugin-level config (admin-editable). Loaded lazily on the first
+// expand so collapsed cards don't fan out N+1 GETs at page load.
+// Each field's "set" status drives the secret placeholder UX —
+// secrets come back as "********" sentinel; keeping the sentinel in
+// the form means the PUT will skip re-encrypting when the user didn't
+// change it (see backend route comment).
+const configSchema = ref<PluginConfigField[]>([]);
+const configValues = reactive<Record<string, string>>({});
+const configLoaded = ref(false);
+const configLoading = ref(false);
+const configSaving = ref(false);
+const configError = ref<string | null>(null);
+const configSavedAt = ref<number | null>(null);
+
+const hasConfigSchema = computed(() =>
+    (props.plugin.manifest?.config_schema?.length ?? 0) > 0
+);
+
+async function loadConfig() {
+    if (configLoaded.value || configLoading.value) return;
+    configLoading.value = true;
+    configError.value = null;
+    try {
+        const r = await getPluginConfig(props.plugin.id);
+        configSchema.value = r.schema;
+        for (const v of r.values) {
+            // Use empty string for "unset" so two-way binding has a real
+            // string. The save path treats "" + non-secret type as
+            // "store empty value" which round-trips fine.
+            configValues[v.key] = v.value ?? '';
+        }
+        // Seed defaults for keys the server didn't return (e.g. brand-
+        // new schema field) so the form renders something to type into.
+        for (const f of r.schema) {
+            if (!(f.key in configValues)) {
+                configValues[f.key] = (f.default as string | undefined) ?? '';
+            }
+        }
+        configLoaded.value = true;
+    } catch (err) {
+        configError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        configLoading.value = false;
+    }
+}
+
+async function saveConfig() {
+    if (configSaving.value) return;
+    configSaving.value = true;
+    configError.value = null;
+    try {
+        // Send everything in the form back. The backend skips secret
+        // fields whose value is still the "********" sentinel, so
+        // unchanged secrets stay encrypted at rest.
+        await setPluginConfig(props.plugin.id, { ...configValues });
+        configSavedAt.value = Date.now();
+    } catch (err) {
+        configError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        configSaving.value = false;
+    }
+}
+
+// Lazily fetch config the first time the card opens AND there is a
+// schema to render. Subsequent opens reuse the in-memory state.
+watch(open, (isOpen) => {
+    if (isOpen && hasConfigSchema.value) void loadConfig();
+});
 
 const statusColor = computed(() =>
     props.plugin.status === 'active' ? 'var(--success, #16a34a)' : 'var(--text-muted)'
@@ -137,6 +211,65 @@ async function onToggleEnabled() {
                     </dd>
                 </div>
             </dl>
+
+            <!-- Plugin-level config editor. Only renders when the
+                 plugin's manifest declares a `config_schema`; values
+                 are loaded lazily on first expand. -->
+            <section v-if="hasConfigSchema" class="config-section">
+                <header class="config-header">
+                    <h4>外掛設定</h4>
+                    <span v-if="configSavedAt && (Date.now() - configSavedAt < 4000)" class="muted saved">已儲存</span>
+                </header>
+                <p v-if="configLoading" class="muted">載入中…</p>
+                <p v-if="configError" class="error" role="alert">{{ configError }}</p>
+                <div v-else-if="configLoaded" class="config-grid">
+                    <label
+                        v-for="field in configSchema"
+                        :key="field.key"
+                        :class="['config-field', { full: field.type === 'textarea' }]"
+                    >
+                        <span class="config-label">
+                            {{ field.label }}
+                            <span v-if="field.required" class="req" aria-hidden="true">*</span>
+                            <span v-if="field.description" class="hint">{{ field.description }}</span>
+                        </span>
+                        <textarea
+                            v-if="field.type === 'textarea'"
+                            v-model="configValues[field.key]"
+                            rows="3"
+                            spellcheck="false"
+                        />
+                        <select
+                            v-else-if="field.type === 'select' && field.options"
+                            v-model="configValues[field.key]"
+                        >
+                            <option value="">—</option>
+                            <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+                                {{ opt.label }}
+                            </option>
+                        </select>
+                        <input
+                            v-else-if="field.type === 'boolean'"
+                            type="checkbox"
+                            :checked="configValues[field.key] === 'true'"
+                            @change="(e) => { configValues[field.key] = (e.target as HTMLInputElement).checked ? 'true' : 'false'; }"
+                        />
+                        <input
+                            v-else
+                            v-model="configValues[field.key]"
+                            :type="field.type === 'secret' ? 'password' : (field.type === 'number' ? 'number' : 'text')"
+                            :placeholder="field.type === 'secret' ? '留空 = 不變更' : ''"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </label>
+                    <div class="config-actions">
+                        <button type="button" class="primary" :disabled="configSaving" @click="saveConfig">
+                            {{ configSaving ? '儲存中…' : '儲存設定' }}
+                        </button>
+                    </div>
+                </div>
+            </section>
 
             <details v-if="plugin.manifest" class="manifest-fold">
                 <summary>{{ t('admin.plugins.manifestRaw') }}</summary>
@@ -301,4 +434,65 @@ async function onToggleEnabled() {
     color: var(--text);
 }
 .error { color: var(--danger); margin: 0; font-size: 0.85rem; }
+
+.config-section {
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-page);
+}
+.config-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+}
+.config-header h4 { margin: 0; font-size: 0.92rem; color: var(--text-strong); flex: 1; }
+.muted.saved { color: var(--accent); font-size: 0.78rem; }
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.6rem 0.85rem;
+}
+.config-field {
+    display: flex; flex-direction: column; gap: 0.25rem;
+}
+.config-field.full { grid-column: 1 / -1; }
+.config-label {
+    display: flex; flex-direction: column;
+    font-size: 0.82rem;
+    color: var(--text-strong);
+    font-weight: 500;
+}
+.config-label .req { color: var(--danger); margin-left: 0.2rem; font-weight: 400; }
+.config-label .hint { color: var(--text-muted); font-weight: 400; font-size: 0.75rem; margin-top: 0.1rem; }
+.config-field input[type="text"],
+.config-field input[type="number"],
+.config-field input[type="password"],
+.config-field textarea,
+.config-field select {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text);
+    font-size: 0.85rem;
+    font-family: inherit;
+}
+.config-field input[type="checkbox"] { align-self: flex-start; margin-top: 0.2rem; }
+.config-actions {
+    grid-column: 1 / -1;
+    display: flex; justify-content: flex-end;
+}
+.config-actions .primary {
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.config-actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>

@@ -18,6 +18,10 @@ import {
   upsertFeatureDefault,
   type PluginFeatureDefaultRow,
 } from "../models/plugin-feature-default.model.js";
+import {
+  findConfigByPluginAndSource,
+  upsertConfigKey,
+} from "../models/plugin-config.model.js";
 import { encryptSecret } from "../utils/crypto.js";
 import type { PluginManifest } from "../services/plugin-registry.service.js";
 
@@ -623,6 +627,141 @@ export async function registerPluginRoutes(
       return { updated, skipped: 0 };
     },
   );
+
+  // ─── Plugin-level config (admin-editable) ─────────────────────────
+
+  /**
+   * GET /api/plugins/:id/config
+   *
+   * Returns the plugin's manifest config_schema joined with currently-
+   * stored values. `secret`-typed fields come back as a sentinel
+   * marker so the admin UI can render a "leave blank to keep" state
+   * without ever seeing decrypted plaintext on an admin response.
+   *
+   * Plugin-self KV (source='plugin') is excluded — that's the
+   * plugin's private state, not admin-controlled.
+   */
+  server.get<{ Params: { id: string } }>(
+    "/api/plugins/:id/config",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const pluginId = Number(request.params.id);
+      if (!Number.isInteger(pluginId) || pluginId <= 0) {
+        reply.code(400).send({ error: "invalid plugin id" });
+        return;
+      }
+      const plugin = (await pluginRegistry.list()).find(
+        (p) => p.id === pluginId,
+      );
+      if (!plugin) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      const manifest = safeParse(plugin.manifestJson) as PluginManifest | null;
+      const schema = manifest?.config_schema ?? [];
+      const rows = await findConfigByPluginAndSource(pluginId, "admin");
+      const byKey = new Map(rows.map((r) => [r.key, r]));
+      return {
+        schema,
+        values: schema.map((field) => {
+          const row = byKey.get(field.key);
+          if (!row) return { key: field.key, set: false, value: null };
+          if (field.type === "secret") {
+            return { key: field.key, set: true, value: "********" };
+          }
+          return { key: field.key, set: true, value: row.value };
+        }),
+      };
+    },
+  );
+
+  /**
+   * PUT /api/plugins/:id/config
+   * Body: { values: Record<string, string | null> }
+   *
+   * Upsert each provided key. `null` deletes the key. Secret values
+   * coming in as the sentinel "********" are ignored (i.e. the
+   * existing encrypted value is kept) — that's how the UI says "leave
+   * this secret unchanged" without sending the plaintext back.
+   *
+   * Unknown keys (not in manifest.config_schema) are rejected so
+   * admins can't bloat the table with stray entries.
+   */
+  server.put<{
+    Params: { id: string };
+    Body: { values?: unknown };
+  }>("/api/plugins/:id/config", async (request, reply) => {
+    if (!requireCapability(request, reply, "admin")) return;
+    const pluginId = Number(request.params.id);
+    if (!Number.isInteger(pluginId) || pluginId <= 0) {
+      reply.code(400).send({ error: "invalid plugin id" });
+      return;
+    }
+    const plugin = (await pluginRegistry.list()).find(
+      (p) => p.id === pluginId,
+    );
+    if (!plugin) {
+      reply.code(404).send({ error: "plugin not found" });
+      return;
+    }
+    const manifest = safeParse(plugin.manifestJson) as PluginManifest | null;
+    const schema = manifest?.config_schema ?? [];
+    const schemaByKey = new Map(schema.map((f) => [f.key, f]));
+    const body = request.body ?? {};
+    if (!body.values || typeof body.values !== "object") {
+      reply.code(400).send({ error: "values object required" });
+      return;
+    }
+    const values = body.values as Record<string, unknown>;
+    const accepted: string[] = [];
+    const skipped: string[] = [];
+    for (const [key, raw] of Object.entries(values)) {
+      const field = schemaByKey.get(key);
+      if (!field) {
+        reply
+          .code(400)
+          .send({ error: `'${key}' not declared in plugin config_schema` });
+        return;
+      }
+      // Sentinel "********" on a secret = leave unchanged.
+      if (field.type === "secret" && raw === "********") {
+        skipped.push(key);
+        continue;
+      }
+      if (raw === null || raw === undefined) {
+        // Delete by setting empty string — keep schema consistent;
+        // operator can re-set later. (Hard delete via DELETE endpoint
+        // is overkill for v1.)
+        await upsertConfigKey(pluginId, key, "", "admin");
+        accepted.push(key);
+        continue;
+      }
+      let stored: string;
+      if (typeof raw !== "string") {
+        reply.code(400).send({ error: `'${key}' must be string` });
+        return;
+      }
+      if (field.type === "secret" && raw.length > 0) {
+        stored = encryptSecret(raw);
+      } else {
+        stored = raw;
+      }
+      await upsertConfigKey(pluginId, key, stored, "admin");
+      accepted.push(key);
+    }
+    botEventLog.record(
+      "info",
+      "bot",
+      `plugin '${plugin.pluginKey}' admin config updated (${accepted.length} keys)`,
+      {
+        pluginId,
+        keys: accepted,
+        skippedSecretKeys: skipped,
+        actor: request.authUserId,
+      },
+    );
+    return { accepted, skipped };
+  });
 
   /** POST /api/plugins/:id/enable | /disable */
   server.post<{ Params: { id: string }; Body: { enabled?: unknown } }>(

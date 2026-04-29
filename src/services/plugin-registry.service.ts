@@ -132,6 +132,15 @@ export interface PluginManifest {
     guild_kv_quota_kb?: number;
     requires_secrets?: boolean;
   };
+  /**
+   * Plugin-level config that the operator can edit from the admin UI.
+   * Distinct from guild_features[].config_schema (per-guild) and
+   * dm_behaviors[].config_schema (per-behavior). Values persist in the
+   * `plugin_configs` table and are exposed back to the plugin via the
+   * `config.get` RPC (secrets returned decrypted to the plugin process,
+   * masked when surfaced to admin reads).
+   */
+  config_schema?: ManifestConfigField[];
   guild_features?: ManifestGuildFeature[];
   dm_behaviors?: ManifestDmBehavior[];
   commands?: ManifestCommand[];

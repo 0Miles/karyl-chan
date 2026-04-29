@@ -10,6 +10,12 @@ import {
   setKv,
   sumGuildBytes,
 } from "../models/plugin-kv.model.js";
+import {
+  deleteConfigKey,
+  findConfigByPlugin,
+  upsertConfigKey,
+} from "../models/plugin-config.model.js";
+import { decryptSecret } from "../utils/crypto.js";
 import { botEventLog } from "./bot-event-log.js";
 import type { PluginManifest } from "../services/plugin-registry.service.js";
 
@@ -326,6 +332,130 @@ export async function registerPluginRpcRoutes(
       reply.code(400).send({ error: `add_reaction failed: ${m}` });
     }
   });
+
+  // ─── config.get ────────────────────────────────────────────────────
+  /**
+   * POST /api/plugin/config.get
+   * Body: {} (no params; plugin only sees its own config)
+   * Returns:
+   *   { values: Record<string, string>, schema: ManifestConfigField[] }
+   *
+   * Surfaces the plugin's combined config map. Values for `secret`-
+   * typed admin fields are decrypted on the way out — the plugin
+   * needs the real value to act on it. Plugin-self KV (config.set
+   * source='plugin') is included alongside admin-edited fields so the
+   * plugin sees one flat map.
+   *
+   * Rate-limit-friendly: rebuilding the full map per call is fine
+   * (config rows are O(few-dozen) per plugin). Plugins that hot-loop
+   * config.get on every event should cache locally and rely on
+   * push-style update via re-poll on a known cadence.
+   */
+  server.post("/api/plugin/config.get", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "config.get");
+    if (!ctx) return;
+    const plugin = await findPluginById(ctx.pluginId);
+    if (!plugin) {
+      reply.code(404).send({ error: "plugin row vanished" });
+      return;
+    }
+    const manifest = (() => {
+      try {
+        return JSON.parse(plugin.manifestJson) as PluginManifest;
+      } catch {
+        return null;
+      }
+    })();
+    const schemaByKey = new Map(
+      (manifest?.config_schema ?? []).map((f) => [f.key, f]),
+    );
+    const rows = await findConfigByPlugin(ctx.pluginId);
+    const values: Record<string, string> = {};
+    for (const row of rows) {
+      if (row.source === "admin") {
+        const field = schemaByKey.get(row.key);
+        if (field?.type === "secret" && row.value.length > 0) {
+          try {
+            values[row.key] = decryptSecret(row.value);
+          } catch (err) {
+            // A decrypt failure means the row was written with a
+            // different ENCRYPTION_KEY (rare; key rotation). Skip
+            // rather than crash the RPC; the plugin will see the
+            // missing key and can ask the operator to re-enter.
+            const msg = err instanceof Error ? err.message : String(err);
+            botEventLog.record(
+              "warn",
+              "bot",
+              `config.get: decrypt failed for ${plugin.pluginKey}/${row.key}: ${msg}`,
+              { pluginId: ctx.pluginId, key: row.key },
+            );
+          }
+        } else {
+          values[row.key] = row.value;
+        }
+      } else {
+        values[row.key] = row.value;
+      }
+    }
+    return { values, schema: manifest?.config_schema ?? [] };
+  });
+
+  // ─── config.set ────────────────────────────────────────────────────
+  /**
+   * POST /api/plugin/config.set
+   * Body: { key: string, value: string | null }
+   *
+   * Plugin-self KV write. Stored under source='plugin' so it never
+   * collides with admin-controlled config_schema rows. `null` deletes.
+   *
+   * For admin-controlled config_schema fields the plugin can READ
+   * via config.get but CANNOT set — the plugin's value would be
+   * silently overwritten by the next admin save and the source-
+   * isolation rule in upsertConfigKey rejects the write outright.
+   */
+  server.post<{ Body: { key?: unknown; value?: unknown } }>(
+    "/api/plugin/config.set",
+    async (request, reply) => {
+      const ctx = await requireScope(request, reply, "config.set");
+      if (!ctx) return;
+      const body = request.body ?? {};
+      if (typeof body.key !== "string" || body.key.length === 0) {
+        reply.code(400).send({ error: "key required" });
+        return;
+      }
+      if (body.key.length > 200) {
+        reply.code(400).send({ error: "key exceeds 200 chars" });
+        return;
+      }
+      if (
+        body.value !== null &&
+        body.value !== undefined &&
+        typeof body.value !== "string"
+      ) {
+        reply.code(400).send({ error: "value must be string or null" });
+        return;
+      }
+      try {
+        if (body.value === null || body.value === undefined) {
+          const removed = await deleteConfigKey(
+            ctx.pluginId,
+            body.key,
+            "plugin",
+          );
+          return { removed };
+        }
+        await upsertConfigKey(ctx.pluginId, body.key, body.value, "plugin");
+        return { ok: true };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("cannot overwrite") || msg.includes("cannot delete")) {
+          reply.code(409).send({ error: msg });
+          return;
+        }
+        reply.code(500).send({ error: `config.set failed: ${msg}` });
+      }
+    },
+  );
 
   // ─── storage.kv_get ───────────────────────────────────────────────
   server.post<{
