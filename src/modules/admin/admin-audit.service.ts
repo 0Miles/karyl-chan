@@ -121,6 +121,14 @@ export async function recordAudit(
         { transaction: tx },
       );
     });
+    // Successful chain append — bump the prom counter. Setter-injected
+    // by main.ts to avoid an ESM circular (metrics.ts → plugin-system
+    // → bot-event-log; admin-audit lives downstream of audit consumers).
+    try {
+      auditLogMetricRef?.inc({ action });
+    } catch {
+      /* metrics-failure must never affect audit semantics */
+    }
   } catch (err) {
     // Loud failure: surface to system events so a human notices the
     // chain has a hole, even if the original mutation already
@@ -135,6 +143,15 @@ export async function recordAudit(
     );
     console.error("admin audit write failed:", err);
   }
+}
+
+let auditLogMetricRef: { inc: (labels: { action: string }) => void } | null =
+  null;
+
+export function setAuditLogMetric(
+  counter: { inc: (labels: { action: string }) => void } | null,
+): void {
+  auditLogMetricRef = counter;
 }
 
 export interface ListAuditOptions {

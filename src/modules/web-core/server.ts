@@ -71,6 +71,11 @@ import { registerGuildChannelRoutes } from "../guild-management/guild-channel-ro
 import { registerGuildManagementRoutes } from "../guild-management/guild-management-routes.js";
 import type { DmInboxStore } from "../dm-inbox/dm-inbox.service.js";
 import { registerSystemRoutes } from "./system-routes.js";
+import {
+  metricsRegistry,
+  httpRequestsTotal,
+  httpRequestDuration,
+} from "./metrics.js";
 import { registerAdminManagementRoutes } from "../admin/admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-routes.js";
 import { registerBotEventRoutes } from "../bot-events/bot-event-routes.js";
@@ -178,11 +183,12 @@ export async function createWebServer(
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
     {
-      const healthPath = pathOnly(request.url);
+      const path = pathOnly(request.url);
       if (
-        healthPath === "/api/health" ||
-        healthPath === "/api/health/live" ||
-        healthPath === "/api/health/ready"
+        path === "/api/health" ||
+        path === "/api/health/live" ||
+        path === "/api/health/ready" ||
+        path === "/api/metrics"
       )
         return;
     }
@@ -536,6 +542,38 @@ export async function createWebServer(
   // by registerSystemRoutes() (web-core/system-routes.ts). They're
   // kept there because readiness checks need the DB + readiness state
   // that are owned by the bootstrap path, not by the web layer itself.
+
+  // Prometheus metrics — auth-bypassed (already whitelisted in the
+  // onRequest hook), exposed in OpenMetrics text format. Scrape from
+  // an internal network only; the LB / firewall is responsible for
+  // not exposing this publicly.
+  server.get("/api/metrics", async (_request, reply) => {
+    reply.header("Content-Type", metricsRegistry.contentType);
+    return metricsRegistry.metrics();
+  });
+
+  // HTTP request metrics — record duration + outcome on every
+  // response. routerPath is the matched route template (e.g.
+  // '/api/guilds/:guildId/feature/role-emoji-groups') which keeps
+  // cardinality bounded; falls back to 'unmatched' for 404s so we
+  // can spot scanner traffic without polluting the route label set.
+  server.addHook("onResponse", async (request, reply) => {
+    const route =
+      (request as unknown as { routeOptions?: { url?: string } }).routeOptions
+        ?.url ??
+      (request as unknown as { routerPath?: string }).routerPath ??
+      "unmatched";
+    const labels = {
+      method: request.method,
+      status_code: String(reply.statusCode),
+      route,
+    };
+    httpRequestsTotal.inc(labels);
+    // reply.elapsedTime is exposed by Fastify since v4.
+    const elapsedMs =
+      (reply as unknown as { elapsedTime?: number }).elapsedTime ?? 0;
+    httpRequestDuration.observe(labels, elapsedMs / 1000);
+  });
 
   const bot = options.bot;
   await registerAdminManagementRoutes(server, { bot });

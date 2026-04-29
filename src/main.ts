@@ -25,6 +25,13 @@ import { sequelize } from "./db.js";
 import { config } from "./config.js";
 import { startWebServer } from "./modules/web-core/server.js";
 import { setReady } from "./modules/web-core/readiness.js";
+import {
+  setMetricsBotClient,
+  botEventLogWritesTotal,
+  auditLogWritesTotal,
+} from "./modules/web-core/metrics.js";
+import { setBotEventLogMetric } from "./modules/bot-events/bot-event-log.js";
+import { setAuditLogMetric } from "./modules/admin/admin-audit.service.js";
 import { dmInboxService } from "./modules/dm-inbox/dm-inbox.service.js";
 import { authStore } from "./modules/web-core/auth-store.service.js";
 import { sequelizeRefreshStore } from "./modules/web-core/refresh-token.repository.js";
@@ -533,6 +540,9 @@ async function run() {
     // we have it; reconcile slash commands once the bot reports
     // ready (deferred to the 'ready' handler below).
     setPluginCommandBotClient(bot);
+    setMetricsBotClient(bot);
+    setBotEventLogMetric(botEventLogWritesTotal);
+    setAuditLogMetric(auditLogWritesTotal);
 
     const webPort = config.web.port;
     const webHost = config.web.host;
