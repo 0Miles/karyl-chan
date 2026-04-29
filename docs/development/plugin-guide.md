@@ -181,7 +181,7 @@ DM bot 隨意打字 → 看到 `收到\n<原文>` 回覆 = 端對端通。
 
 ## Manifest 規格
 
-完整 schema:`src/services/plugin-registry.service.ts:PluginManifest`。Bot 在 register 時驗證,malformed 直接 400。
+完整 schema:`src/modules/plugin-system/plugin-registry.service.ts:PluginManifest`。Bot 在 register 時驗證,malformed 直接 400。
 
 ```jsonc
 {
@@ -997,13 +997,13 @@ docker logs my-plugin | grep "registered with bot"
   * `src/hmac.ts` — 簽章 helper
 
 * Bot 端核心檔案(改架構時要改的地方):
-  * `src/services/plugin-registry.service.ts` — manifest validation + 登記表
-  * `src/services/plugin-event-bridge.service.ts` — event subscription index + dispatch
-  * `src/services/plugin-dispatch.service.ts` — DM behavior dispatch
-  * `src/services/plugin-interaction-dispatch.service.ts` — slash command interaction routing
-  * `src/services/plugin-command-registry.service.ts` — Discord application command sync
-  * `src/web/plugin-routes.ts` — `/api/plugins/*`(register / heartbeat / admin)
-  * `src/web/plugin-rpc-routes.ts` — `/api/plugin/*`(plugin → bot RPC)
+  * `src/modules/plugin-system/plugin-registry.service.ts` — manifest validation + 登記表
+  * `src/modules/plugin-system/plugin-event-bridge.service.ts` — event subscription index + dispatch
+  * `src/modules/plugin-system/plugin-dispatch.service.ts` — DM behavior dispatch
+  * `src/modules/plugin-system/plugin-interaction-dispatch.service.ts` — slash command interaction routing
+  * `src/modules/plugin-system/plugin-command-registry.service.ts` — Discord application command sync
+  * `src/modules/plugin-system/plugin-routes.ts` — `/api/plugins/*`(register / heartbeat / admin)
+  * `src/modules/plugin-system/plugin-rpc-routes.ts` — `/api/plugin/*`(plugin → bot RPC)
 
 * Schema 改動的進入點:`src/migrations/` 編號 `20260429*`(plugins / behavior-plugin-type / plugin-kv / plugin-commands / plugin-guild-features)
 

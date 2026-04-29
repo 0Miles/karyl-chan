@@ -3,14 +3,14 @@ import {
   findAllPlugins,
   findPluginById,
   type PluginRow,
-} from "../models/plugin.model.js";
+} from "./models/plugin.model.js";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
-} from "./webhook-dispatch.service.js";
+} from "../../services/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import { botEventLog } from "../web/bot-event-log.js";
-import { shouldRecord } from "../web/bot-event-dedup.js";
+import { botEventLog } from "../../web/bot-event-log.js";
+import { shouldRecord } from "../../web/bot-event-dedup.js";
 
 /**
  * Bot → Plugin event dispatch. Plugins declare which event types

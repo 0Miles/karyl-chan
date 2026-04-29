@@ -3,27 +3,27 @@ import type { Client } from "discord.js";
 import {
   ManifestError,
   pluginRegistry,
-} from "../services/plugin-registry.service.js";
+} from "./plugin-registry.service.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
-import { requireCapability } from "./route-guards.js";
-import { botEventLog } from "./bot-event-log.js";
-import { shouldRecord } from "./bot-event-dedup.js";
+import { requireCapability } from "../../web/route-guards.js";
+import { botEventLog } from "../../web/bot-event-log.js";
+import { shouldRecord } from "../../web/bot-event-dedup.js";
 import {
   findFeatureRowsByGuild,
   findFeatureRowsByPlugin,
   upsertFeatureRow,
-} from "../models/plugin-guild-feature.model.js";
+} from "../../models/plugin-guild-feature.model.js";
 import {
   findAllFeatureDefaults,
   upsertFeatureDefault,
   type PluginFeatureDefaultRow,
-} from "../models/plugin-feature-default.model.js";
+} from "../../models/plugin-feature-default.model.js";
 import {
   findConfigByPluginAndSource,
   upsertConfigKey,
-} from "../models/plugin-config.model.js";
-import { encryptSecret } from "../utils/crypto.js";
-import type { PluginManifest } from "../services/plugin-registry.service.js";
+} from "./models/plugin-config.model.js";
+import { encryptSecret } from "../../utils/crypto.js";
+import type { PluginManifest } from "./plugin-registry.service.js";
 
 /**
  * Plugin-facing endpoints (register / heartbeat) AND admin-facing
@@ -383,7 +383,7 @@ export async function registerPluginRoutes(
       // (enabled === undefined) where no toggle change happened.
       if (enabled !== undefined) {
         const { pluginCommandRegistry } =
-          await import("../services/plugin-command-registry.service.js");
+          await import("./plugin-command-registry.service.js");
         const pluginRow = await pluginRegistry.findById(pluginId);
         const manifestObj = pluginRow
           ? (safeParse(pluginRow.manifestJson) as PluginManifest | null)

@@ -46,8 +46,8 @@ import {
   type BehaviorTriggerType,
 } from "../models/behavior.model.js";
 import { endSessionsForBehavior } from "../models/behavior-session.model.js";
-import { findPluginById } from "../models/plugin.model.js";
-import type { PluginManifest } from "../services/plugin-registry.service.js";
+import { findPluginById } from "../modules/plugin-system/models/plugin.model.js";
+import type { PluginManifest } from "../modules/plugin-system/plugin-registry.service.js";
 
 export interface BehaviorRoutesOptions {
   bot?: Client;

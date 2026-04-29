@@ -7,12 +7,12 @@ import {
   touchHeartbeat,
   upsertPluginRegistration,
   type PluginRow,
-} from "../models/plugin.model.js";
+} from "./models/plugin.model.js";
 import {
   pluginAuthStore,
   PluginAuthStore,
-} from "../web/plugin-auth.service.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./plugin-auth.service.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 import {
   ManifestCommandError,

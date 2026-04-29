@@ -2,7 +2,7 @@ import { ApiError, authedFetch } from "./client";
 
 /**
  * Plugin admin API client. Mirrors the bot-side route shapes in
- * src/web/plugin-routes.ts. The plugin manifest passes through as an
+ * src/modules/plugin-system/plugin-routes.ts. The plugin manifest passes through as an
  * opaque object — the page renders fields it knows about and shows
  * the rest as a folded JSON blob.
  */

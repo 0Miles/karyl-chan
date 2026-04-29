@@ -17,10 +17,10 @@ import {
   findPluginCommandsByPlugin,
   upsertPluginCommand,
   type PluginCommandRow,
-} from "../models/plugin-command.model.js";
-import { findFeatureRowsByPlugin } from "../models/plugin-guild-feature.model.js";
-import { findAllPlugins, type PluginRow } from "../models/plugin.model.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./models/plugin-command.model.js";
+import { findFeatureRowsByPlugin } from "../../models/plugin-guild-feature.model.js";
+import { findAllPlugins, type PluginRow } from "./models/plugin.model.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 import type {
   ManifestCommand,
   ManifestCommandOption,

@@ -53,16 +53,16 @@ import {
 } from "./services/system-behavior.service.js";
 import { dispatchUserSlashBehavior } from "./services/user-slash-behavior.service.js";
 import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./services/dm-slash-rebind.service.js";
-import { pluginRegistry } from "./services/plugin-registry.service.js";
+import { pluginRegistry } from "./modules/plugin-system/plugin-registry.service.js";
 import {
   dispatchEventToPlugins,
   rebuildEventIndex,
-} from "./services/plugin-event-bridge.service.js";
+} from "./modules/plugin-system/plugin-event-bridge.service.js";
 import {
   pluginCommandRegistry,
   setPluginCommandBotClient,
-} from "./services/plugin-command-registry.service.js";
-import { dispatchInteractionToPlugin } from "./services/plugin-interaction-dispatch.service.js";
+} from "./modules/plugin-system/plugin-command-registry.service.js";
+import { dispatchInteractionToPlugin } from "./modules/plugin-system/plugin-interaction-dispatch.service.js";
 import {
   dispatchInProcessInteraction,
   syncInProcessCommandsForGuild,

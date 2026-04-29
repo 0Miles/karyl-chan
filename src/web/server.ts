@@ -74,13 +74,13 @@ import { registerAdminManagementRoutes } from "./admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { registerBehaviorRoutes } from "./behavior-routes.js";
-import { registerPluginRoutes } from "./plugin-routes.js";
+import { registerPluginRoutes } from "../modules/plugin-system/plugin-routes.js";
 import { registerBotFeatureRoutes } from "./bot-feature-routes.js";
-import { registerPluginRpcRoutes } from "./plugin-rpc-routes.js";
+import { registerPluginRpcRoutes } from "../modules/plugin-system/plugin-rpc-routes.js";
 import {
   pluginAuthStore,
   type PluginAuthRecord,
-} from "./plugin-auth.service.js";
+} from "../modules/plugin-system/plugin-auth.service.js";
 import { requireAnyCapability } from "./route-guards.js";
 import { botEventLog } from "./bot-event-log.js";
 import { shouldRecord } from "./bot-event-dedup.js";

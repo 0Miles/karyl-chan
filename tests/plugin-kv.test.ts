@@ -10,7 +10,7 @@ import {
   incrementKv,
   getKv,
   setKv,
-} from "../src/models/plugin-kv.model.js";
+} from "../src/modules/plugin-system/models/plugin-kv.model.js";
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });

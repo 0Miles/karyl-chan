@@ -1,7 +1,7 @@
 import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ChannelType, Routes, MessageFlags } from "discord.js";
-import { findPluginById } from "../models/plugin.model.js";
+import { findPluginById } from "./models/plugin.model.js";
 import {
   deleteKv,
   getKv,
@@ -9,15 +9,15 @@ import {
   listKvKeys,
   setKv,
   sumGuildBytes,
-} from "../models/plugin-kv.model.js";
+} from "./models/plugin-kv.model.js";
 import {
   deleteConfigKey,
   findConfigByPlugin,
   upsertConfigKey,
-} from "../models/plugin-config.model.js";
-import { decryptSecret } from "../utils/crypto.js";
-import { botEventLog } from "./bot-event-log.js";
-import type { PluginManifest } from "../services/plugin-registry.service.js";
+} from "./models/plugin-config.model.js";
+import { decryptSecret } from "../../utils/crypto.js";
+import { botEventLog } from "../../web/bot-event-log.js";
+import type { PluginManifest } from "./plugin-registry.service.js";
 
 /**
  * Plugin RPC endpoints: the things plugins are allowed to ask the bot

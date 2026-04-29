@@ -7,14 +7,14 @@ import {
 import {
   findPluginCommandByName,
   type PluginCommandRow,
-} from "../models/plugin-command.model.js";
-import { findPluginById, type PluginRow } from "../models/plugin.model.js";
+} from "./models/plugin-command.model.js";
+import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
-} from "./webhook-dispatch.service.js";
+} from "../../services/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import { botEventLog } from "../web/bot-event-log.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Inbound Discord interaction → plugin dispatcher.

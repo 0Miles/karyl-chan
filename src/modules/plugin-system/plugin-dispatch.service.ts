@@ -1,14 +1,14 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import type { RESTPostAPIWebhookWithTokenJSONBody } from "discord.js";
 import type { APIMessage } from "discord.js";
-import { findPluginById, type PluginRow } from "../models/plugin.model.js";
+import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   type DispatchResult,
-} from "./webhook-dispatch.service.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "../../services/webhook-dispatch.service.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Dispatch DM behavior payloads through a registered plugin.
@@ -217,4 +217,4 @@ function failure(reason: string, status?: number): DispatchResult {
 }
 
 // Re-export for convenience; same token semantics as webhook-dispatch.
-export { BEHAVIOR_END_TOKEN } from "./webhook-dispatch.service.js";
+export { BEHAVIOR_END_TOKEN } from "../../services/webhook-dispatch.service.js";

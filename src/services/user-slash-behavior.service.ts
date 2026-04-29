@@ -10,7 +10,7 @@ import {
 } from "../models/behavior.model.js";
 import { decryptSecret } from "../utils/crypto.js";
 import { dispatchWebhook } from "./webhook-dispatch.service.js";
-import { dispatchPluginDmBehavior } from "./plugin-dispatch.service.js";
+import { dispatchPluginDmBehavior } from "../modules/plugin-system/plugin-dispatch.service.js";
 import { avatarUrlFor } from "../web/message-mapper.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
