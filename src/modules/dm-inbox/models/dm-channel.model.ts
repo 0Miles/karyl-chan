@@ -1,5 +1,5 @@
-import { DataTypes } from 'sequelize';
-import { sequelize } from '../../../db.js';
+import { DataTypes } from "sequelize";
+import { sequelize } from "../../../db.js";
 
 /**
  * One row per Discord DM channel the bot has observed. `id` is the
@@ -17,44 +17,52 @@ import { sequelize } from '../../../db.js';
  * read shape (Date vs string) and ripple through dm-inbox.service.ts,
  * which we deliberately avoid here.
  */
-export const DmChannel = sequelize.define('DmChannel', {
+export const DmChannel = sequelize.define(
+  "DmChannel",
+  {
     id: {
-        type: DataTypes.STRING,
-        primaryKey: true
+      type: DataTypes.STRING,
+      primaryKey: true,
     },
     recipientId: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        unique: true
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
     },
     recipientUsername: {
-        type: DataTypes.STRING,
-        allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     recipientGlobalName: {
-        type: DataTypes.STRING,
-        allowNull: true
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     recipientAvatarUrl: {
-        type: DataTypes.STRING,
-        allowNull: true
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     lastMessageAt: {
-        type: DataTypes.STRING,
-        allowNull: true
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     lastMessageId: {
-        type: DataTypes.STRING,
-        allowNull: true
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     lastMessagePreview: {
-        type: DataTypes.STRING(160),
-        allowNull: true
-    }
-}, {
-    tableName: 'DmChannels',
+      type: DataTypes.STRING(160),
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "DmChannels",
     timestamps: false,
     indexes: [
-        { name: 'dm_channels_recipient_id_unique', fields: ['recipientId'], unique: true }
-    ]
-});
+      {
+        name: "dm_channels_recipient_id_unique",
+        fields: ["recipientId"],
+        unique: true,
+      },
+    ],
+  },
+);

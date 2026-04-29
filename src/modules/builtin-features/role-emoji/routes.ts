@@ -1,10 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { requireGuildCapability } from "../../web-core/route-guards.js";
 import { isSnowflake } from "../../web-core/validators.js";
-import {
-  RoleEmoji,
-  addRoleEmoji,
-} from "./role-emoji.model.js";
+import { RoleEmoji, addRoleEmoji } from "./role-emoji.model.js";
 import { RoleEmojiGroup } from "./role-emoji-group.model.js";
 import { RoleReceiveMessage } from "./role-receive-message.model.js";
 import { EMOJI_REGEX, validateGroupId } from "./role-emoji-helpers.js";

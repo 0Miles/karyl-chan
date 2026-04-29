@@ -1,6 +1,6 @@
-import { DataTypes } from 'sequelize';
-import { sequelize } from '../../../db.js';
-import { Behavior } from './behavior.model.js';
+import { DataTypes } from "sequelize";
+import { sequelize } from "../../../db.js";
+import { Behavior } from "./behavior.model.js";
 
 /**
  * Active continuous-forward state for a user. Persisted in DB so a bot
@@ -16,63 +16,77 @@ import { Behavior } from './behavior.model.js';
  * `channelId` is captured so the relay-back path can DM the user even
  * if Discord's cache cold-misses on a subsequent restart.
  */
-export const BehaviorSession = sequelize.define('BehaviorSession', {
+export const BehaviorSession = sequelize.define(
+  "BehaviorSession",
+  {
     userId: {
-        type: DataTypes.STRING,
-        primaryKey: true
+      type: DataTypes.STRING,
+      primaryKey: true,
     },
     behaviorId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: Behavior, key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE'
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: { model: Behavior, key: "id" },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
     channelId: {
-        type: DataTypes.STRING,
-        allowNull: false
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     startedAt: {
-        type: DataTypes.STRING,
-        allowNull: false
-    }
-}, {
-    tableName: 'behavior_sessions',
-    timestamps: true
-});
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+  },
+  {
+    tableName: "behavior_sessions",
+    timestamps: true,
+  },
+);
 
 export interface BehaviorSessionRow {
-    userId: string;
-    behaviorId: number;
-    channelId: string;
-    startedAt: string;
+  userId: string;
+  behaviorId: number;
+  channelId: string;
+  startedAt: string;
 }
 
-function rowOf(model: InstanceType<typeof BehaviorSession>): BehaviorSessionRow {
-    return {
-        userId: model.getDataValue('userId') as string,
-        behaviorId: model.getDataValue('behaviorId') as number,
-        channelId: model.getDataValue('channelId') as string,
-        startedAt: model.getDataValue('startedAt') as string
-    };
+function rowOf(
+  model: InstanceType<typeof BehaviorSession>,
+): BehaviorSessionRow {
+  return {
+    userId: model.getDataValue("userId") as string,
+    behaviorId: model.getDataValue("behaviorId") as number,
+    channelId: model.getDataValue("channelId") as string,
+    startedAt: model.getDataValue("startedAt") as string,
+  };
 }
 
-export const findActiveSession = async (userId: string): Promise<BehaviorSessionRow | null> => {
-    const row = await BehaviorSession.findByPk(userId);
-    return row ? rowOf(row) : null;
+export const findActiveSession = async (
+  userId: string,
+): Promise<BehaviorSessionRow | null> => {
+  const row = await BehaviorSession.findByPk(userId);
+  return row ? rowOf(row) : null;
 };
 
-export const startSession = async (userId: string, behaviorId: number, channelId: string): Promise<BehaviorSessionRow> => {
-    const startedAt = new Date().toISOString();
-    await BehaviorSession.upsert({ userId, behaviorId, channelId, startedAt });
-    return { userId, behaviorId, channelId, startedAt };
+export const startSession = async (
+  userId: string,
+  behaviorId: number,
+  channelId: string,
+): Promise<BehaviorSessionRow> => {
+  const startedAt = new Date().toISOString();
+  await BehaviorSession.upsert({ userId, behaviorId, channelId, startedAt });
+  return { userId, behaviorId, channelId, startedAt };
 };
 
 export const endSession = async (userId: string): Promise<boolean> => {
-    const removed = await BehaviorSession.destroy({ where: { userId } });
-    return removed > 0;
+  const removed = await BehaviorSession.destroy({ where: { userId } });
+  return removed > 0;
 };
 
-export const endSessionsForBehavior = async (behaviorId: number): Promise<void> => {
-    await BehaviorSession.destroy({ where: { behaviorId } });
+export const endSessionsForBehavior = async (
+  behaviorId: number,
+): Promise<void> => {
+  await BehaviorSession.destroy({ where: { behaviorId } });
 };

@@ -400,11 +400,9 @@ export async function registerGuildChannelMgmtRoutes(
     const typeKey = typeof body.type === "string" ? body.type : "text";
     const channelType = ALLOWED[typeKey];
     if (channelType === undefined) {
-      reply
-        .code(400)
-        .send({
-          error: `type must be one of: ${Object.keys(ALLOWED).join(", ")}`,
-        });
+      reply.code(400).send({
+        error: `type must be one of: ${Object.keys(ALLOWED).join(", ")}`,
+      });
       return;
     }
     const parentId =

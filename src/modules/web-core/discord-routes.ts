@@ -377,11 +377,9 @@ export async function registerDiscordRoutes(
       !isSnowflake(sourceMessageId) ||
       !isSnowflake(targetChannelId)
     ) {
-      reply
-        .code(400)
-        .send({
-          error: "sourceChannelId, sourceMessageId, targetChannelId required",
-        });
+      reply.code(400).send({
+        error: "sourceChannelId, sourceMessageId, targetChannelId required",
+      });
       return;
     }
     const target = await resolveTextChannel(bot, targetChannelId);

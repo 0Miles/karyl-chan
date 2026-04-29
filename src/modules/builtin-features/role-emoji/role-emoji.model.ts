@@ -1,6 +1,6 @@
-import { DataTypes, Op } from 'sequelize';
-import { sequelize } from '../../../db.js';
-import { RoleEmojiGroup } from './role-emoji-group.model.js';
+import { DataTypes, Op } from "sequelize";
+import { sequelize } from "../../../db.js";
+import { RoleEmojiGroup } from "./role-emoji-group.model.js";
 
 /**
  * Mapping between an emoji and a role inside a single
@@ -16,76 +16,114 @@ import { RoleEmojiGroup } from './role-emoji-group.model.js';
  * uses to react with emoji in the same order they were registered —
  * the order has UX meaning for users scanning the message reactions.
  */
-export const RoleEmoji = sequelize.define('RoleEmoji', {
+export const RoleEmoji = sequelize.define(
+  "RoleEmoji",
+  {
     groupId: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        references: { model: RoleEmojiGroup, key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE'
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      references: { model: RoleEmojiGroup, key: "id" },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
     },
     emojiId: {
-        type: DataTypes.STRING,
-        primaryKey: true
+      type: DataTypes.STRING,
+      primaryKey: true,
     },
     emojiChar: {
-        type: DataTypes.STRING,
-        primaryKey: true
+      type: DataTypes.STRING,
+      primaryKey: true,
     },
     emojiName: DataTypes.STRING,
     roleId: DataTypes.STRING,
     sortOrder: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 0
-    }
-}, {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+  },
+  {
     // Default `timestamps: true` is intentional — earlier deployments
     // created the table with NOT NULL createdAt/updatedAt columns.
-    tableName: 'RoleEmojis'
-});
+    tableName: "RoleEmojis",
+  },
+);
 
 async function nextSortOrder(groupId: number): Promise<number> {
-    const max = (await RoleEmoji.max('sortOrder', { where: { groupId } })) as number | null | undefined;
-    return (max ?? -1) + 1;
+  const max = (await RoleEmoji.max("sortOrder", { where: { groupId } })) as
+    | number
+    | null
+    | undefined;
+  return (max ?? -1) + 1;
 }
 
-export const addRoleEmoji = async (groupId: number, roleId: string, emojiChar: string, emojiName: string, emojiId: string) => {
-    const sortOrder = await nextSortOrder(groupId);
-    await RoleEmoji.create({ groupId, roleId, emojiChar, emojiName, emojiId, sortOrder });
+export const addRoleEmoji = async (
+  groupId: number,
+  roleId: string,
+  emojiChar: string,
+  emojiName: string,
+  emojiId: string,
+) => {
+  const sortOrder = await nextSortOrder(groupId);
+  await RoleEmoji.create({
+    groupId,
+    roleId,
+    emojiChar,
+    emojiName,
+    emojiId,
+    sortOrder,
+  });
 };
 
-export const removeRoleEmoji = async (groupId: number, emojiChar: string, emojiId: string) => {
-    await RoleEmoji.destroy({ where: { groupId, emojiChar, emojiId } });
+export const removeRoleEmoji = async (
+  groupId: number,
+  emojiChar: string,
+  emojiId: string,
+) => {
+  await RoleEmoji.destroy({ where: { groupId, emojiChar, emojiId } });
 };
 
-export const findRoleEmojiInGroup = async (groupId: number, emojiChar: string, emojiId: string) => {
-    return await RoleEmoji.findOne({ where: { groupId, emojiChar, emojiId } });
+export const findRoleEmojiInGroup = async (
+  groupId: number,
+  emojiChar: string,
+  emojiId: string,
+) => {
+  return await RoleEmoji.findOne({ where: { groupId, emojiChar, emojiId } });
 };
 
-export const findRoleEmojiInGroups = async (groupIds: number[], emojiChar: string, emojiId: string) => {
-    if (groupIds.length === 0) return null;
-    return await RoleEmoji.findOne({
-        where: {
-            groupId: { [Op.in]: groupIds },
-            emojiChar,
-            emojiId
-        }
-    });
+export const findRoleEmojiInGroups = async (
+  groupIds: number[],
+  emojiChar: string,
+  emojiId: string,
+) => {
+  if (groupIds.length === 0) return null;
+  return await RoleEmoji.findOne({
+    where: {
+      groupId: { [Op.in]: groupIds },
+      emojiChar,
+      emojiId,
+    },
+  });
 };
 
 export const findAllRoleEmojisInGroup = async (groupId: number) => {
-    return await RoleEmoji.findAll({
-        where: { groupId },
-        order: [['sortOrder', 'ASC'], ['createdAt', 'ASC']]
-    });
+  return await RoleEmoji.findAll({
+    where: { groupId },
+    order: [
+      ["sortOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+  });
 };
 
 export const findAllRoleEmojisInGroups = async (groupIds: number[]) => {
-    if (groupIds.length === 0) return [];
-    return await RoleEmoji.findAll({
-        where: { groupId: { [Op.in]: groupIds } },
-        order: [['groupId', 'ASC'], ['sortOrder', 'ASC'], ['createdAt', 'ASC']]
-    });
+  if (groupIds.length === 0) return [];
+  return await RoleEmoji.findAll({
+    where: { groupId: { [Op.in]: groupIds } },
+    order: [
+      ["groupId", "ASC"],
+      ["sortOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+  });
 };
-

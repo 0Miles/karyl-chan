@@ -1,9 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Client } from "discord.js";
-import {
-  ManifestError,
-  pluginRegistry,
-} from "./plugin-registry.service.js";
+import { ManifestError, pluginRegistry } from "./plugin-registry.service.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";

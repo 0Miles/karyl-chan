@@ -5,7 +5,10 @@ import {
   FAILED_COLOR,
   SUCCEEDED_COLOR,
 } from "../../../utils/constant.js";
-import { assertAllowedTarget, HostPolicyError } from "../../../utils/host-policy.js";
+import {
+  assertAllowedTarget,
+  HostPolicyError,
+} from "../../../utils/host-policy.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
 
 export interface RconConnection {

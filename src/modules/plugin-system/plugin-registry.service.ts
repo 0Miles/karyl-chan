@@ -8,10 +8,7 @@ import {
   upsertPluginRegistration,
   type PluginRow,
 } from "./models/plugin.model.js";
-import {
-  pluginAuthStore,
-  PluginAuthStore,
-} from "./plugin-auth.service.js";
+import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 import {

@@ -8,7 +8,10 @@ import {
   guildChannelEventBus,
   type VoiceMember,
 } from "../../guild-management/guild-channel-event-bus.js";
-import { avatarUrlFor, guildAvatarUrlFor } from "../../web-core/message-mapper.js";
+import {
+  avatarUrlFor,
+  guildAvatarUrlFor,
+} from "../../web-core/message-mapper.js";
 
 function memberRow(guildId: string, m: GuildMember): VoiceMember {
   return {

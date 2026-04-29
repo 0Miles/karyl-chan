@@ -1,6 +1,6 @@
-import { DataTypes } from 'sequelize';
-import { sequelize } from '../../../db.js';
-import { RoleEmojiGroup } from './role-emoji-group.model.js';
+import { DataTypes } from "sequelize";
+import { sequelize } from "../../../db.js";
+import { RoleEmojiGroup } from "./role-emoji-group.model.js";
 
 /**
  * Watched message → emoji group binding. Each row represents one
@@ -12,40 +12,56 @@ import { RoleEmojiGroup } from './role-emoji-group.model.js';
  * `20260427030000-role-receive-single-group`). Only mappings inside
  * the bound group can grant a role on this message.
  */
-export const RoleReceiveMessage = sequelize.define('RoleReceiveMessage', {
+export const RoleReceiveMessage = sequelize.define(
+  "RoleReceiveMessage",
+  {
     messageId: { type: DataTypes.STRING, primaryKey: true },
     channelId: { type: DataTypes.STRING, primaryKey: true },
     guildId: { type: DataTypes.STRING, primaryKey: true },
     groupId: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: { model: RoleEmojiGroup, key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE'
-    }
-}, {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: { model: RoleEmojiGroup, key: "id" },
+      onDelete: "CASCADE",
+      onUpdate: "CASCADE",
+    },
+  },
+  {
     // Default `timestamps: true` is intentional — earlier deployments
     // created the table with NOT NULL createdAt/updatedAt columns.
-    tableName: 'RoleReceiveMessages'
-});
+    tableName: "RoleReceiveMessages",
+  },
+);
 
 export const upsertRoleReceiveMessage = async (
-    guildId: string,
-    channelId: string,
-    messageId: string,
-    groupId: number
+  guildId: string,
+  channelId: string,
+  messageId: string,
+  groupId: number,
 ): Promise<void> => {
-    await RoleReceiveMessage.upsert({ guildId, channelId, messageId, groupId });
+  await RoleReceiveMessage.upsert({ guildId, channelId, messageId, groupId });
 };
 
-export const removeRoleReceiveMessage = async (guildId: string, channelId: string, messageId: string): Promise<void> => {
-    await RoleReceiveMessage.destroy({ where: { guildId, channelId, messageId } });
+export const removeRoleReceiveMessage = async (
+  guildId: string,
+  channelId: string,
+  messageId: string,
+): Promise<void> => {
+  await RoleReceiveMessage.destroy({
+    where: { guildId, channelId, messageId },
+  });
 };
 
-export const findRoleReceiveMessage = async (guildId: string, channelId: string, messageId: string) => {
-    return await RoleReceiveMessage.findOne({ where: { guildId, channelId, messageId } });
+export const findRoleReceiveMessage = async (
+  guildId: string,
+  channelId: string,
+  messageId: string,
+) => {
+  return await RoleReceiveMessage.findOne({
+    where: { guildId, channelId, messageId },
+  });
 };
 
 export const findAllRoleReceiveMessagesByGuild = async (guildId: string) => {
-    return await RoleReceiveMessage.findAll({ where: { guildId } });
+  return await RoleReceiveMessage.findAll({ where: { guildId } });
 };
