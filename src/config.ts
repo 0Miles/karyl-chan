@@ -123,10 +123,7 @@ function loadConfig(): AppConfig {
       secret: strEnv("JWT_SECRET"),
       loginLinkTtlMs: parseIntEnv("JWT_LOGIN_LINK_TTL_MS", 5 * 60 * 1000),
       accessTtlMs: parseIntEnv("JWT_ACCESS_TTL_MS", 15 * 60 * 1000),
-      refreshTtlMs: parseIntEnv(
-        "JWT_REFRESH_TTL_MS",
-        7 * 24 * 60 * 60 * 1000,
-      ),
+      refreshTtlMs: parseIntEnv("JWT_REFRESH_TTL_MS", 7 * 24 * 60 * 60 * 1000),
       sseTicketTtlMs: parseIntEnv("JWT_SSE_TICKET_TTL_MS", 60 * 1000),
       cleanupIntervalMs: parseIntEnv("JWT_CLEANUP_INTERVAL_MS", 60 * 1000),
     },
@@ -147,7 +144,10 @@ function loadConfig(): AppConfig {
       kvValueMaxBytes: parseIntEnv("PLUGIN_KV_VALUE_MAX_BYTES", 64 * 1024),
     },
     behavior: {
-      profileCacheTtlMs: parseIntEnv("BEHAVIOR_PROFILE_CACHE_TTL_MS", 5 * 60 * 1000),
+      profileCacheTtlMs: parseIntEnv(
+        "BEHAVIOR_PROFILE_CACHE_TTL_MS",
+        5 * 60 * 1000,
+      ),
     },
     admin: {
       profileCacheTtlMs: parseIntEnv(
@@ -183,9 +183,7 @@ function loadConfig(): AppConfig {
       );
     }
     if (!cfg.crypto.encryptionKey) {
-      throw new Error(
-        "Config error: ENCRYPTION_KEY must be set in production",
-      );
+      throw new Error("Config error: ENCRYPTION_KEY must be set in production");
     }
     if (!cfg.plugin.sharedSecret) {
       throw new Error(

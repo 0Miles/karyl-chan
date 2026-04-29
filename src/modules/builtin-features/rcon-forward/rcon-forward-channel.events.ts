@@ -92,7 +92,9 @@ export function registerRconForwardChannelEvents(client: Client): void {
               },
             ],
           })
-          .catch((err: unknown) => log.error({ err }, "failed to send message handling error embed"));
+          .catch((err: unknown) =>
+            log.error({ err }, "failed to send message handling error embed"),
+          );
       }
     }
   });

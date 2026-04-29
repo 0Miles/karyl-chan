@@ -35,9 +35,7 @@ function ephemeralReplyOk(
   });
 }
 
-async function handleJoin(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function handleJoin(command: ChatInputCommandInteraction): Promise<void> {
   if (!command.guildId || !command.guild) {
     await ephemeralReplyError(command, "此指令僅能在公會中使用");
     return;
@@ -77,9 +75,7 @@ async function handleLeave(
   await ephemeralReplyOk(command, "✓ 已離開語音頻道");
 }
 
-async function handlePlay(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function handlePlay(command: ChatInputCommandInteraction): Promise<void> {
   if (!command.guildId) {
     await ephemeralReplyError(command, "此指令僅能在公會中使用");
     return;
@@ -119,9 +115,7 @@ async function handlePlay(
   }
 }
 
-async function handleStop(
-  command: ChatInputCommandInteraction,
-): Promise<void> {
+async function handleStop(command: ChatInputCommandInteraction): Promise<void> {
   if (!command.guildId) {
     await ephemeralReplyError(command, "此指令僅能在公會中使用");
     return;
@@ -173,7 +167,8 @@ export function registerVoiceCommands(): void {
         {
           type: ApplicationCommandOptionType.Subcommand,
           name: "play",
-          description: "播放音訊 URL(直連 mp3 / opus / HLS 等 ffmpeg 可解的格式)",
+          description:
+            "播放音訊 URL(直連 mp3 / opus / HLS 等 ffmpeg 可解的格式)",
           options: [
             {
               type: ApplicationCommandOptionType.String,

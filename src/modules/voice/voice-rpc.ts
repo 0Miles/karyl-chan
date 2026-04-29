@@ -50,7 +50,9 @@ async function requireScope(
   }
   const plugin = await findPluginById(auth.pluginId);
   if (!plugin || !plugin.enabled || plugin.status !== "active") {
-    reply.code(403).send({ error: "plugin is disabled or inactive on the bot" });
+    reply
+      .code(403)
+      .send({ error: "plugin is disabled or inactive on the bot" });
     return null;
   }
   return { pluginId: auth.pluginId };
@@ -80,7 +82,10 @@ export async function registerVoiceRpcRoutes(
       return;
     }
     const body = request.body ?? {};
-    if (typeof body.guild_id !== "string" || typeof body.channel_id !== "string") {
+    if (
+      typeof body.guild_id !== "string" ||
+      typeof body.channel_id !== "string"
+    ) {
       reply.code(400).send({ error: "guild_id and channel_id required" });
       return;
     }
@@ -153,7 +158,9 @@ export async function registerVoiceRpcRoutes(
         return playUrl(body.guild_id, body.url);
       } catch (err) {
         if (err instanceof Error && err.message === "not_joined") {
-          reply.code(409).send({ error: "bot not joined to a voice channel in that guild" });
+          reply
+            .code(409)
+            .send({ error: "bot not joined to a voice channel in that guild" });
           return;
         }
         if (err instanceof Error && err.message === "ffmpeg_not_available") {

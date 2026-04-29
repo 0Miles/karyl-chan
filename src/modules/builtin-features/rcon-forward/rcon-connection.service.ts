@@ -143,7 +143,9 @@ export class RconConnectionService {
             },
           ],
         })
-        .catch((err: unknown) => log.error({ err }, "failed to send connection error embed"));
+        .catch((err: unknown) =>
+          log.error({ err }, "failed to send connection error embed"),
+        );
 
       if (this.connectionMap[connectionName]) {
         try {
@@ -219,7 +221,10 @@ export class RconConnectionService {
               ],
             })
             .catch((error: unknown) => {
-              log.error({ err: error, channelId: channel.id }, "Error sending response to channel");
+              log.error(
+                { err: error, channelId: channel.id },
+                "Error sending response to channel",
+              );
             });
         }
       })
@@ -240,7 +245,10 @@ export class RconConnectionService {
               ],
             })
             .catch((error: unknown) => {
-              log.error({ err: error, channelId: channel.id }, "Error sending server message to channel");
+              log.error(
+                { err: error, channelId: channel.id },
+                "Error sending server message to channel",
+              );
             });
         }
       })
@@ -257,7 +265,9 @@ export class RconConnectionService {
                 },
               ],
             })
-            .catch((e: unknown) => log.error({ err: e }, "failed to send RCON error embed"));
+            .catch((e: unknown) =>
+              log.error({ err: e }, "failed to send RCON error embed"),
+            );
         }
         this.handleConnectionError(connectionName, host, port, password);
       })
@@ -279,7 +289,10 @@ export class RconConnectionService {
 
       // 清理所有待處理的指令
       if (connection.queuedCommands.length > 0) {
-        log.debug({ connectionName, count: connection.queuedCommands.length }, "清理未發送的指令");
+        log.debug(
+          { connectionName, count: connection.queuedCommands.length },
+          "清理未發送的指令",
+        );
         connection.queuedCommands = [];
       }
 
@@ -329,7 +342,10 @@ export class RconConnectionService {
             ],
           });
         } catch (error) {
-          log.error({ err: error, channelId: channel.id }, "無法發送重連通知到頻道");
+          log.error(
+            { err: error, channelId: channel.id },
+            "無法發送重連通知到頻道",
+          );
         }
       }
 
@@ -358,7 +374,10 @@ export class RconConnectionService {
                 ],
               });
             } catch (error) {
-              log.error({ err: error, channelId: channel.id }, "無法發送連接失敗通知到頻道");
+              log.error(
+                { err: error, channelId: channel.id },
+                "無法發送連接失敗通知到頻道",
+              );
             }
           }
           botEventLog.record(

@@ -53,7 +53,9 @@ let botEventLogWritesTotalRef: {
 } | null = null;
 
 export function setBotEventLogMetric(
-  counter: { inc: (labels: { level: string; category: string }) => void } | null,
+  counter: {
+    inc: (labels: { level: string; category: string }) => void;
+  } | null,
 ): void {
   botEventLogWritesTotalRef = counter;
 }

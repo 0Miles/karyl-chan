@@ -112,8 +112,12 @@ new Gauge({
   collect() {
     // EventEmitter exposes listenerCount; dm-event-bus uses 'event'
     // as its single channel.
-    const count = (dmEventBus as unknown as { emitter?: { listenerCount: (e: string) => number } })
-      .emitter?.listenerCount("event") ?? 0;
+    const count =
+      (
+        dmEventBus as unknown as {
+          emitter?: { listenerCount: (e: string) => number };
+        }
+      ).emitter?.listenerCount("event") ?? 0;
     this.set(count);
   },
 });
@@ -123,8 +127,12 @@ new Gauge({
   help: "Active guild-channel event-bus subscribers",
   registers: [metricsRegistry],
   collect() {
-    const count = (guildChannelEventBus as unknown as { emitter?: { listenerCount: (e: string) => number } })
-      .emitter?.listenerCount("event") ?? 0;
+    const count =
+      (
+        guildChannelEventBus as unknown as {
+          emitter?: { listenerCount: (e: string) => number };
+        }
+      ).emitter?.listenerCount("event") ?? 0;
     this.set(count);
   },
 });

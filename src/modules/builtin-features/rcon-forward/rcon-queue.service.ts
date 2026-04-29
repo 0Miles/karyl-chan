@@ -124,7 +124,9 @@ export class RconQueueService {
             },
           ],
         })
-        .catch((err: unknown) => log.error({ err }, "failed to send RCON error reply"));
+        .catch((err: unknown) =>
+          log.error({ err }, "failed to send RCON error reply"),
+        );
     }
   }
 }

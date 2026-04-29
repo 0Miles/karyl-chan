@@ -32,6 +32,22 @@ import { moduleLogger } from "../../logger.js";
 
 const log = moduleLogger("voice-manager");
 
+// prism-media looks up the ffmpeg binary via the FFMPEG_PATH env or
+// PATH. Inside our docker image, ffmpeg-static is at
+// /usr/src/app/node_modules/ffmpeg-static/ffmpeg, which is NOT on
+// PATH — so without this, prism-media throws "FFmpeg/avconv not
+// found!" at first playback. Setting FFMPEG_PATH at module load is
+// the simplest fix that survives multi-instance use.
+{
+  // ffmpeg-static's default export is typed loosely; at runtime it is
+  // a string path (the bundled binary's location) or null in
+  // unsupported environments.
+  const ffmpegPath = ffmpegStatic as unknown as string | null;
+  if (ffmpegPath && !process.env.FFMPEG_PATH) {
+    process.env.FFMPEG_PATH = ffmpegPath;
+  }
+}
+
 interface GuildVoiceState {
   connection: VoiceConnection;
   player: AudioPlayer;
@@ -157,10 +173,20 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // Spawn ffmpeg with a generic decode pipeline: input from URL,
   // resample to 48kHz stereo PCM (Discord's native sample rate), pipe
   // to stdout. prism-media handles the lifecycle.
+  //
+  // -reconnect 1 + -reconnect_streamed 1 keeps long radio streams
+  // alive across transient network blips (without these the stream
+  // stops at the first TCP RST).
   const ffmpeg = new prism.FFmpeg({
     args: [
+      "-reconnect",
+      "1",
+      "-reconnect_streamed",
+      "1",
+      "-reconnect_delay_max",
+      "5",
       "-loglevel",
-      "8",
+      "error",
       "-i",
       url,
       "-analyzeduration",
@@ -173,15 +199,48 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
       "2",
     ],
   });
+  // Surface ffmpeg stderr so playback failures aren't silent. The
+  // 'error' loglevel above keeps the volume down; we only see real
+  // problems (stream 404s, decode failures) here.
+  ffmpeg.on("error", (err) => {
+    log.error({ err, url, guildId }, "ffmpeg pipeline error");
+  });
+  // prism.FFmpeg exposes the underlying child process via .process;
+  // tap stderr so we capture exec-level errors too (the 'error' event
+  // above only fires for transformer-level failures).
+  const child = (ffmpeg as unknown as { process?: { stderr?: { on: (e: string, cb: (b: Buffer) => void) => void } } }).process;
+  child?.stderr?.on("data", (b: Buffer) => {
+    const text = b.toString("utf8").trim();
+    if (text) log.warn({ url, guildId, ffmpeg: text }, "ffmpeg stderr");
+  });
   const resource = createAudioResource(ffmpeg, {
     inputType: StreamType.Raw,
   });
   state.player.play(resource);
   state.playingUrl = url;
+
+  // Player state observability — without these the only signal of a
+  // failed stream is silence in the channel. We log every transition
+  // (idle→buffering→playing→idle) so we can see how far the pipeline
+  // got before giving up.
+  const onStateChange = (
+    oldState: { status: string },
+    newState: { status: string },
+  ): void => {
+    log.debug(
+      { url, guildId, from: oldState.status, to: newState.status },
+      "audio player state change",
+    );
+  };
+  state.player.on("stateChange", onStateChange);
+  state.player.on("error", (err) => {
+    log.error({ err, url, guildId }, "audio player error");
+  });
   state.player.once(AudioPlayerStatus.Idle, () => {
     if (state.playingUrl === url) {
       state.playingUrl = null;
     }
+    state.player.off("stateChange", onStateChange);
   });
   return getStatus(guildId);
 }
