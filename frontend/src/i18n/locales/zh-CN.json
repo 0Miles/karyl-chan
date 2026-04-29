@@ -6,6 +6,7 @@
             "messages": "消息",
             "guilds": "服务器",
             "behaviors": "行为",
+            "plugins": "插件",
             "admin": "后台权限",
             "profile": "个人资料",
             "signOut": "退出登录",
@@ -922,6 +923,27 @@
                 "message": "仅限此服务器读写频道消息与反应。",
                 "manage": "仅限此服务器管理成员、角色、设置与 bot 功能。"
             }
+        },
+        "plugins": {
+            "title": "插件",
+            "subtitle": "已注册到 bot 的 sibling 服务。Plugin 启动后会主动向 bot 注册,启用后才会接收事件并被 behavior 引用。",
+            "empty": "目前没有 plugin 注册到 bot。",
+            "emptyHint": "Plugin 启动时会自动注册。确认该 container 与 bot 在同一 docker network、且配置了相同的 KARYL_PLUGIN_SECRET。",
+            "statusActive": "在线",
+            "statusInactive": "离线",
+            "toggleEnabled": "已启用 (点击停用)",
+            "toggleDisabled": "已停用 (点击启用)",
+            "url": "URL",
+            "lastHeartbeat": "上次心跳",
+            "neverHeartbeat": "尚未收到心跳",
+            "heartbeatJustNow": "刚刚",
+            "heartbeatMinutesAgo": "{n} 分钟前",
+            "heartbeatHoursAgo": "{n} 小时前",
+            "rpcScopes": "RPC 权限",
+            "manifestRaw": "显示完整 manifest",
+            "dmBehaviorsCount": "DM 行为 × {n}",
+            "guildFeaturesCount": "服务器功能 × {n}",
+            "commandsCount": "Slash 指令 × {n}"
         }
     },
     "picker": {

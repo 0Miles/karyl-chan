@@ -171,6 +171,7 @@ function navigate() {
                     </RouterLink>
                     <RouterLink v-if="canSeeGuilds" to="/admin/guilds">{{ $t('app.nav.guilds') }}</RouterLink>
                     <RouterLink v-if="canManageBehaviors || canOpenAdminPanel" to="/admin/behaviors">{{ $t('app.nav.behaviors') }}</RouterLink>
+                    <RouterLink v-if="canOpenAdminPanel" to="/admin/plugins">{{ $t('app.nav.plugins') }}</RouterLink>
                     <RouterLink v-if="canOpenAdminPanel" to="/admin/users">{{ $t('app.nav.admin') }}</RouterLink>
                     <AppMenu placement="bottom-end" :offset="[0, 10]">
                         <template #trigger>
@@ -260,6 +261,7 @@ function navigate() {
                         </RouterLink>
                         <RouterLink v-if="canSeeGuilds" to="/admin/guilds" @click="navigate">{{ $t('app.nav.guilds') }}</RouterLink>
                         <RouterLink v-if="canManageBehaviors || canOpenAdminPanel" to="/admin/behaviors" @click="navigate">{{ $t('app.nav.behaviors') }}</RouterLink>
+                        <RouterLink v-if="canOpenAdminPanel" to="/admin/plugins" @click="navigate">{{ $t('app.nav.plugins') }}</RouterLink>
                         <RouterLink v-if="canOpenAdminPanel" to="/admin/users" @click="navigate">{{ $t('app.nav.admin') }}</RouterLink>
                         <RouterLink to="/admin/profile" @click="navigate">{{ $t('app.nav.profile') }}</RouterLink>
                         <button type="button" class="link-button" @click="signOut">{{ $t('app.nav.signOut') }}</button>

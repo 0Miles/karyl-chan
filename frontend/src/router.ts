@@ -94,6 +94,15 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: "/admin/plugins",
+    name: "plugins",
+    component: () => import("./views/admin/plugins/PluginsPage.vue"),
+    meta: {
+      requiresAuth: true,
+      requiresCapability: ["admin"] satisfies RouteCapability[],
+    },
+  },
+  {
     path: "/admin/profile",
     name: "profile",
     component: () => import("./views/admin/profile/ProfilePage.vue"),
