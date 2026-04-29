@@ -1,11 +1,10 @@
 import {
+  type Client,
   Message,
   MessageReaction,
   MessageType,
   PartialMessageReaction,
 } from "discord.js";
-import type { ArgsOf, Client } from "discordx";
-import { Discord, On } from "discordx";
 import { findTodoChannel } from "../models/todo-channel.model.js";
 import {
   addTodoMessage,
@@ -83,13 +82,8 @@ async function loadTodoMessage(message: Message) {
   return messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }
 
-@Discord()
-export class TodoChannelEvents {
-  @On()
-  async messageCreate(
-    [message]: ArgsOf<"messageCreate">,
-    client: Client,
-  ): Promise<void> {
+export function registerTodoChannelEvents(client: Client): void {
+  client.on("messageCreate", async (message) => {
     try {
       // Operator gate — toggle off skips all todo bookkeeping for the
       // guild. Configuration rows persist so re-enabling restores them.
@@ -163,13 +157,9 @@ export class TodoChannelEvents {
     } catch (ex) {
       console.error(ex);
     }
-  }
+  });
 
-  @On()
-  async messageReactionAdd(
-    [messageReaction]: ArgsOf<"messageReactionAdd">,
-    client: Client,
-  ): Promise<void> {
+  client.on("messageReactionAdd", async (messageReaction) => {
     try {
       const hydrated = await hydrateReaction(messageReaction);
       if (!hydrated) return;
@@ -197,13 +187,9 @@ export class TodoChannelEvents {
     } catch (ex) {
       console.error(ex);
     }
-  }
+  });
 
-  @On()
-  async messageReactionRemove(
-    [messageReaction]: ArgsOf<"messageReactionRemove">,
-    client: Client,
-  ): Promise<void> {
+  client.on("messageReactionRemove", async (messageReaction) => {
     try {
       const hydrated = await hydrateReaction(messageReaction);
       if (!hydrated) return;
@@ -230,5 +216,5 @@ export class TodoChannelEvents {
     } catch (ex) {
       console.error(ex);
     }
-  }
+  });
 }

@@ -1,5 +1,4 @@
-import type { ArgsOf, Client } from "discordx";
-import { Discord, On } from "discordx";
+import type { Client } from "discord.js";
 import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";
 import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { FAILED_COLOR } from "../utils/constant.js";
@@ -37,13 +36,8 @@ async function shutdownAllConnections() {
 process.once("SIGINT", shutdownAllConnections);
 process.once("SIGTERM", shutdownAllConnections);
 
-@Discord()
-export class RconForwardChannelEvents {
-  @On()
-  async messageCreate(
-    [message]: ArgsOf<"messageCreate">,
-    client: Client,
-  ): Promise<void> {
+export function registerRconForwardChannelEvents(client: Client): void {
+  client.on("messageCreate", async (message) => {
     try {
       if (message.author.bot) return;
       if (!message.guild || !message.member) return;
@@ -97,5 +91,5 @@ export class RconForwardChannelEvents {
           .catch(console.error);
       }
     }
-  }
+  });
 }

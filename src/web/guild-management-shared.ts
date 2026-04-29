@@ -1,4 +1,4 @@
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import { ChannelType, PermissionsBitField } from "discord.js";
 import { RoleEmojiGroup } from "../models/role-emoji-group.model.js";
 import type { GuildChannelEventBus } from "./guild-channel-event-bus.js";

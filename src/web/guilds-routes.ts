@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import { TodoChannel } from "../models/todo-channel.model.js";
 import { PictureOnlyChannel } from "../models/picture-only-channel.model.js";
 import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";

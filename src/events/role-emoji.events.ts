@@ -1,6 +1,9 @@
-import { MessageReaction, PartialMessageReaction, Role } from "discord.js";
-import type { ArgsOf, Client } from "discordx";
-import { Discord, On } from "discordx";
+import {
+  MessageReaction,
+  PartialMessageReaction,
+  Role,
+  type Client,
+} from "discord.js";
 import { findRoleReceiveMessage } from "../models/role-receive-message.model.js";
 import { findRoleEmojiInGroup } from "../models/role-emoji.model.js";
 import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
@@ -64,13 +67,8 @@ async function getRoleForReaction(
   return messageReaction.message.guild?.roles.cache.get(roleId) ?? null;
 }
 
-@Discord()
-export class RoleEmojiEvents {
-  @On()
-  async messageReactionAdd(
-    [messageReaction, user]: ArgsOf<"messageReactionAdd">,
-    client: Client,
-  ): Promise<void> {
+export function registerRoleEmojiEvents(client: Client): void {
+  client.on("messageReactionAdd", async (messageReaction, user) => {
     try {
       if (user.id === client.user?.id) return;
       const hydrated = await hydrateReaction(messageReaction);
@@ -85,10 +83,6 @@ export class RoleEmojiEvents {
       }
       const role = await getRoleForReaction(hydrated);
       if (!role) return;
-      // Members aren't pre-fetched at startup — `cache.find` would
-      // miss anyone whose presence the bot hasn't observed yet.
-      // `members.fetch(id)` returns the cached entry on a hit and
-      // round-trips to Discord on a miss, so it works either way.
       const member = await hydrated.message.guild?.members
         .fetch(user.id)
         .catch(() => null);
@@ -125,13 +119,9 @@ export class RoleEmojiEvents {
     } catch (ex) {
       console.error("role-emoji messageReactionAdd failed:", ex);
     }
-  }
+  });
 
-  @On()
-  async messageReactionRemove(
-    [messageReaction, user]: ArgsOf<"messageReactionRemove">,
-    client: Client,
-  ): Promise<void> {
+  client.on("messageReactionRemove", async (messageReaction, user) => {
     try {
       if (user.id === client.user?.id) return;
       const hydrated = await hydrateReaction(messageReaction);
@@ -182,5 +172,5 @@ export class RoleEmojiEvents {
     } catch (ex) {
       console.error("role-emoji messageReactionRemove failed:", ex);
     }
-  }
+  });
 }

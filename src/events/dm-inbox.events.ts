@@ -1,7 +1,6 @@
-import type { ArgsOf, Client } from "discordx";
-import { Discord, On } from "discordx";
 import {
   ChannelType,
+  type Client,
   type DMChannel,
   type MessageReaction,
   type PartialMessageReaction,
@@ -49,58 +48,62 @@ function recipientFor(channel: DMChannel): DmRecipient | null {
   };
 }
 
-@Discord()
-export class DmInboxEvents {
-  /**
-   * After the gateway connects, walk the persisted DM channels and
-   * pull the freshest `lastMessageId` from Discord. Messages that
-   * arrived while the bot was offline don't replay as events, so
-   * without this sync the unread-count endpoint compares the client's
-   * `lastSeen` against a stale DB value and reports zero unreads.
-   */
-  @On({ event: "ready" })
-  async ready([client]: ArgsOf<"ready">): Promise<void> {
-    try {
-      const summaries = await dmInboxService.listChannels();
-      const totalCount = summaries.length;
-      let syncedCount = 0;
-      let skippedCount = 0;
-      for (const summary of summaries) {
-        try {
-          const channel = await client.channels
-            .fetch(summary.id)
-            .catch(() => null);
-          if (!channel || channel.type !== ChannelType.DM) {
-            skippedCount++;
-            continue;
-          }
-          const latest = (channel as DMChannel).lastMessageId;
-          if (latest && latest !== summary.lastMessageId) {
-            await dmInboxService.updateLatestMessageId(summary.id, latest);
-            syncedCount++;
-          } else {
-            skippedCount++;
-          }
-        } catch (err) {
-          console.warn("dm-inbox ready sync skip:", summary.id, err);
+/**
+ * After the gateway connects, walk the persisted DM channels and pull
+ * the freshest `lastMessageId` from Discord. Messages that arrived
+ * while the bot was offline don't replay as events, so without this
+ * sync the unread-count endpoint compares the client's `lastSeen`
+ * against a stale DB value and reports zero unreads.
+ */
+async function readySync(client: Client): Promise<void> {
+  try {
+    const summaries = await dmInboxService.listChannels();
+    const totalCount = summaries.length;
+    let syncedCount = 0;
+    let skippedCount = 0;
+    for (const summary of summaries) {
+      try {
+        const channel = await client.channels
+          .fetch(summary.id)
+          .catch(() => null);
+        if (!channel || channel.type !== ChannelType.DM) {
+          skippedCount++;
+          continue;
+        }
+        const latest = (channel as DMChannel).lastMessageId;
+        if (latest && latest !== summary.lastMessageId) {
+          await dmInboxService.updateLatestMessageId(summary.id, latest);
+          syncedCount++;
+        } else {
           skippedCount++;
         }
+      } catch (err) {
+        console.warn("dm-inbox ready sync skip:", summary.id, err);
+        skippedCount++;
       }
-      if (syncedCount > 0) {
-        botEventLog.record(
-          "info",
-          "bot",
-          `DM inbox sync complete: ${syncedCount}/${totalCount} channels`,
-          { totalCount, syncedCount, skippedCount },
-        );
-      }
-    } catch (err) {
-      console.error("dm-inbox ready sync failed:", err);
     }
+    if (syncedCount > 0) {
+      botEventLog.record(
+        "info",
+        "bot",
+        `DM inbox sync complete: ${syncedCount}/${totalCount} channels`,
+        { totalCount, syncedCount, skippedCount },
+      );
+    }
+  } catch (err) {
+    console.error("dm-inbox ready sync failed:", err);
   }
+}
 
-  @On()
-  async messageCreate([message]: ArgsOf<"messageCreate">): Promise<void> {
+export function registerDmInboxEvents(client: Client): void {
+  // Note: this 'ready' listener is in addition to the bot.once('ready')
+  // in main.ts. discord.js v14 emits the same event for both
+  // listeners; we share the queue without coordination.
+  client.once("ready", () => {
+    void readySync(client);
+  });
+
+  client.on("messageCreate", async (message) => {
     try {
       if (message.channel.type !== ChannelType.DM) return;
       const channel = message.channel as DMChannel;
@@ -121,13 +124,9 @@ export class DmInboxEvents {
     } catch (err) {
       console.error("dm-inbox messageCreate failed:", err);
     }
-  }
+  });
 
-  @On()
-  async messageUpdate([
-    _oldMessage,
-    newMessage,
-  ]: ArgsOf<"messageUpdate">): Promise<void> {
+  client.on("messageUpdate", async (_oldMessage, newMessage) => {
     try {
       if (newMessage.channel.type !== ChannelType.DM) return;
       const fetched = newMessage.partial
@@ -142,10 +141,9 @@ export class DmInboxEvents {
     } catch (err) {
       console.error("dm-inbox messageUpdate failed:", err);
     }
-  }
+  });
 
-  @On()
-  async messageDelete([message]: ArgsOf<"messageDelete">): Promise<void> {
+  client.on("messageDelete", async (message) => {
     try {
       if (message.channel.type !== ChannelType.DM) return;
       dmEventBus.publish({
@@ -156,29 +154,21 @@ export class DmInboxEvents {
     } catch (err) {
       console.error("dm-inbox messageDelete failed:", err);
     }
-  }
+  });
 
-  @On()
-  async messageReactionAdd(
-    [reaction, user]: ArgsOf<"messageReactionAdd">,
-    client: Client,
-  ): Promise<void> {
+  client.on("messageReactionAdd", async (reaction, user) => {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
       console.error("dm-inbox messageReactionAdd failed:", err);
     }
-  }
+  });
 
-  @On()
-  async messageReactionRemove(
-    [reaction, user]: ArgsOf<"messageReactionRemove">,
-    client: Client,
-  ): Promise<void> {
+  client.on("messageReactionRemove", async (reaction, user) => {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
       console.error("dm-inbox messageReactionRemove failed:", err);
     }
-  }
+  });
 }

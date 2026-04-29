@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import {
   ManifestError,
   pluginRegistry,

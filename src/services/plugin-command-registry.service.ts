@@ -1,4 +1,4 @@
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import {
   ApplicationCommandOptionType,
   ApplicationCommandType,
@@ -593,12 +593,10 @@ function parseManifest(plugin: PluginRow): PluginManifest | null {
 }
 
 // Module-level singleton + setter. main.ts wires the bot client in
-// after discordx is ready; before that, getBot() returns null and
+// after the gateway is ready; before that, getBot() returns null and
 // every Discord-touching method short-circuits.
-let _botClient: import("discordx").Client | null = null;
-export function setPluginCommandBotClient(
-  client: import("discordx").Client,
-): void {
+let _botClient: Client | null = null;
+export function setPluginCommandBotClient(client: Client): void {
   _botClient = client;
 }
 export const pluginCommandRegistry = new PluginCommandRegistry(

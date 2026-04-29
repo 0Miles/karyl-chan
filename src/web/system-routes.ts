@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import type { DmInboxStore } from "./dm-inbox.service.js";
 import { sequelize } from "../models/db.js";
 import { requireCapability } from "./route-guards.js";

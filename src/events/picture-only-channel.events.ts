@@ -1,17 +1,11 @@
-import type { ArgsOf, Client } from "discordx";
-import { Discord, On } from "discordx";
+import type { Client } from "discord.js";
 import { PictureOnlyChannel } from "../models/picture-only-channel.model.js";
 import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { botEventLog } from "../web/bot-event-log.js";
 import { shouldRecord } from "../web/bot-event-dedup.js";
 
-@Discord()
-export class PictureOnlyChannelEvents {
-  @On()
-  async messageCreate(
-    [message]: ArgsOf<"messageCreate">,
-    client: Client,
-  ): Promise<void> {
+export function registerPictureOnlyChannelEvents(client: Client): void {
+  client.on("messageCreate", async (message) => {
     try {
       // Honor the operator's per-guild + default toggle. Disabled →
       // skip; the configuration row stays in place so re-enabling
@@ -57,5 +51,5 @@ export class PictureOnlyChannelEvents {
         },
       );
     }
-  }
+  });
 }

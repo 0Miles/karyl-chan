@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Client } from 'discordx';
+import type { Client } from "discord.js";
 import type { DMChannel, EmojiIdentifierResolvable, Message as DjsMessage } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { dmInboxService, type DmChannelSummary, type DmInboxStore } from './dm-inbox.service.js';

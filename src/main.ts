@@ -1,6 +1,8 @@
-import "reflect-metadata";
-
-import { dirname, importx } from "@discordx/importer";
+// importx + reflect-metadata removal: register* functions are
+// explicit (bootstrap-events + bootstrap-in-process) so the
+// decorator-driven importer-style glob scan is no longer needed.
+// The events/ and commands/ files are imported transitively through
+// those bootstraps.
 import type {
   DMChannel,
   Interaction,
@@ -18,7 +20,7 @@ import {
   InteractionContextType,
   Partials,
 } from "discord.js";
-import { Client } from "discordx";
+import { Client } from "discord.js";
 import { sequelize } from "./models/db.js";
 import { startWebServer } from "./web/server.js";
 import { dmInboxService } from "./web/dm-inbox.service.js";
@@ -67,13 +69,12 @@ import {
   syncInProcessCommandsToDiscord,
 } from "./services/in-process-command-registry.service.js";
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
+import { bootstrapEventHandlers } from "./bootstrap-events.js";
 import { issueLoginLinkForInteraction } from "./services/admin-login.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
 export const bot = new Client({
-  botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
-
   intents: [
     IntentsBitField.Flags.Guilds,
     IntentsBitField.Flags.GuildMembers,
@@ -87,8 +88,6 @@ export const bot = new Client({
     IntentsBitField.Flags.DirectMessageTyping,
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
-
-  silent: false,
 });
 
 // @discordjs/rest auto-clears its bearer token whenever ANY request
@@ -299,7 +298,6 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
   // interaction arrives) and POST the interaction details to the
   // owning plugin. The plugin calls back through
   // /api/plugin/interactions.respond to complete the deferred reply.
-  // discordx executeInteraction never sees plugin commands —
   // dispatchInteractionToPlugin returns true when it claimed it.
   try {
     const claimed = await dispatchInteractionToPlugin(interaction);
@@ -307,19 +305,25 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
   } catch (error) {
     console.error("plugin interaction dispatch failed:", error);
   }
-  try {
-    await bot.executeInteraction(interaction);
-  } catch (error) {
-    console.error("executeInteraction failed:", error);
+  // No further fallback — system / user-slash / in-process / plugin
+  // dispatchers covered every command surface above. Anything that
+  // reaches here is an unknown command (probably a stale registration
+  // from a previous bot version still cached on Discord's side); log
+  // so we notice, but don't crash.
+  if (interaction.isChatInputCommand()) {
+    console.warn(
+      "interactionCreate: unhandled slash command",
+      interaction.commandName,
+    );
   }
 });
 
 bot.on("messageCreate", async (message: Message) => {
-  try {
-    await bot.executeCommand(message);
-  } catch (error) {
-    console.error("executeCommand failed:", error);
-  }
+  // discordx's executeCommand routed legacy `@SimpleCommand` text
+  // commands. We've never used those — every command surface lives
+  // on slash / behavior triggers — so nothing to dispatch here.
+  // (Left as a hook: future "react to a message text" path could
+  // plug in.)
   // Plugin event fan-out. We classify the message into one of two
   // event types (dm.message_create / guild.message_create) and let
   // the bridge fan it out to every plugin that subscribed in its
@@ -451,10 +455,7 @@ bot.on(
 
 async function run() {
   try {
-    await importx(dirname(import.meta.url) + "/{events,commands}/**/*.{ts,js}");
-    // Register in-process commands that have moved off discordx onto
-    // our own registry. Subsequent phases of the migration will move
-    // events + the remaining commands here too.
+    bootstrapEventHandlers(bot);
     bootstrapInProcessFeatures();
     // sync() creates any tables missing on fresh installs; migrations
     // layer on top for schema evolution that sync() wouldn't attempt

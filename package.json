@@ -8,7 +8,6 @@
   "scripts": {
     "gcp-build": "npm i && npm run build",
     "build": "tsc",
-    "build:changelog": "npx @discordx/changelog --root=src",
     "dev": "node --env-file=.env --loader ts-node/esm/transpile-only src/main.ts",
     "serve": "node build/main.js",
     "start": "nodemon --exec node --loader ts-node/esm/transpile-only src/main.ts",
@@ -17,15 +16,12 @@
     "test:typecheck": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
-    "@discordx/importer": "^1.3.3",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^10.0.0",
     "@fastify/static": "^9.1.3",
     "discord.js": "^14.26.3",
-    "discordx": "^11.13.3",
     "fastify": "^5.8.5",
     "rcon": "^1.1.0",
-    "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.8",
     "sqlite3": "^6.0.1",
     "umzug": "^3.8.2"

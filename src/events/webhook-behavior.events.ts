@@ -1,5 +1,4 @@
-import type { ArgsOf } from "discordx";
-import { Discord, On } from "discordx";
+import type { Client } from "discord.js";
 import {
   ChannelType,
   type Message as DjsMessage,
@@ -265,10 +264,8 @@ async function dispatchAndHandle(
   return result;
 }
 
-@Discord()
-export class WebhookBehaviorEvents {
-  @On()
-  async messageCreate([message]: ArgsOf<"messageCreate">): Promise<void> {
+export function registerWebhookBehaviorEvents(client: Client): void {
+  client.on("messageCreate", async (message) => {
     try {
       if (message.channel.type !== ChannelType.DM) return;
       if (message.author.bot) return;
@@ -339,5 +336,5 @@ export class WebhookBehaviorEvents {
         { channelId: message.channelId, userId: message.author.id },
       );
     }
-  }
+  });
 }

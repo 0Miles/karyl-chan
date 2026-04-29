@@ -1,7 +1,7 @@
 import Fastify, { FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import fastifyHelmet from "@fastify/helmet";
-import { Client } from "discordx";
+import { Client } from "discord.js";
 import { existsSync, readFileSync } from "fs";
 import type { ServerOptions as HttpsServerOptions } from "https";
 import { dirname, resolve } from "path";

@@ -1,4 +1,4 @@
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { requireCapability } from "./route-guards.js";
 import {

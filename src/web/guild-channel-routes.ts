@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { Client } from 'discordx';
+import type { Client } from "discord.js";
 import { ChannelType, PermissionFlagsBits, type CategoryChannel, type EmojiIdentifierResolvable, type TextChannel } from 'discord.js';
 import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel-event-bus.js';
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
