@@ -299,8 +299,13 @@ const dmBehaviorOptions = computed(() =>
 const triggerSummary = computed(() => {
     const v = props.behavior.triggerValue;
     const truncated = v.length > 40 ? `${v.slice(0, 37)}…` : v;
+    // Per-trigger preview line — explicit cases for every triggerType
+    // because the fallthrough below will mislabel anything new (the
+    // previous default was 'regex', which made slash_command rows
+    // display as "regex: foo" in the list view).
     if (props.behavior.triggerType === 'startswith') return t('behaviors.card.previewStartsWith', { value: truncated });
     if (props.behavior.triggerType === 'endswith') return t('behaviors.card.previewEndsWith', { value: truncated });
+    if (props.behavior.triggerType === 'slash_command') return t('behaviors.card.previewSlashCommand', { value: truncated });
     return t('behaviors.card.previewRegex', { value: truncated });
 });
 

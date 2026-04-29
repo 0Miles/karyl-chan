@@ -3,9 +3,7 @@ import {
   InteractionContextType,
   type Client,
 } from "discord.js";
-import {
-  ALL_DMS_TARGET_ID,
-} from "../models/behavior-target.model.js";
+import { ALL_DMS_TARGET_ID } from "../models/behavior-target.model.js";
 import {
   findAllSystemBehaviors,
   findBehaviorsByTargets,
@@ -101,9 +99,7 @@ async function buildDesired(): Promise<DesiredCommand[]> {
   return desired;
 }
 
-export async function rebindDmOnlyCommandsAsGlobal(
-  bot: Client,
-): Promise<void> {
+export async function rebindDmOnlyCommandsAsGlobal(bot: Client): Promise<void> {
   if (!bot.application) return;
 
   const desired = await buildDesired();

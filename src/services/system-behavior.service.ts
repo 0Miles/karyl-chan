@@ -143,9 +143,7 @@ export async function runManualForMessage(message: DjsMessage): Promise<void> {
   const payload = buildManualReply(rows);
   const channel = message.channel;
   if (!("send" in channel) || typeof channel.send !== "function") return;
-  await channel
-    .send({ embeds: payload.embeds as never })
-    .catch(() => {});
+  await channel.send({ embeds: payload.embeds as never }).catch(() => {});
 }
 
 export async function runBreakForInteraction(

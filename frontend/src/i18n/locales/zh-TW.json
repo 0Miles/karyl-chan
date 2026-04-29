@@ -1056,6 +1056,7 @@
             "previewStartsWith": "開頭：{value}",
             "previewEndsWith": "結尾：{value}",
             "previewRegex": "regex：{value}",
+            "previewSlashCommand": "指令：/{value}",
             "titleRequired": "請輸入標題。",
             "triggerValueRequired": "請輸入觸發內容。",
             "regexInvalid": "正則表達式格式錯誤。",

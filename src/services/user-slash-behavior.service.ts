@@ -3,9 +3,7 @@ import {
   type ChatInputCommandInteraction,
   type RESTPostAPIWebhookWithTokenJSONBody,
 } from "discord.js";
-import {
-  ALL_DMS_TARGET_ID,
-} from "../models/behavior-target.model.js";
+import { ALL_DMS_TARGET_ID } from "../models/behavior-target.model.js";
 import {
   findBehaviorsByTargets,
   type BehaviorRow,

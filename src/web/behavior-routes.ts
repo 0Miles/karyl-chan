@@ -645,10 +645,7 @@ export async function registerBehaviorRoutes(
       // where every user seeing the command in their picker is the
       // intended audience anyway. user / group targets that would
       // create a name visible to non-target users get rejected.
-      if (
-        triggerType === "slash_command" &&
-        id !== ALL_DMS_TARGET_ID
-      ) {
+      if (triggerType === "slash_command" && id !== ALL_DMS_TARGET_ID) {
         reply.code(400).send({
           error:
             "triggerType='slash_command' only valid on the all_dms target — Discord DM commands have no per-user visibility scope",
@@ -880,9 +877,7 @@ export async function registerBehaviorRoutes(
     // because their target is locked to all_dms anyway, and the
     // earlier system-edit allowlist already prevents targetId edits.
     const finalTargetId =
-      typeof update.targetId === "number"
-        ? update.targetId
-        : existing.targetId;
+      typeof update.targetId === "number" ? update.targetId : existing.targetId;
     if (
       finalType === "slash_command" &&
       finalTargetId !== ALL_DMS_TARGET_ID &&
@@ -1092,9 +1087,7 @@ export async function registerBehaviorRoutes(
       (update.triggerType as BehaviorTriggerType | undefined) ??
       existing.triggerType;
     const finalTarget =
-      typeof update.targetId === "number"
-        ? update.targetId
-        : existing.targetId;
+      typeof update.targetId === "number" ? update.targetId : existing.targetId;
     const wasSlashAllDms =
       existing.triggerType === "slash_command" &&
       existing.targetId === ALL_DMS_TARGET_ID;
