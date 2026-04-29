@@ -5,6 +5,7 @@ import { findPluginById } from "../models/plugin.model.js";
 import {
   deleteKv,
   getKv,
+  incrementKv,
   listKvKeys,
   setKv,
   sumGuildBytes,
@@ -397,6 +398,70 @@ export async function registerPluginRpcRoutes(
       total_bytes: currentTotal - (existing?.bytes ?? 0) + row.bytes,
       quota_bytes: quota,
     };
+  });
+
+  // ─── storage.kv_increment ─────────────────────────────────────────
+  /**
+   * POST /api/plugin/storage.kv_increment
+   * Body: { guild_id: string, key: string, delta?: number = 1 }
+   * Returns: { value: <new number after increment>, bytes, total_bytes, quota_bytes }
+   *
+   * Atomic counter: read-modify-write inside a single SQLite transaction
+   * with row-level lock. Replaces the kv_get + kv_set sequence that
+   * lost increments under concurrent calls. Existing value must parse
+   * as a finite number; non-numeric existing values 422 (caller bug).
+   *
+   * Counts as a kv_set for quota purposes — the same per-guild byte
+   * cap applies to the post-increment serialised value.
+   */
+  server.post<{
+    Body: { guild_id?: unknown; key?: unknown; delta?: unknown };
+  }>("/api/plugin/storage.kv_increment", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "storage.kv_increment");
+    if (!ctx) return;
+    const body = request.body ?? {};
+    if (typeof body.guild_id !== "string" || body.guild_id.length === 0) {
+      reply.code(400).send({ error: "guild_id required" });
+      return;
+    }
+    if (typeof body.key !== "string" || body.key.length === 0) {
+      reply.code(400).send({ error: "key required" });
+      return;
+    }
+    if (body.key.length > KV_KEY_MAX) {
+      reply.code(400).send({ error: `key exceeds ${KV_KEY_MAX} chars` });
+      return;
+    }
+    const deltaRaw = body.delta ?? 1;
+    if (typeof deltaRaw !== "number" || !Number.isFinite(deltaRaw)) {
+      reply.code(400).send({ error: "delta must be a finite number" });
+      return;
+    }
+    try {
+      const result = await incrementKv(
+        ctx.pluginId,
+        body.guild_id,
+        body.key,
+        deltaRaw,
+      );
+      const totalBytes = await sumGuildBytes(ctx.pluginId, body.guild_id);
+      const quotaBytes = await quotaForGuildKv(ctx.pluginId);
+      return {
+        value: result.value,
+        bytes: result.row.bytes,
+        total_bytes: totalBytes,
+        quota_bytes: quotaBytes,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Existing-value-not-numeric is the caller's bug, not the bot's
+      // — surface it as 422 so the plugin's logs blame the right side.
+      if (msg.includes("not a finite number")) {
+        reply.code(422).send({ error: msg });
+        return;
+      }
+      reply.code(500).send({ error: `kv_increment failed: ${msg}` });
+    }
   });
 
   // ─── storage.kv_delete ────────────────────────────────────────────

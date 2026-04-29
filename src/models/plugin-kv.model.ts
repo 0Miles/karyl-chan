@@ -1,4 +1,4 @@
-import { DataTypes, fn, col, Op } from "sequelize";
+import { DataTypes, fn, col, Op, Transaction } from "sequelize";
 import { sequelize } from "./db.js";
 
 /**
@@ -110,6 +110,73 @@ export const listKvKeys = async (
     offset: Math.max(options.offset ?? 0, 0),
   });
   return { keys: rows.map((r) => r.getDataValue("key") as string), total };
+};
+
+/**
+ * Atomic increment-or-create. Used by plugins that need a monotonic
+ * counter (accounting-plugin's nextId, etc.) without the read-modify-
+ * write race that the kv_get + kv_set sequence has when two RPCs
+ * land simultaneously.
+ *
+ * Implementation runs as a single transaction:
+ *   - If the row exists and parses as a finite number, set it to
+ *     value + delta.
+ *   - If the row doesn't exist, seed at delta.
+ *   - If the row exists but isn't a number, throw — a caller using
+ *     kv_increment on a non-numeric key is a bug.
+ *
+ * Returns the new numeric value after the increment.
+ */
+export const incrementKv = async (
+  pluginId: number,
+  guildId: string,
+  key: string,
+  delta: number,
+): Promise<{ row: PluginKvRow; value: number }> => {
+  // SQLite needs IMMEDIATE so the transaction acquires its write lock
+  // up front; the default DEFERRED only takes the lock on the first
+  // write, by which time concurrent transactions race and one of them
+  // bombs with SQLITE_BUSY despite our busy_timeout. IMMEDIATE plus
+  // busy_timeout = serialised increments, no lost updates.
+  return sequelize.transaction(
+    { type: Transaction.TYPES.IMMEDIATE },
+    async (tx) => {
+    const existing = await PluginKv.findOne({
+      where: { pluginId, guildId, key },
+      transaction: tx,
+    });
+    let next: number;
+    if (existing) {
+      const cur = existing.getDataValue("value") as string;
+      const parsed = Number.parseFloat(cur);
+      if (!Number.isFinite(parsed)) {
+        throw new Error(
+          `kv_increment: existing value at key '${key}' is not a finite number`,
+        );
+      }
+      next = parsed + delta;
+      const valueStr = String(next);
+      await existing.update(
+        { value: valueStr, bytes: Buffer.byteLength(valueStr, "utf8") },
+        { transaction: tx },
+      );
+      return { row: rowOf(existing), value: next };
+    }
+    next = delta;
+    const valueStr = String(next);
+    const created = await PluginKv.create(
+      {
+        pluginId,
+        guildId,
+        key,
+        value: valueStr,
+        bytes: Buffer.byteLength(valueStr, "utf8"),
+      },
+      { transaction: tx },
+    );
+    return { row: rowOf(created), value: next };
+    },
+  );
 };
 
 /**
