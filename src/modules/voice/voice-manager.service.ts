@@ -27,46 +27,29 @@ import {
   type DiscordGatewayAdapterCreator,
 } from "@discordjs/voice";
 import { execSync } from "child_process";
-import ffmpegStatic from "ffmpeg-static";
 import prism from "prism-media";
 import { moduleLogger } from "../../logger.js";
 
 const log = moduleLogger("voice-manager");
 
-// prism-media's ffmpeg discovery order is:
-//   1. process.env.FFMPEG_PATH
-//   2. require('ffmpeg-static')
-//   3. spawn('ffmpeg' | 'avconv' | ...) from PATH
+// prism-media 1.3.5 has hardcoded ffmpeg discovery: it tries
+// require('ffmpeg-static') FIRST (ignoring FFMPEG_PATH env entirely),
+// then falls back to PATH lookup. The ffmpeg-static binary segfaults
+// on Debian Trixie, so we removed it from package.json — prism's
+// require() now throws and it falls through to spawn('ffmpeg', ...)
+// which finds the apt-installed binary on PATH.
 //
-// Step 2 wins over PATH, so even with apt's ffmpeg installed, prism
-// silently uses the ffmpeg-static binary — which segfaults on
-// Debian Trixie. We therefore force FFMPEG_PATH to PATH-resolved
-// ffmpeg whenever we can find one, falling back to ffmpeg-static
-// only when no system ffmpeg exists (covers `npm run dev` on a
-// workstation without it installed).
+// Side effect: dev mode (`npm run dev`) needs the operator to have
+// ffmpeg on PATH. Document this in README.
 {
   let resolved: string | null = null;
-  if (process.env.FFMPEG_PATH) {
-    resolved = process.env.FFMPEG_PATH;
-  } else {
-    try {
-      const fromPath = execSync("command -v ffmpeg 2>/dev/null", {
-        encoding: "utf8",
-      }).trim();
-      if (fromPath) {
-        resolved = fromPath;
-        process.env.FFMPEG_PATH = fromPath;
-      }
-    } catch {
-      // command -v exited non-zero; no system ffmpeg.
-    }
-    if (!resolved) {
-      const ffmpegPath = ffmpegStatic as unknown as string | null;
-      if (ffmpegPath) {
-        resolved = ffmpegPath;
-        process.env.FFMPEG_PATH = ffmpegPath;
-      }
-    }
+  try {
+    const fromPath = execSync("command -v ffmpeg 2>/dev/null", {
+      encoding: "utf8",
+    }).trim();
+    if (fromPath) resolved = fromPath;
+  } catch {
+    // No system ffmpeg — voice playback will throw at first /play.
   }
   log.info({ ffmpegPath: resolved }, "voice-manager: ffmpeg resolved");
 }
@@ -191,9 +174,8 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   if (!state) {
     throw new Error("not_joined");
   }
-  if (!ffmpegStatic) {
-    throw new Error("ffmpeg_not_available");
-  }
+  // ffmpeg presence check is best-effort — prism-media will throw a
+  // clearer error during spawn if there's no ffmpeg on PATH.
   // Spawn ffmpeg with a generic decode pipeline: input from URL,
   // resample to 48kHz stereo PCM (Discord's native sample rate), pipe
   // to stdout. prism-media handles the lifecycle.
