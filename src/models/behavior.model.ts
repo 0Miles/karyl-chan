@@ -80,12 +80,33 @@ export const Behavior = sequelize.define(
       allowNull: false,
       defaultValue: true,
     },
+    // Plugin-mode discriminator and references. Added in migration
+    // 20260429010000-behavior-plugin-type. Existing rows backfill to
+    // type='webhook' and the dispatcher keeps its old direct-POST path.
+    // Type='plugin' rows resolve the live plugin URL via plugins.url
+    // and ignore webhookUrl (which holds a placeholder for NOT NULL).
+    type: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "webhook",
+      validate: { isIn: [["webhook", "plugin"]] },
+    },
+    pluginId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    pluginBehaviorKey: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "behaviors",
     timestamps: true,
   },
 );
+
+export type BehaviorType = "webhook" | "plugin";
 
 export interface BehaviorRow {
   id: number;
@@ -95,17 +116,33 @@ export interface BehaviorRow {
   triggerType: BehaviorTriggerType;
   triggerValue: string;
   forwardType: BehaviorForwardType;
-  /** Encrypted at rest. Decrypt via utils/crypto.decryptSecret before use. */
+  /**
+   * For type='webhook': plaintext URL after decrypt; the actual
+   * destination POST'd to.
+   * For type='plugin':  placeholder string ("plugin://<key>/<behaviorKey>"),
+   * not used at dispatch time — the live plugin URL is read from the
+   * plugins table.
+   */
   webhookUrl: string;
   /**
-   * Optional HMAC secret (encrypted at rest). When set, the dispatcher
-   * signs each outgoing POST and requires a matching signature on the
-   * webhook's response. NULL means "no signing/verification".
+   * For type='webhook': optional HMAC secret (encrypted at rest);
+   * decrypted before signing.
+   * For type='plugin':  always null — plugin dispatch uses the
+   * plugin-level shared secret, not a per-behavior secret.
    */
   webhookSecret: string | null;
   sortOrder: number;
   stopOnMatch: boolean;
   enabled: boolean;
+  type: BehaviorType;
+  /** Set when type='plugin'; references plugins.id. Null for webhook rows. */
+  pluginId: number | null;
+  /**
+   * The dm_behaviors[].key from the plugin's manifest, identifying
+   * which DM-flavor of the plugin this behavior routes to. Null for
+   * webhook rows.
+   */
+  pluginBehaviorKey: string | null;
 }
 
 function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
@@ -123,6 +160,11 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
     sortOrder: model.getDataValue("sortOrder") as number,
     stopOnMatch: !!model.getDataValue("stopOnMatch"),
     enabled: !!model.getDataValue("enabled"),
+    type: ((model.getDataValue("type") as BehaviorType | null) ??
+      "webhook") as BehaviorType,
+    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
+    pluginBehaviorKey:
+      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
   };
 }
 
@@ -178,6 +220,12 @@ export interface NewBehaviorInput {
   webhookSecret?: string | null;
   stopOnMatch?: boolean;
   enabled?: boolean;
+  /** Defaults to 'webhook' to keep legacy callers working unchanged. */
+  type?: BehaviorType;
+  /** Required when type='plugin'. */
+  pluginId?: number | null;
+  /** Required when type='plugin'. */
+  pluginBehaviorKey?: string | null;
 }
 
 export const createBehavior = async (
@@ -203,6 +251,9 @@ export const createBehavior = async (
     sortOrder: nextSort,
     stopOnMatch: input.stopOnMatch ?? false,
     enabled: input.enabled ?? true,
+    type: input.type ?? "webhook",
+    pluginId: input.pluginId ?? null,
+    pluginBehaviorKey: input.pluginBehaviorKey ?? null,
   });
   return rowOf(created);
 };
@@ -223,6 +274,14 @@ export interface BehaviorUpdate {
   stopOnMatch?: boolean;
   enabled?: boolean;
   targetId?: number;
+  /**
+   * Plugin-mode discriminator and refs. Generally set ONLY at create
+   * time; updating type/pluginId on an existing row is rare (it would
+   * change the dispatch path entirely) but the schema permits it.
+   */
+  type?: BehaviorType;
+  pluginId?: number | null;
+  pluginBehaviorKey?: string | null;
 }
 
 export const updateBehavior = async (
