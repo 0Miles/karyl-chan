@@ -1,6 +1,6 @@
 import { ChannelType, type Client } from "discord.js";
-import { dmEventBus } from "../web/dm-event-bus.js";
-import { guildChannelEventBus } from "../modules/guild-management/guild-channel-event-bus.js";
+import { dmEventBus } from "../dm-event-bus.js";
+import { guildChannelEventBus } from "../../guild-management/guild-channel-event-bus.js";
 
 /**
  * Bridges Discord's `typingStart` gateway event onto our SSE event

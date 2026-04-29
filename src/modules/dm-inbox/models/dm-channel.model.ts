@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { sequelize } from './db.js';
+import { sequelize } from '../../../models/db.js';
 
 /**
  * One row per Discord DM channel the bot has observed. `id` is the

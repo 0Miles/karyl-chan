@@ -62,13 +62,13 @@ function pathOnly(url: string): string {
 function isEventStreamPath(url: string): boolean {
   return SSE_PATHS.has(pathOnly(url));
 }
-import { registerDmRoutes } from "../../web/dm-routes.js";
+import { registerDmRoutes } from "../dm-inbox/dm-routes.js";
 import { registerDiscordRoutes } from "../../web/discord-routes.js";
 import { avatarUrlFor } from "./message-mapper.js";
 import { registerGuildsRoutes } from "../guild-management/guilds-routes.js";
 import { registerGuildChannelRoutes } from "../guild-management/guild-channel-routes.js";
 import { registerGuildManagementRoutes } from "../guild-management/guild-management-routes.js";
-import type { DmInboxStore } from "../../web/dm-inbox.service.js";
+import type { DmInboxStore } from "../dm-inbox/dm-inbox.service.js";
 import { registerSystemRoutes } from "./system-routes.js";
 import { registerAdminManagementRoutes } from "../admin/admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-routes.js";

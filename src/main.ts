@@ -23,7 +23,7 @@ import {
 import { Client } from "discord.js";
 import { sequelize } from "./models/db.js";
 import { startWebServer } from "./modules/web-core/server.js";
-import { dmInboxService } from "./web/dm-inbox.service.js";
+import { dmInboxService } from "./modules/dm-inbox/dm-inbox.service.js";
 import { authStore } from "./modules/web-core/auth-store.service.js";
 import { sequelizeRefreshStore } from "./modules/web-core/refresh-token.repository.js";
 import {

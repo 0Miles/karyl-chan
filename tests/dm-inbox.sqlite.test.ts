@@ -5,8 +5,8 @@ vi.hoisted(() => {
 });
 
 import { sequelize } from '../src/models/db.js';
-import { DmChannel } from '../src/models/dm-channel.model.js';
-import { SqliteDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
+import { DmChannel } from '../src/modules/dm-inbox/models/dm-channel.model.js';
+import { SqliteDmInbox, type DmRecipient } from '../src/modules/dm-inbox/dm-inbox.service.js';
 import type { Message } from '../src/modules/web-core/message-types.js';
 
 const RECIPIENT: DmRecipient = {

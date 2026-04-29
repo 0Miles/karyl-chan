@@ -7,10 +7,10 @@ import {
   type PartialUser,
   type User,
 } from "discord.js";
-import { dmInboxService, type DmRecipient } from "../web/dm-inbox.service.js";
-import { dmEventBus } from "../web/dm-event-bus.js";
-import { avatarUrlFor, toApiMessage } from "../modules/web-core/message-mapper.js";
-import { botEventLog } from "../web/bot-event-log.js";
+import { dmInboxService, type DmRecipient } from "../dm-inbox.service.js";
+import { dmEventBus } from "../dm-event-bus.js";
+import { avatarUrlFor, toApiMessage } from "../../web-core/message-mapper.js";
+import { botEventLog } from "../../../web/bot-event-log.js";
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,

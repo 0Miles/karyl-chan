@@ -2,8 +2,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { FastifyInstance } from 'fastify';
 import type { Client } from 'discordx';
 import { createWebServer } from '../src/modules/web-core/server.js';
-import { InMemoryDmInbox, type DmRecipient } from '../src/web/dm-inbox.service.js';
-import { DmEventBus } from '../src/web/dm-event-bus.js';
+import { InMemoryDmInbox, type DmRecipient } from '../src/modules/dm-inbox/dm-inbox.service.js';
+import { DmEventBus } from '../src/modules/dm-inbox/dm-event-bus.js';
 
 const RECIPIENT: DmRecipient = {
     id: 'u1',
@@ -279,7 +279,7 @@ describe('DM routes', () => {
             const seen: string[] = [];
             eventBus.subscribe(e => seen.push(e.type));
             // Manually invoke the route registration with our injected bus.
-            const { registerDmRoutes } = await import('../src/web/dm-routes.js');
+            const { registerDmRoutes } = await import('../src/modules/dm-inbox/dm-routes.js');
             const fastify = (await import('fastify')).default();
             // Per-route capability gates run against request.authCapabilities,
             // which is normally set by the global auth hook in createWebServer.
