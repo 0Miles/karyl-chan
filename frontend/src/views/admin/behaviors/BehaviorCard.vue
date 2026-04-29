@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppMenu from '../../../components/AppMenu.vue';
 import AppMenuItem from '../../../components/AppMenuItem.vue';
+import AppSelectField from '../../../components/AppSelectField.vue';
 import {
     type BehaviorForwardType,
     type BehaviorPatch,
@@ -142,19 +143,23 @@ const dirty = computed(() => {
         || draft.targetId !== b.targetId;
 });
 
-// When the user switches type within the form, auto-pick the first
-// plugin / first dm_behavior so the form lands ready-to-save instead
-// of greying out the button until they manually pick something.
-watch(() => draft.type, (next) => {
-    if (next === 'plugin' && draft.pluginId == null) {
-        const first = eligiblePlugins.value[0];
-        if (first) {
-            draft.pluginId = first.id;
-            const behavior = first.manifest?.dm_behaviors?.[0];
-            draft.pluginBehaviorKey = behavior?.key ?? '';
-        }
-    }
-});
+// Auto-pick the first eligible plugin / first dm_behavior so the form
+// lands ready-to-save when the user switches to Plugin type. Watching
+// `eligiblePlugins` (not just `draft.type`) means the auto-pick also
+// fires when the parent's plugin fetch resolves AFTER the type
+// switch — without this, switching to Plugin while the list is still
+// loading leaves both selects empty forever.
+function autoPickPlugin() {
+    if (draft.type !== 'plugin') return;
+    if (draft.pluginId != null) return;
+    const first = eligiblePlugins.value[0];
+    if (!first) return;
+    draft.pluginId = first.id;
+    const behavior = first.manifest?.dm_behaviors?.[0];
+    draft.pluginBehaviorKey = behavior?.key ?? '';
+}
+watch(() => draft.type, autoPickPlugin);
+watch(eligiblePlugins, autoPickPlugin, { deep: true });
 
 watch(() => draft.pluginId, () => {
     // After picking a different plugin, default to its first
@@ -164,6 +169,41 @@ watch(() => draft.pluginId, () => {
         draft.pluginBehaviorKey = first.key;
     }
 });
+
+// Option lists for AppSelectField (it wants {value,label}[]).
+const typeOptions = computed(() => [
+    { value: 'webhook' as BehaviorType, label: t('behaviors.card.behaviorTypeWebhook') },
+    { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
+]);
+const triggerTypeOptions = computed(() => [
+    { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
+    { value: 'endswith' as BehaviorTriggerType, label: t('behaviors.card.triggerEndsWith') },
+    { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
+]);
+const forwardTypeOptions = computed(() => [
+    { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },
+    { value: 'continuous' as BehaviorForwardType, label: t('behaviors.card.forwardContinuous') },
+]);
+const targetOptions = computed(() => props.targets.map(t2 => ({
+    value: t2.id,
+    label: t2.kind === 'all_dms'
+        ? t('behaviors.sidebar.allDms')
+        : t2.kind === 'user'
+            ? (t2.profile?.globalName ?? t2.profile?.username ?? t2.userId ?? '?')
+            : (t2.groupName ?? '?'),
+})));
+const pluginOptions = computed(() =>
+    eligiblePlugins.value.map(p => ({
+        value: p.id,
+        label: `${p.name} (v${p.version})`,
+    }))
+);
+const dmBehaviorOptions = computed(() =>
+    dmBehaviorChoices.value.map(b => ({
+        value: b.key,
+        label: b.description ? `${b.name} — ${b.description}` : b.name,
+    }))
+);
 
 const triggerSummary = computed(() => {
     const v = props.behavior.triggerValue;
@@ -389,48 +429,30 @@ async function onDelete() {
                     <textarea v-model="draft.description" rows="2" maxlength="2000" />
                 </label>
 
-                <label class="field">
+                <div class="field">
                     <span class="label">{{ t('behaviors.card.triggerType') }}</span>
-                    <select v-model="draft.triggerType">
-                        <option value="startswith">{{ t('behaviors.card.triggerStartsWith') }}</option>
-                        <option value="endswith">{{ t('behaviors.card.triggerEndsWith') }}</option>
-                        <option value="regex">{{ t('behaviors.card.triggerRegex') }}</option>
-                    </select>
-                </label>
+                    <AppSelectField v-model="draft.triggerType" :options="triggerTypeOptions" />
+                </div>
 
                 <label class="field">
                     <span class="label">{{ t('behaviors.card.triggerValue') }}</span>
                     <input v-model="draft.triggerValue" type="text" maxlength="2000" />
                 </label>
 
-                <label class="field">
+                <div class="field">
                     <span class="label">{{ t('behaviors.card.forwardType') }}</span>
-                    <select v-model="draft.forwardType">
-                        <option value="one_time">{{ t('behaviors.card.forwardOneTime') }}</option>
-                        <option value="continuous">{{ t('behaviors.card.forwardContinuous') }}</option>
-                    </select>
-                </label>
+                    <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
+                </div>
 
-                <label class="field">
+                <div class="field">
                     <span class="label">{{ t('behaviors.card.targetId') }}</span>
-                    <select v-model.number="draft.targetId">
-                        <option v-for="t2 in targets" :key="t2.id" :value="t2.id">
-                            {{ t2.kind === 'all_dms'
-                                ? t('behaviors.sidebar.allDms')
-                                : t2.kind === 'user'
-                                    ? (t2.profile?.globalName ?? t2.profile?.username ?? t2.userId)
-                                    : t2.groupName }}
-                        </option>
-                    </select>
-                </label>
+                    <AppSelectField v-model="draft.targetId" :options="targetOptions" />
+                </div>
 
-                <label class="field">
-                    <span class="label">{{ t('behaviors.card.dispatchType') }}</span>
-                    <select v-model="draft.type">
-                        <option value="webhook">{{ t('behaviors.card.dispatchTypeWebhook') }}</option>
-                        <option value="plugin">{{ t('behaviors.card.dispatchTypePlugin') }}</option>
-                    </select>
-                </label>
+                <div class="field">
+                    <span class="label">{{ t('behaviors.card.behaviorType') }}</span>
+                    <AppSelectField v-model="draft.type" :options="typeOptions" />
+                </div>
 
                 <template v-if="draft.type === 'webhook'">
                     <label class="field full">
@@ -459,25 +481,19 @@ async function onDelete() {
                 </template>
 
                 <template v-else>
-                    <label class="field full">
+                    <div class="field full">
                         <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
-                        <select v-model.number="draft.pluginId">
-                            <option v-if="eligiblePlugins.length === 0" :value="null" disabled>
-                                {{ t('behaviors.card.pluginNoneAvailable') }}
-                            </option>
-                            <option v-for="p in eligiblePlugins" :key="p.id" :value="p.id">
-                                {{ p.name }} (v{{ p.version }})
-                            </option>
-                        </select>
-                    </label>
-                    <label v-if="dmBehaviorChoices.length > 0" class="field full">
+                        <AppSelectField
+                            v-model="draft.pluginId"
+                            :options="pluginOptions"
+                            :placeholder="t('behaviors.card.pluginNoneAvailable')"
+                            :disabled="pluginOptions.length === 0"
+                        />
+                    </div>
+                    <div v-if="dmBehaviorOptions.length > 0" class="field full">
                         <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
-                        <select v-model="draft.pluginBehaviorKey">
-                            <option v-for="b in dmBehaviorChoices" :key="b.key" :value="b.key">
-                                {{ b.name }}<template v-if="b.description"> — {{ b.description }}</template>
-                            </option>
-                        </select>
-                    </label>
+                        <AppSelectField v-model="draft.pluginBehaviorKey" :options="dmBehaviorOptions" />
+                    </div>
                 </template>
 
                 <label class="field full inline">
