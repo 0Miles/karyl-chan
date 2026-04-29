@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { Client } from "discordx";
 import {
   ManifestError,
   pluginRegistry,
@@ -9,8 +10,14 @@ import { botEventLog } from "./bot-event-log.js";
 import { shouldRecord } from "./bot-event-dedup.js";
 import {
   findFeatureRowsByGuild,
+  findFeatureRowsByPlugin,
   upsertFeatureRow,
 } from "../models/plugin-guild-feature.model.js";
+import {
+  findAllFeatureDefaults,
+  upsertFeatureDefault,
+  type PluginFeatureDefaultRow,
+} from "../models/plugin-feature-default.model.js";
 import { encryptSecret } from "../utils/crypto.js";
 import type { PluginManifest } from "../services/plugin-registry.service.js";
 
@@ -56,9 +63,15 @@ function presentedBearerToken(req: FastifyRequest): string | null {
   return auth.slice(7);
 }
 
+export interface PluginRoutesOptions {
+  bot?: Client;
+}
+
 export async function registerPluginRoutes(
   server: FastifyInstance,
+  options: PluginRoutesOptions = {},
 ): Promise<void> {
+  const bot = options.bot;
   // ─── Plugin-facing ───────────────────────────────────────────────
 
   /**
@@ -377,6 +390,236 @@ export async function registerPluginRoutes(
           // no purpose. UI re-fetches via the GET aggregate route.
         },
       };
+    },
+  );
+
+  // ─── Cross-guild feature defaults ────────────────────────────────
+
+  /**
+   * GET /api/plugins/feature-defaults
+   *
+   * Cross-plugin "All Servers" overview: every plugin × feature, with
+   *   - the manifest's enabled_by_default (author intent)
+   *   - the operator's default override from plugin_feature_defaults (if any)
+   *   - the per-guild row count (how many guilds opted in vs out)
+   *
+   * The frontend "All Servers" dashboard uses this for the defaults
+   * editor + matrix. Defaults effective = override ?? manifest_default ?? false.
+   */
+  server.get("/api/plugins/feature-defaults", async (request, reply) => {
+    if (!requireCapability(request, reply, "admin")) return;
+    const plugins = await pluginRegistry.list();
+    const overrides = await findAllFeatureDefaults();
+    const overrideByKey = new Map<string, PluginFeatureDefaultRow>(
+      overrides.map((o) => [`${o.pluginId}:${o.featureKey}`, o]),
+    );
+    const items: Array<{
+      pluginId: number;
+      pluginKey: string;
+      pluginName: string;
+      pluginEnabled: boolean;
+      pluginStatus: "active" | "inactive";
+      featureKey: string;
+      featureName: string;
+      featureDescription: string | undefined;
+      featureIcon: string | undefined;
+      manifestDefault: boolean;
+      override: boolean | null;
+      effectiveDefault: boolean;
+      enabledGuildCount: number;
+      disabledGuildCount: number;
+    }> = [];
+    for (const p of plugins) {
+      const manifest = safeParse(p.manifestJson) as PluginManifest | null;
+      if (!manifest) continue;
+      const guildRows = await findFeatureRowsByPlugin(p.id);
+      for (const f of manifest.guild_features ?? []) {
+        const override = overrideByKey.get(`${p.id}:${f.key}`);
+        const manifestDefault = !!f.enabled_by_default;
+        const effective = override ? override.enabled : manifestDefault;
+        const guildRowsForFeature = guildRows.filter(
+          (r) => r.featureKey === f.key,
+        );
+        items.push({
+          pluginId: p.id,
+          pluginKey: p.pluginKey,
+          pluginName: p.name,
+          pluginEnabled: p.enabled,
+          pluginStatus: p.status,
+          featureKey: f.key,
+          featureName: f.name,
+          featureDescription: f.description,
+          featureIcon: f.icon,
+          manifestDefault,
+          override: override ? override.enabled : null,
+          effectiveDefault: effective,
+          enabledGuildCount: guildRowsForFeature.filter((r) => r.enabled).length,
+          disabledGuildCount: guildRowsForFeature.filter((r) => !r.enabled)
+            .length,
+        });
+      }
+    }
+    return { features: items };
+  });
+
+  /**
+   * PUT /api/plugins/:id/feature-defaults/:featureKey
+   * Body: { enabled: boolean }
+   *
+   * Operator override of the manifest's enabled_by_default. Doesn't
+   * touch existing per-guild rows; new guilds (without a row) will see
+   * the override applied. Use the apply-to-all endpoint to bulk-flip
+   * existing guilds.
+   */
+  server.put<{
+    Params: { id: string; featureKey: string };
+    Body: { enabled?: unknown };
+  }>(
+    "/api/plugins/:id/feature-defaults/:featureKey",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const pluginId = Number(request.params.id);
+      const { featureKey } = request.params;
+      if (!Number.isInteger(pluginId) || pluginId <= 0) {
+        reply.code(400).send({ error: "invalid plugin id" });
+        return;
+      }
+      if (typeof request.body?.enabled !== "boolean") {
+        reply.code(400).send({ error: "enabled boolean required" });
+        return;
+      }
+      const plugin = (await pluginRegistry.list()).find(
+        (p) => p.id === pluginId,
+      );
+      if (!plugin) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      const manifest = safeParse(plugin.manifestJson) as PluginManifest | null;
+      const feature = manifest?.guild_features?.find(
+        (f) => f.key === featureKey,
+      );
+      if (!feature) {
+        reply
+          .code(404)
+          .send({ error: `feature '${featureKey}' not declared by plugin` });
+        return;
+      }
+      const row = await upsertFeatureDefault(
+        pluginId,
+        featureKey,
+        request.body.enabled,
+      );
+      botEventLog.record(
+        "info",
+        "bot",
+        `plugin feature default ${row.enabled ? "enabled" : "disabled"}: ${plugin.pluginKey}/${featureKey}`,
+        {
+          pluginId,
+          featureKey,
+          enabled: row.enabled,
+          actor: request.authUserId,
+        },
+      );
+      return {
+        default: {
+          pluginId: row.pluginId,
+          featureKey: row.featureKey,
+          enabled: row.enabled,
+        },
+      };
+    },
+  );
+
+  /**
+   * POST /api/plugins/:id/feature-defaults/:featureKey/apply-to-all
+   * Body: { guildIds?: string[] }    // optional whitelist; default = all guilds bot is in
+   *
+   * Bulk-set every existing per-guild row for this feature to match
+   * the current effective default (override ?? manifestDefault). Creates
+   * rows for guilds that don't have one yet (so the bot's "guild has a
+   * row → disabled by row, no row → use default" semantics stay intact).
+   *
+   * Returns: { updated: <count>, skipped: <count> }
+   */
+  server.post<{
+    Params: { id: string; featureKey: string };
+    Body: { guildIds?: unknown };
+  }>(
+    "/api/plugins/:id/feature-defaults/:featureKey/apply-to-all",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const pluginId = Number(request.params.id);
+      const { featureKey } = request.params;
+      if (!Number.isInteger(pluginId) || pluginId <= 0) {
+        reply.code(400).send({ error: "invalid plugin id" });
+        return;
+      }
+      const plugin = (await pluginRegistry.list()).find(
+        (p) => p.id === pluginId,
+      );
+      if (!plugin) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      const manifest = safeParse(plugin.manifestJson) as PluginManifest | null;
+      const feature = manifest?.guild_features?.find(
+        (f) => f.key === featureKey,
+      );
+      if (!feature) {
+        reply
+          .code(404)
+          .send({ error: `feature '${featureKey}' not declared by plugin` });
+        return;
+      }
+      const overrides = await findAllFeatureDefaults();
+      const override = overrides.find(
+        (o) => o.pluginId === pluginId && o.featureKey === featureKey,
+      );
+      const effective = override
+        ? override.enabled
+        : !!feature.enabled_by_default;
+
+      const requested = Array.isArray(request.body?.guildIds)
+        ? (request.body.guildIds as unknown[]).filter(
+            (g): g is string => typeof g === "string" && g.length > 0,
+          )
+        : null;
+      // Default: all guilds the bot is currently in. Falling back to
+      // existing rows would skip guilds that never had this feature
+      // touched — and "apply default to all" is precisely the moment
+      // we want to seed them.
+      const allGuildIds = bot?.guilds?.cache
+        ? [...bot.guilds.cache.keys()]
+        : [];
+      const targetGuildIds =
+        requested && requested.length > 0 ? requested : allGuildIds;
+      if (targetGuildIds.length === 0) {
+        return { updated: 0, skipped: 0 };
+      }
+      let updated = 0;
+      for (const guildId of targetGuildIds) {
+        await upsertFeatureRow({
+          pluginId,
+          guildId,
+          featureKey,
+          enabled: effective,
+        });
+        updated++;
+      }
+      botEventLog.record(
+        "info",
+        "bot",
+        `plugin feature default applied to ${updated} guilds: ${plugin.pluginKey}/${featureKey} -> ${effective ? "on" : "off"}`,
+        {
+          pluginId,
+          featureKey,
+          updated,
+          enabled: effective,
+          actor: request.authUserId,
+        },
+      );
+      return { updated, skipped: 0 };
     },
   );
 

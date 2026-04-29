@@ -535,7 +535,7 @@ export async function createWebServer(
   await registerAdminLoginStatusRoutes(server);
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
-  await registerPluginRoutes(server);
+  await registerPluginRoutes(server, { bot });
   await registerPluginRpcRoutes(server, { bot });
 
   if (bot) {

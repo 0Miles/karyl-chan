@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import {
     createGuildInvite,
     deleteGuildInvite,
@@ -20,6 +21,8 @@ import { useApiError } from '../../../composables/use-api-error';
 import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import AppTabs from '../../../components/AppTabs.vue';
+import AllServersDashboard from './AllServersDashboard.vue';
+import GuildPluginFeaturesPanel from './GuildPluginFeaturesPanel.vue';
 import GuildOverviewSection from './overview/GuildOverviewSection.vue';
 import GuildGeneralSettingsCard from './settings/GuildGeneralSettingsCard.vue';
 import GuildModerationSettingsCard from './settings/GuildModerationSettingsCard.vue';
@@ -50,6 +53,12 @@ const loadingList = ref(false);
 const loadingDetail = ref(false);
 const error = ref<string | null>(null);
 
+// Sentinel guild id for the "all servers" cross-guild dashboard.
+// Picking a non-snowflake string means it can never collide with a real
+// Discord guild id (which are numeric strings). Selected via the same
+// useGuildsRoute mechanism, so deep-linking with ?guild=_all works.
+const ALL_SERVERS_ID = '_all';
+
 // `selectedId` is two-way bound to `?guild=<id>` by useGuildsRoute. The
 // tab + sub-tab portion of the URL lives on `<AppTabs routed>` itself
 // (passed `name="guilds"` below), so the page-level state is just a
@@ -58,6 +67,7 @@ const error = ref<string | null>(null);
 // preserves the last sub the user was on.
 type Tab = 'overview' | 'settings' | 'people' | 'features';
 const { selectedId } = useGuildsRoute();
+const isAllServers = computed(() => selectedId.value === ALL_SERVERS_ID);
 const activeTab = ref<Tab>('overview');
 // Default features sub = first feature's name; updates if registry changes.
 const activeSub = ref<Record<Tab, string>>({
@@ -115,11 +125,13 @@ const peopleSubs = computed(() => [
 ]);
 // Features sub-tabs are derived from the guild-feature registry —
 // adding a new feature folder + entry there is enough to surface it
-// here.
-const featuresSubs = computed(() => guildFeatures.map(p => ({
-    key: p.name,
-    label: $t(p.labelKey)
-})));
+// here. Plugin-provided guild features are listed under the special
+// `_plugins` sub-tab below the in-process ones.
+const PLUGIN_FEATURES_SUB = '_plugins';
+const featuresSubs = computed(() => [
+    ...guildFeatures.map(p => ({ key: p.name, label: $t(p.labelKey) })),
+    { key: PLUGIN_FEATURES_SUB, label: 'Plugin Features' }
+]);
 const currentSubTabs = computed(() => {
     if (activeTab.value === 'settings') return settingsSubs.value;
     if (activeTab.value === 'people') return peopleSubs.value;
@@ -135,8 +147,11 @@ async function refresh() {
     loadingList.value = true;
     try {
         guilds.value = await listGuilds();
-        if (!selectedId.value && guilds.value.length > 0) {
-            selectedId.value = guilds.value[0].id;
+        // Default to "all servers" view (rather than first guild) so a
+        // freshly-opened page lands on the cross-guild dashboard. Users
+        // who want a specific guild click into it.
+        if (!selectedId.value) {
+            selectedId.value = ALL_SERVERS_ID;
         }
         error.value = null;
         resetError();
@@ -276,8 +291,11 @@ async function onRevokeInvite(inv: GuildInvite) {
 // detail on first mount — useGuildsRoute seeds selectedId from the
 // URL before this watcher attaches, so without immediate the initial
 // value would slip past unobserved and the main panel would render
-// blank.
-watch(selectedId, (id) => { if (id) loadDetail(id); }, { immediate: true });
+// blank. Skip the load when the sentinel ALL_SERVERS_ID is selected;
+// that view fetches its own data via AllServersDashboard.
+watch(selectedId, (id) => {
+    if (id && id !== ALL_SERVERS_ID) loadDetail(id);
+}, { immediate: true });
 
 function handleSelect(id: string) {
     selectedId.value = id;
@@ -295,8 +313,20 @@ onMounted(refresh);
                 <span class="count">{{ guilds.length }}</span>
             </header>
             <p v-if="loadingList && guilds.length === 0" class="muted">{{ $t('common.loading') }}</p>
-            <p v-else-if="guilds.length === 0" class="muted empty">{{ $t('guilds.empty') }}</p>
             <ul class="guild-list">
+                <li
+                    :class="{ active: isAllServers, 'all-servers-row': true }"
+                    @click="handleSelect(ALL_SERVERS_ID)"
+                >
+                    <div class="icon icon-fallback all-servers-icon" aria-hidden="true">
+                        <Icon icon="material-symbols:hub-outline-rounded" width="20" height="20" />
+                    </div>
+                    <div class="meta">
+                        <div class="name">所有伺服器</div>
+                        <div class="sub">Bot 功能預設管理</div>
+                    </div>
+                </li>
+                <li v-if="!loadingList && guilds.length === 0" class="muted empty">{{ $t('guilds.empty') }}</li>
                 <li
                     v-for="g in guilds"
                     :key="g.id"
@@ -317,7 +347,8 @@ onMounted(refresh);
             <AccessDeniedView v-if="accessDenied" />
             <template v-else>
                 <p v-if="error" class="error">{{ error }}</p>
-                <p v-if="!selectedId" class="muted center">{{ $t('guilds.selectGuild') }}</p>
+                <AllServersDashboard v-if="isAllServers" />
+                <p v-else-if="!selectedId" class="muted center">{{ $t('guilds.selectGuild') }}</p>
                 <p v-else-if="loadingDetail && !detail" class="muted center">{{ $t('common.loading') }}</p>
                 <article v-else-if="detail" class="detail-body">
                     <AppTabs
@@ -376,7 +407,10 @@ onMounted(refresh);
                         <!-- Bot features sub-tabs — driven by the guild-
                              feature registry; whichever feature's name
                              matches the current sub-tab key gets its
-                             SettingsCard mounted. -->
+                             SettingsCard mounted. The trailing
+                             '_plugins' sub-tab routes to the plugin
+                             feature panel which talks to the bot's
+                             plugin admin API. -->
                         <template v-else-if="activeTab === 'features'">
                             <template v-for="feature in guildFeatures" :key="feature.name">
                                 <component
@@ -386,6 +420,10 @@ onMounted(refresh);
                                     @changed="selectedId && loadDetail(selectedId)"
                                 />
                             </template>
+                            <GuildPluginFeaturesPanel
+                                v-if="currentSub === PLUGIN_FEATURES_SUB && selectedId"
+                                :guild-id="selectedId"
+                            />
                         </template>
                     </AppTabs>
                 </article>
@@ -458,6 +496,12 @@ onMounted(refresh);
     justify-content: center;
     font-weight: 600;
     font-size: 0.85rem;
+}
+.all-servers-row {
+    border-bottom: 2px solid var(--border-strong) !important;
+}
+.all-servers-icon {
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, var(--text-strong)));
 }
 .meta { min-width: 0; }
 .meta .name {
