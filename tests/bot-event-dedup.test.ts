@@ -13,7 +13,9 @@ describe("bot-event-dedup", () => {
   });
 
   async function importFresh() {
-    const mod = await import("../src/modules/bot-events/bot-event-dedup.js?t=" + Date.now());
+    const mod = await import(
+      "../src/modules/bot-events/bot-event-dedup.js?t=" + Date.now()
+    );
     return mod.shouldRecord;
   }
 
