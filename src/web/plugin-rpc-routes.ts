@@ -175,6 +175,84 @@ export async function registerPluginRpcRoutes(
     }
   });
 
+  // ─── messages.send_dm ─────────────────────────────────────────────
+  /**
+   * POST /api/plugin/messages.send_dm
+   * Body: { user_id: string, content?: string, embeds?: APIEmbed[],
+   *         allowed_mentions?: { parse?: ('users'|'roles'|'everyone')[] } }
+   * Returns: { id, channel_id }
+   *
+   * Higher-level than messages.send: the plugin gives a Discord user
+   * id and we resolve / create the DM channel for them, then send.
+   * Without this, the plugin would need a way to discover the user's
+   * DM channel id (which Discord doesn't expose to bots), so DM
+   * relay-style plugins were impossible to implement at all.
+   *
+   * Subject to the same allowed_mentions default-deny as messages.send.
+   * 404 if the user_id doesn't resolve; 400 if the user has DMs
+   * disabled (Discord raises CANNOT_SEND_MESSAGES_TO_THIS_USER).
+   */
+  server.post<{
+    Body: {
+      user_id?: unknown;
+      content?: unknown;
+      embeds?: unknown;
+      allowed_mentions?: unknown;
+    };
+  }>("/api/plugin/messages.send_dm", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "messages.send_dm");
+    if (!ctx) return;
+    if (!bot) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (typeof body.user_id !== "string" || body.user_id.length === 0) {
+      reply.code(400).send({ error: "user_id required" });
+      return;
+    }
+    const content = typeof body.content === "string" ? body.content : undefined;
+    const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
+    if (!content && !embeds) {
+      reply.code(400).send({ error: "content or embeds required" });
+      return;
+    }
+    let user;
+    try {
+      user = await bot.users.fetch(body.user_id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reply.code(404).send({ error: `user fetch failed: ${msg}` });
+      return;
+    }
+    const allowedMentions =
+      body.allowed_mentions && typeof body.allowed_mentions === "object"
+        ? (body.allowed_mentions as Record<string, unknown>)
+        : { parse: [] };
+    try {
+      const sent = await user.send({
+        content,
+        embeds: embeds as never,
+        allowedMentions: allowedMentions as never,
+      });
+      botEventLog.record(
+        "info",
+        "bot",
+        `plugin ${ctx.pluginKey} DM'd user ${body.user_id}`,
+        {
+          pluginId: ctx.pluginId,
+          userId: body.user_id,
+          messageId: sent.id,
+        },
+      );
+      return { id: sent.id, channel_id: sent.channelId };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `send_dm failed: ${msg}` });
+      return;
+    }
+  });
+
   // ─── messages.delete ──────────────────────────────────────────────
   server.post<{
     Body: { channel_id?: unknown; message_id?: unknown };
