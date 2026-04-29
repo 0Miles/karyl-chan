@@ -1,5 +1,8 @@
 import { lookup } from 'dns/promises';
 import { isIP } from 'net';
+import { moduleLogger } from '../logger.js';
+
+const log = moduleLogger('host-policy');
 
 export class HostPolicyError extends Error {
     constructor(message: string) {
@@ -68,7 +71,7 @@ export async function assertAllowedTarget(host: string, port: number): Promise<v
             }
         } catch (error) {
             if (error instanceof HostPolicyError) throw error;
-            console.error(`DNS lookup failed for ${host}:`, error);
+            log.error({ err: error, host }, "DNS lookup failed");
             throw new HostPolicyError('無法解析主機名稱');
         }
     }

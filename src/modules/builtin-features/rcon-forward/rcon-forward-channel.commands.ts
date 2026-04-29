@@ -16,6 +16,9 @@ import {
 } from "../in-process-command-registry.service.js";
 import { encryptSecret } from "../../../utils/crypto.js";
 import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../../utils/constant.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("rcon-forward-commands");
 
 const MODAL_CUSTOM_ID = "NewRconForwardChannelForm";
 
@@ -259,7 +262,7 @@ async function handleModalSubmit(
       portString,
     );
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "rcon-forward-channel command error");
   }
 }
 

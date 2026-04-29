@@ -1,6 +1,9 @@
 import { ChannelType, type Client } from "discord.js";
 import { dmEventBus } from "../dm-event-bus.js";
 import { guildChannelEventBus } from "../../guild-management/guild-channel-event-bus.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("typing-start");
 
 /**
  * Bridges Discord's `typingStart` gateway event onto our SSE event
@@ -45,7 +48,7 @@ export function registerTypingStartEvents(client: Client): void {
         });
       }
     } catch (err) {
-      console.error("typingStart bridge failed:", err);
+      log.error({ err }, "typingStart bridge failed");
     }
   });
 }

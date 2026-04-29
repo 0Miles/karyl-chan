@@ -3,6 +3,9 @@ import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "./authorized-user.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { config } from "../../config.js";
+import { moduleLogger } from "../../logger.js";
+
+const log = moduleLogger("admin-login");
 
 /**
  * Admin login link issuance, factored out of the old
@@ -101,7 +104,7 @@ export async function issueLoginLinkAndReply(
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("admin-login issue failed (message):", err);
+    log.error({ err }, "admin-login issue failed (message)");
     botEventLog.record("error", "feature", `Admin login DM failed: ${msg}`, {
       userId: message.author.id,
     });
@@ -145,7 +148,7 @@ export async function issueLoginLinkForInteraction(
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("admin-login issue failed (interaction):", err);
+    log.error({ err }, "admin-login issue failed (interaction)");
     botEventLog.record("error", "feature", `Admin login slash failed: ${msg}`, {
       userId: interaction.user.id,
     });

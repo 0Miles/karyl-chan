@@ -8,6 +8,9 @@ import { findRoleReceiveMessage } from "./role-receive-message.model.js";
 import { findRoleEmojiInGroup } from "./role-emoji.model.js";
 import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("role-emoji-events");
 
 /**
  * Hydrate a partial reaction (and its parent message) before we read
@@ -28,7 +31,7 @@ async function hydrateReaction(
     try {
       await messageReaction.fetch();
     } catch (err) {
-      console.error("role-emoji: failed to fetch partial reaction:", err);
+      log.error({ err }, "role-emoji: failed to fetch partial reaction");
       return null;
     }
   }
@@ -36,7 +39,7 @@ async function hydrateReaction(
     try {
       await messageReaction.message.fetch();
     } catch (err) {
-      console.error("role-emoji: failed to fetch partial message:", err);
+      log.error({ err }, "role-emoji: failed to fetch partial message");
       return null;
     }
   }
@@ -117,7 +120,7 @@ export function registerRoleEmojiEvents(client: Client): void {
         throw roleErr;
       }
     } catch (ex) {
-      console.error("role-emoji messageReactionAdd failed:", ex);
+      log.error({ err: ex }, "role-emoji messageReactionAdd failed");
     }
   });
 
@@ -170,7 +173,7 @@ export function registerRoleEmojiEvents(client: Client): void {
         throw roleErr;
       }
     } catch (ex) {
-      console.error("role-emoji messageReactionRemove failed:", ex);
+      log.error({ err: ex }, "role-emoji messageReactionRemove failed");
     }
   });
 }

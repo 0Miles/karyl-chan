@@ -93,6 +93,9 @@ export function decryptSecret(value: string): string {
     }
     // Pre-encryption legacy: a few rows from before the v1 cutover are
     // still raw plaintext. Warn loudly so an operator re-saves them.
+    // console.warn preserved: crypto.test.ts spies on console.warn for
+    // this exact callsite as a contract test. Using pino here would break
+    // the test assertion without changing the observable behaviour.
     console.warn('decryptSecret: legacy plaintext value detected; re-save via /rcon-forward-channel edit to encrypt at rest.');
     return value;
 }

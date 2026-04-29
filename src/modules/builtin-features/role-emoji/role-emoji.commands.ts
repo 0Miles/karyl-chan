@@ -7,6 +7,9 @@ import {
   RESTJSONErrorCodes,
   type Role,
 } from "discord.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("role-emoji-commands");
 import {
   addRoleEmoji,
   findAllRoleEmojisInGroup,
@@ -79,7 +82,7 @@ async function groupAdd(command: ChatInputCommandInteraction): Promise<void> {
       flags: "Ephemeral",
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji groupAdd failed");
   }
 }
 
@@ -115,7 +118,7 @@ async function groupRemove(
       flags: "Ephemeral",
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji groupRemove failed");
   }
 }
 
@@ -156,7 +159,7 @@ async function groupList(command: ChatInputCommandInteraction): Promise<void> {
       flags: "Ephemeral",
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji groupList failed");
   }
 }
 
@@ -228,7 +231,7 @@ async function mappingAdd(command: ChatInputCommandInteraction): Promise<void> {
       flags: "Ephemeral",
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji mappingAdd failed");
   }
 }
 
@@ -290,7 +293,7 @@ async function mappingRemove(
       flags: "Ephemeral",
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji mappingRemove failed");
   }
 }
 
@@ -384,14 +387,15 @@ async function watch(command: ChatInputCommandInteraction): Promise<void> {
           err instanceof DiscordAPIError &&
           err.code === RESTJSONErrorCodes.UnknownEmoji
         ) {
-          console.warn(
-            `role-emoji watch: skipping inaccessible emoji ${String(resolvable)} (10014)`,
+          log.warn(
+            { resolvable: String(resolvable) },
+            "role-emoji watch: skipping inaccessible emoji (10014)",
           );
           continue;
         }
-        console.error(
-          `role-emoji watch: react failed for ${String(resolvable)}:`,
-          err,
+        log.error(
+          { err, resolvable: String(resolvable) },
+          "role-emoji watch: react failed",
         );
         failed.push(emojiChar || emojiId);
       }
@@ -413,7 +417,7 @@ async function watch(command: ChatInputCommandInteraction): Promise<void> {
       ],
     });
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji watch failed");
     await command
       .editReply({
         embeds: [
@@ -461,7 +465,7 @@ async function stopWatch(command: ChatInputCommandInteraction): Promise<void> {
       });
     }
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "role-emoji stopWatch failed");
     await command
       .editReply({
         embeds: [

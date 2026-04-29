@@ -7,6 +7,9 @@ import { RateLimiter } from "../../../utils/rate-limiter.js";
 import { FAILED_COLOR } from "../../../utils/constant.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
 import { shouldRecord } from "../../bot-events/bot-event-dedup.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("rcon-queue");
 
 export class RconQueueService {
   private static rateLimiter = new RateLimiter();
@@ -20,8 +23,9 @@ export class RconQueueService {
     );
     const removed = before - connection.queuedCommands.length;
     if (removed > 0) {
-      console.log(
-        `Cleaned ${removed} expired commands from queue for ${connection.host}:${connection.port}`,
+      log.debug(
+        { removed, host: connection.host, port: connection.port },
+        "Cleaned expired commands from queue",
       );
     }
   }
@@ -109,7 +113,7 @@ export class RconQueueService {
         });
       }
     } catch (error) {
-      console.error("RCON send error:", error);
+      log.error({ err: error }, "RCON send error");
       await message
         .reply({
           embeds: [
@@ -120,7 +124,7 @@ export class RconQueueService {
             },
           ],
         })
-        .catch(console.error);
+        .catch((err: unknown) => log.error({ err }, "failed to send RCON error reply"));
     }
   }
 }

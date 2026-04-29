@@ -1,4 +1,7 @@
 import { BotEvent } from "./models/bot-event.model.js";
+import { moduleLogger } from "../../logger.js";
+
+const log = moduleLogger("bot-event-log");
 
 export type BotEventLevel = "info" | "warn" | "error";
 export type BotEventCategory = "bot" | "auth" | "feature" | "web" | "error";
@@ -36,7 +39,7 @@ class BotEventLog {
       message: message.slice(0, 500),
       context: context ?? null,
     }).catch((err: unknown) => {
-      console.error("[bot-event-log] DB write failed:", err);
+      log.error({ err }, "DB write failed");
     });
   }
 }

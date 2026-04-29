@@ -11,6 +11,9 @@ import {
 } from "discord.js";
 import { guildChannelEventBus } from "../guild-channel-event-bus.js";
 import { toApiMessage } from "../../web-core/message-mapper.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("guild-channel-events");
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,
@@ -54,7 +57,7 @@ export function registerGuildChannelEvents(client: Client): void {
         message: toApiMessage(message),
       });
     } catch (err) {
-      console.error("guild-channel messageCreate failed:", err);
+      log.error({ err }, "guild-channel messageCreate failed");
     }
   });
 
@@ -76,7 +79,7 @@ export function registerGuildChannelEvents(client: Client): void {
         message: toApiMessage(fetched),
       });
     } catch (err) {
-      console.error("guild-channel messageUpdate failed:", err);
+      log.error({ err }, "guild-channel messageUpdate failed");
     }
   });
 
@@ -92,7 +95,7 @@ export function registerGuildChannelEvents(client: Client): void {
         messageId: message.id,
       });
     } catch (err) {
-      console.error("guild-channel messageDelete failed:", err);
+      log.error({ err }, "guild-channel messageDelete failed");
     }
   });
 
@@ -100,7 +103,7 @@ export function registerGuildChannelEvents(client: Client): void {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
-      console.error("guild-channel messageReactionAdd failed:", err);
+      log.error({ err }, "guild-channel messageReactionAdd failed");
     }
   });
 
@@ -108,7 +111,7 @@ export function registerGuildChannelEvents(client: Client): void {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
-      console.error("guild-channel messageReactionRemove failed:", err);
+      log.error({ err }, "guild-channel messageReactionRemove failed");
     }
   });
 }

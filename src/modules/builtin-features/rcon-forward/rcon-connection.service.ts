@@ -11,6 +11,9 @@ import {
   HostPolicyError,
 } from "../../../utils/host-policy.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("rcon-connection");
 
 export interface RconConnection {
   conn: Rcon;
@@ -80,7 +83,7 @@ export class RconConnectionService {
         try {
           await this.connectionMap[connectionName].conn.disconnect();
         } catch (error) {
-          console.error(`清理舊連接時發生錯誤: ${connectionName}`, error);
+          log.error({ err: error, connectionName }, "清理舊連接時發生錯誤");
         }
         delete this.connectionMap[connectionName];
       }
@@ -110,7 +113,7 @@ export class RconConnectionService {
       lockResolver.resolve();
       return true;
     } catch (error) {
-      console.error(`Connection init failed for ${connectionName}:`, error);
+      log.error({ err: error, connectionName }, "Connection init failed");
       botEventLog.record(
         "error",
         "feature",
@@ -140,7 +143,7 @@ export class RconConnectionService {
             },
           ],
         })
-        .catch(console.error);
+        .catch((err: unknown) => log.error({ err }, "failed to send connection error embed"));
 
       if (this.connectionMap[connectionName]) {
         try {
@@ -180,11 +183,11 @@ export class RconConnectionService {
     if (!connection) return;
 
     connection.conn.removeAllListeners();
-    console.log(`Removed all existing listeners for ${connectionName}`);
+    log.debug({ connectionName }, "Removed all existing listeners");
 
     connection.conn
       .on("auth", () => {
-        console.log(`Connection authenticated: ${connectionName}`);
+        log.info({ connectionName }, "Connection authenticated");
         connection.authenticated = true;
         connection.reconnectAttempts = 0;
         this.processQueuedCommands(connectionName);
@@ -199,8 +202,9 @@ export class RconConnectionService {
         );
       })
       .on("response", (str: string) => {
-        console.log(
-          `Received response from ${connectionName} (${str?.length ?? 0} bytes)`,
+        log.debug(
+          { connectionName, bytes: str?.length ?? 0 },
+          "Received response",
         );
         connection.lastUsed = new Date();
         for (const channel of connection.channels) {
@@ -214,17 +218,15 @@ export class RconConnectionService {
                 },
               ],
             })
-            .catch((error) => {
-              console.error(
-                `Error sending response to channel ${channel.id}:`,
-                error,
-              );
+            .catch((error: unknown) => {
+              log.error({ err: error, channelId: channel.id }, "Error sending response to channel");
             });
         }
       })
       .on("server", (str: string) => {
-        console.log(
-          `Received server message from ${connectionName} (${str?.length ?? 0} bytes)`,
+        log.debug(
+          { connectionName, bytes: str?.length ?? 0 },
+          "Received server message",
         );
         for (const channel of connection.channels) {
           channel
@@ -237,19 +239,13 @@ export class RconConnectionService {
                 },
               ],
             })
-            .catch((error) => {
-              console.error(
-                `Error sending server message to channel ${channel.id}:`,
-                error,
-              );
+            .catch((error: unknown) => {
+              log.error({ err: error, channelId: channel.id }, "Error sending server message to channel");
             });
         }
       })
       .on("error", (err: Error) => {
-        console.error(
-          `RCON connection error for ${connectionName}:`,
-          err.message,
-        );
+        log.error({ err, connectionName }, "RCON connection error");
         for (const channel of connection.channels) {
           channel
             .send({
@@ -261,12 +257,12 @@ export class RconConnectionService {
                 },
               ],
             })
-            .catch(console.error);
+            .catch((e: unknown) => log.error({ err: e }, "failed to send RCON error embed"));
         }
         this.handleConnectionError(connectionName, host, port, password);
       })
       .on("end", () => {
-        console.log(`Connection ended: ${connectionName}`);
+        log.info({ connectionName }, "Connection ended");
         this.handleConnectionEnd(connectionName);
       });
   }
@@ -276,13 +272,14 @@ export class RconConnectionService {
     if (!connection) return;
 
     try {
-      console.log(
-        `與 ${connection.host}:${connection.port} 的連接已關閉。未發送的指令將被清除。`,
+      log.info(
+        { host: connection.host, port: connection.port, connectionName },
+        "與遠端的連接已關閉，未發送的指令將被清除",
       );
 
       // 清理所有待處理的指令
       if (connection.queuedCommands.length > 0) {
-        console.log(`清理 ${connection.queuedCommands.length} 個未發送的指令`);
+        log.debug({ connectionName, count: connection.queuedCommands.length }, "清理未發送的指令");
         connection.queuedCommands = [];
       }
 
@@ -292,13 +289,13 @@ export class RconConnectionService {
       try {
         await connection.conn.disconnect();
       } catch (error) {
-        console.error(`關閉連接時發生錯誤: ${connectionName}`, error);
+        log.error({ err: error, connectionName }, "關閉連接時發生錯誤");
       }
 
       delete this.connectionMap[connectionName];
       this.connectionLocks.delete(connectionName);
     } catch (error) {
-      console.error(`清理連接時發生錯誤: ${connectionName}`, error);
+      log.error({ err: error, connectionName }, "清理連接時發生錯誤");
     }
   }
 
@@ -311,7 +308,7 @@ export class RconConnectionService {
     const connection = this.connectionMap[connectionName];
     if (!connection) return;
 
-    console.error(`連接錯誤: ${connectionName}`);
+    log.error({ connectionName }, "連接錯誤");
 
     if (connection.reconnectAttempts < MAX_RETRY_ATTEMPTS) {
       connection.reconnectAttempts++;
@@ -332,7 +329,7 @@ export class RconConnectionService {
             ],
           });
         } catch (error) {
-          console.error(`無法發送重連通知到頻道 ${channel.id}:`, error);
+          log.error({ err: error, channelId: channel.id }, "無法發送重連通知到頻道");
         }
       }
 
@@ -341,9 +338,9 @@ export class RconConnectionService {
         this.setupEventListeners(connectionName, host, port, password);
         await connection.conn.connect();
       } catch (error) {
-        console.error(
-          `重新連接嘗試 ${connection.reconnectAttempts} 失敗:`,
-          error,
+        log.error(
+          { err: error, connectionName, attempt: connection.reconnectAttempts },
+          "重新連接嘗試失敗",
         );
 
         if (connection.reconnectAttempts >= MAX_RETRY_ATTEMPTS) {
@@ -361,7 +358,7 @@ export class RconConnectionService {
                 ],
               });
             } catch (error) {
-              console.error(`無法發送連接失敗通知到頻道 ${channel.id}:`, error);
+              log.error({ err: error, channelId: channel.id }, "無法發送連接失敗通知到頻道");
             }
           }
           botEventLog.record(

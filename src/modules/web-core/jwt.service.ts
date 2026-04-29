@@ -1,5 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { config } from "../../config.js";
+import { moduleLogger } from "../../logger.js";
+
+const log = moduleLogger("jwt");
 
 const DEFAULT_TTL_MS = config.jwt.loginLinkTtlMs;
 
@@ -169,7 +172,7 @@ function loadSecret(): Buffer {
     // Dev/test fallback. Tokens are short-lived (5 min) so losing them
     // on restart is acceptable, but production should always set the
     // env var so tokens issued before a restart still validate after it.
-    console.warn('[jwt] JWT_SECRET not set — using ephemeral random secret. Outstanding login links will not survive a restart.');
+    log.warn('JWT_SECRET not set — using ephemeral random secret. Outstanding login links will not survive a restart.');
     return randomBytes(64);
 }
 

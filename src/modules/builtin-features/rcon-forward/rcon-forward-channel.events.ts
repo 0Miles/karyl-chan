@@ -8,6 +8,9 @@ import { RconConnectionService } from "./rcon-connection.service.js";
 import { decryptSecret } from "../../../utils/crypto.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
 import { shouldRecord } from "../../bot-events/bot-event-dedup.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("rcon-forward-events");
 
 const CLEANUP_INTERVAL = config.rcon.cleanupIntervalMs;
 
@@ -19,7 +22,7 @@ const cleanupTimer = setInterval(async () => {
       now.getTime() - connection.lastUsed.getTime() >
       RconConnectionService.connectionTimeout
     ) {
-      console.log(`Cleaning up inactive connection: ${connectionName}`);
+      log.info({ connectionName }, "Cleaning up inactive connection");
       await RconConnectionService.cleanupConnection(connectionName);
     }
   }
@@ -77,7 +80,7 @@ export function registerRconForwardChannelEvents(client: Client): void {
         );
       }
     } catch (error) {
-      console.error("Message handling error:", error);
+      log.error({ err: error }, "Message handling error");
       if (message.channel.isTextBased()) {
         await message.channel
           .send({
@@ -89,7 +92,7 @@ export function registerRconForwardChannelEvents(client: Client): void {
               },
             ],
           })
-          .catch(console.error);
+          .catch((err: unknown) => log.error({ err }, "failed to send message handling error embed"));
       }
     }
   });

@@ -3,6 +3,9 @@ import { Op, Transaction } from "sequelize";
 import { AdminAuditLog } from "./models/admin-audit-log.model.js";
 import { sequelize } from "../../db.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../logger.js";
+
+const log = moduleLogger("admin-audit");
 
 export interface AdminAuditEntry {
   id: number;
@@ -141,7 +144,7 @@ export async function recordAudit(
       "error",
       `admin audit write failed: ${action} target=${target ?? "∅"} (${msg})`,
     );
-    console.error("admin audit write failed:", err);
+    log.error({ err }, "admin audit write failed");
   }
 }
 

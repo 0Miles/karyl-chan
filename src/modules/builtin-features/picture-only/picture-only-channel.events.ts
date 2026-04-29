@@ -3,6 +3,9 @@ import { PictureOnlyChannel } from "./picture-only-channel.model.js";
 import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
 import { shouldRecord } from "../../bot-events/bot-event-dedup.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("picture-only");
 
 export function registerPictureOnlyChannelEvents(client: Client): void {
   client.on("messageCreate", async (message) => {
@@ -39,7 +42,7 @@ export function registerPictureOnlyChannelEvents(client: Client): void {
         }
       }
     } catch (ex) {
-      console.error(ex);
+      log.error({ err: ex }, "picture-only channel event error");
       botEventLog.record(
         "error",
         "feature",

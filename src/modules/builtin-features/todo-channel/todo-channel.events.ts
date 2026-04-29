@@ -13,6 +13,9 @@ import {
 } from "./todo-message.model.js";
 import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("todo-channel");
 
 /**
  * Hydrate a partial reaction (and its parent message) before any code
@@ -33,7 +36,7 @@ async function hydrateReaction(
     try {
       await reaction.fetch();
     } catch (err) {
-      console.error("todo-channel: failed to fetch partial reaction:", err);
+      log.error({ err }, "todo-channel: failed to fetch partial reaction");
       return null;
     }
   }
@@ -41,7 +44,7 @@ async function hydrateReaction(
     try {
       await reaction.message.fetch();
     } catch (err) {
-      console.error("todo-channel: failed to fetch partial message:", err);
+      log.error({ err }, "todo-channel: failed to fetch partial message");
       return null;
     }
   }
@@ -136,7 +139,7 @@ export function registerTodoChannelEvents(client: Client): void {
                 );
               }
             } catch (ex) {
-              console.error(ex);
+              log.error({ err: ex }, "todo rotation step failed");
               botEventLog.record(
                 "error",
                 "feature",
@@ -155,7 +158,7 @@ export function registerTodoChannelEvents(client: Client): void {
         }
       }
     } catch (ex) {
-      console.error(ex);
+      log.error({ err: ex }, "todo-channel messageCreate failed");
     }
   });
 
@@ -185,7 +188,7 @@ export function registerTodoChannelEvents(client: Client): void {
         );
       }
     } catch (ex) {
-      console.error(ex);
+      log.error({ err: ex }, "todo-channel messageReactionAdd failed");
     }
   });
 
@@ -214,7 +217,7 @@ export function registerTodoChannelEvents(client: Client): void {
         await addTodoMessage(hydrated.message as Message);
       }
     } catch (ex) {
-      console.error(ex);
+      log.error({ err: ex }, "todo-channel messageReactionRemove failed");
     }
   });
 }

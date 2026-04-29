@@ -11,6 +11,9 @@ import { dmInboxService, type DmRecipient } from "../dm-inbox.service.js";
 import { dmEventBus } from "../dm-event-bus.js";
 import { avatarUrlFor, toApiMessage } from "../../web-core/message-mapper.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("dm-inbox-events");
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,
@@ -78,7 +81,7 @@ async function readySync(client: Client): Promise<void> {
           skippedCount++;
         }
       } catch (err) {
-        console.warn("dm-inbox ready sync skip:", summary.id, err);
+        log.warn({ err, channelId: summary.id }, "dm-inbox ready sync skip");
         skippedCount++;
       }
     }
@@ -91,7 +94,7 @@ async function readySync(client: Client): Promise<void> {
       );
     }
   } catch (err) {
-    console.error("dm-inbox ready sync failed:", err);
+    log.error({ err }, "dm-inbox ready sync failed");
   }
 }
 
@@ -122,7 +125,7 @@ export function registerDmInboxEvents(client: Client): void {
         message: apiMessage,
       });
     } catch (err) {
-      console.error("dm-inbox messageCreate failed:", err);
+      log.error({ err }, "dm-inbox messageCreate failed");
     }
   });
 
@@ -139,7 +142,7 @@ export function registerDmInboxEvents(client: Client): void {
         message: toApiMessage(fetched),
       });
     } catch (err) {
-      console.error("dm-inbox messageUpdate failed:", err);
+      log.error({ err }, "dm-inbox messageUpdate failed");
     }
   });
 
@@ -152,7 +155,7 @@ export function registerDmInboxEvents(client: Client): void {
         messageId: message.id,
       });
     } catch (err) {
-      console.error("dm-inbox messageDelete failed:", err);
+      log.error({ err }, "dm-inbox messageDelete failed");
     }
   });
 
@@ -160,7 +163,7 @@ export function registerDmInboxEvents(client: Client): void {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
-      console.error("dm-inbox messageReactionAdd failed:", err);
+      log.error({ err }, "dm-inbox messageReactionAdd failed");
     }
   });
 
@@ -168,7 +171,7 @@ export function registerDmInboxEvents(client: Client): void {
     try {
       await publishReactionUpdate(reaction, user, client);
     } catch (err) {
-      console.error("dm-inbox messageReactionRemove failed:", err);
+      log.error({ err }, "dm-inbox messageReactionRemove failed");
     }
   });
 }

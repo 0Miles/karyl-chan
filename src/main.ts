@@ -23,6 +23,7 @@ import {
 import { Client } from "discord.js";
 import { sequelize } from "./db.js";
 import { config } from "./config.js";
+import { moduleLogger } from "./logger.js";
 import { startWebServer } from "./modules/web-core/server.js";
 import { setReady } from "./modules/web-core/readiness.js";
 import {
@@ -80,6 +81,8 @@ import {
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
 import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";
+
+const log = moduleLogger("main");
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -170,7 +173,7 @@ bot.once("ready", async () => {
       const owner = await bot.users.fetch(ownerId);
       await owner.createDM();
     } catch (err) {
-      console.error("Failed to cache owner DM channel:", err);
+      log.error({ err }, "Failed to cache owner DM channel");
       const msg = err instanceof Error ? err.message : String(err);
       const errorType = err instanceof Error ? err.constructor.name : "unknown";
       botEventLog.record(
@@ -209,7 +212,7 @@ bot.once("ready", async () => {
     );
   });
 
-  console.log("Bot started");
+  log.info({ stage: "boot" }, "bot started");
 });
 
 /**
@@ -274,7 +277,7 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
         }
       }
     } catch (error) {
-      console.error("system slash-command dispatch failed:", error);
+      log.error({ err: error }, "system slash-command dispatch failed");
     }
   }
   // User-created slash-command behaviors (target=all_dms,
@@ -286,7 +289,7 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
       const claimed = await dispatchUserSlashBehavior(interaction);
       if (claimed) return;
     } catch (error) {
-      console.error("user slash-command dispatch failed:", error);
+      log.error({ err: error }, "user slash-command dispatch failed");
     }
   }
 
@@ -299,7 +302,7 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
     const claimed = await dispatchInProcessInteraction(interaction);
     if (claimed) return;
   } catch (error) {
-    console.error("in-process interaction dispatch failed:", error);
+    log.error({ err: error }, "in-process interaction dispatch failed");
   }
 
   // Plugin commands take a fast path: we look the command up in our
@@ -313,7 +316,7 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
     const claimed = await dispatchInteractionToPlugin(interaction);
     if (claimed) return;
   } catch (error) {
-    console.error("plugin interaction dispatch failed:", error);
+    log.error({ err: error }, "plugin interaction dispatch failed");
   }
   // No further fallback — system / user-slash / in-process / plugin
   // dispatchers covered every command surface above. Anything that
@@ -321,9 +324,9 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
   // from a previous bot version still cached on Discord's side); log
   // so we notice, but don't crash.
   if (interaction.isChatInputCommand()) {
-    console.warn(
+    log.warn(
+      { commandName: interaction.commandName },
       "interactionCreate: unhandled slash command",
-      interaction.commandName,
     );
   }
 });
@@ -458,7 +461,7 @@ bot.on(
         message,
       );
     } catch (err) {
-      console.error("failed to dispatch DM messageCreate fallback:", err);
+      log.error({ err }, "failed to dispatch DM messageCreate fallback");
     }
   },
 );
@@ -502,7 +505,7 @@ async function run() {
     // Register process-level error handlers only after migrations have run
     // so bot_events table is guaranteed to exist before we attempt to write to it.
     process.on("unhandledRejection", (reason) => {
-      console.error("Unhandled promise rejection:", reason);
+      log.error({ err: reason }, "Unhandled promise rejection");
       const msg = reason instanceof Error ? reason.message : String(reason);
       botEventLog.record(
         "error",
@@ -512,7 +515,7 @@ async function run() {
     });
 
     process.on("uncaughtException", (error) => {
-      console.error("Uncaught exception:", error);
+      log.error({ err: error }, "Uncaught exception");
       botEventLog.record(
         "error",
         "error",
@@ -558,11 +561,11 @@ async function run() {
       https: isHttps,
       host: webHost,
     });
-    console.log(`Web server listening on :${webPort}`);
+    log.info({ port: webPort, host: webHost }, "web server listening");
 
     await bot.login(config.bot.token);
   } catch (ex) {
-    console.error(ex);
+    log.error({ err: ex }, "startup failed");
     const msg = ex instanceof Error ? ex.message : String(ex);
     const errorType = ex instanceof Error ? ex.constructor.name : "unknown";
     botEventLog.record("error", "web", `Startup failed: ${msg}`, {
@@ -587,7 +590,7 @@ async function resetBot(reason = "unknown") {
       resolve();
     }, 10000);
   });
-  console.log("Bot restarting...");
+  log.warn({ stage: "restart" }, "bot restarting");
   run();
 }
 

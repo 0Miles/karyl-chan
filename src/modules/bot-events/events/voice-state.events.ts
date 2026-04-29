@@ -12,6 +12,9 @@ import {
   avatarUrlFor,
   guildAvatarUrlFor,
 } from "../../web-core/message-mapper.js";
+import { moduleLogger } from "../../../logger.js";
+
+const log = moduleLogger("voice-state");
 
 function memberRow(guildId: string, m: GuildMember): VoiceMember {
   return {
@@ -69,7 +72,7 @@ export function registerVoiceStateEvents(client: Client): void {
         channels: affected,
       });
     } catch (err) {
-      console.error("voice-state publish failed:", err);
+      log.error({ err }, "voice-state publish failed");
     }
   });
 }
