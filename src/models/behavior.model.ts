@@ -121,6 +121,26 @@ export type BehaviorType = "webhook" | "plugin" | "system";
  * for future system flows (e.g. /manual, /break) to migrate in.
  */
 export const SYSTEM_BEHAVIOR_KEY_LOGIN = "admin-login";
+export const SYSTEM_BEHAVIOR_KEY_MANUAL = "manual";
+export const SYSTEM_BEHAVIOR_KEY_BREAK = "break";
+
+/**
+ * Frozen list of every system-behavior key the bot ships. Driven by
+ * the rebind sweep at startup (every entry registers as a global
+ * DM-only Discord command from its triggerValue) and by
+ * interactionCreate's system-behavior dispatcher.
+ *
+ * Adding a new system behavior:
+ *   1) export a new SYSTEM_BEHAVIOR_KEY_X constant
+ *   2) add it to this array
+ *   3) write its ensure*Behavior() seed function
+ *   4) wire its dispatcher in main.ts interactionCreate
+ */
+export const SYSTEM_BEHAVIOR_KEYS = [
+  SYSTEM_BEHAVIOR_KEY_LOGIN,
+  SYSTEM_BEHAVIOR_KEY_MANUAL,
+  SYSTEM_BEHAVIOR_KEY_BREAK,
+] as const;
 
 export interface BehaviorRow {
   id: number;
@@ -393,4 +413,75 @@ export const ensureSystemLoginBehavior = async (
     pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_LOGIN,
   });
   return rowOf(created);
+};
+
+/**
+ * Idempotent seed of the `/manual` listing system behavior. Replaces
+ * the old in-process discordx ManualCommands class — same surface
+ * (DM-only `/manual`), now flowing through the same system-behavior
+ * trigger + dispatch pipeline as login. Admin can rename the trigger
+ * value via the BehaviorsPage if /manual collides with something.
+ */
+export const ensureSystemManualBehavior = async (
+  allDmsTargetId: number,
+): Promise<BehaviorRow> => {
+  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_MANUAL);
+  if (existing) return existing;
+  const created = await Behavior.create({
+    targetId: allDmsTargetId,
+    title: "查看可用行為列表",
+    description:
+      "私訊 bot `/manual`(或符合觸發條件)時,列出此使用者在私訊可用的所有 behaviors。系統行為,不可刪除或更換目標對象。",
+    triggerType: "slash_command",
+    triggerValue: "manual",
+    forwardType: "one_time",
+    webhookUrl: encryptSecret("system://manual"),
+    webhookSecret: null,
+    sortOrder: -999,
+    stopOnMatch: true,
+    enabled: true,
+    type: "system",
+    pluginId: null,
+    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_MANUAL,
+  });
+  return rowOf(created);
+};
+
+/**
+ * Idempotent seed of the `/break` end-session system behavior.
+ * Replaces the old in-process discordx BreakCommands class.
+ */
+export const ensureSystemBreakBehavior = async (
+  allDmsTargetId: number,
+): Promise<BehaviorRow> => {
+  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_BREAK);
+  if (existing) return existing;
+  const created = await Behavior.create({
+    targetId: allDmsTargetId,
+    title: "結束持續轉發",
+    description:
+      "私訊 bot `/break`(或符合觸發條件)時,結束此使用者目前的持續轉發 session。系統行為,不可刪除或更換目標對象。",
+    triggerType: "slash_command",
+    triggerValue: "break",
+    forwardType: "one_time",
+    webhookUrl: encryptSecret("system://break"),
+    webhookSecret: null,
+    sortOrder: -998,
+    stopOnMatch: true,
+    enabled: true,
+    type: "system",
+    pluginId: null,
+    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_BREAK,
+  });
+  return rowOf(created);
+};
+
+/**
+ * Convenience: every system behavior currently seeded in the DB.
+ * Used by the rebind sweep + interactionCreate dispatcher so adding
+ * a new key doesn't require touching either of those call sites.
+ */
+export const findAllSystemBehaviors = async (): Promise<BehaviorRow[]> => {
+  const rows = await Behavior.findAll({ where: { type: "system" } });
+  return rows.map(rowOf);
 };

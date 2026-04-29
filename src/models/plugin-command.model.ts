@@ -155,9 +155,7 @@ export const findPluginCommandsByFeature = async (
   return rows.map(rowOf);
 };
 
-export const deletePluginCommandRow = async (
-  rowId: number,
-): Promise<void> => {
+export const deletePluginCommandRow = async (rowId: number): Promise<void> => {
   await PluginCommand.destroy({ where: { id: rowId } });
 };
 

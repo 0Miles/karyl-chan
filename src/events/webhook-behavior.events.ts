@@ -30,7 +30,15 @@ import {
 } from "../services/webhook-dispatch.service.js";
 import { dispatchPluginDmBehavior } from "../services/plugin-dispatch.service.js";
 import { issueLoginLinkAndReply } from "../services/admin-login.service.js";
-import { SYSTEM_BEHAVIOR_KEY_LOGIN } from "../models/behavior.model.js";
+import {
+  runBreakForMessage,
+  runManualForMessage,
+} from "../services/system-behavior.service.js";
+import {
+  SYSTEM_BEHAVIOR_KEY_BREAK,
+  SYSTEM_BEHAVIOR_KEY_LOGIN,
+  SYSTEM_BEHAVIOR_KEY_MANUAL,
+} from "../models/behavior.model.js";
 import { avatarUrlFor } from "../web/message-mapper.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
@@ -155,6 +163,14 @@ async function dispatchAndHandle(
         relayContent: "",
         ...(ok ? {} : { error: "admin login not authorized or send failed" }),
       };
+    }
+    if (subkey === SYSTEM_BEHAVIOR_KEY_MANUAL) {
+      await runManualForMessage(message);
+      return { ok: true, ended: false, relayContent: "" };
+    }
+    if (subkey === SYSTEM_BEHAVIOR_KEY_BREAK) {
+      await runBreakForMessage(message);
+      return { ok: true, ended: false, relayContent: "" };
     }
     botEventLog.record(
       "warn",

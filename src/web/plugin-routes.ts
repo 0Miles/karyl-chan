@@ -382,9 +382,8 @@ export async function registerPluginRoutes(
       // disabled → delete them. Idempotent for "config-only" patches
       // (enabled === undefined) where no toggle change happened.
       if (enabled !== undefined) {
-        const { pluginCommandRegistry } = await import(
-          "../services/plugin-command-registry.service.js"
-        );
+        const { pluginCommandRegistry } =
+          await import("../services/plugin-command-registry.service.js");
         const pluginRow = await pluginRegistry.findById(pluginId);
         const manifestObj = pluginRow
           ? (safeParse(pluginRow.manifestJson) as PluginManifest | null)

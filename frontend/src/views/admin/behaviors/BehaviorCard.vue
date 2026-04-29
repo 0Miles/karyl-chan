@@ -228,6 +228,10 @@ const typeOptions = computed(() => {
         { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
     ];
 });
+const isAllDmsTarget = computed(() => {
+    const target = props.targets.find(t2 => t2.id === draft.targetId);
+    return target?.kind === 'all_dms';
+});
 const triggerTypeOptions = computed(() => {
     const all = [
         { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
@@ -235,15 +239,37 @@ const triggerTypeOptions = computed(() => {
         { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
         { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
     ];
+    // System rows always show the option — their target is locked to
+    // all_dms anyway and the option label is what the admin edits.
+    if (isSystem.value) return all;
+    // slash_command only valid on the all_dms target. Discord DM
+    // commands are inherently global on Discord's side (no per-user
+    // visibility scope), so a user / group target row would expose
+    // the command to people outside the intended audience. Backend
+    // POST/PATCH rejects this combination too.
+    if (!isAllDmsTarget.value) {
+        return all.filter(o => o.value !== 'slash_command');
+    }
     // Plugin behaviors register their slash commands through the
     // plugin's own manifest.commands[] mechanism, NOT via behavior
     // triggers. Hide the option so the form can't produce a dead
-    // (type=plugin, trigger=slash_command) row that the bot would
-    // never actually fire. Backend ALSO rejects this combo on save.
+    // (type=plugin, trigger=slash_command) row.
     if (draft.type === 'plugin') {
         return all.filter(o => o.value !== 'slash_command');
     }
     return all;
+});
+// Auto-coerce the trigger type if the user moves a slash_command
+// behavior to a non-all_dms target — the backend would reject the
+// save, this avoids an obviously-broken intermediate form state.
+watch(() => draft.targetId, () => {
+    if (
+        draft.triggerType === 'slash_command' &&
+        !isAllDmsTarget.value &&
+        !isSystem.value
+    ) {
+        draft.triggerType = 'startswith';
+    }
 });
 const forwardTypeOptions = computed(() => [
     { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },

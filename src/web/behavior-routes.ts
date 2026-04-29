@@ -15,6 +15,7 @@ import {
   isNonEmptyString,
 } from "./validators.js";
 import { decryptSecret, encryptSecret } from "../utils/crypto.js";
+import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "../services/dm-slash-rebind.service.js";
 import {
   ALL_DMS_TARGET_ID,
   createGroupTarget,
@@ -194,6 +195,20 @@ export async function registerBehaviorRoutes(
   options: BehaviorRoutesOptions = {},
 ): Promise<void> {
   const { bot } = options;
+
+  /**
+   * Re-sync DM-only globals after any CRUD that could change the
+   * desired set. Cheap: the service walks system + all_dms behaviors
+   * (small set) and calls Discord's application.commands API only
+   * when a diff exists. Fire-and-forget — if it fails, the next
+   * change or restart heals it.
+   */
+  const resyncSlash = (): void => {
+    if (!bot) return;
+    void rebindDmSlashService(bot).catch(() => {
+      /* logged inside the service */
+    });
+  };
 
   // ───────────────────────── targets ─────────────────────────
 
@@ -624,6 +639,22 @@ export async function registerBehaviorRoutes(
         });
         return;
       }
+      // Discord DM commands are inherently global — there is no API
+      // for "register this DM command for a specific user only". So
+      // slash_command behaviors only make sense on the all_dms target,
+      // where every user seeing the command in their picker is the
+      // intended audience anyway. user / group targets that would
+      // create a name visible to non-target users get rejected.
+      if (
+        triggerType === "slash_command" &&
+        id !== ALL_DMS_TARGET_ID
+      ) {
+        reply.code(400).send({
+          error:
+            "triggerType='slash_command' only valid on the all_dms target — Discord DM commands have no per-user visibility scope",
+        });
+        return;
+      }
       if (
         typeof forwardType !== "string" ||
         !FORWARD_TYPES.includes(forwardType as BehaviorForwardType)
@@ -741,6 +772,15 @@ export async function registerBehaviorRoutes(
           pluginBehaviorKey: resolvedPluginBehaviorKey,
         },
       );
+      // A new slash_command + all_dms row needs to surface in
+      // Discord — no-op for any other shape (the service walks the
+      // current desired set and shrugs when nothing changed).
+      if (
+        created.triggerType === "slash_command" &&
+        created.targetId === ALL_DMS_TARGET_ID
+      ) {
+        resyncSlash();
+      }
       return { behavior: decryptedView(created) };
     },
   );
@@ -832,6 +872,26 @@ export async function registerBehaviorRoutes(
     const finalValue = (update.triggerValue ?? existing.triggerValue) as string;
     if (finalType === "regex" && !isValidRegex(finalValue)) {
       reply.code(400).send({ error: "triggerValue is not a valid regex" });
+      return;
+    }
+    // Same all_dms-only gate as POST: slash_command behaviors can't
+    // sit on a user / group target because DM commands have no per-
+    // user visibility on Discord's side. System rows are exempt
+    // because their target is locked to all_dms anyway, and the
+    // earlier system-edit allowlist already prevents targetId edits.
+    const finalTargetId =
+      typeof update.targetId === "number"
+        ? update.targetId
+        : existing.targetId;
+    if (
+      finalType === "slash_command" &&
+      finalTargetId !== ALL_DMS_TARGET_ID &&
+      existing.type !== "system"
+    ) {
+      reply.code(400).send({
+        error:
+          "triggerType='slash_command' only valid on the all_dms target — Discord DM commands have no per-user visibility scope",
+      });
       return;
     }
     if (body.forwardType !== undefined) {
@@ -1023,6 +1083,26 @@ export async function registerBehaviorRoutes(
         fields: Object.keys(update),
       },
     );
+    // Re-sync DM globals if the patch could plausibly touch the
+    // desired set: any field on a slash_command + all_dms row
+    // (triggerValue rename, enabled flip), OR a triggerType /
+    // targetId edit that turns a row into / out of a slash_command +
+    // all_dms shape. Cheap to over-call; the service is idempotent.
+    const finalTrigger =
+      (update.triggerType as BehaviorTriggerType | undefined) ??
+      existing.triggerType;
+    const finalTarget =
+      typeof update.targetId === "number"
+        ? update.targetId
+        : existing.targetId;
+    const wasSlashAllDms =
+      existing.triggerType === "slash_command" &&
+      existing.targetId === ALL_DMS_TARGET_ID;
+    const isSlashAllDms =
+      finalTrigger === "slash_command" && finalTarget === ALL_DMS_TARGET_ID;
+    if (wasSlashAllDms || isSlashAllDms) {
+      resyncSlash();
+    }
     return { behavior: updated ? decryptedView(updated) : null };
   });
 
@@ -1057,6 +1137,14 @@ export async function registerBehaviorRoutes(
           targetId: existing.targetId,
         },
       );
+      // If the deleted row was a slash_command + all_dms behavior,
+      // its global Discord command needs to come down too.
+      if (
+        existing.triggerType === "slash_command" &&
+        existing.targetId === ALL_DMS_TARGET_ID
+      ) {
+        resyncSlash();
+      }
       return { ok: true };
     },
   );
