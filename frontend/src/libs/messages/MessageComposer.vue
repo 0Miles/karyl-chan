@@ -147,8 +147,21 @@ async function refreshSuggestions() {
     const id = ++suggestionRequestId;
     const result = await provider.suggest(trigger);
     if (id !== suggestionRequestId) return;
+    // Only reset the active index when the LIST CONTENTS actually
+    // changed. The unconditional reset broke arrow-key navigation:
+    // ArrowDown's keydown bumped the index, then `@keyup` fired
+    // refreshSuggestions which reset back to 0 because the same
+    // suggestion list was returned. Diff by joined keys (cheap, the
+    // list is at most a dozen items).
+    const prevKeys = suggestions.value.map(s => s.key).join('|');
+    const nextKeys = result.map(s => s.key).join('|');
     suggestions.value = result;
-    activeSuggestionIndex.value = 0;
+    if (prevKeys !== nextKeys) {
+        activeSuggestionIndex.value = 0;
+    } else if (activeSuggestionIndex.value >= result.length) {
+        // List shrunk past the cursor position — clamp.
+        activeSuggestionIndex.value = Math.max(0, result.length - 1);
+    }
     activeTrigger.value = result.length > 0 ? { char: trigger.char, query: trigger.query } : null;
 }
 
