@@ -105,14 +105,20 @@ bucketType 分(per-user 量級 vs per-guild 量級不同)。
 
 ### ✅ KV 沒有 atomic increment (D2) — FIXED 2026-04-29
 
-新增 `storage.kv_increment` RPC,後端用 SQLite `BEGIN IMMEDIATE`
-transaction 取得 write lock 再 read-modify-write,搭配 db.ts 的
-`busy_timeout = 3000` 序列化並發 increments。Accounting plugin 的
-`nextId()` 已換用此 RPC,8 個並發 add 都拿到不同 id。
+新增 `storage.kv_increment` RPC。實作用 in-process per-key promise
+chain (`Map<lockKey, Promise>`) 序列化同一 key 的並發 RMW,**不**用
+DB-level transaction。Accounting plugin 的 `nextId()` 已換用此 RPC,
+10 個並發 add 都拿到不同 id;:memory: SQLite 單元測試也通過(見
+`tests/plugin-kv.test.ts`)。
 
-註:不要回頭改用 `BEGIN DEFERRED` — DEFERRED 拿 read lock 才開始,
-要寫的時候才升級成 write,multiple deferred 升級時搶不到的會立刻
-SQLITE_BUSY 而非等 busy_timeout(那只給連線級鎖等待)。
+> ⚠️ **走過的彎路**:第一版用 `BEGIN IMMEDIATE` transaction,在
+> file-based prod DB 跑得好,但 vitest 用 `:memory:` SQLite 時
+> sequelize pool 縮成單連線,parallel `BEGIN IMMEDIATE` 會撞到
+> 「cannot start a transaction within a transaction」。改用
+> per-key in-process mutex 兩端通吃。
+>
+> 限制:bot 必須是 single-process,multi-process 部署需要回頭做
+> DB-level lock(`UPSERT` with arithmetic 或 transaction + queue)。
 
 ### 🟡 KV list 是 N+1 fetch (D3)
 
