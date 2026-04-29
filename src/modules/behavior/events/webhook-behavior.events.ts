@@ -21,25 +21,25 @@ import {
   startSession,
   type BehaviorSessionRow,
 } from "../models/behavior-session.model.js";
-import { decryptSecret } from "../utils/crypto.js";
-import { matchesTrigger } from "../utils/behavior-trigger.js";
+import { decryptSecret } from "../../../utils/crypto.js";
+import { matchesTrigger } from "../behavior-trigger.js";
 import {
   dispatchWebhook,
   type DispatchResult,
-} from "../services/webhook-dispatch.service.js";
-import { dispatchPluginDmBehavior } from "../modules/plugin-system/plugin-dispatch.service.js";
-import { issueLoginLinkAndReply } from "../services/admin-login.service.js";
+} from "../../../services/webhook-dispatch.service.js";
+import { dispatchPluginDmBehavior } from "../../plugin-system/plugin-dispatch.service.js";
+import { issueLoginLinkAndReply } from "../../../services/admin-login.service.js";
 import {
   runBreakForMessage,
   runManualForMessage,
-} from "../services/system-behavior.service.js";
+} from "../system-behavior.service.js";
 import {
   SYSTEM_BEHAVIOR_KEY_BREAK,
   SYSTEM_BEHAVIOR_KEY_LOGIN,
   SYSTEM_BEHAVIOR_KEY_MANUAL,
 } from "../models/behavior.model.js";
-import { avatarUrlFor } from "../web/message-mapper.js";
-import { botEventLog } from "../web/bot-event-log.js";
+import { avatarUrlFor } from "../../../web/message-mapper.js";
+import { botEventLog } from "../../../web/bot-event-log.js";
 
 /**
  * Build a Discord webhook payload from a user's DM message. Mirrors the

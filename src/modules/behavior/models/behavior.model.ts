@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
-import { sequelize } from "./db.js";
+import { sequelize } from "../../../models/db.js";
 import { BehaviorTarget } from "./behavior-target.model.js";
-import { encryptSecret } from "../utils/crypto.js";
+import { encryptSecret } from "../../../utils/crypto.js";
 
 export type BehaviorTriggerType =
   | "startswith"

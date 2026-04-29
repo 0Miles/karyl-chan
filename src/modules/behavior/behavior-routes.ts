@@ -1,21 +1,21 @@
 import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { requireCapability } from "./route-guards.js";
+import { requireCapability } from "../../web/route-guards.js";
 import {
   accessibleBehaviorTargetIds,
   hasAdminCapability,
   hasBehaviorCapability,
   type AdminCapability,
-} from "../permission/admin-capabilities.js";
-import { recordAudit } from "./admin-audit.service.js";
-import { avatarUrlFor } from "./message-mapper.js";
+} from "../../permission/admin-capabilities.js";
+import { recordAudit } from "../../web/admin-audit.service.js";
+import { avatarUrlFor } from "../../web/message-mapper.js";
 import {
   isSnowflake,
   isBoundedString,
   isNonEmptyString,
-} from "./validators.js";
-import { decryptSecret, encryptSecret } from "../utils/crypto.js";
-import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "../services/dm-slash-rebind.service.js";
+} from "../../web/validators.js";
+import { decryptSecret, encryptSecret } from "../../utils/crypto.js";
+import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./dm-slash-rebind.service.js";
 import {
   ALL_DMS_TARGET_ID,
   createGroupTarget,
@@ -27,13 +27,13 @@ import {
   findUserTarget,
   renameGroupTarget,
   type BehaviorTargetKind,
-} from "../models/behavior-target.model.js";
+} from "./models/behavior-target.model.js";
 import {
   addGroupMember,
   findGroupMembers,
   removeGroupMember,
   replaceGroupMembers,
-} from "../models/behavior-target-member.model.js";
+} from "./models/behavior-target-member.model.js";
 import {
   createBehavior,
   deleteBehavior,
@@ -44,10 +44,10 @@ import {
   type BehaviorForwardType,
   type BehaviorRow,
   type BehaviorTriggerType,
-} from "../models/behavior.model.js";
-import { endSessionsForBehavior } from "../models/behavior-session.model.js";
-import { findPluginById } from "../modules/plugin-system/models/plugin.model.js";
-import type { PluginManifest } from "../modules/plugin-system/plugin-registry.service.js";
+} from "./models/behavior.model.js";
+import { endSessionsForBehavior } from "./models/behavior-session.model.js";
+import { findPluginById } from "../plugin-system/models/plugin.model.js";
+import type { PluginManifest } from "../plugin-system/plugin-registry.service.js";
 
 export interface BehaviorRoutesOptions {
   bot?: Client;

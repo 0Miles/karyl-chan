@@ -3,16 +3,16 @@ import {
   type ChatInputCommandInteraction,
   type RESTPostAPIWebhookWithTokenJSONBody,
 } from "discord.js";
-import { ALL_DMS_TARGET_ID } from "../models/behavior-target.model.js";
+import { ALL_DMS_TARGET_ID } from "./models/behavior-target.model.js";
 import {
   findBehaviorsByTargets,
   type BehaviorRow,
-} from "../models/behavior.model.js";
-import { decryptSecret } from "../utils/crypto.js";
-import { dispatchWebhook } from "./webhook-dispatch.service.js";
-import { dispatchPluginDmBehavior } from "../modules/plugin-system/plugin-dispatch.service.js";
-import { avatarUrlFor } from "../web/message-mapper.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./models/behavior.model.js";
+import { decryptSecret } from "../../utils/crypto.js";
+import { dispatchWebhook } from "../../services/webhook-dispatch.service.js";
+import { dispatchPluginDmBehavior } from "../plugin-system/plugin-dispatch.service.js";
+import { avatarUrlFor } from "../../web/message-mapper.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Dispatch a user-created slash-command behavior (type='webhook' or

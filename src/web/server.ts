@@ -73,7 +73,7 @@ import { registerSystemRoutes } from "./system-routes.js";
 import { registerAdminManagementRoutes } from "./admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
-import { registerBehaviorRoutes } from "./behavior-routes.js";
+import { registerBehaviorRoutes } from "../modules/behavior/behavior-routes.js";
 import { registerPluginRoutes } from "../modules/plugin-system/plugin-routes.js";
 import { registerBotFeatureRoutes } from "./bot-feature-routes.js";
 import { registerPluginRpcRoutes } from "../modules/plugin-system/plugin-rpc-routes.js";

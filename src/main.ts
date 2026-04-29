@@ -36,7 +36,7 @@ import { runPendingMigrations } from "./migrations/runner.js";
 import {
   ALL_DMS_TARGET_ID,
   ensureAllDmsTarget,
-} from "./models/behavior-target.model.js";
+} from "./modules/behavior/models/behavior-target.model.js";
 import {
   ensureSystemBreakBehavior,
   ensureSystemLoginBehavior,
@@ -46,13 +46,13 @@ import {
   SYSTEM_BEHAVIOR_KEY_BREAK,
   SYSTEM_BEHAVIOR_KEY_LOGIN,
   SYSTEM_BEHAVIOR_KEY_MANUAL,
-} from "./models/behavior.model.js";
+} from "./modules/behavior/models/behavior.model.js";
 import {
   runBreakForInteraction,
   runManualForInteraction,
-} from "./services/system-behavior.service.js";
-import { dispatchUserSlashBehavior } from "./services/user-slash-behavior.service.js";
-import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./services/dm-slash-rebind.service.js";
+} from "./modules/behavior/system-behavior.service.js";
+import { dispatchUserSlashBehavior } from "./modules/behavior/user-slash-behavior.service.js";
+import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./modules/behavior/dm-slash-rebind.service.js";
 import { pluginRegistry } from "./modules/plugin-system/plugin-registry.service.js";
 import {
   dispatchEventToPlugins,

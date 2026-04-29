@@ -149,15 +149,15 @@ function sign(body, secret) {
 |---|---|
 | `src/migrations/20260428080843-webhook-behavior.ts` | schema migration |
 | `src/migrations/20260428090428-behavior-webhook-secret.ts` | webhookSecret 欄位 migration |
-| `src/models/behavior-target.model.ts` | target CRUD + `ensureAllDmsTarget` |
-| `src/models/behavior-target-member.model.ts` | group 成員 CRUD |
-| `src/models/behavior.model.ts` | behavior CRUD + reorder |
-| `src/models/behavior-session.model.ts` | session CRUD |
+| `src/modules/behavior/models/behavior-target.model.ts` | target CRUD + `ensureAllDmsTarget` |
+| `src/modules/behavior/models/behavior-target-member.model.ts` | group 成員 CRUD |
+| `src/modules/behavior/models/behavior.model.ts` | behavior CRUD + reorder |
+| `src/modules/behavior/models/behavior-session.model.ts` | session CRUD |
 | `src/services/webhook-dispatch.service.ts` | webhook POST + HMAC 簽名/驗證 + `[BEHAVIOR:END]` 偵測 |
-| `src/utils/behavior-trigger.ts` | 純函式 `matchesTrigger` / `describeTrigger` |
-| `src/events/webhook-behavior.events.ts` | DM messageCreate handler |
+| `src/modules/behavior/behavior-trigger.ts` | 純函式 `matchesTrigger` / `describeTrigger` |
+| `src/modules/behavior/events/webhook-behavior.events.ts` | DM messageCreate handler |
 | `src/commands/manual.commands.ts` | `/manual` slash |
 | `src/commands/break.commands.ts` | `/break` slash |
-| `src/web/behavior-routes.ts` | admin web API |
+| `src/modules/behavior/behavior-routes.ts` | admin web API |
 | `frontend/src/views/admin/behaviors/*.vue` | 管理頁面 |
 | `frontend/src/api/behavior.ts` | 前端 api client |

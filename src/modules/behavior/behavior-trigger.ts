@@ -1,4 +1,4 @@
-import type { BehaviorTriggerType } from "../models/behavior.model.js";
+import type { BehaviorTriggerType } from "./models/behavior.model.js";
 
 /**
  * Evaluate whether a DM message body matches a behavior trigger.

@@ -7,19 +7,19 @@ import {
 import {
   ALL_DMS_TARGET_ID,
   findUserTarget,
-} from "../models/behavior-target.model.js";
-import { findGroupTargetIdsForUser } from "../models/behavior-target-member.model.js";
+} from "./models/behavior-target.model.js";
+import { findGroupTargetIdsForUser } from "./models/behavior-target-member.model.js";
 import {
   findBehaviorsByTargets,
   type BehaviorRow,
-} from "../models/behavior.model.js";
+} from "./models/behavior.model.js";
 import {
   endSession,
   findActiveSession,
-} from "../models/behavior-session.model.js";
-import { describeTrigger } from "../utils/behavior-trigger.js";
-import { DEFAULT_COLOR, SUCCEEDED_COLOR } from "../utils/constant.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./models/behavior-session.model.js";
+import { describeTrigger } from "./behavior-trigger.js";
+import { DEFAULT_COLOR, SUCCEEDED_COLOR } from "../../utils/constant.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Implementation of the three bot-internal "system behaviors":

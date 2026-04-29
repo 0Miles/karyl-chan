@@ -3,15 +3,15 @@ import {
   InteractionContextType,
   type Client,
 } from "discord.js";
-import { ALL_DMS_TARGET_ID } from "../models/behavior-target.model.js";
+import { ALL_DMS_TARGET_ID } from "./models/behavior-target.model.js";
 import {
   findAllSystemBehaviors,
   findBehaviorsByTargets,
   SYSTEM_BEHAVIOR_KEY_BREAK,
   SYSTEM_BEHAVIOR_KEY_LOGIN,
   SYSTEM_BEHAVIOR_KEY_MANUAL,
-} from "../models/behavior.model.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./models/behavior.model.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 /**
  * Reconcile DM-only global slash commands with what's currently

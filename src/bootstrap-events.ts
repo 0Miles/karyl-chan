@@ -7,7 +7,7 @@ import { registerRoleEmojiEvents } from "./events/role-emoji.events.js";
 import { registerTodoChannelEvents } from "./events/todo-channel.events.js";
 import { registerTypingStartEvents } from "./events/typing-start.events.js";
 import { registerVoiceStateEvents } from "./events/voice-state.events.js";
-import { registerWebhookBehaviorEvents } from "./events/webhook-behavior.events.js";
+import { registerWebhookBehaviorEvents } from "./modules/behavior/events/webhook-behavior.events.js";
 
 /**
  * Single explicit registration point for every Discord event handler
