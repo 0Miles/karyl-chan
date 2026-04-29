@@ -485,6 +485,7 @@ async function onDelete() {
                 {{ t('behaviors.card.tagSystemShort') }}
             </span>
             <button
+                v-if="!isSystem"
                 type="button"
                 role="switch"
                 :class="['toggle', { on: enabledLocal }]"

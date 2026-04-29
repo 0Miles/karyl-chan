@@ -146,11 +146,11 @@
     },
     "roleMgmt": {
         "createTitle": "创建身份组",
-        "editTitle": "编辑 @{name}",
+        "editTitle": "编辑 {'@'}{name}",
         "fieldName": "名称",
         "fieldColor": "颜色",
         "fieldHoist": "在成员列表中分开显示（hoist）",
-        "fieldMentionable": "允许所有人 @ 提及此身份组",
+        "fieldMentionable": "允许所有人 {'@'} 提及此身份组",
         "fieldPermissions": "权限",
         "fieldPermissionsAdvanced": "权限 bitfield（与勾选保持同步）",
         "permissionsBitfieldPlaceholder": "0",
@@ -158,7 +158,7 @@
         "selectedCount": "已选 {count} 项",
         "create": "创建",
         "save": "保存",
-        "deleteConfirm": "确定删除身份组 @{name}？",
+        "deleteConfirm": "确定删除身份组 {'@'}{name}？",
         "createButton": "创建身份组",
         "edit": "编辑",
         "delete": "删除",
@@ -196,7 +196,7 @@
             "AddReactions": "添加表情反应",
             "UseExternalEmojis": "使用外部表情",
             "UseExternalStickers": "使用外部贴纸",
-            "MentionEveryone": "提及 @everyone、@here、所有身份组",
+            "MentionEveryone": "提及 {'@'}everyone、{'@'}here、所有身份组",
             "ManageMessages": "管理消息",
             "ManageThreads": "管理帖子",
             "ReadMessageHistory": "阅读消息记录",
@@ -525,7 +525,7 @@
             "defaultNotifications": "默认通知",
             "defaultNotificationsOpt": {
                 "0": "所有消息",
-                "1": "仅 @ 提及"
+                "1": "仅 {'@'} 提及"
             },
             "mfaLevel": "两步验证要求",
             "mfaLevelOpt": {
@@ -593,13 +593,13 @@
             "fieldUniqueHint": "关闭后,Discord 会在条件相同时复用已有邀请。",
             "submit": "创建",
             "expireOpt": {
+                "0": "永不过期",
                 "1800": "30 分钟",
                 "3600": "1 小时",
                 "21600": "6 小时",
                 "43200": "12 小时",
                 "86400": "1 天",
-                "604800": "7 天",
-                "0": "永不过期"
+                "604800": "7 天"
             },
             "usesOpt": {
                 "0": "无限制",
@@ -792,7 +792,7 @@
         "lightboxNext": "下一张",
         "mute": "静音此对话",
         "unmute": "解除静音",
-        "muteCycleHintFromAll": "点击以静音(仅 @ 我)",
+        "muteCycleHintFromAll": "点击以静音(仅 {'@'} 我)",
         "muteCycleHintFromMentions": "点击以静音(完全)",
         "muteCycleHintFromNone": "点击以恢复通知",
         "pinnedMessages": "已置顶消息",
@@ -823,8 +823,8 @@
         "send": "发送",
         "spoilerOn": "标记为剧透",
         "spoilerOff": "取消剧透",
-        "replyPingOn": "停止 @ 原作者",
-        "replyPingOff": "启用 @ 原作者",
+        "replyPingOn": "停止 {'@'} 原作者",
+        "replyPingOff": "启用 {'@'} 原作者",
         "replyPingOnShort": "{'@'}",
         "replyPingOffShort": "{'@'}?",
         "removeAttachment": "移除附件",

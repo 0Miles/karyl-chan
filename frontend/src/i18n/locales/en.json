@@ -146,11 +146,11 @@
     },
     "roleMgmt": {
         "createTitle": "Create role",
-        "editTitle": "Edit @{name}",
+        "editTitle": "Edit {'@'}{name}",
         "fieldName": "Name",
         "fieldColor": "Color",
         "fieldHoist": "Display members separately (hoist)",
-        "fieldMentionable": "Allow anyone to @-mention this role",
+        "fieldMentionable": "Allow anyone to {'@'}-mention this role",
         "fieldPermissions": "Permissions",
         "fieldPermissionsAdvanced": "Permission bitfield (kept in sync with the checkboxes)",
         "permissionsBitfieldPlaceholder": "0",
@@ -158,7 +158,7 @@
         "selectedCount": "{count} selected",
         "create": "Create",
         "save": "Save",
-        "deleteConfirm": "Delete role @{name}?",
+        "deleteConfirm": "Delete role {'@'}{name}?",
         "createButton": "Create role",
         "edit": "Edit",
         "delete": "Delete",
@@ -196,7 +196,7 @@
             "AddReactions": "Add reactions",
             "UseExternalEmojis": "Use external emoji",
             "UseExternalStickers": "Use external stickers",
-            "MentionEveryone": "Mention @everyone, @here, all roles",
+            "MentionEveryone": "Mention {'@'}everyone, {'@'}here, all roles",
             "ManageMessages": "Manage messages",
             "ManageThreads": "Manage threads",
             "ReadMessageHistory": "Read message history",
@@ -293,7 +293,7 @@
             },
             "desktopNotifications": {
                 "label": "Desktop notifications",
-                "help": "Pop a system notification for new DMs and server @mentions when this window isn't focused. Muted channels don't notify."
+                "help": "Pop a system notification for new DMs and server {'@'}mentions when this window isn't focused. Muted channels don't notify."
             }
         }
     },
@@ -525,7 +525,7 @@
             "defaultNotifications": "Default notifications",
             "defaultNotificationsOpt": {
                 "0": "All messages",
-                "1": "Only @mentions"
+                "1": "Only {'@'}mentions"
             },
             "mfaLevel": "Two-factor requirement",
             "mfaLevelOpt": {
@@ -593,13 +593,13 @@
             "fieldUniqueHint": "When off, Discord reuses an equivalent existing invite if one exists.",
             "submit": "Create",
             "expireOpt": {
+                "0": "Never",
                 "1800": "30 minutes",
                 "3600": "1 hour",
                 "21600": "6 hours",
                 "43200": "12 hours",
                 "86400": "1 day",
-                "604800": "7 days",
-                "0": "Never"
+                "604800": "7 days"
             },
             "usesOpt": {
                 "0": "No limit",

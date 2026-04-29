@@ -146,11 +146,11 @@
     },
     "roleMgmt": {
         "createTitle": "建立身分組",
-        "editTitle": "編輯 @{name}",
+        "editTitle": "編輯 {'@'}{name}",
         "fieldName": "名稱",
         "fieldColor": "顏色",
         "fieldHoist": "在成員列表中分開顯示（hoist）",
-        "fieldMentionable": "允許所有人 @ 提及此身分組",
+        "fieldMentionable": "允許所有人 {'@'} 提及此身分組",
         "fieldPermissions": "權限",
         "fieldPermissionsAdvanced": "權限 bitfield（會與勾選同步）",
         "permissionsBitfieldPlaceholder": "0",
@@ -158,7 +158,7 @@
         "selectedCount": "已選 {count} 項",
         "create": "建立",
         "save": "儲存",
-        "deleteConfirm": "確定刪除身分組 @{name}？",
+        "deleteConfirm": "確定刪除身分組 {'@'}{name}？",
         "createButton": "建立身分組",
         "edit": "編輯",
         "delete": "刪除",
@@ -196,7 +196,7 @@
             "AddReactions": "新增表情反應",
             "UseExternalEmojis": "使用外部表情",
             "UseExternalStickers": "使用外部貼圖",
-            "MentionEveryone": "提及 @everyone、@here、所有身分組",
+            "MentionEveryone": "提及 {'@'}everyone、{'@'}here、所有身分組",
             "ManageMessages": "管理訊息",
             "ManageThreads": "管理討論串",
             "ReadMessageHistory": "閱讀訊息紀錄",
@@ -525,7 +525,7 @@
             "defaultNotifications": "預設通知",
             "defaultNotificationsOpt": {
                 "0": "所有訊息",
-                "1": "僅 @ 提及"
+                "1": "僅 {'@'} 提及"
             },
             "mfaLevel": "兩步驟驗證要求",
             "mfaLevelOpt": {
@@ -593,13 +593,13 @@
             "fieldUniqueHint": "若關閉,Discord 會在條件相同時重用現有邀請。",
             "submit": "建立",
             "expireOpt": {
+                "0": "永不失效",
                 "1800": "30 分鐘",
                 "3600": "1 小時",
                 "21600": "6 小時",
                 "43200": "12 小時",
                 "86400": "1 天",
-                "604800": "7 天",
-                "0": "永不失效"
+                "604800": "7 天"
             },
             "usesOpt": {
                 "0": "無限制",
@@ -792,7 +792,7 @@
         "lightboxNext": "下一張",
         "mute": "靜音此對話",
         "unmute": "解除靜音",
-        "muteCycleHintFromAll": "點擊以靜音(僅 @ 我)",
+        "muteCycleHintFromAll": "點擊以靜音(僅 {'@'} 我)",
         "muteCycleHintFromMentions": "點擊以靜音(完全)",
         "muteCycleHintFromNone": "點擊以恢復通知",
         "pinnedMessages": "已釘選訊息",
@@ -823,8 +823,8 @@
         "send": "傳送",
         "spoilerOn": "標記為劇透",
         "spoilerOff": "取消劇透",
-        "replyPingOn": "停止 @ 原作者",
-        "replyPingOff": "啟用 @ 原作者",
+        "replyPingOn": "停止 {'@'} 原作者",
+        "replyPingOff": "啟用 {'@'} 原作者",
         "replyPingOnShort": "{'@'}",
         "replyPingOffShort": "{'@'}?",
         "removeAttachment": "移除附件",

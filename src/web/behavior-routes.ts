@@ -769,11 +769,13 @@ export async function registerBehaviorRoutes(
     const update: Parameters<typeof updateBehavior>[1] = {};
 
     // System behaviors are bot-built-in fixtures with locked-down
-    // edits: only triggerType / triggerValue / enabled may change.
+    // edits: only triggerType / triggerValue may change. `enabled`
+    // is locked to true — these flows (e.g. admin-login) are part of
+    // bot infrastructure and disabling them would lock admins out.
     // Refuse anything else loudly so the UI's read-only fields can't
     // be bypassed by hand-crafting the patch body.
     if (existing.type === "system") {
-      const allowed = new Set(["triggerType", "triggerValue", "enabled"]);
+      const allowed = new Set(["triggerType", "triggerValue"]);
       const offending = Object.keys(body).filter((k) => !allowed.has(k));
       if (offending.length > 0) {
         reply.code(400).send({
