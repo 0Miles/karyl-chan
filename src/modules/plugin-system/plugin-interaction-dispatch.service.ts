@@ -1,4 +1,5 @@
 import { createHmac } from "crypto";
+import { config } from "../../config.js";
 import {
   type Interaction,
   type ChatInputCommandInteraction,
@@ -42,8 +43,8 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
 const SIGNATURE_VERSION = "v0";
 const DEFAULT_COMMAND_PATH = "/commands/{command_name}";
 const DEFAULT_AUTOCOMPLETE_PATH = "/commands/{command_name}/autocomplete";
-const COMMAND_DISPATCH_TIMEOUT_MS = 5_000;
-const AUTOCOMPLETE_TIMEOUT_MS = 1_500;
+const COMMAND_DISPATCH_TIMEOUT_MS = config.plugin.commandDispatchTimeoutMs;
+const AUTOCOMPLETE_TIMEOUT_MS = config.plugin.autocompleteTimeoutMs;
 
 function parseManifest(plugin: PluginRow): PluginManifest | null {
   try {
@@ -122,7 +123,7 @@ async function dispatchChatInputCommand(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  const sharedSecret = process.env.KARYL_PLUGIN_SECRET?.trim();
+  const sharedSecret = config.plugin.sharedSecret;
   if (!sharedSecret) {
     await interaction.reply({
       content: "⚠ KARYL_PLUGIN_SECRET 未設定,plugin 派送已停用。",
@@ -233,7 +234,7 @@ async function dispatchAutocomplete(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  const sharedSecret = process.env.KARYL_PLUGIN_SECRET?.trim();
+  const sharedSecret = config.plugin.sharedSecret;
   if (!sharedSecret) {
     await interaction.respond([]).catch(() => {});
     return;

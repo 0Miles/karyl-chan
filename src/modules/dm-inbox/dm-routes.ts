@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Client } from "discord.js";
+import { config } from "../../config.js";
 import type {
   DMChannel,
   EmojiIdentifierResolvable,
@@ -20,10 +21,8 @@ import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "../admin/authorized-user.service.js";
 
 function buildBaseUrl(): string {
-  const explicit = process.env.WEB_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
-  const port = process.env.WEB_PORT ?? "3000";
-  return `http://localhost:${port}`;
+  if (config.web.baseUrl) return config.web.baseUrl.replace(/\/+$/, "");
+  return `http://localhost:${config.web.port}`;
 }
 
 export interface DmRoutesOptions {
@@ -105,7 +104,7 @@ export async function registerDmRoutes(
         isNewer(c.lastMessageId, lastSeen[c.id] ?? null),
       );
 
-      const MAX_COUNT = 500;
+      const MAX_COUNT = config.dm.maxFetchCount;
       const PAGE_SIZE = 100;
       const CONCURRENCY = 5;
 
@@ -664,7 +663,7 @@ export async function registerDmRoutes(
       // from Discord rarely exceeds ~200KB; 1MB is generous and
       // protects us from a malicious / misbehaving upstream that
       // tries to stream a multi-MB blob through our process.
-      const MAX_BYTES = 1_000_000;
+      const MAX_BYTES = config.dm.maxAttachmentBytes;
       try {
         const upstream = await fetch(
           `https://cdn.discordapp.com/stickers/${id}.json`,

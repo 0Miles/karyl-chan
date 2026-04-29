@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Client } from "discord.js";
+import { config } from "../../config.js";
 import {
   addAuthorizedUser,
   GLOBAL_CAPABILITY_DESCRIPTIONS,
@@ -54,7 +55,7 @@ interface AdminUserView extends AuthorizedUserRecord {
 // names don't change often and the admin panel re-hits /api/admin/users
 // + /api/admin/me on every refresh. Discord.js has its own user cache,
 // but it's unbounded and not TTL'd; this keeps our view coherent.
-const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROFILE_CACHE_TTL_MS = config.admin.profileCacheTtlMs;
 const profileCache = new Map<
   string,
   { profile: UserProfile | null; expiresAt: number }

@@ -1,12 +1,13 @@
 import { createHash, randomBytes } from 'crypto';
+import { config } from "../../config.js";
 
-const ACCESS_TTL_MS = 15 * 60 * 1000;
-const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ACCESS_TTL_MS = config.jwt.accessTtlMs;
+const REFRESH_TTL_MS = config.jwt.refreshTtlMs;
 // SSE tickets gate EventSource auth without leaking the long-lived
 // access token in the URL. They live just long enough for the browser
 // to open the connection after the API call returns.
-const SSE_TICKET_TTL_MS = 60 * 1000;
-const CLEANUP_INTERVAL_MS = 60 * 1000;
+const SSE_TICKET_TTL_MS = config.jwt.sseTicketTtlMs;
+const CLEANUP_INTERVAL_MS = config.jwt.cleanupIntervalMs;
 
 interface AccessRecord {
     ownerId: string;

@@ -22,6 +22,7 @@ import {
 } from "discord.js";
 import { Client } from "discord.js";
 import { sequelize } from "./db.js";
+import { config } from "./config.js";
 import { startWebServer } from "./modules/web-core/server.js";
 import { dmInboxService } from "./modules/dm-inbox/dm-inbox.service.js";
 import { authStore } from "./modules/web-core/auth-store.service.js";
@@ -106,7 +107,7 @@ export const bot = new Client({
 // don't need REST's heuristic to second-guess that. Logged once per
 // 60s via shouldRecord so the operator notices but isn't drowned.
 {
-  const realToken = process.env.BOT_TOKEN?.trim() ?? "";
+  const realToken = config.bot.token;
   if (realToken) {
     const restAny = bot.rest as unknown as {
       setToken: (t: string | null) => unknown;
@@ -154,7 +155,7 @@ bot.once("ready", async () => {
   // MESSAGE_CREATE events for DM channels that aren't already cached
   // (createChannel can't infer DM type from a message-shaped payload),
   // so without this the owner-login-dm handler never fires.
-  const ownerId = process.env.BOT_OWNER_ID?.trim();
+  const ownerId = process.env.BOT_OWNER_ID?.trim() || null;
   if (ownerId) {
     try {
       const owner = await bot.users.fetch(ownerId);
@@ -529,17 +530,15 @@ async function run() {
     // ready (deferred to the 'ready' handler below).
     setPluginCommandBotClient(bot);
 
-    const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
-    const webHost = process.env.WEB_HOST ?? "0.0.0.0";
+    const webPort = config.web.port;
+    const webHost = config.web.host;
     webServer = await startWebServer({
       port: webPort,
       host: webHost,
       bot,
       dmInbox: dmInboxService,
     });
-    const isHttps = !!(
-      process.env.SSL_CERT_PATH?.trim() && process.env.SSL_KEY_PATH?.trim()
-    );
+    const isHttps = !!(config.web.sslCertPath && config.web.sslKeyPath);
     botEventLog.record("info", "web", `Web server started on :${webPort}`, {
       port: webPort,
       https: isHttps,
@@ -547,7 +546,7 @@ async function run() {
     });
     console.log(`Web server listening on :${webPort}`);
 
-    await bot.login(process.env.BOT_TOKEN ?? "");
+    await bot.login(config.bot.token);
   } catch (ex) {
     console.error(ex);
     const msg = ex instanceof Error ? ex.message : String(ex);

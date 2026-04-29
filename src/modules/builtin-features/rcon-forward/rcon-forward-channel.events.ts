@@ -1,5 +1,6 @@
 import type { Client } from "discord.js";
 import { RconForwardChannel } from "./rcon-forward-channel.model.js";
+import { config } from "../../../config.js";
 import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
 import { FAILED_COLOR } from "../../../utils/constant.js";
 import { RconQueueService } from "./rcon-queue.service.js";
@@ -8,7 +9,7 @@ import { decryptSecret } from "../../../utils/crypto.js";
 import { botEventLog } from "../../bot-events/bot-event-log.js";
 import { shouldRecord } from "../../bot-events/bot-event-dedup.js";
 
-const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const CLEANUP_INTERVAL = config.rcon.cleanupIntervalMs;
 
 const cleanupTimer = setInterval(async () => {
   const now = new Date();

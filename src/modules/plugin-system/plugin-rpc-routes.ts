@@ -1,5 +1,6 @@
 import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { config } from "../../config.js";
 import { ChannelType, Routes, MessageFlags } from "discord.js";
 import { findPluginById } from "./models/plugin.model.js";
 import {
@@ -40,7 +41,7 @@ export interface PluginRpcOptions {
 }
 
 const KV_KEY_MAX = 200;
-const KV_VALUE_MAX_BYTES = 64 * 1024; // hard ceiling regardless of manifest quota
+const KV_VALUE_MAX_BYTES = config.plugin.kvValueMaxBytes; // hard ceiling regardless of manifest quota
 const DEFAULT_KV_QUOTA_BYTES = 64 * 1024;
 
 function rejectForbidden(reply: FastifyReply, scope: string): void {

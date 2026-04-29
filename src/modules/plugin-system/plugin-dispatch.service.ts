@@ -8,6 +8,7 @@ import {
   TIMESTAMP_HEADER,
   type DispatchResult,
 } from "../behavior/webhook-dispatch.service.js";
+import { config } from "../../config.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
@@ -143,7 +144,7 @@ export async function dispatchPluginDmBehavior(
   if (!url) {
     return failure(`plugin ${plugin.pluginKey} dispatch URL invalid`);
   }
-  const sharedSecret = process.env.KARYL_PLUGIN_SECRET?.trim();
+  const sharedSecret = config.plugin.sharedSecret;
   if (!sharedSecret) {
     return failure("KARYL_PLUGIN_SECRET not configured on bot");
   }

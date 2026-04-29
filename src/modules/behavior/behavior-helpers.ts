@@ -1,5 +1,6 @@
 import type { Client } from "discord.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { config } from "../../config.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import {
   accessibleBehaviorTargetIds,
@@ -22,7 +23,7 @@ interface UserProfile {
   avatarUrl: string;
 }
 
-const PROFILE_TTL_MS = 5 * 60 * 1000;
+const PROFILE_TTL_MS = config.behavior.profileCacheTtlMs;
 const profileCache = new Map<
   string,
   { profile: UserProfile | null; expiresAt: number }

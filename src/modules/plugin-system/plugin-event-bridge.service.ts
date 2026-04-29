@@ -1,4 +1,5 @@
 import { createHmac } from "crypto";
+import { config } from "../../config.js";
 import {
   findAllPlugins,
   findPluginById,
@@ -31,7 +32,7 @@ import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 
 const SIGNATURE_VERSION = "v0";
 const DEFAULT_EVENTS_PATH = "/events";
-const DISPATCH_TIMEOUT_MS = 5_000;
+const DISPATCH_TIMEOUT_MS = config.plugin.dispatchTimeoutMs;
 
 /**
  * In-memory index: event_type → Set<pluginId>. Rebuilt on startup
@@ -190,7 +191,7 @@ async function postEventToPlugin(
  */
 export function dispatchEventToPlugins(eventType: string, data: unknown): void {
   if (!index.hasSubscribers(eventType)) return;
-  const sharedSecret = process.env.KARYL_PLUGIN_SECRET?.trim();
+  const sharedSecret = config.plugin.sharedSecret;
   if (!sharedSecret) {
     // No secret configured → plugin signing is impossible. Logging
     // every event would spam, so just skip silently. The reaper /

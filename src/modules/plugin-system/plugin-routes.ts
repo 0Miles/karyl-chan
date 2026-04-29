@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Client } from "discord.js";
 import { ManifestError, pluginRegistry } from "./plugin-registry.service.js";
+import { config } from "../../config.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
@@ -47,8 +48,7 @@ import type { PluginManifest } from "./plugin-registry.service.js";
 const PLUGIN_SETUP_SECRET_HEADER = "x-plugin-setup-secret";
 
 function getSetupSecret(): string | null {
-  const v = process.env.KARYL_PLUGIN_SECRET?.trim();
-  return v && v.length > 0 ? v : null;
+  return config.plugin.sharedSecret;
 }
 
 function presentedSetupSecret(req: FastifyRequest): string | null {

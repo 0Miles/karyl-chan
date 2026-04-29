@@ -6,8 +6,10 @@
  * which is acceptable for rate-limit / flood-protection log suppression.
  */
 
-const DEFAULT_WINDOW_MS = 60_000;
-const MAX_KEYS = 1_000;
+import { config } from "../../config.js";
+
+const DEFAULT_WINDOW_MS = config.botEvents.dedupWindowMs;
+const MAX_KEYS = config.botEvents.dedupMaxKeys;
 
 /** key → timestamp of last recorded emission */
 const seen = new Map<string, number>();

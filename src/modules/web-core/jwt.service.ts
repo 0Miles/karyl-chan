@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { config } from "../../config.js";
 
-const DEFAULT_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_TTL_MS = config.jwt.loginLinkTtlMs;
 
 /**
  * Claims carried inside a JWT issued by this service — the
@@ -163,8 +164,8 @@ export class JwtService {
 }
 
 function loadSecret(): Buffer {
-    const env = process.env.JWT_SECRET?.trim();
-    if (env) return Buffer.from(env, 'utf-8');
+    const secret = config.jwt.secret;
+    if (secret) return Buffer.from(secret, 'utf-8');
     // Dev/test fallback. Tokens are short-lived (5 min) so losing them
     // on restart is acceptable, but production should always set the
     // env var so tokens issued before a restart still validate after it.

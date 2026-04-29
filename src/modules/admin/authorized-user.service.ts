@@ -10,6 +10,7 @@ import {
   type GlobalCapability,
 } from "./admin-capabilities.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { config } from "../../config.js";
 
 export {
   GLOBAL_CAPABILITY_DESCRIPTIONS,
@@ -52,7 +53,7 @@ interface UserSession {
   caps: Set<AdminCapability>;
 }
 
-const SESSION_CACHE_TTL_MS = 30_000;
+const SESSION_CACHE_TTL_MS = config.admin.sessionCacheTtlMs;
 const sessionCache = new Map<string, UserSession & { expiresAt: number }>();
 
 export function invalidateCapabilityCache(userId?: string): void {

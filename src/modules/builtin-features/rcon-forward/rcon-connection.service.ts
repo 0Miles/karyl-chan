@@ -1,5 +1,6 @@
 import { TextChannel } from "discord.js";
 import Rcon from "rcon";
+import { config } from "../../../config.js";
 import {
   DEFAULT_COLOR,
   FAILED_COLOR,
@@ -33,9 +34,9 @@ export interface QueuedCommand {
   channelId: string;
 }
 
-const MAX_RETRY_ATTEMPTS = 3;
-const MAX_QUEUE_SIZE = 100;
-const CONNECTION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+const MAX_RETRY_ATTEMPTS = config.rcon.maxRetryAttempts;
+const MAX_QUEUE_SIZE = config.rcon.maxQueueSize;
+const CONNECTION_TIMEOUT = config.rcon.connectionTimeoutMs;
 
 export class RconConnectionService {
   private static connectionMap: RconConnectionManager = {};

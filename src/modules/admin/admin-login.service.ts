@@ -2,6 +2,7 @@ import type { ChatInputCommandInteraction, Message } from "discord.js";
 import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "./authorized-user.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { config } from "../../config.js";
 
 /**
  * Admin login link issuance, factored out of the old
@@ -17,10 +18,8 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
  */
 
 function buildBaseUrl(): string {
-  const explicit = process.env.WEB_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
-  const port = process.env.WEB_PORT ?? "3000";
-  return `http://localhost:${port}`;
+  if (config.web.baseUrl) return config.web.baseUrl.replace(/\/+$/, "");
+  return `http://localhost:${config.web.port}`;
 }
 
 export type LoginLinkResult =

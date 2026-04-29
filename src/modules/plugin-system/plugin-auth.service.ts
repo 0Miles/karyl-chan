@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { config } from "../../config.js";
 
 /**
  * Plugin auth: separate token store from admin auth.
@@ -21,7 +22,7 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
  * re-registration is cheap.
  */
 
-const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour rolling on heartbeat
+const TOKEN_TTL_MS = config.plugin.tokenTtlMs; // 1 hour rolling on heartbeat
 
 export interface PluginAuthRecord {
   pluginId: number;

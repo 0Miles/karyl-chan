@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance } from "fastify";
+import { config } from "../../config.js";
 import fastifyStatic from "@fastify/static";
 import fastifyHelmet from "@fastify/helmet";
 import { Client } from "discord.js";
@@ -126,8 +127,8 @@ function defaultStaticRoot(): string | null {
 }
 
 function resolveHttpsOptions(): HttpsServerOptions | null {
-  const certPath = process.env.SSL_CERT_PATH?.trim();
-  const keyPath = process.env.SSL_KEY_PATH?.trim();
+  const certPath = config.web.sslCertPath;
+  const keyPath = config.web.sslKeyPath;
   if (!certPath || !keyPath) return null;
   // Fail loud if only one is set or files are missing — partial config
   // silently falling back to HTTP would be a nasty production footgun.
@@ -135,7 +136,7 @@ function resolveHttpsOptions(): HttpsServerOptions | null {
     throw new Error(`SSL_CERT_PATH does not exist: ${certPath}`);
   if (!existsSync(keyPath))
     throw new Error(`SSL_KEY_PATH does not exist: ${keyPath}`);
-  const caPath = process.env.SSL_CA_PATH?.trim();
+  const caPath = config.web.sslCaPath;
   return {
     cert: readFileSync(certPath),
     key: readFileSync(keyPath),
@@ -154,7 +155,7 @@ export async function createWebServer(
     ...(https ? { https } : {}),
   });
 
-  const ownerId = process.env.BOT_OWNER_ID?.trim();
+  const ownerId = process.env.BOT_OWNER_ID?.trim() || null;
   const auth = options.authStore ?? defaultAuthStore;
   const jwt = options.jwtService ?? defaultJwtService;
   const authEnabled = !!ownerId;

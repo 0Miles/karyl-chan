@@ -8,6 +8,7 @@ import {
   upsertPluginRegistration,
   type PluginRow,
 } from "./models/plugin.model.js";
+import { config } from "../../config.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
@@ -31,8 +32,8 @@ import {
 // A plugin must heartbeat at least this often, otherwise we mark it
 // inactive and stop dispatching events to it. Tuned 2× the plugin's
 // own 30s heartbeat cadence so a single missed beat doesn't trigger.
-const HEARTBEAT_TIMEOUT_MS = 75_000;
-const REAPER_INTERVAL_MS = 30_000;
+const HEARTBEAT_TIMEOUT_MS = config.plugin.heartbeatTimeoutMs;
+const REAPER_INTERVAL_MS = config.plugin.reaperIntervalMs;
 
 export interface ManifestCommandOption {
   type: string;
