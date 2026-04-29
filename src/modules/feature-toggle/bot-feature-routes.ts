@@ -92,27 +92,47 @@ export async function registerBotFeatureRoutes(
           ? body.guildId
           : null;
     const row = await upsertStateRow(guildId, featureKey, body.enabled);
-    // Concrete-guild toggle: also (un)register the feature's slash
-    // command in that guild so the command picker stays consistent
-    // with the toggle. Default-state changes (guildId === null) only
-    // touch the precedence row — they don't immediately push to any
-    // specific guild's command list.
-    if (row.guildId && bot) {
+    if (bot) {
       try {
         const { applyFeatureGuildToggle } = await import(
           "../builtin-features/in-process-command-registry.service.js"
         );
-        await applyFeatureGuildToggle(
-          bot,
-          featureKey,
-          row.guildId,
-          row.enabled,
-        );
+        if (row.guildId) {
+          // Concrete-guild toggle: just sync that one guild.
+          await applyFeatureGuildToggle(
+            bot,
+            featureKey,
+            row.guildId,
+            row.enabled,
+          );
+        } else {
+          // Default-state toggle: fan out to every guild that doesn't
+          // have a per-guild override for this feature. Without this,
+          // an admin flipping the operator default sees the DB row
+          // change but the command picker stays stale until a restart
+          // (or until they hand-toggle each guild).
+          const { findAllStateRows } = await import(
+            "./models/bot-feature-state.model.js"
+          );
+          const overrides = (await findAllStateRows())
+            .filter((r) => r.guildId !== null && r.featureKey === featureKey)
+            .map((r) => r.guildId as string);
+          const overrideSet = new Set(overrides);
+          for (const guild of bot.guilds.cache.values()) {
+            if (overrideSet.has(guild.id)) continue;
+            await applyFeatureGuildToggle(
+              bot,
+              featureKey,
+              guild.id,
+              row.enabled,
+            );
+          }
+        }
       } catch (err) {
         botEventLog.record(
           "warn",
           "bot",
-          `built-in feature '${featureKey}' guild toggle sync failed`,
+          `built-in feature '${featureKey}' toggle sync failed`,
           {
             featureKey,
             guildId: row.guildId,

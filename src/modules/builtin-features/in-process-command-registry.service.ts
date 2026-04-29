@@ -8,6 +8,10 @@ import {
 } from "discord.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
+import {
+  findAllStateRows,
+  resolveBuiltinFeatureEnabled,
+} from "../feature-toggle/models/bot-feature-state.model.js";
 
 /**
  * In-process slash-command + modal registry.
@@ -127,24 +131,143 @@ export async function syncInProcessCommandsToDiscord(
   }
 
   if (guildSpecs.length === 0) return;
+  // Build a snapshot of feature-state rows once; lookup table keyed
+  // by `${featureKey}::${guildId|null}` lets the per-guild loop
+  // resolve enabled-ness without round-tripping DB N×M times.
+  const stateLookup = await buildStateLookup();
   for (const guild of bot.guilds.cache.values()) {
-    await syncGuildSpecsForGuild(guild, guildSpecs);
+    await syncGuildSpecsRespectingState(
+      guild,
+      [...commands.values()].filter((s) => s.scope === "guild"),
+      stateLookup,
+    );
   }
 }
 
 /**
  * Per-guild push for the guild-scoped specs. Used by the bot's
- * guildCreate handler so a freshly-joined guild gets the full set.
+ * guildCreate handler so a freshly-joined guild gets the full set —
+ * but only the ones that aren't disabled by feature-state for this
+ * guild (or by the operator default).
  */
 export async function syncInProcessCommandsForGuild(
   guild: Guild,
 ): Promise<void> {
-  const guildSpecs: ApplicationCommandData[] = [];
-  for (const spec of commands.values()) {
-    if (spec.scope === "guild") guildSpecs.push(spec.data);
+  const guildScopedSpecs = [...commands.values()].filter(
+    (s) => s.scope === "guild",
+  );
+  if (guildScopedSpecs.length === 0) return;
+  const stateLookup = await buildStateLookup();
+  await syncGuildSpecsRespectingState(guild, guildScopedSpecs, stateLookup);
+}
+
+interface StateLookup {
+  /** Resolves `(featureKey, guildId)` → enabled. */
+  resolve(featureKey: string | undefined, guildId: string): boolean;
+}
+
+/**
+ * Snapshot the bot_feature_state table into a lookup object.
+ * resolve() encodes the precedence:
+ *   per-guild row > default row (guildId=null) > true (legacy default)
+ * Specs without featureKey always resolve to true so legacy commands
+ * (none today, but leave the door open) keep working.
+ */
+async function buildStateLookup(): Promise<StateLookup> {
+  let rows;
+  try {
+    rows = await findAllStateRows();
+  } catch (err) {
+    botEventLog.record(
+      "warn",
+      "bot",
+      `in-process: failed to load feature state: ${err instanceof Error ? err.message : String(err)}; defaulting all enabled`,
+    );
+    return {
+      resolve: () => true,
+    };
   }
-  if (guildSpecs.length === 0) return;
-  await syncGuildSpecsForGuild(guild, guildSpecs);
+  const perGuild = new Map<string, boolean>(); // key: featureKey::guildId
+  const defaults = new Map<string, boolean>(); // key: featureKey
+  for (const r of rows) {
+    if (r.guildId === null) defaults.set(r.featureKey, r.enabled);
+    else perGuild.set(`${r.featureKey}::${r.guildId}`, r.enabled);
+  }
+  return {
+    resolve(featureKey: string | undefined, guildId: string): boolean {
+      if (!featureKey) return true;
+      const pg = perGuild.get(`${featureKey}::${guildId}`);
+      if (pg !== undefined) return pg;
+      const def = defaults.get(featureKey);
+      if (def !== undefined) return def;
+      return true;
+    },
+  };
+}
+
+/**
+ * Push the guild-scoped specs into a single guild, but consult the
+ * state lookup first. Disabled specs are actively deleted (in case
+ * a previous boot left them in Discord) — sync ≠ "create-only".
+ */
+async function syncGuildSpecsRespectingState(
+  guild: Guild,
+  specs: CommandSpec[],
+  stateLookup: StateLookup,
+): Promise<void> {
+  const toCreate: ApplicationCommandData[] = [];
+  const toDeleteNames = new Set<string>();
+  for (const spec of specs) {
+    const enabled = stateLookup.resolve(spec.featureKey, guild.id);
+    if (enabled) toCreate.push(spec.data);
+    else toDeleteNames.add(spec.data.name);
+  }
+  // Create / upsert enabled.
+  for (const data of toCreate) {
+    try {
+      await guild.commands.create(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (shouldRecord(`in-process-cmd:${guild.id}:${data.name}`)) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `in-process: guild ${guild.id} '${data.name}' register failed: ${msg}`,
+        );
+      }
+    }
+  }
+  // Delete disabled (only if Discord still has them).
+  if (toDeleteNames.size === 0) return;
+  let live;
+  try {
+    live = await guild.commands.fetch();
+  } catch (err) {
+    if (shouldRecord(`in-process-fetch:${guild.id}`)) {
+      const msg = err instanceof Error ? err.message : String(err);
+      botEventLog.record(
+        "warn",
+        "bot",
+        `in-process: fetch ${guild.id} commands failed: ${msg}`,
+      );
+    }
+    return;
+  }
+  for (const cmd of live.values()) {
+    if (!toDeleteNames.has(cmd.name)) continue;
+    try {
+      await cmd.delete();
+    } catch (err) {
+      if (shouldRecord(`in-process-del:${guild.id}:${cmd.name}`)) {
+        const msg = err instanceof Error ? err.message : String(err);
+        botEventLog.record(
+          "warn",
+          "bot",
+          `in-process: guild ${guild.id} delete '${cmd.name}' failed: ${msg}`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -165,12 +288,22 @@ export async function applyFeatureGuildToggle(
   guildId: string,
   enabled: boolean,
 ): Promise<void> {
-  const guild = bot.guilds.cache.get(guildId);
+  // Cache may not be hydrated yet (admin hits the toggle during boot,
+  // bot rejoined a guild after a restart, etc). Fall back to a one-off
+  // fetch before giving up.
+  let guild = bot.guilds.cache.get(guildId);
+  if (!guild) {
+    try {
+      guild = await bot.guilds.fetch(guildId);
+    } catch {
+      guild = undefined;
+    }
+  }
   if (!guild) {
     botEventLog.record(
       "warn",
       "bot",
-      `applyFeatureGuildToggle: guild ${guildId} not in cache`,
+      `applyFeatureGuildToggle: guild ${guildId} not reachable`,
       { featureKey, guildId },
     );
     return;
@@ -259,6 +392,24 @@ export async function dispatchInProcessInteraction(
   if (interaction.isChatInputCommand()) {
     const spec = commands.get(interaction.commandName);
     if (!spec) return false;
+    // Defense in depth: even if Discord still routes a slash for a
+    // disabled feature (cached client picker, slow propagation after
+    // /api/bot-features/state PUT), refuse to run the handler.
+    if (spec.featureKey && interaction.guildId) {
+      const enabled = await resolveBuiltinFeatureEnabled(
+        spec.featureKey,
+        interaction.guildId,
+      );
+      if (!enabled) {
+        await interaction
+          .reply({
+            content: `⚠ 此伺服器已停用 \`${spec.featureKey}\` 功能。`,
+            flags: "Ephemeral",
+          })
+          .catch(() => {});
+        return true;
+      }
+    }
     try {
       await spec.handler(interaction);
     } catch (err) {

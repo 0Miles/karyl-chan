@@ -11,7 +11,7 @@ import { ApiError, authedFetch } from "./client";
  * override.
  */
 
-export type BuiltinFeatureKey = "todo" | "picture-only" | "role-emoji" | "rcon";
+export type BuiltinFeatureKey = "todo" | "picture-only" | "role-emoji" | "rcon" | "voice";
 
 export interface BuiltinFeatureState {
   featureKey: BuiltinFeatureKey;

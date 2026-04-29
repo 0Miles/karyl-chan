@@ -3,6 +3,7 @@ import { todoFeature } from "./todo";
 import { pictureOnlyFeature } from "./picture-only";
 import { rconFeature } from "./rcon";
 import { roleEmojiFeature } from "./role-emoji";
+import { voiceFeature } from "./voice";
 
 /**
  * Single source of truth for installed guild features. Order here is
@@ -18,6 +19,7 @@ export const guildFeatures: GuildFeature[] = [
   pictureOnlyFeature,
   rconFeature,
   roleEmojiFeature,
+  voiceFeature,
 ];
 
 export type { GuildFeature } from "./types";

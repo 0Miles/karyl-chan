@@ -493,7 +493,8 @@
                 "picture": "Picture-only",
                 "rcon": "RCON forward",
                 "reactionRoles": "Reaction roles",
-                "capability": "Capability grants"
+                "capability": "Capability grants",
+                "voice": "Voice playback"
             }
         },
         "dashboard": {

@@ -182,6 +182,16 @@ async function dispatchChatInputCommand(
       ? {
           permissions:
             interaction.memberPermissions?.bitfield.toString() ?? null,
+          // Voice state — exposed to plugins that want to e.g.
+          // auto-join the user's voice channel (radio plugin etc).
+          // discord.js's GuildMember exposes .voice; other member
+          // shapes (interaction member from API) don't, so guard.
+          voice_channel_id:
+            (
+              interaction.member as unknown as {
+                voice?: { channelId?: string | null };
+              }
+            ).voice?.channelId ?? null,
         }
       : null,
     locale: interaction.locale ?? null,

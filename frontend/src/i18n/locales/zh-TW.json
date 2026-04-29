@@ -493,7 +493,8 @@
                 "picture": "純圖片",
                 "rcon": "RCON 轉發",
                 "reactionRoles": "身分組反應",
-                "capability": "權限授予"
+                "capability": "權限授予",
+                "voice": "語音播放"
             }
         },
         "dashboard": {

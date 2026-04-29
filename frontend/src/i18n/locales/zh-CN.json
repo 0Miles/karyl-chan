@@ -493,7 +493,8 @@
                 "picture": "仅图片",
                 "rcon": "RCON 转发",
                 "reactionRoles": "身份组反应",
-                "capability": "权限授予"
+                "capability": "权限授予",
+                "voice": "语音播放"
             }
         },
         "dashboard": {
