@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { requireGuildCapability } from "../../web-core/route-guards.js";
 import { isSnowflake } from "../../web-core/validators.js";
 import { PictureOnlyChannel } from "./picture-only-channel.model.js";
-import type { GuildManagementRoutesOptions } from "../../../web/guild-management-shared.js";
+import type { GuildManagementRoutesOptions } from "../../guild-management/guild-management-shared.js";
 
 export async function registerPictureOnlyChannelRoutes(
   server: FastifyInstance,

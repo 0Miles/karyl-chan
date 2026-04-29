@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { Message } from '../modules/web-core/message-types.js';
+import type { Message } from '../web-core/message-types.js';
 
 export interface VoiceMember {
     id: string;

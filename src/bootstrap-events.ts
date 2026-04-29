@@ -1,6 +1,6 @@
 import type { Client } from "discord.js";
 import { registerDmInboxEvents } from "./events/dm-inbox.events.js";
-import { registerGuildChannelEvents } from "./events/guild-channel.events.js";
+import { registerGuildChannelEvents } from "./modules/guild-management/events/guild-channel.events.js";
 import { registerPictureOnlyChannelEvents } from "./modules/builtin-features/picture-only/picture-only-channel.events.js";
 import { registerRconForwardChannelEvents } from "./modules/builtin-features/rcon-forward/rcon-forward-channel.events.js";
 import { registerRoleEmojiEvents } from "./modules/builtin-features/role-emoji/role-emoji.events.js";

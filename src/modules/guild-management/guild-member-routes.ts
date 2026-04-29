@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { requireGuildCapability } from "../modules/web-core/route-guards.js";
-import { isSnowflake } from "../modules/web-core/validators.js";
-import { avatarUrlFor, guildAvatarUrlFor } from "../modules/web-core/message-mapper.js";
+import { requireGuildCapability } from "../web-core/route-guards.js";
+import { isSnowflake } from "../web-core/validators.js";
+import { avatarUrlFor, guildAvatarUrlFor } from "../web-core/message-mapper.js";
 import type { GuildManagementRoutesOptions } from "./guild-management-shared.js";
 
 export async function registerGuildMemberRoutes(

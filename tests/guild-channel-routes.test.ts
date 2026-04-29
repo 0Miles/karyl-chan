@@ -3,8 +3,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import { ChannelType } from 'discord.js';
 import type { Client } from 'discordx';
-import { registerGuildChannelRoutes } from '../src/web/guild-channel-routes.js';
-import { GuildChannelEventBus } from '../src/web/guild-channel-event-bus.js';
+import { registerGuildChannelRoutes } from '../src/modules/guild-management/guild-channel-routes.js';
+import { GuildChannelEventBus } from '../src/modules/guild-management/guild-channel-event-bus.js';
 import type { AdminCapability } from '../src/modules/admin/authorized-user.service.js';
 
 const GUILD_ID = '900000000000000001';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { DmEventBus, type DmEvent } from '../src/web/dm-event-bus.js';
-import { GuildChannelEventBus, type GuildChannelEvent } from '../src/web/guild-channel-event-bus.js';
+import { GuildChannelEventBus, type GuildChannelEvent } from '../src/modules/guild-management/guild-channel-event-bus.js';
 
 describe('DmEventBus', () => {
     it('delivers a published event to every subscriber', () => {

@@ -8,7 +8,7 @@ import {
 import { RoleEmojiGroup } from "./role-emoji-group.model.js";
 import { RoleReceiveMessage } from "./role-receive-message.model.js";
 import { EMOJI_REGEX, validateGroupId } from "./role-emoji-helpers.js";
-import type { GuildManagementRoutesOptions } from "../../../web/guild-management-shared.js";
+import type { GuildManagementRoutesOptions } from "../../guild-management/guild-management-shared.js";
 
 export async function registerRoleEmojiRoutes(
   server: FastifyInstance,

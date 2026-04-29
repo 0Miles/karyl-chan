@@ -1,17 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import type { Client } from "discord.js";
-import { TodoChannel } from "../modules/builtin-features/todo-channel/todo-channel.model.js";
-import { PictureOnlyChannel } from "../modules/builtin-features/picture-only/picture-only-channel.model.js";
-import { RconForwardChannel } from "../modules/builtin-features/rcon-forward/rcon-forward-channel.model.js";
-import { RoleEmoji } from "../modules/builtin-features/role-emoji/role-emoji.model.js";
-import { RoleEmojiGroup } from "../modules/builtin-features/role-emoji/role-emoji-group.model.js";
-import { RoleReceiveMessage } from "../modules/builtin-features/role-emoji/role-receive-message.model.js";
+import { TodoChannel } from "../builtin-features/todo-channel/todo-channel.model.js";
+import { PictureOnlyChannel } from "../builtin-features/picture-only/picture-only-channel.model.js";
+import { RconForwardChannel } from "../builtin-features/rcon-forward/rcon-forward-channel.model.js";
+import { RoleEmoji } from "../builtin-features/role-emoji/role-emoji.model.js";
+import { RoleEmojiGroup } from "../builtin-features/role-emoji/role-emoji-group.model.js";
+import { RoleReceiveMessage } from "../builtin-features/role-emoji/role-receive-message.model.js";
 import { ChannelType } from "discord.js";
 import {
   guildAccessFilter,
   requireAnyGuildCapability,
   requireGuildCapability,
-} from "../modules/web-core/route-guards.js";
+} from "../web-core/route-guards.js";
 
 export interface GuildsRoutesOptions {
   bot: Client;

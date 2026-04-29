@@ -9,8 +9,8 @@ import {
   type TextChannel,
   type User,
 } from "discord.js";
-import { guildChannelEventBus } from "../web/guild-channel-event-bus.js";
-import { toApiMessage } from "../modules/web-core/message-mapper.js";
+import { guildChannelEventBus } from "../guild-channel-event-bus.js";
+import { toApiMessage } from "../../web-core/message-mapper.js";
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,

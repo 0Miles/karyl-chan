@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { AuditLogEvent } from "discord.js";
-import { requireGuildCapability } from "../modules/web-core/route-guards.js";
-import { isSnowflake } from "../modules/web-core/validators.js";
-import { avatarUrlFor } from "../modules/web-core/message-mapper.js";
+import { requireGuildCapability } from "../web-core/route-guards.js";
+import { isSnowflake } from "../web-core/validators.js";
+import { avatarUrlFor } from "../web-core/message-mapper.js";
 import { guildChannelEventBus } from "./guild-channel-event-bus.js";
 import { type GuildManagementRoutesOptions } from "./guild-management-shared.js";
 import { registerGuildMemberRoutes } from "./guild-member-routes.js";
@@ -11,10 +11,10 @@ import { registerGuildRoleRoutes } from "./guild-role-routes.js";
 import { registerGuildSettingsRoutes } from "./guild-settings-routes.js";
 import { registerGuildAutomodRoutes } from "./guild-automod-routes.js";
 import { registerGuildChannelMgmtRoutes } from "./guild-channel-mgmt-routes.js";
-import { registerTodoChannelRoutes } from "../modules/builtin-features/todo-channel/routes.js";
-import { registerPictureOnlyChannelRoutes } from "../modules/builtin-features/picture-only/routes.js";
-import { registerRconForwardChannelRoutes } from "../modules/builtin-features/rcon-forward/routes.js";
-import { registerRoleEmojiRoutes } from "../modules/builtin-features/role-emoji/routes.js";
+import { registerTodoChannelRoutes } from "../builtin-features/todo-channel/routes.js";
+import { registerPictureOnlyChannelRoutes } from "../builtin-features/picture-only/routes.js";
+import { registerRconForwardChannelRoutes } from "../builtin-features/rcon-forward/routes.js";
+import { registerRoleEmojiRoutes } from "../builtin-features/role-emoji/routes.js";
 
 export type { GuildManagementRoutesOptions };
 

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { requireGuildCapability } from "../modules/web-core/route-guards.js";
-import { isSnowflake } from "../modules/web-core/validators.js";
+import { requireGuildCapability } from "../web-core/route-guards.js";
+import { isSnowflake } from "../web-core/validators.js";
 import type { GuildManagementRoutesOptions } from "./guild-management-shared.js";
 
 // ── AutoMod helpers ───────────────────────────────────────────────────

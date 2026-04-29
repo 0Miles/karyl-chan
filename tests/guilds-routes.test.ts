@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { ChannelType } from 'discord.js';
 import type { Client } from 'discordx';
-import { registerGuildsRoutes } from '../src/web/guilds-routes.js';
+import { registerGuildsRoutes } from '../src/modules/guild-management/guilds-routes.js';
 import type { AdminCapability } from '../src/modules/admin/authorized-user.service.js';
 
 const GUILD_ID = '900000000000000001';
