@@ -1,6 +1,7 @@
 import type { ArgsOf, Client } from "discordx";
 import { Discord, On } from "discordx";
 import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";
+import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { FAILED_COLOR } from "../utils/constant.js";
 import { RconQueueService } from "../services/rcon-queue.service.js";
 import { RconConnectionService } from "../services/rcon-connection.service.js";
@@ -46,6 +47,9 @@ export class RconForwardChannelEvents {
     try {
       if (message.author.bot) return;
       if (!message.guild || !message.member) return;
+      if (!(await resolveBuiltinFeatureEnabled("rcon", message.guildId))) {
+        return;
+      }
 
       const existingRecord = await RconForwardChannel.findOne({
         where: {

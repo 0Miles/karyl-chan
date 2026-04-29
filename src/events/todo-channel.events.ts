@@ -12,6 +12,7 @@ import {
   removeTodoMessage,
   findChannelTodoMessages,
 } from "../models/todo-message.model.js";
+import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
 /**
@@ -90,6 +91,11 @@ export class TodoChannelEvents {
     client: Client,
   ): Promise<void> {
     try {
+      // Operator gate — toggle off skips all todo bookkeeping for the
+      // guild. Configuration rows persist so re-enabling restores them.
+      if (!(await resolveBuiltinFeatureEnabled("todo", message.guildId))) {
+        return;
+      }
       if (
         (await findTodoChannel(message.guildId as string, message.channelId)) &&
         !message.author.bot
@@ -169,6 +175,7 @@ export class TodoChannelEvents {
       if (!hydrated) return;
       const guildId = hydrated.message.guildId;
       if (!guildId) return;
+      if (!(await resolveBuiltinFeatureEnabled("todo", guildId))) return;
       if (
         (await findTodoChannel(guildId, hydrated.message.channelId)) &&
         (hydrated.count ?? 0) > 0
@@ -202,6 +209,7 @@ export class TodoChannelEvents {
       if (!hydrated) return;
       const guildId = hydrated.message.guildId;
       if (!guildId) return;
+      if (!(await resolveBuiltinFeatureEnabled("todo", guildId))) return;
       if (
         (await findTodoChannel(guildId, hydrated.message.channelId)) &&
         hydrated.count === 0

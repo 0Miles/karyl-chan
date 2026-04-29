@@ -1,59 +1,111 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
+import AppTabs from '../../../components/AppTabs.vue';
+import { listGuilds, type GuildSummary } from '../../../api/guilds';
 import {
     applyFeatureDefaultToAll,
     listFeatureDefaults,
     setFeatureDefault,
     type FeatureDefaultItem
 } from '../../../api/plugin-features';
+import {
+    listBuiltinFeatureState,
+    setBuiltinFeatureState,
+    type BuiltinFeatureState
+} from '../../../api/builtin-features';
+import { guildFeatures as builtinRegistry } from '../../../modules/guild-features/registry';
 import { useApiError } from '../../../composables/use-api-error';
 
 /**
- * "All Servers" dashboard. Shows every plugin × feature pair across
- * the bot, lets the operator pick the default-enabled state for each
- * (overriding the plugin manifest's enabled_by_default), and offers an
- * "apply to all guilds" button that bulk-flips every existing
- * plugin_guild_features row to match the current effective default.
+ * "All Servers" dashboard with two top-level tabs:
  *
- * Read precedence:
- *   1. operator override (plugin_feature_defaults row, if any)
- *   2. manifest enabled_by_default (false if author omitted)
+ *   總覽 (overview)   — bird's-eye counts: guilds, plugins, features.
+ *   Bot 功能          — defaults editor for both built-in (in-process)
+ *                       guild features and plugin-provided guild
+ *                       features. Toggling the default override here
+ *                       affects new guilds; existing per-guild rows
+ *                       only flip after the operator hits "apply to
+ *                       all servers" (plugin features) or sets a
+ *                       per-guild override on the guild detail page.
  *
- * The toggle UI mutates the operator override; existing per-guild rows
- * stay as-is until apply-to-all is invoked.
+ * Lookup precedence the backend encodes:
+ *   - built-in:  per-guild row → operator default (NULL row) → true (built-ins default ON)
+ *   - plugin:    per-guild row (plugin_guild_features) → operator override (plugin_feature_defaults) → manifest enabled_by_default
  */
 
+const { t: $t } = useI18n();
 const { handle: handleApiError } = useApiError();
 
-const features = ref<FeatureDefaultItem[]>([]);
+type Tab = 'overview' | 'bot-features';
+const activeTab = ref<Tab>('overview');
+
+const guilds = ref<GuildSummary[]>([]);
+const pluginFeatures = ref<FeatureDefaultItem[]>([]);
+const builtinFeatures = ref<BuiltinFeatureState[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
-// Track which (pluginId|featureKey) is mid-mutation so we can disable
-// its toggle and apply button without flickering the whole list.
 const busy = ref<Set<string>>(new Set());
 const lastApplyResult = ref<Record<string, { updated: number } | null>>({});
 
-const grouped = computed(() => {
-    const byPlugin = new Map<number, { pluginName: string; pluginKey: string; pluginEnabled: boolean; pluginStatus: 'active' | 'inactive'; items: FeatureDefaultItem[] }>();
-    for (const f of features.value) {
+const builtinByKey = computed(() => {
+    const m = new Map<string, BuiltinFeatureState>();
+    for (const b of builtinFeatures.value) m.set(b.featureKey, b);
+    return m;
+});
+
+const builtinMeta = computed(() =>
+    builtinRegistry
+        .map(reg => ({
+            key: reg.name,
+            label: $t(reg.labelKey),
+            icon: reg.icon,
+            state: builtinByKey.value.get(reg.name)
+        }))
+        .filter(item => item.state)
+);
+
+const pluginGroups = computed(() => {
+    const byPlugin = new Map<number, {
+        pluginName: string;
+        pluginKey: string;
+        pluginEnabled: boolean;
+        pluginStatus: 'active' | 'inactive';
+        items: FeatureDefaultItem[]
+    }>();
+    for (const f of pluginFeatures.value) {
         const cur = byPlugin.get(f.pluginId);
-        if (cur) {
-            cur.items.push(f);
-        } else {
-            byPlugin.set(f.pluginId, {
-                pluginName: f.pluginName,
-                pluginKey: f.pluginKey,
-                pluginEnabled: f.pluginEnabled,
-                pluginStatus: f.pluginStatus,
-                items: [f]
-            });
-        }
+        if (cur) cur.items.push(f);
+        else byPlugin.set(f.pluginId, {
+            pluginName: f.pluginName, pluginKey: f.pluginKey,
+            pluginEnabled: f.pluginEnabled, pluginStatus: f.pluginStatus,
+            items: [f]
+        });
     }
     return [...byPlugin.values()].sort((a, b) => a.pluginName.localeCompare(b.pluginName));
 });
 
-function key(item: FeatureDefaultItem): string {
+// Overview metrics
+const overviewMetrics = computed(() => {
+    const totalPluginFeatures = pluginFeatures.value.length;
+    const enabledByDefaultPlugin = pluginFeatures.value.filter(f => f.effectiveDefault).length;
+    const overriddenPlugin = pluginFeatures.value.filter(f => f.override !== null).length;
+    const builtinDefaultOn = builtinFeatures.value.filter(b => b.effectiveDefault).length;
+    const builtinOverridden = builtinFeatures.value.reduce((sum, b) => sum + b.perGuild.length, 0);
+    return {
+        guildCount: guilds.value.length,
+        pluginCount: pluginGroups.value.length,
+        totalPluginFeatures,
+        enabledByDefaultPlugin,
+        overriddenPlugin,
+        builtinTotal: builtinFeatures.value.length,
+        builtinDefaultOn,
+        builtinOverridden
+    };
+});
+
+function pluginKey(item: FeatureDefaultItem): string {
     return `${item.pluginId}|${item.featureKey}`;
 }
 
@@ -61,7 +113,14 @@ async function refresh() {
     loading.value = true;
     error.value = null;
     try {
-        features.value = await listFeatureDefaults();
+        const [g, pf, bf] = await Promise.all([
+            listGuilds(),
+            listFeatureDefaults(),
+            listBuiltinFeatureState()
+        ]);
+        guilds.value = g;
+        pluginFeatures.value = pf;
+        builtinFeatures.value = bf;
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'load failed';
@@ -70,15 +129,13 @@ async function refresh() {
     }
 }
 
-async function onToggleDefault(item: FeatureDefaultItem) {
-    const k = key(item);
+async function onTogglePluginDefault(item: FeatureDefaultItem) {
+    const k = `plugin:${pluginKey(item)}`;
     if (busy.value.has(k)) return;
     busy.value.add(k);
     const next = !item.effectiveDefault;
     try {
         await setFeatureDefault(item.pluginId, item.featureKey, next);
-        // Optimistic in-place patch so the user sees the new state
-        // without a full refetch round-trip.
         item.override = next;
         item.effectiveDefault = next;
     } catch (err) {
@@ -89,17 +146,14 @@ async function onToggleDefault(item: FeatureDefaultItem) {
     }
 }
 
-async function onApplyToAll(item: FeatureDefaultItem) {
-    const k = key(item);
+async function onApplyPluginToAll(item: FeatureDefaultItem) {
+    const k = `plugin:${pluginKey(item)}`;
     if (busy.value.has(k)) return;
-    if (!confirm(`將「${item.featureName}」的預設值 (${item.effectiveDefault ? '啟用' : '停用'}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。`)) {
-        return;
-    }
+    if (!confirm(`將「${item.featureName}」的預設值 (${item.effectiveDefault ? '啟用' : '停用'}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。`)) return;
     busy.value.add(k);
     try {
         const result = await applyFeatureDefaultToAll(item.pluginId, item.featureKey);
         lastApplyResult.value = { ...lastApplyResult.value, [k]: { updated: result.updated } };
-        // Refetch to get updated enabledGuildCount / disabledGuildCount.
         await refresh();
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
@@ -109,118 +163,231 @@ async function onApplyToAll(item: FeatureDefaultItem) {
     }
 }
 
+async function onToggleBuiltinDefault(featureKey: string, current: boolean) {
+    const k = `builtin:${featureKey}`;
+    if (busy.value.has(k)) return;
+    busy.value.add(k);
+    try {
+        await setBuiltinFeatureState(featureKey, !current, null);
+        const slot = builtinByKey.value.get(featureKey);
+        if (slot) {
+            slot.default = { enabled: !current, updatedAt: new Date().toISOString() };
+            slot.effectiveDefault = !current;
+        }
+    } catch (err) {
+        if (handleApiError(err) !== 'unhandled') return;
+        error.value = err instanceof Error ? err.message : 'toggle failed';
+    } finally {
+        busy.value.delete(k);
+    }
+}
+
+const tabs = computed(() => [
+    { key: 'overview', label: '總覽', icon: 'material-symbols:dashboard-outline-rounded' },
+    { key: 'bot-features', label: 'Bot 功能', icon: 'material-symbols:tune-rounded' }
+]);
+
 onMounted(refresh);
 </script>
 
 <template>
-    <article class="all-servers">
-        <header class="page-header">
-            <div>
-                <h2>所有伺服器 — Bot 功能預設</h2>
-                <p class="muted">
-                    每個 plugin 提供的 guild feature 在這裡設定預設啟用值。
-                    新加入 bot 的伺服器會繼承此預設;既有伺服器需手動點「套用到所有伺服器」才會覆蓋。
-                </p>
-            </div>
-            <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
-                <Icon icon="material-symbols:refresh-rounded" />
-                重新整理
-            </button>
-        </header>
-
-        <p v-if="error" class="error">{{ error }}</p>
-        <p v-if="loading" class="muted">載入中…</p>
-
-        <p v-else-if="features.length === 0" class="muted empty">
-            目前沒有 plugin 宣告任何 guild feature。Plugin 啟用後 manifest 會自動同步到這裡。
-        </p>
-
-        <section v-for="group in grouped" :key="group.pluginKey" class="plugin-group">
-            <header class="plugin-header">
-                <h3>
-                    {{ group.pluginName }}
-                    <span class="plugin-key muted">({{ group.pluginKey }})</span>
-                </h3>
-                <span :class="['status-pill', group.pluginStatus]">
-                    {{ group.pluginStatus === 'active' ? 'active' : 'inactive' }}
-                </span>
-                <span v-if="!group.pluginEnabled" class="status-pill disabled">disabled</span>
-            </header>
-
-            <ul class="feature-list">
-                <li v-for="item in group.items" :key="item.featureKey" class="feature-row">
-                    <Icon v-if="item.featureIcon" :icon="item.featureIcon" class="feature-icon" />
-                    <Icon v-else icon="material-symbols:extension-outline" class="feature-icon" />
-                    <div class="feature-meta">
-                        <div class="feature-name">{{ item.featureName }}</div>
-                        <div v-if="item.featureDescription" class="feature-desc muted">
-                            {{ item.featureDescription }}
-                        </div>
-                        <div class="feature-stats muted">
-                            <span>已啟用 {{ item.enabledGuildCount }} 個 guild</span>
-                            <span class="dot">·</span>
-                            <span>已停用 {{ item.disabledGuildCount }} 個 guild</span>
-                            <span class="dot">·</span>
-                            <span>
-                                Manifest 預設:{{ item.manifestDefault ? '啟用' : '停用' }}
-                                <template v-if="item.override !== null">
-                                    (已被覆蓋為 {{ item.override ? '啟用' : '停用' }})
-                                </template>
-                            </span>
-                        </div>
-                        <div v-if="lastApplyResult[`${item.pluginId}|${item.featureKey}`]" class="apply-result">
-                            ✓ 已套用到 {{ lastApplyResult[`${item.pluginId}|${item.featureKey}`]?.updated }} 個 guild
+    <div class="all-servers-shell">
+        <AppTabs v-model="activeTab" :tabs="tabs">
+            <!-- Overview -->
+            <section v-if="activeTab === 'overview'" class="overview">
+                <header class="page-header">
+                    <h2>所有伺服器 — 總覽</h2>
+                    <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
+                        <Icon icon="material-symbols:refresh-rounded" />
+                        重新整理
+                    </button>
+                </header>
+                <p v-if="error" class="error">{{ error }}</p>
+                <p v-if="loading" class="muted">載入中…</p>
+                <div v-else class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">伺服器</div>
+                        <div class="metric-value">{{ overviewMetrics.guildCount }}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">已註冊 Plugin</div>
+                        <div class="metric-value">{{ overviewMetrics.pluginCount }}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">內建功能</div>
+                        <div class="metric-value">
+                            {{ overviewMetrics.builtinDefaultOn }} / {{ overviewMetrics.builtinTotal }}
+                            <span class="metric-sub">預設啟用</span>
                         </div>
                     </div>
-                    <div class="feature-controls">
-                        <label class="toggle-wrap">
-                            <span class="toggle-label">{{ item.effectiveDefault ? '預設啟用' : '預設停用' }}</span>
-                            <button
-                                type="button"
-                                role="switch"
-                                :class="['toggle', { on: item.effectiveDefault }]"
-                                :aria-checked="item.effectiveDefault ? 'true' : 'false'"
-                                :disabled="busy.has(`${item.pluginId}|${item.featureKey}`)"
-                                @click="onToggleDefault(item)"
-                            >
-                                <span class="slider" aria-hidden="true"></span>
-                            </button>
-                        </label>
-                        <button
-                            type="button"
-                            class="btn small"
-                            :disabled="busy.has(`${item.pluginId}|${item.featureKey}`)"
-                            @click="onApplyToAll(item)"
-                            title="把目前的預設值套到所有伺服器(會覆蓋既有設定)"
-                        >
-                            <Icon icon="material-symbols:checklist-rounded" />
-                            套用到所有伺服器
-                        </button>
+                    <div class="metric">
+                        <div class="metric-label">內建功能單伺服器覆寫</div>
+                        <div class="metric-value">{{ overviewMetrics.builtinOverridden }}</div>
                     </div>
-                </li>
-            </ul>
-        </section>
-    </article>
+                    <div class="metric">
+                        <div class="metric-label">Plugin Features</div>
+                        <div class="metric-value">
+                            {{ overviewMetrics.enabledByDefaultPlugin }} / {{ overviewMetrics.totalPluginFeatures }}
+                            <span class="metric-sub">預設啟用</span>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Plugin Features 覆寫</div>
+                        <div class="metric-value">{{ overviewMetrics.overriddenPlugin }}</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bot Features -->
+            <section v-else-if="activeTab === 'bot-features'" class="bot-features">
+                <header class="page-header">
+                    <div>
+                        <h2>所有伺服器 — Bot 功能預設</h2>
+                        <p class="muted">
+                            設定每個 guild feature 在新加入伺服器時的預設啟用值。既有伺服器的設定不會自動跟隨改動 —
+                            內建功能可在伺服器頁覆寫;Plugin Features 需點下方「套用到所有伺服器」一鍵套用。
+                        </p>
+                    </div>
+                    <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
+                        <Icon icon="material-symbols:refresh-rounded" />
+                        重新整理
+                    </button>
+                </header>
+
+                <p v-if="error" class="error">{{ error }}</p>
+                <p v-if="loading" class="muted">載入中…</p>
+
+                <template v-else>
+                    <!-- Built-in features -->
+                    <section class="feature-section">
+                        <h3 class="section-title">
+                            <Icon icon="material-symbols:settings-outline-rounded" />
+                            內建功能
+                        </h3>
+                        <p v-if="builtinMeta.length === 0" class="muted empty">沒有內建功能。</p>
+                        <ul v-else class="feature-list">
+                            <li v-for="item in builtinMeta" :key="item.key" class="feature-row">
+                                <Icon :icon="item.icon" class="feature-icon" />
+                                <div class="feature-meta">
+                                    <div class="feature-name">{{ item.label }}</div>
+                                    <div class="feature-stats muted">
+                                        <span>已覆寫的伺服器:{{ item.state!.perGuild.length }}</span>
+                                        <span class="dot">·</span>
+                                        <span>原預設:啟用</span>
+                                        <template v-if="item.state!.default">
+                                            <span class="dot">·</span>
+                                            <span>已被覆蓋為 {{ item.state!.default!.enabled ? '啟用' : '停用' }}</span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="feature-controls">
+                                    <label class="toggle-wrap">
+                                        <span class="toggle-label">{{ item.state!.effectiveDefault ? '預設啟用' : '預設停用' }}</span>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            :class="['toggle', { on: item.state!.effectiveDefault }]"
+                                            :aria-checked="item.state!.effectiveDefault ? 'true' : 'false'"
+                                            :disabled="busy.has(`builtin:${item.key}`)"
+                                            @click="onToggleBuiltinDefault(item.key, item.state!.effectiveDefault)"
+                                        >
+                                            <span class="slider" aria-hidden="true"></span>
+                                        </button>
+                                    </label>
+                                </div>
+                            </li>
+                        </ul>
+                    </section>
+
+                    <!-- Plugin features by plugin -->
+                    <section class="feature-section">
+                        <h3 class="section-title">
+                            <Icon icon="material-symbols:extension-outline-rounded" />
+                            Plugin Features
+                        </h3>
+                        <p v-if="pluginGroups.length === 0" class="muted empty">
+                            目前沒有 plugin 宣告任何 guild feature。
+                        </p>
+                        <div v-for="group in pluginGroups" :key="group.pluginKey" class="plugin-group">
+                            <header class="plugin-header">
+                                <h4>
+                                    {{ group.pluginName }}
+                                    <span class="plugin-key muted">({{ group.pluginKey }})</span>
+                                </h4>
+                                <span :class="['status-pill', group.pluginStatus]">
+                                    {{ group.pluginStatus === 'active' ? 'active' : 'inactive' }}
+                                </span>
+                                <span v-if="!group.pluginEnabled" class="status-pill disabled">disabled</span>
+                            </header>
+                            <ul class="feature-list">
+                                <li v-for="item in group.items" :key="item.featureKey" class="feature-row">
+                                    <Icon v-if="item.featureIcon" :icon="item.featureIcon" class="feature-icon" />
+                                    <Icon v-else icon="material-symbols:extension-outline" class="feature-icon" />
+                                    <div class="feature-meta">
+                                        <div class="feature-name">{{ item.featureName }}</div>
+                                        <div v-if="item.featureDescription" class="feature-desc muted">
+                                            {{ item.featureDescription }}
+                                        </div>
+                                        <div class="feature-stats muted">
+                                            <span>已啟用 {{ item.enabledGuildCount }} guild</span>
+                                            <span class="dot">·</span>
+                                            <span>已停用 {{ item.disabledGuildCount }} guild</span>
+                                            <span class="dot">·</span>
+                                            <span>
+                                                Manifest 預設:{{ item.manifestDefault ? '啟用' : '停用' }}
+                                                <template v-if="item.override !== null">
+                                                    (覆蓋為 {{ item.override ? '啟用' : '停用' }})
+                                                </template>
+                                            </span>
+                                        </div>
+                                        <div v-if="lastApplyResult[`plugin:${pluginKey(item)}`]" class="apply-result">
+                                            ✓ 已套用到 {{ lastApplyResult[`plugin:${pluginKey(item)}`]?.updated }} guild
+                                        </div>
+                                    </div>
+                                    <div class="feature-controls">
+                                        <label class="toggle-wrap">
+                                            <span class="toggle-label">{{ item.effectiveDefault ? '預設啟用' : '預設停用' }}</span>
+                                            <button
+                                                type="button"
+                                                role="switch"
+                                                :class="['toggle', { on: item.effectiveDefault }]"
+                                                :aria-checked="item.effectiveDefault ? 'true' : 'false'"
+                                                :disabled="busy.has(`plugin:${pluginKey(item)}`)"
+                                                @click="onTogglePluginDefault(item)"
+                                            >
+                                                <span class="slider" aria-hidden="true"></span>
+                                            </button>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            class="btn small"
+                                            :disabled="busy.has(`plugin:${pluginKey(item)}`)"
+                                            @click="onApplyPluginToAll(item)"
+                                            title="把目前的預設值套到所有伺服器(會覆蓋既有設定)"
+                                        >
+                                            <Icon icon="material-symbols:checklist-rounded" />
+                                            套用到所有伺服器
+                                        </button>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </section>
+                </template>
+            </section>
+        </AppTabs>
+    </div>
 </template>
 
 <style scoped>
-.all-servers {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    width: 100%;
-    max-width: 1080px;
-    margin: 0 auto;
-}
+.all-servers-shell { width: 100%; max-width: 1080px; margin: 0 auto; }
 .page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    margin-bottom: 1rem;
 }
 .page-header h2 { margin: 0 0 0.35rem 0; font-size: 1.1rem; }
 .muted { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
-.empty { padding: 2rem; text-align: center; }
+.empty { padding: 1.5rem; text-align: center; }
 .error {
     color: var(--danger);
     background: rgba(239, 68, 68, 0.1);
@@ -229,27 +396,50 @@ onMounted(refresh);
     padding: 0.55rem 0.75rem;
 }
 
-.plugin-group {
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.85rem;
+}
+.metric {
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    overflow: hidden;
     background: var(--bg-surface);
+    padding: 0.75rem 0.85rem;
 }
+.metric-label { color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.metric-value { font-size: 1.4rem; font-weight: 600; color: var(--text-strong); margin-top: 0.25rem; }
+.metric-sub { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; margin-left: 0.35rem; }
+
+.feature-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    padding: 0.85rem;
+    margin-top: 1rem;
+}
+.section-title {
+    display: flex; align-items: center; gap: 0.45rem;
+    font-size: 0.95rem;
+    margin: 0 0 0.6rem 0;
+    color: var(--text-strong);
+}
+.plugin-group {
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+    margin-top: 0.6rem;
+}
+.plugin-group:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 .plugin-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.85rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-surface-2);
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;
 }
-.plugin-header h3 { margin: 0; font-size: 0.95rem; flex: 1; }
+.plugin-header h4 { margin: 0; font-size: 0.92rem; flex: 1; }
 .plugin-key { font-weight: 400; font-size: 0.78rem; }
 .status-pill {
     font-size: 0.7rem;
     padding: 0.1rem 0.55rem;
     border-radius: var(--radius-pill);
-    background: var(--bg-surface);
+    background: var(--bg-surface-2);
     border: 1px solid var(--border);
     color: var(--text-muted);
     text-transform: uppercase;
@@ -261,70 +451,44 @@ onMounted(refresh);
 
 .feature-list { list-style: none; margin: 0; padding: 0; }
 .feature-row {
-    display: flex;
-    gap: 0.85rem;
-    padding: 0.85rem;
+    display: flex; gap: 0.85rem; padding: 0.7rem 0;
     align-items: flex-start;
     border-bottom: 1px solid var(--border);
 }
 .feature-row:last-child { border-bottom: none; }
 .feature-icon {
-    width: 22px;
-    height: 22px;
-    flex-shrink: 0;
-    margin-top: 0.15rem;
+    width: 22px; height: 22px;
+    flex-shrink: 0; margin-top: 0.15rem;
     color: var(--text-muted);
 }
-.feature-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.feature-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
 .feature-name { font-weight: 500; color: var(--text-strong); }
 .feature-desc { font-size: 0.82rem; line-height: 1.35; }
 .feature-stats { display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.75rem; }
 .feature-stats .dot { opacity: 0.4; }
-.apply-result {
-    font-size: 0.78rem;
-    color: var(--accent);
-    margin-top: 0.2rem;
-}
+.apply-result { font-size: 0.78rem; color: var(--accent); margin-top: 0.2rem; }
 
 .feature-controls {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.45rem;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 0.45rem;
     flex-shrink: 0;
 }
-.toggle-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-}
+.toggle-wrap { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
 .toggle-label { font-size: 0.78rem; color: var(--text-muted); }
 .toggle {
-    position: relative;
-    width: 32px;
-    height: 18px;
-    flex-shrink: 0;
-    cursor: pointer;
-    border: none;
-    padding: 0;
-    background: none;
+    position: relative; width: 32px; height: 18px;
+    flex-shrink: 0; cursor: pointer; border: none; padding: 0; background: none;
 }
 .toggle:disabled { cursor: not-allowed; opacity: 0.6; }
 .slider {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background: var(--border-strong);
     border-radius: 999px;
     transition: background 0.15s;
 }
 .slider::before {
     content: '';
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 14px;
-    height: 14px;
+    position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px;
     background: var(--bg-surface);
     border-radius: 50%;
     transition: transform 0.15s;
@@ -333,9 +497,7 @@ onMounted(refresh);
 .toggle.on .slider::before { transform: translateX(14px); }
 
 .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
+    display: inline-flex; align-items: center; gap: 0.35rem;
     padding: 0.4rem 0.7rem;
     border: 1px solid var(--border-strong);
     background: var(--bg-surface);

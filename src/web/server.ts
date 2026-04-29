@@ -75,6 +75,7 @@ import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { registerBehaviorRoutes } from "./behavior-routes.js";
 import { registerPluginRoutes } from "./plugin-routes.js";
+import { registerBotFeatureRoutes } from "./bot-feature-routes.js";
 import { registerPluginRpcRoutes } from "./plugin-rpc-routes.js";
 import {
   pluginAuthStore,
@@ -537,6 +538,7 @@ export async function createWebServer(
   await registerBehaviorRoutes(server, { bot });
   await registerPluginRoutes(server, { bot });
   await registerPluginRpcRoutes(server, { bot });
+  await registerBotFeatureRoutes(server);
 
   if (bot) {
     server.get("/api/bot/status", async (request, reply) => {

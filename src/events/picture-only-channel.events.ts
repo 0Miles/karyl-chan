@@ -1,6 +1,7 @@
 import type { ArgsOf, Client } from "discordx";
 import { Discord, On } from "discordx";
 import { PictureOnlyChannel } from "../models/picture-only-channel.model.js";
+import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { botEventLog } from "../web/bot-event-log.js";
 import { shouldRecord } from "../web/bot-event-dedup.js";
 
@@ -12,6 +13,14 @@ export class PictureOnlyChannelEvents {
     client: Client,
   ): Promise<void> {
     try {
+      // Honor the operator's per-guild + default toggle. Disabled →
+      // skip; the configuration row stays in place so re-enabling
+      // restores previous setup without losing data.
+      if (
+        !(await resolveBuiltinFeatureEnabled("picture-only", message.guildId))
+      ) {
+        return;
+      }
       const existingRecord = await PictureOnlyChannel.findOne({
         where: {
           channelId: message.channelId,

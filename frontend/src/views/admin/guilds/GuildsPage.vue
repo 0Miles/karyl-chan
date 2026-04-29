@@ -22,7 +22,7 @@ import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import AppTabs from '../../../components/AppTabs.vue';
 import AllServersDashboard from './AllServersDashboard.vue';
-import GuildPluginFeaturesPanel from './GuildPluginFeaturesPanel.vue';
+import GuildBotFeaturesPanel from './GuildBotFeaturesPanel.vue';
 import GuildOverviewSection from './overview/GuildOverviewSection.vue';
 import GuildGeneralSettingsCard from './settings/GuildGeneralSettingsCard.vue';
 import GuildModerationSettingsCard from './settings/GuildModerationSettingsCard.vue';
@@ -74,7 +74,10 @@ const activeSub = ref<Record<Tab, string>>({
     overview: '',
     settings: 'general',
     people: 'members',
-    features: guildFeatures[0]?.name ?? ''
+    // Default to the master "Bot 功能" sub so the user lands on the
+    // overview switch list rather than dropping into a single feature's
+    // settings card.
+    features: '_bot'
 });
 
 // Per-guild capability gating: settings/people/features all live behind
@@ -125,12 +128,13 @@ const peopleSubs = computed(() => [
 ]);
 // Features sub-tabs are derived from the guild-feature registry —
 // adding a new feature folder + entry there is enough to surface it
-// here. Plugin-provided guild features are listed under the special
-// `_plugins` sub-tab below the in-process ones.
-const PLUGIN_FEATURES_SUB = '_plugins';
+// here. The `_bot` master sub-tab pins to the front and lists every
+// built-in + plugin feature with a single on/off switch per row;
+// per-feature settings still live on each feature's own sub.
+const BOT_FEATURES_SUB = '_bot';
 const featuresSubs = computed(() => [
-    ...guildFeatures.map(p => ({ key: p.name, label: $t(p.labelKey) })),
-    { key: PLUGIN_FEATURES_SUB, label: 'Plugin Features' }
+    { key: BOT_FEATURES_SUB, label: 'Bot 功能' },
+    ...guildFeatures.map(p => ({ key: p.name, label: $t(p.labelKey) }))
 ]);
 const currentSubTabs = computed(() => {
     if (activeTab.value === 'settings') return settingsSubs.value;
@@ -412,6 +416,10 @@ onMounted(refresh);
                              feature panel which talks to the bot's
                              plugin admin API. -->
                         <template v-else-if="activeTab === 'features'">
+                            <GuildBotFeaturesPanel
+                                v-if="currentSub === BOT_FEATURES_SUB && selectedId"
+                                :guild-id="selectedId"
+                            />
                             <template v-for="feature in guildFeatures" :key="feature.name">
                                 <component
                                     :is="feature.SettingsCard"
@@ -420,10 +428,6 @@ onMounted(refresh);
                                     @changed="selectedId && loadDetail(selectedId)"
                                 />
                             </template>
-                            <GuildPluginFeaturesPanel
-                                v-if="currentSub === PLUGIN_FEATURES_SUB && selectedId"
-                                :guild-id="selectedId"
-                            />
                         </template>
                     </AppTabs>
                 </article>

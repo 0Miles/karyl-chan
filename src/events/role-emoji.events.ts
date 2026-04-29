@@ -3,6 +3,7 @@ import type { ArgsOf, Client } from "discordx";
 import { Discord, On } from "discordx";
 import { findRoleReceiveMessage } from "../models/role-receive-message.model.js";
 import { findRoleEmojiInGroup } from "../models/role-emoji.model.js";
+import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
 import { botEventLog } from "../web/bot-event-log.js";
 
 /**
@@ -74,6 +75,14 @@ export class RoleEmojiEvents {
       if (user.id === client.user?.id) return;
       const hydrated = await hydrateReaction(messageReaction);
       if (!hydrated) return;
+      if (
+        !(await resolveBuiltinFeatureEnabled(
+          "role-emoji",
+          hydrated.message.guildId,
+        ))
+      ) {
+        return;
+      }
       const role = await getRoleForReaction(hydrated);
       if (!role) return;
       // Members aren't pre-fetched at startup — `cache.find` would
@@ -127,6 +136,14 @@ export class RoleEmojiEvents {
       if (user.id === client.user?.id) return;
       const hydrated = await hydrateReaction(messageReaction);
       if (!hydrated) return;
+      if (
+        !(await resolveBuiltinFeatureEnabled(
+          "role-emoji",
+          hydrated.message.guildId,
+        ))
+      ) {
+        return;
+      }
       const role = await getRoleForReaction(hydrated);
       if (!role) return;
       const member = await hydrated.message.guild?.members
