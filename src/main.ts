@@ -10,7 +10,14 @@ import type {
   PartialUser,
   User,
 } from "discord.js";
-import { ChannelType, Events, IntentsBitField, Partials } from "discord.js";
+import {
+  ApplicationCommandType,
+  ChannelType,
+  Events,
+  IntentsBitField,
+  InteractionContextType,
+  Partials,
+} from "discord.js";
 import { Client } from "discordx";
 import { sequelize } from "./models/db.js";
 import { startWebServer } from "./web/server.js";
@@ -97,8 +104,84 @@ bot.once("ready", async () => {
   // registry, so we just await and move on.
   await pluginCommandRegistry.reconcileAll();
 
+  // /manual and /break must be DM-only (they read user-private state
+  // — DM session, applicable behaviors). discordx's Client.botGuilds
+  // is set to "every guild the bot is in", so initApplicationCommands
+  // unconditionally registers EVERY @Slash as a guild command — and
+  // guild commands ignore the manifest's `contexts: [BotDM]` field
+  // (only global commands honor it). That left both commands visible
+  // in every guild's command picker but unusable inside DMs.
+  //
+  // Fix: after discordx finishes its sync, walk every guild and
+  // delete /manual /break, then re-register them as GLOBAL commands
+  // with `contexts: [BotDM, PrivateChannel]` so Discord shows them
+  // ONLY in DMs. discordx keeps routing the interaction handler via
+  // its decorators — we only changed how Discord lists the command.
+  await rebindDmOnlyCommandsAsGlobal().catch((err) => {
+    botEventLog.record(
+      "warn",
+      "bot",
+      `rebindDmOnlyCommandsAsGlobal failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+
   console.log("Bot started");
 });
+
+const DM_ONLY_COMMANDS: Array<{ name: string; description: string }> = [
+  { name: "manual", description: "查看你在私訊可用的行為列表" },
+  { name: "break", description: "結束目前正在進行的持續轉發" },
+];
+
+async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
+  if (!bot.application) return;
+  const targetNames = new Set(DM_ONLY_COMMANDS.map((c) => c.name));
+
+  // 1) Remove from every guild discordx pushed them to. We can't tell
+  //    discordx "register these globally" from the @Slash level, but
+  //    we can clean up after it.
+  for (const [, guild] of bot.guilds.cache) {
+    try {
+      const cmds = await guild.commands.fetch();
+      for (const cmd of cmds.values()) {
+        if (targetNames.has(cmd.name)) {
+          await guild.commands.delete(cmd.id).catch(() => {});
+        }
+      }
+    } catch {
+      /* skip guilds we can't access */
+    }
+  }
+
+  // 2) Register globally with DM-only contexts. Skips creation if the
+  //    same name is already global with the right context list (avoids
+  //    making Discord re-propagate on every bot restart).
+  const existing = await bot.application.commands.fetch();
+  const existingByName = new Map(existing.map((c) => [c.name, c]));
+
+  for (const meta of DM_ONLY_COMMANDS) {
+    const already = existingByName.get(meta.name);
+    if (already) continue; // good enough — global registration sticks
+    try {
+      await bot.application.commands.create({
+        type: ApplicationCommandType.ChatInput,
+        name: meta.name,
+        description: meta.description,
+        contexts: [
+          InteractionContextType.BotDM,
+          InteractionContextType.PrivateChannel,
+        ],
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      botEventLog.record(
+        "warn",
+        "bot",
+        `failed to register /${meta.name} as global DM-only command: ${msg}`,
+      );
+    }
+  }
+}
 
 bot.on("guildCreate", async (guild) => {
   botEventLog.record("info", "bot", `Joined guild: ${guild.name}`, {
