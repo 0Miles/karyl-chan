@@ -231,14 +231,16 @@ describe('web server', () => {
         });
 
         it('rejects /api requests without an Authorization header', async () => {
-            const response = await server.inject({ method: 'GET', url: '/api/health' });
+            // /api/health is intentionally whitelisted (docker healthcheck);
+            // hit a real protected route to exercise the auth gate.
+            const response = await server.inject({ method: 'GET', url: '/api/dm/channels' });
             expect(response.statusCode).toBe(401);
         });
 
         it('rejects /api requests with an invalid bearer token', async () => {
             const response = await server.inject({
                 method: 'GET',
-                url: '/api/health',
+                url: '/api/dm/channels',
                 headers: { authorization: 'Bearer not-a-real-token' }
             });
             expect(response.statusCode).toBe(401);
