@@ -130,9 +130,9 @@ Admin 後台另有獨立的 capability 體系，儲存在 `admin_role_capabiliti
 
 | 檔案 | 功能 |
 |---|---|
-| `src/permission/capabilities.ts` | Capability 字串常數與預設值 |
-| `src/permission/permission.service.ts` | `evaluateCapability`（純函式）、`hasCapability`（讀 DB）、`grant/revoke/listGrants` |
-| `src/permission/permission-check.ts` | `requireCapability(interaction, capability)` slash 指令用的 helper |
-| `src/models/capability-grant.model.ts` | Sequelize 模型 |
-| `src/commands/permission.commands.ts` | `/permission *` slash 指令 |
-| `tests/permission.test.ts` | 單元測試 |
+| `src/modules/admin/admin-capabilities.ts` | Capability 字串常數、預設值、`requireCapability` / `requireGuildCapability` helpers |
+| `src/modules/admin/models/admin-role.model.ts` | admin role 定義 |
+| `src/modules/admin/models/admin-role-capability.model.ts` | role ↔ capability 對應 |
+| `src/modules/admin/models/authorized-user.model.ts` | Discord user → admin role 對應 |
+| `src/modules/admin/admin-management-routes.ts` | role / capability 管理 API |
+| `tests/admin-capabilities.test.ts` | 單元測試 |

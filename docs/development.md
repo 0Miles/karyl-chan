@@ -33,66 +33,44 @@ npm run start   # nodemon + ts-node 開發模式，檔案變更自動 reload
 
 ## 專案結構
 
+完整架構說明見 [docs/architecture.md](architecture.md)。下面只列頂層輪廓:
+
 ```
 src/
-  commands/                    # Slash 指令 (@Discord @Slash)
-    break.commands.ts
-    manual.commands.ts
-    permission.commands.ts
-    picture-only-channel.commands.ts
-    rcon-forward-channel.commands.ts
-    role-emoji.commands.ts
-    todo-channel.commands.ts
-  events/                      # Discord 事件 handler (@Discord @On)
-    picture-only-channel.events.ts
-    rcon-forward-channel.events.ts
-    role-emoji.events.ts
-    todo-channel.events.ts
-  models/                      # Sequelize 模型
-    capability-grant.model.ts
-    db.ts                      # sequelize instance
-    picture-only-channel.model.ts
-    rcon-forward-channel.model.ts
-    role-emoji.model.ts
-    role-receive-message.model.ts
-    todo-channel.model.ts
-    todo-message.model.ts
-  permission/                  # 權限系統
-    capabilities.ts            # capability 列舉 + 預設值
-    permission.service.ts      # evaluateCapability 純函式 + DB 操作
-    permission-check.ts        # requireCapability(interaction, cap) helper
-  services/                    # 外部資源整合（RCON）
-    rcon-connection.service.ts
-    rcon-queue.service.ts
-  types/
-    rcon.d.ts                  # rcon 套件的型別補充
-  utils/
-    constant.ts                # embed 顏色等常數
-    crypto.ts                  # AES-256-GCM helper
-    host-policy.ts             # RCON host allowlist / blocklist
-    rate-limiter.ts            # 頻道級速率限制
-  web/                         # HTTP API (Fastify)
-    server.ts                  # Fastify instance + routes
-  main.ts                      # 入口；bot 啟動 + web server 並行
+  db.ts                        # Sequelize singleton(全模組共用)
+  main.ts                      # 入口
+  bootstrap-events.ts          # 集中註冊 Discord events
+  bootstrap-in-process.ts      # 集中註冊 in-process slash commands
+  migrations/                  # Umzug schema migrations(時間線扁平)
+  types/                       # ambient declarations
+  utils/                       # 純函式工具(crypto/rate-limiter/host-policy/constant)
+  modules/                     # 9 個業務模組
+    plugin-system/             # 外部 RPC plugin 生命週期
+    behavior/                  # DM 觸發轉發三型
+    builtin-features/          # in-process Discord 功能(picture-only/role-emoji/todo/rcon)
+    feature-toggle/            # 功能開關狀態層(plugin + builtin 兩條軌道)
+    admin/                     # 管理員身份、登入、capability、審計
+    dm-inbox/                  # DM 收件匣 + SSE
+    guild-management/          # Discord guild 管理 web API
+    bot-events/                # bot 事件日誌
+    web-core/                  # Fastify 基礎設施 + bot-wide meta endpoints
 
-tests/                         # vitest 單元測試
-  crypto.test.ts
-  host-policy.test.ts
-  permission.test.ts
-  rate-limiter.test.ts
-
+tests/                         # vitest 單元測試(扁平)
 docs/                          # 本文件所在
 .github/workflows/
   ci.yml                       # PR/push 跑 build + test + audit
   docker-publish.yml           # main push 跑 test 後 build/push ghcr image
 ```
 
+**新增 feature / endpoint / event handler / model 的標準流程**見 [docs/architecture.md](architecture.md) 的「新增 feature 決策樹」與「加新 builtin feature(完整 SOP)」段。
+
 ## 程式風格
 
 - TypeScript strict mode
 - ESM modules（`"type": "module"`；import 路徑使用 `.js` 副檔名）
-- Discordx 裝飾器：`@Discord @Slash @SlashGroup @On @ModalComponent`
+- 顯式 register pattern（無裝飾器）：每個 events/commands 檔 export `register*` 函式，由 `bootstrap-events.ts` / `bootstrap-in-process.ts` 集中 wire 到 client
 - Sequelize v6 做 ORM，一個 model 一個檔案
+- 模組邊界規則見 [architecture.md](architecture.md)「依賴規則」段
 
 ### 命名慣例
 
@@ -137,10 +115,10 @@ npm run test:typecheck         # 驗證 tests/ 型別
 
 ## 新增 capability
 
-1. 在 `src/permission/capabilities.ts` 的 `CAPABILITIES` 物件加一個 key，以 `feature.action` 格式命名
-2. 在 `EVERYONE_DEFAULTS` 加對應的 default 值（通常 `true`，除非該 capability 本身無 Discord 層過濾）
-3. 在對應的 command 或 event handler 用 `requireCapability(interaction, 'new.cap')` 或 `hasCapability(guild, member, 'new.cap')`
-4. 在 `tests/permission.test.ts` 補一個 case 驗證預設值
+1. 在 `src/modules/admin/admin-capabilities.ts` 的 `CAPABILITIES` 加一個 key，以 `feature.action` 格式命名
+2. 在 `EVERYONE_DEFAULTS` 加對應的 default 值
+3. 在對應的 route 或 event handler 用 `requireCapability(...)` 或 `requireGuildCapability(...)`（從 `web-core/route-guards.js` import）
+4. 在 `tests/admin-capabilities.test.ts` 補一個 case 驗證預設值
 5. 更新 [docs/permissions.md](permissions.md) 的 capability 清單
 
 ## CI pipeline
@@ -163,24 +141,13 @@ npm run test:typecheck         # 驗證 tests/ 型別
 
 ## 常見擴充任務
 
-### 加新的 Slash 指令
+詳細 SOP 見 [architecture.md](architecture.md)。簡略提示:
 
-1. 在 `src/commands/` 新一個 `my-feature.commands.ts`
-2. `@Discord @SlashGroup @Slash` 裝飾器
-3. 開頭呼叫 `requireCapability(command, 'my-feature.something')`
-4. bot 啟動時 `importx` 自動載入
-
-### 加新事件 handler
-
-1. 在 `src/events/` 新一個 `my-feature.events.ts`
-2. `@Discord @On()` 裝飾器
-3. 同上，自動載入
-
-### 加新 Sequelize model
-
-1. 在 `src/models/` 新建 model file
-2. 使用已匯入的 `sequelize` instance（來自 `db.ts`）
-3. 任何被其他檔案 import 的 model，啟動時 `sequelize.sync()` 會自動建表
+- **加新 Slash 指令**:進對應 module(builtin-features 內某個子 feature 或 behavior),寫 `register*Commands` 函式 → 在 `bootstrap-in-process.ts` 加 register 呼叫
+- **加新事件 handler**:進對應 module 的 `events/`,寫 `register*Events(bot)` 函式 → 在 `bootstrap-events.ts` 加 register 呼叫
+- **加新 Sequelize model**:進對應 module 的 `models/`,`import { sequelize } from "../../../db.js"`(層數依模組深度)
+- **加新 web API endpoint**:進對應 module 的 routes 檔,用 web-core 提供的 `requireCapability`/`isSnowflake` helpers,admin 操作別忘 `recordAudit(...)`
+- **加新 builtin feature(完整資料夾)**:見 architecture.md 的 SOP — 預期動 1 個新資料夾 + 5 個既有 wiring 點(2 個 bootstrap + feature-toggle key + guild-management facade + migration)
 
 ## 疑難排解（開發端）
 

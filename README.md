@@ -19,4 +19,6 @@
 - [權限系統](docs/permissions.md) — 雙層模型、capability 清單、`/permission` 指令
 
 ### 開發
-- [開發指南](docs/development.md) — build/test/CI、專案結構、貢獻流程
+- [開發指南](docs/development.md) — build/test/CI、貢獻流程
+- [架構指南](docs/architecture.md) — 模組劃分、依賴規則、新增 feature 的 SOP
+- [Plugin 開發指南](docs/development/plugin-guide.md) — 寫外部 RPC plugin

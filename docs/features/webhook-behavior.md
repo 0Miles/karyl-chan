@@ -156,8 +156,9 @@ function sign(body, secret) {
 | `src/modules/behavior/webhook-dispatch.service.ts` | webhook POST + HMAC 簽名/驗證 + `[BEHAVIOR:END]` 偵測 |
 | `src/modules/behavior/behavior-trigger.ts` | 純函式 `matchesTrigger` / `describeTrigger` |
 | `src/modules/behavior/events/webhook-behavior.events.ts` | DM messageCreate handler |
-| `src/commands/manual.commands.ts` | `/manual` slash |
-| `src/commands/break.commands.ts` | `/break` slash |
+| `src/modules/behavior/system-behavior.service.ts` | system behaviors(login/manual/break)bootstrap + dispatch |
+| `src/modules/behavior/user-slash-behavior.service.ts` | `slash_command` trigger type 的派送 |
+| `src/modules/behavior/dm-slash-rebind.service.ts` | DM-only globals 的 Discord application command 同步 |
 | `src/modules/behavior/behavior-routes.ts` | admin web API |
 | `frontend/src/views/admin/behaviors/*.vue` | 管理頁面 |
 | `frontend/src/api/behavior.ts` | 前端 api client |
