@@ -825,8 +825,8 @@
         "spoilerOff": "取消剧透",
         "replyPingOn": "停止 @ 原作者",
         "replyPingOff": "启用 @ 原作者",
-        "replyPingOnShort": "@",
-        "replyPingOffShort": "@?",
+        "replyPingOnShort": "{'@'}",
+        "replyPingOffShort": "{'@'}?",
         "removeAttachment": "移除附件",
         "removeSticker": "移除贴纸"
     },

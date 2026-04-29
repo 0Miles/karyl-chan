@@ -825,8 +825,8 @@
         "spoilerOff": "Unmark spoiler",
         "replyPingOn": "Stop pinging the original author",
         "replyPingOff": "Ping the original author",
-        "replyPingOnShort": "@",
-        "replyPingOffShort": "@?",
+        "replyPingOnShort": "{'@'}",
+        "replyPingOffShort": "{'@'}?",
         "removeAttachment": "Remove attachment",
         "removeSticker": "Remove sticker"
     },
