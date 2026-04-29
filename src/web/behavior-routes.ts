@@ -627,24 +627,19 @@ export async function registerBehaviorRoutes(
         reply.code(400).send({ error: "triggerValue is not a valid regex" });
         return;
       }
-      // type='plugin' + triggerType='slash_command' is a dead combo:
-      // the plugin's slash commands are registered through its
-      // manifest.commands[] and routed by plugin-interaction-dispatch,
-      // NOT through the behavior table. A behavior row with this
-      // combo would never fire.
-      if (behaviorType === "plugin" && triggerType === "slash_command") {
-        reply.code(400).send({
-          error:
-            "type='plugin' cannot use triggerType='slash_command'; declare slash commands in the plugin's manifest.commands instead",
-        });
-        return;
-      }
       // Discord DM commands are inherently global — there is no API
       // for "register this DM command for a specific user only". So
       // slash_command behaviors only make sense on the all_dms target,
       // where every user seeing the command in their picker is the
       // intended audience anyway. user / group targets that would
       // create a name visible to non-target users get rejected.
+      //
+      // Both type='webhook' and type='plugin' are valid here. Plugin
+      // routing flows through the same user-slash-behavior dispatcher
+      // that webhook does — admin maps `/foo` to a plugin's existing
+      // dm_behavior key, distinct from the plugin's own
+      // manifest.commands[] (which register globally and run their
+      // own command-payload pipeline).
       if (triggerType === "slash_command" && id !== ALL_DMS_TARGET_ID) {
         reply.code(400).send({
           error:
@@ -1007,19 +1002,11 @@ export async function registerBehaviorRoutes(
           });
           return;
         }
-        // Reject the dead combo type=plugin × triggerType=slash_command
-        // BEFORE persisting the type switch. Both `update.triggerType`
-        // (already validated above) and `existing.triggerType` are
-        // candidates depending on whether the same patch changed
-        // trigger; check both. (Same combo blocked on POST/createBehavior.)
-        const effectiveTrigger = update.triggerType ?? existing.triggerType;
-        if (effectiveTrigger === "slash_command") {
-          reply.code(400).send({
-            error:
-              "type='plugin' cannot use triggerType='slash_command'; declare slash commands in the plugin's manifest.commands instead",
-          });
-          return;
-        }
+        // type=plugin + triggerType=slash_command is now allowed on
+        // ALL_DMS_TARGET — the user-slash-behavior dispatcher routes
+        // these through dispatchPluginDmBehavior. The all_dms-only
+        // gate above (shared with the POST path) already enforces
+        // the target restriction; nothing else to check here.
         update.type = "plugin";
         update.pluginId = pid;
         update.pluginBehaviorKey = bk;

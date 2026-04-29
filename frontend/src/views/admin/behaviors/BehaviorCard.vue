@@ -204,16 +204,11 @@ watch(selectedDmBehaviorSupportsContinuous, (supports) => {
     }
 });
 
-// Same self-healing for the type=plugin × triggerType=slash_command
-// dead combo: if user switches an existing slash_command behavior
-// to plugin type, coerce trigger back to startswith so the form
-// stays valid. Backend rejects this combo on save anyway; doing it
-// here removes the misleading saved-but-broken intermediate state.
-watch(() => draft.type, (next) => {
-    if (next === 'plugin' && draft.triggerType === 'slash_command') {
-        draft.triggerType = 'startswith';
-    }
-});
+// (Previously this watcher coerced slash_command → startswith when
+// the user switched type=webhook → plugin, because the dispatcher
+// didn't route the plugin case. The user-slash-behavior service now
+// handles type=plugin + slash_command on the all_dms target — both
+// types are valid there, so the auto-coerce is no longer needed.)
 
 // Option lists for AppSelectField (it wants {value,label}[]).
 const typeOptions = computed(() => {
@@ -246,15 +241,11 @@ const triggerTypeOptions = computed(() => {
     // commands are inherently global on Discord's side (no per-user
     // visibility scope), so a user / group target row would expose
     // the command to people outside the intended audience. Backend
-    // POST/PATCH rejects this combination too.
+    // POST/PATCH rejects this combination too. Both type=webhook and
+    // type=plugin are allowed on all_dms — the user-slash-behavior
+    // dispatcher routes both through the same primitives the
+    // messageCreate path uses.
     if (!isAllDmsTarget.value) {
-        return all.filter(o => o.value !== 'slash_command');
-    }
-    // Plugin behaviors register their slash commands through the
-    // plugin's own manifest.commands[] mechanism, NOT via behavior
-    // triggers. Hide the option so the form can't produce a dead
-    // (type=plugin, trigger=slash_command) row.
-    if (draft.type === 'plugin') {
         return all.filter(o => o.value !== 'slash_command');
     }
     return all;
