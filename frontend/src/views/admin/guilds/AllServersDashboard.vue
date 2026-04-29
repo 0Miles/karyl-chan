@@ -196,7 +196,9 @@ onMounted(refresh);
             <!-- Overview -->
             <section v-if="activeTab === 'overview'" class="overview">
                 <header class="page-header">
-                    <h2>所有伺服器 — 總覽</h2>
+                    <div>
+                        <h2>所有伺服器 — 總覽</h2>
+                    </div>
                     <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
                         <Icon icon="material-symbols:refresh-rounded" />
                         重新整理
@@ -382,9 +384,20 @@ onMounted(refresh);
 <style scoped>
 .all-servers-shell { width: 100%; max-width: 1080px; margin: 0 auto; }
 .page-header {
-    display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
     margin-bottom: 1rem;
+    /* Without flex-wrap the long description div eats every available
+       inch on narrow viewports and the button next to it gets visually
+       squashed (height stays but the content area collapses). Allowing
+       wrap lets the button drop to its own row at narrow widths instead. */
+    flex-wrap: wrap;
 }
+/* Description block claims most of the row but stops short so the
+   button keeps a usable adjacency at desktop widths. */
+.page-header > div { flex: 1 1 320px; min-width: 0; }
 .page-header h2 { margin: 0 0 0.35rem 0; font-size: 1.1rem; }
 .muted { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
 .empty { padding: 1.5rem; text-align: center; }

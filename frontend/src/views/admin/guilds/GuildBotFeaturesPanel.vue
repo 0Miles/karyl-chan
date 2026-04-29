@@ -233,7 +233,18 @@ watch(() => props.guildId, refresh);
 
 <style scoped>
 .bot-features-panel { display: flex; flex-direction: column; gap: 0.75rem; }
-.panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    /* See AllServersDashboard.vue page-header — flex-wrap keeps the
+       refresh button from being visually squashed when the sibling
+       description text is long; flex-shrink:0 on .btn keeps the button
+       at content size. */
+    flex-wrap: wrap;
+}
+.panel-header > div { flex: 1 1 320px; min-width: 0; }
 .panel-header h3 { margin: 0 0 0.25rem 0; font-size: 1rem; }
 .muted { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
 .empty { padding: 1rem; text-align: center; }
@@ -313,6 +324,8 @@ watch(() => props.guildId, refresh);
     border-radius: var(--radius-sm);
     cursor: pointer;
     font-size: 0.82rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .btn:hover:not(:disabled) { background: var(--bg-surface-hover); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
