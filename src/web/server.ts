@@ -75,6 +75,11 @@ import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { registerBehaviorRoutes } from "./behavior-routes.js";
 import { registerPluginRoutes } from "./plugin-routes.js";
+import { registerPluginRpcRoutes } from "./plugin-rpc-routes.js";
+import {
+  pluginAuthStore,
+  type PluginAuthRecord,
+} from "./plugin-auth.service.js";
 import { requireAnyCapability } from "./route-guards.js";
 import { botEventLog } from "./bot-event-log.js";
 import { shouldRecord } from "./bot-event-dedup.js";
@@ -83,6 +88,13 @@ declare module "fastify" {
   interface FastifyRequest {
     authUserId?: string;
     authCapabilities?: Set<AdminCapability>;
+    /**
+     * Set on /api/plugin/* requests after the plugin's bearer token
+     * is verified. Carries pluginId, scopes (the manifest-declared
+     * RPC method allowlist), and the bot-side plugin row id used by
+     * route handlers to scope writes.
+     */
+    pluginAuth?: PluginAuthRecord;
   }
 }
 
@@ -165,12 +177,30 @@ export async function createWebServer(
     if (request.url.startsWith("/api/auth/")) return;
     if (pathOnly(request.url) === "/api/health") return;
     // Plugin-facing endpoints have their own auth model (setup secret
-    // for register, plugin bearer token for heartbeat / RPC). Admin
+    // for register, plugin bearer token for heartbeat). Admin
     // endpoints under /api/plugins still go through this hook below.
     {
       const path = pathOnly(request.url);
       if (path === "/api/plugins/register") return;
       if (path === "/api/plugins/heartbeat") return;
+      // Plugin RPC: any route under /api/plugin/* (singular).
+      // Auth is the plugin's bearer token, not admin auth. We verify
+      // here and stash the plugin auth record on the request so route
+      // handlers can scope writes. We do NOT fall through to admin
+      // auth — plugin tokens never satisfy admin capabilities.
+      if (path.startsWith("/api/plugin/")) {
+        const header = request.headers.authorization;
+        const token = header?.startsWith("Bearer ")
+          ? header.slice(7)
+          : null;
+        const rec = token ? pluginAuthStore.verify(token) : null;
+        if (!rec) {
+          reply.code(401).send({ error: "plugin token invalid or expired" });
+          return;
+        }
+        request.pluginAuth = rec;
+        return;
+      }
     }
     if (!authEnabled) {
       // Dev-only branch (production fails to boot without
@@ -508,6 +538,7 @@ export async function createWebServer(
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
   await registerPluginRoutes(server);
+  await registerPluginRpcRoutes(server, { bot });
 
   if (bot) {
     server.get("/api/bot/status", async (request, reply) => {
