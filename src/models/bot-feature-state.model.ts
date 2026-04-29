@@ -35,9 +35,7 @@ export interface BotFeatureStateRow {
   updatedAt: Date;
 }
 
-function rowOf(
-  m: InstanceType<typeof BotFeatureState>,
-): BotFeatureStateRow {
+function rowOf(m: InstanceType<typeof BotFeatureState>): BotFeatureStateRow {
   return {
     id: m.getDataValue("id") as number,
     guildId: (m.getDataValue("guildId") as string | null) ?? null,

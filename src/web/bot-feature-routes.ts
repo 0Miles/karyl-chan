@@ -47,7 +47,10 @@ export async function registerBotFeatureRoutes(
         return {
           featureKey: key,
           default: slot.default
-            ? { enabled: slot.default.enabled, updatedAt: slot.default.updatedAt }
+            ? {
+                enabled: slot.default.enabled,
+                updatedAt: slot.default.updatedAt,
+              }
             : null,
           // Built-in features default ON when no row exists at all;
           // surface the effective default explicitly so the UI doesn't
@@ -70,7 +73,9 @@ export async function registerBotFeatureRoutes(
     if (!requireCapability(request, reply, "admin")) return;
     const { featureKey } = request.params;
     if (!isKnownBuiltinFeature(featureKey)) {
-      reply.code(404).send({ error: `unknown built-in feature '${featureKey}'` });
+      reply
+        .code(404)
+        .send({ error: `unknown built-in feature '${featureKey}'` });
       return;
     }
     const body = request.body ?? {};
@@ -79,9 +84,7 @@ export async function registerBotFeatureRoutes(
       return;
     }
     const guildId =
-      body.guildId === undefined ||
-      body.guildId === null ||
-      body.guildId === ""
+      body.guildId === undefined || body.guildId === null || body.guildId === ""
         ? null
         : typeof body.guildId === "string"
           ? body.guildId
