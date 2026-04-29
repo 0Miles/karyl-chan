@@ -7,7 +7,7 @@ import {
   type BotFeatureStateRow,
 } from "./models/bot-feature-state.model.js";
 import { requireCapability } from "../web-core/route-guards.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Admin endpoints for the bot's in-process feature on/off table.

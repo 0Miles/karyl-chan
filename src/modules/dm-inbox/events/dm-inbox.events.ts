@@ -10,7 +10,7 @@ import {
 import { dmInboxService, type DmRecipient } from "../dm-inbox.service.js";
 import { dmEventBus } from "../dm-event-bus.js";
 import { avatarUrlFor, toApiMessage } from "../../web-core/message-mapper.js";
-import { botEventLog } from "../../../web/bot-event-log.js";
+import { botEventLog } from "../../bot-events/bot-event-log.js";
 
 async function publishReactionUpdate(
   reaction: MessageReaction | PartialMessageReaction,

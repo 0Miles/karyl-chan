@@ -19,7 +19,7 @@ import {
 } from "./models/behavior-session.model.js";
 import { describeTrigger } from "./behavior-trigger.js";
 import { DEFAULT_COLOR, SUCCEEDED_COLOR } from "../../utils/constant.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Implementation of the three bot-internal "system behaviors":

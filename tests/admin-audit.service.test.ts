@@ -7,7 +7,7 @@ vi.hoisted(() => {
     process.env.SQLITE_DB_PATH = ':memory:';
 });
 
-import { sequelize } from '../src/models/db.js';
+import { sequelize } from '../src/db.js';
 import { AdminAuditLog } from '../src/modules/admin/models/admin-audit-log.model.js';
 import { recordAudit, listAudit, verifyAuditChain } from '../src/modules/admin/admin-audit.service.js';
 

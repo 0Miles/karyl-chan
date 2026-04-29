@@ -7,8 +7,8 @@ import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
   type DispatchResult,
-} from "../../services/webhook-dispatch.service.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+} from "../behavior/webhook-dispatch.service.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Dispatch DM behavior payloads through a registered plugin.
@@ -217,4 +217,4 @@ function failure(reason: string, status?: number): DispatchResult {
 }
 
 // Re-export for convenience; same token semantics as webhook-dispatch.
-export { BEHAVIOR_END_TOKEN } from "../../services/webhook-dispatch.service.js";
+export { BEHAVIOR_END_TOKEN } from "../behavior/webhook-dispatch.service.js";

@@ -9,10 +9,10 @@ import {
   type BehaviorRow,
 } from "./models/behavior.model.js";
 import { decryptSecret } from "../../utils/crypto.js";
-import { dispatchWebhook } from "../../services/webhook-dispatch.service.js";
+import { dispatchWebhook } from "./webhook-dispatch.service.js";
 import { dispatchPluginDmBehavior } from "../plugin-system/plugin-dispatch.service.js";
 import { avatarUrlFor } from "../web-core/message-mapper.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Dispatch a user-created slash-command behavior (type='webhook' or

@@ -4,7 +4,7 @@ vi.hoisted(() => {
     process.env.SQLITE_DB_PATH = ':memory:';
 });
 
-import { sequelize } from '../src/models/db.js';
+import { sequelize } from '../src/db.js';
 import { RefreshToken } from '../src/modules/web-core/models/refresh-token.model.js';
 import { sequelizeRefreshStore } from '../src/modules/web-core/refresh-token.repository.js';
 

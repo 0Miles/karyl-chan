@@ -26,7 +26,7 @@ import { matchesTrigger } from "../behavior-trigger.js";
 import {
   dispatchWebhook,
   type DispatchResult,
-} from "../../../services/webhook-dispatch.service.js";
+} from "../webhook-dispatch.service.js";
 import { dispatchPluginDmBehavior } from "../../plugin-system/plugin-dispatch.service.js";
 import { issueLoginLinkAndReply } from "../../admin/admin-login.service.js";
 import {
@@ -39,7 +39,7 @@ import {
   SYSTEM_BEHAVIOR_KEY_MANUAL,
 } from "../models/behavior.model.js";
 import { avatarUrlFor } from "../../web-core/message-mapper.js";
-import { botEventLog } from "../../../web/bot-event-log.js";
+import { botEventLog } from "../../bot-events/bot-event-log.js";
 
 /**
  * Build a Discord webhook payload from a user's DM message. Mirrors the

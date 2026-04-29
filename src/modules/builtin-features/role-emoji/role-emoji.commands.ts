@@ -24,7 +24,7 @@ import {
   findRoleEmojiGroupByName,
   removeRoleEmojiGroup,
 } from "./role-emoji-group.model.js";
-import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { registerInProcessCommand } from "../in-process-command-registry.service.js";
 import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 const EMOJI_REGEX =

@@ -11,7 +11,7 @@ import {
   findTodoChannel,
 } from "./todo-channel.model.js";
 import { addTodoMessage } from "./todo-message.model.js";
-import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { registerInProcessCommand } from "../in-process-command-registry.service.js";
 import { SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 /**

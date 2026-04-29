@@ -6,7 +6,7 @@ import { registerRconForwardChannelEvents } from "./modules/builtin-features/rco
 import { registerRoleEmojiEvents } from "./modules/builtin-features/role-emoji/role-emoji.events.js";
 import { registerTodoChannelEvents } from "./modules/builtin-features/todo-channel/todo-channel.events.js";
 import { registerTypingStartEvents } from "./modules/dm-inbox/events/typing-start.events.js";
-import { registerVoiceStateEvents } from "./events/voice-state.events.js";
+import { registerVoiceStateEvents } from "./modules/bot-events/events/voice-state.events.js";
 import { registerWebhookBehaviorEvents } from "./modules/behavior/events/webhook-behavior.events.js";
 
 /**

@@ -6,8 +6,8 @@ import {
   type Interaction,
   type ModalSubmitInteraction,
 } from "discord.js";
-import { botEventLog } from "../web/bot-event-log.js";
-import { shouldRecord } from "../web/bot-event-dedup.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 
 /**
  * In-process slash-command + modal registry.

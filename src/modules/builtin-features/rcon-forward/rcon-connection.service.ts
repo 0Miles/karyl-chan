@@ -6,7 +6,7 @@ import {
   SUCCEEDED_COLOR,
 } from "../../../utils/constant.js";
 import { assertAllowedTarget, HostPolicyError } from "../../../utils/host-policy.js";
-import { botEventLog } from "../../../web/bot-event-log.js";
+import { botEventLog } from "../../bot-events/bot-event-log.js";
 
 export interface RconConnection {
   conn: Rcon;

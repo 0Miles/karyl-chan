@@ -1,12 +1,12 @@
 import { DataTypes } from "sequelize";
-import { sequelize } from "./db.js";
+import { sequelize } from "../../../db.js";
 
 /**
  * Persistent log of bot lifecycle and runtime events. Replaces the
  * previous in-memory SystemEventLog which was lost on every restart.
  *
  * Events are written fire-and-forget via botEventLog (see
- * src/web/bot-event-log.ts) — a DB failure never propagates to the
+ * src/modules/bot-events/bot-event-log.ts) — a DB failure never propagates to the
  * bot caller. Indexed for the three foreseeable admin queries: newest
  * first, filter-by-level, filter-by-category.
  */

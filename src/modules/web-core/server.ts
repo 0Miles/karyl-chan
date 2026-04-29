@@ -63,7 +63,7 @@ function isEventStreamPath(url: string): boolean {
   return SSE_PATHS.has(pathOnly(url));
 }
 import { registerDmRoutes } from "../dm-inbox/dm-routes.js";
-import { registerDiscordRoutes } from "../../web/discord-routes.js";
+import { registerDiscordRoutes } from "./discord-routes.js";
 import { avatarUrlFor } from "./message-mapper.js";
 import { registerGuildsRoutes } from "../guild-management/guilds-routes.js";
 import { registerGuildChannelRoutes } from "../guild-management/guild-channel-routes.js";
@@ -72,7 +72,7 @@ import type { DmInboxStore } from "../dm-inbox/dm-inbox.service.js";
 import { registerSystemRoutes } from "./system-routes.js";
 import { registerAdminManagementRoutes } from "../admin/admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-routes.js";
-import { registerBotEventRoutes } from "../../web/bot-event-routes.js";
+import { registerBotEventRoutes } from "../bot-events/bot-event-routes.js";
 import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
 import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
 import { registerBotFeatureRoutes } from "../feature-toggle/bot-feature-routes.js";
@@ -82,8 +82,8 @@ import {
   type PluginAuthRecord,
 } from "../plugin-system/plugin-auth.service.js";
 import { requireAnyCapability } from "./route-guards.js";
-import { botEventLog } from "../../web/bot-event-log.js";
-import { shouldRecord } from "../../web/bot-event-dedup.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 
 declare module "fastify" {
   interface FastifyRequest {

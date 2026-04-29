@@ -6,8 +6,8 @@ import {
 } from "./plugin-registry.service.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
-import { botEventLog } from "../../web/bot-event-log.js";
-import { shouldRecord } from "../../web/bot-event-dedup.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 import {
   findFeatureRowsByGuild,
   findFeatureRowsByPlugin,

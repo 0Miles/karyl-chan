@@ -21,7 +21,7 @@ import {
   Partials,
 } from "discord.js";
 import { Client } from "discord.js";
-import { sequelize } from "./models/db.js";
+import { sequelize } from "./db.js";
 import { startWebServer } from "./modules/web-core/server.js";
 import { dmInboxService } from "./modules/dm-inbox/dm-inbox.service.js";
 import { authStore } from "./modules/web-core/auth-store.service.js";
@@ -30,8 +30,8 @@ import {
   auditStoredCapabilities,
   seedDefaultRoles,
 } from "./modules/admin/authorized-user.service.js";
-import { botEventLog } from "./web/bot-event-log.js";
-import { shouldRecord } from "./web/bot-event-dedup.js";
+import { botEventLog } from "./modules/bot-events/bot-event-log.js";
+import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 import {
   ALL_DMS_TARGET_ID,
@@ -67,7 +67,7 @@ import {
   dispatchInProcessInteraction,
   syncInProcessCommandsForGuild,
   syncInProcessCommandsToDiscord,
-} from "./services/in-process-command-registry.service.js";
+} from "./modules/builtin-features/in-process-command-registry.service.js";
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
 import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";

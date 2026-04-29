@@ -7,10 +7,10 @@ import {
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
-} from "../../services/webhook-dispatch.service.js";
+} from "../behavior/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import { botEventLog } from "../../web/bot-event-log.js";
-import { shouldRecord } from "../../web/bot-event-dedup.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 
 /**
  * Bot → Plugin event dispatch. Plugins declare which event types

@@ -153,7 +153,7 @@ function sign(body, secret) {
 | `src/modules/behavior/models/behavior-target-member.model.ts` | group 成員 CRUD |
 | `src/modules/behavior/models/behavior.model.ts` | behavior CRUD + reorder |
 | `src/modules/behavior/models/behavior-session.model.ts` | session CRUD |
-| `src/services/webhook-dispatch.service.ts` | webhook POST + HMAC 簽名/驗證 + `[BEHAVIOR:END]` 偵測 |
+| `src/modules/behavior/webhook-dispatch.service.ts` | webhook POST + HMAC 簽名/驗證 + `[BEHAVIOR:END]` 偵測 |
 | `src/modules/behavior/behavior-trigger.ts` | 純函式 `matchesTrigger` / `describeTrigger` |
 | `src/modules/behavior/events/webhook-behavior.events.ts` | DM messageCreate handler |
 | `src/commands/manual.commands.ts` | `/manual` slash |

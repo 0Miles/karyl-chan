@@ -7,7 +7,7 @@ import {
 import { findRoleReceiveMessage } from "./role-receive-message.model.js";
 import { findRoleEmojiInGroup } from "./role-emoji.model.js";
 import { resolveBuiltinFeatureEnabled } from "../../feature-toggle/models/bot-feature-state.model.js";
-import { botEventLog } from "../../../web/bot-event-log.js";
+import { botEventLog } from "../../bot-events/bot-event-log.js";
 
 /**
  * Hydrate a partial reaction (and its parent message) before we read

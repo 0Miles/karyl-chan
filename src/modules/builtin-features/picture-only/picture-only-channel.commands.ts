@@ -5,7 +5,7 @@ import {
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { PictureOnlyChannel } from "./picture-only-channel.model.js";
-import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { registerInProcessCommand } from "../in-process-command-registry.service.js";
 import { SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 /**

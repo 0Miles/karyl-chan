@@ -16,7 +16,7 @@ import {
   upsertConfigKey,
 } from "./models/plugin-config.model.js";
 import { decryptSecret } from "../../utils/crypto.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 
 /**

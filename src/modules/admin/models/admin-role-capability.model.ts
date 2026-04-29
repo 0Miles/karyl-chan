@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { sequelize } from '../../../models/db.js';
+import { sequelize } from '../../../db.js';
 import { AdminRole } from './admin-role.model.js';
 
 /**

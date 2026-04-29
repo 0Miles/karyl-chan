@@ -4,7 +4,7 @@ vi.hoisted(() => {
     process.env.SQLITE_DB_PATH = ':memory:';
 });
 
-import { sequelize } from '../src/models/db.js';
+import { sequelize } from '../src/db.js';
 import { DmChannel } from '../src/modules/dm-inbox/models/dm-channel.model.js';
 import { SqliteDmInbox, type DmRecipient } from '../src/modules/dm-inbox/dm-inbox.service.js';
 import type { Message } from '../src/modules/web-core/message-types.js';

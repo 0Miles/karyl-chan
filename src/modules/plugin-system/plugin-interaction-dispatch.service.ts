@@ -12,9 +12,9 @@ import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import {
   SIGNATURE_HEADER,
   TIMESTAMP_HEADER,
-} from "../../services/webhook-dispatch.service.js";
+} from "../behavior/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Inbound Discord interaction → plugin dispatcher.

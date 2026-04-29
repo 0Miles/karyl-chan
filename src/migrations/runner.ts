@@ -2,7 +2,7 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { Umzug, SequelizeStorage, type MigrationMeta } from 'umzug';
 import { QueryInterface, Sequelize } from 'sequelize';
-import { sequelize } from '../models/db.js';
+import { sequelize } from '../db.js';
 
 /**
  * Sequelize's `sync()` won't alter existing tables, so post-bootstrap

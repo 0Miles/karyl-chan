@@ -9,7 +9,7 @@ import {
   type AdminCapability,
   type GlobalCapability,
 } from "./admin-capabilities.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 export {
   GLOBAL_CAPABILITY_DESCRIPTIONS,

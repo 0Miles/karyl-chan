@@ -13,7 +13,7 @@ import { RconForwardChannel } from "./rcon-forward-channel.model.js";
 import {
   registerInProcessCommand,
   registerInProcessModal,
-} from "../../../services/in-process-command-registry.service.js";
+} from "../in-process-command-registry.service.js";
 import { encryptSecret } from "../../../utils/crypto.js";
 import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../../utils/constant.js";
 

@@ -5,8 +5,8 @@ import { FAILED_COLOR } from "../../../utils/constant.js";
 import { RconQueueService } from "./rcon-queue.service.js";
 import { RconConnectionService } from "./rcon-connection.service.js";
 import { decryptSecret } from "../../../utils/crypto.js";
-import { botEventLog } from "../../../web/bot-event-log.js";
-import { shouldRecord } from "../../../web/bot-event-dedup.js";
+import { botEventLog } from "../../bot-events/bot-event-log.js";
+import { shouldRecord } from "../../bot-events/bot-event-dedup.js";
 
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 

@@ -4,7 +4,7 @@ vi.hoisted(() => {
     process.env.SQLITE_DB_PATH = ':memory:';
 });
 
-import { sequelize } from '../src/models/db.js';
+import { sequelize } from '../src/db.js';
 import {
     addAuthorizedUser,
     auditStoredCapabilities,

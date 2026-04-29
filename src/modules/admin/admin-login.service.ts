@@ -1,7 +1,7 @@
 import type { ChatInputCommandInteraction, Message } from "discord.js";
 import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "./authorized-user.service.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Admin login link issuance, factored out of the old

@@ -5,7 +5,7 @@ vi.hoisted(() => {
 });
 
 import Fastify, { type FastifyInstance } from 'fastify';
-import { sequelize } from '../src/models/db.js';
+import { sequelize } from '../src/db.js';
 import { registerAdminManagementRoutes } from '../src/modules/admin/admin-management-routes.js';
 import {
     addAuthorizedUser,

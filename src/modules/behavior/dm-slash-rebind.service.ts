@@ -11,7 +11,7 @@ import {
   SYSTEM_BEHAVIOR_KEY_LOGIN,
   SYSTEM_BEHAVIOR_KEY_MANUAL,
 } from "./models/behavior.model.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 /**
  * Reconcile DM-only global slash commands with what's currently

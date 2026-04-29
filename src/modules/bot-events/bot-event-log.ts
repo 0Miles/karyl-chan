@@ -1,4 +1,4 @@
-import { BotEvent } from "../models/bot-event.model.js";
+import { BotEvent } from "./models/bot-event.model.js";
 
 export type BotEventLevel = "info" | "warn" | "error";
 export type BotEventCategory = "bot" | "auth" | "feature" | "web" | "error";

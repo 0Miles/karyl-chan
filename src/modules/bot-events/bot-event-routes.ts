@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { Op } from "sequelize";
-import { BotEvent } from "../models/bot-event.model.js";
-import { requireCapability } from "../modules/web-core/route-guards.js";
+import { BotEvent } from "./models/bot-event.model.js";
+import { requireCapability } from "../web-core/route-guards.js";
 
 /**
  * Admin endpoint for querying the persistent bot event log.

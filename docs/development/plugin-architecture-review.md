@@ -35,7 +35,7 @@
 - Plugin 端要記得 secret;若 bot 重啟丟失明文(例如改 in-memory only),
   下一次 dispatch 會 401,plugin 自動 re-register 即可。
 
-**位置**:`src/services/webhook-dispatch.service.ts`、
+**位置**:`src/modules/behavior/webhook-dispatch.service.ts`、
 `src/modules/plugin-system/plugin-rpc-routes.ts`、各 plugin client `hmac.ts`。
 
 ### 🟡 required_capability 未 enforce (S2)

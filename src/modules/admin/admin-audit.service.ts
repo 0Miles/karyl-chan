@@ -1,8 +1,8 @@
 import { createHash } from "crypto";
 import { Op, Transaction } from "sequelize";
 import { AdminAuditLog } from "./models/admin-audit-log.model.js";
-import { sequelize } from "../../models/db.js";
-import { botEventLog } from "../../web/bot-event-log.js";
+import { sequelize } from "../../db.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 export interface AdminAuditEntry {
   id: number;

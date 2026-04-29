@@ -11,12 +11,12 @@ import {
   guildAvatarUrlFor,
   guildBannerUrlFor,
   toApiMessage,
-} from "../modules/web-core/message-mapper.js";
+} from "./message-mapper.js";
 import {
   requireAnyCapability,
   requireGuildCapability,
-} from "../modules/web-core/route-guards.js";
-import { isSnowflake } from "../modules/web-core/validators.js";
+} from "./route-guards.js";
+import { isSnowflake } from "./validators.js";
 
 // Discord lookup endpoints feed both the DM and guild chat surfaces, so
 // either of these globally-scoped tokens is sufficient. (Per-guild
