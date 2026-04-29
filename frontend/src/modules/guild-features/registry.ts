@@ -1,8 +1,8 @@
-import type { GuildFeature } from './types';
-import { todoFeature } from './todo';
-import { pictureOnlyFeature } from './picture-only';
-import { rconFeature } from './rcon';
-import { roleEmojiFeature } from './role-emoji';
+import type { GuildFeature } from "./types";
+import { todoFeature } from "./todo";
+import { pictureOnlyFeature } from "./picture-only";
+import { rconFeature } from "./rcon";
+import { roleEmojiFeature } from "./role-emoji";
 
 /**
  * Single source of truth for installed guild features. Order here is
@@ -14,10 +14,10 @@ import { roleEmojiFeature } from './role-emoji';
  * `index.ts`, and append it here.
  */
 export const guildFeatures: GuildFeature[] = [
-    todoFeature,
-    pictureOnlyFeature,
-    rconFeature,
-    roleEmojiFeature,
+  todoFeature,
+  pictureOnlyFeature,
+  rconFeature,
+  roleEmojiFeature,
 ];
 
-export type { GuildFeature } from './types';
+export type { GuildFeature } from "./types";

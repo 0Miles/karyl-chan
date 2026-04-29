@@ -412,5 +412,4 @@ export async function registerGuildBotFeatureRoutes(
       reply.code(204).send();
     },
   );
-
 }

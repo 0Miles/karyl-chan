@@ -231,12 +231,9 @@ export async function registerAdminManagementRoutes(
         request.authUserId !== ownerId &&
         !targetRole.capabilities.includes("admin")
       ) {
-        reply
-          .code(400)
-          .send({
-            error:
-              "cannot move yourself to a role without the admin capability",
-          });
+        reply.code(400).send({
+          error: "cannot move yourself to a role without the admin capability",
+        });
         return;
       }
       const note = isNonEmptyString(body.note) ? body.note : null;
@@ -333,11 +330,9 @@ export async function registerAdminManagementRoutes(
         body.description !== null &&
         !isBoundedString(body.description, ROLE_DESCRIPTION_MAX)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars`,
-          });
+        reply.code(400).send({
+          error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars`,
+        });
         return;
       }
       const description = isNonEmptyString(body.description)
@@ -374,11 +369,9 @@ export async function registerAdminManagementRoutes(
         body.description !== null &&
         !isBoundedString(body.description, ROLE_DESCRIPTION_MAX)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars`,
-          });
+        reply.code(400).send({
+          error: `description must be ≤${ROLE_DESCRIPTION_MAX} chars`,
+        });
         return;
       }
       const description = isNonEmptyString(body.description)
@@ -473,12 +466,9 @@ export async function registerAdminManagementRoutes(
         const allUsers = await listAuthorizedUsers();
         const self = allUsers.find((u) => u.userId === request.authUserId);
         if (self && self.role === request.params.name) {
-          reply
-            .code(400)
-            .send({
-              error:
-                "cannot revoke admin from the role you are currently using",
-            });
+          reply.code(400).send({
+            error: "cannot revoke admin from the role you are currently using",
+          });
           return;
         }
       }
