@@ -34,7 +34,6 @@ import { RoleEmojiGroup } from "../models/role-emoji-group.model.js";
 import { RoleEmoji } from "../models/role-emoji.model.js";
 import { AuthorizedUser } from "../models/authorized-user.model.js";
 import { AdminRole } from "../models/admin-role.model.js";
-import { CapabilityGrant } from "../models/capability-grant.model.js";
 
 export interface AdminManagementRoutesOptions {
   bot?: Client;
@@ -534,12 +533,10 @@ export async function registerAdminManagementRoutes(
         roleEmojis,
         authorizedUsers,
         adminRoles,
-        capabilityGrants,
         todoGuilds,
         pictureGuilds,
         rconGuilds,
         roleEmojiGroupGuilds,
-        capabilityGrantGuilds,
       ] = await Promise.all([
         TodoChannel.count(),
         PictureOnlyChannel.count(),
@@ -548,7 +545,6 @@ export async function registerAdminManagementRoutes(
         RoleEmoji.count(),
         AuthorizedUser.count(),
         AdminRole.count(),
-        CapabilityGrant.count(),
         TodoChannel.findAll({ attributes: ["guildId"], group: ["guildId"] }),
         PictureOnlyChannel.findAll({
           attributes: ["guildId"],
@@ -559,10 +555,6 @@ export async function registerAdminManagementRoutes(
           group: ["guildId"],
         }),
         RoleEmojiGroup.findAll({ attributes: ["guildId"], group: ["guildId"] }),
-        CapabilityGrant.findAll({
-          attributes: ["guildId"],
-          group: ["guildId"],
-        }),
       ]);
 
       const guildIdSet = new Set<string>();
@@ -571,7 +563,6 @@ export async function registerAdminManagementRoutes(
         pictureGuilds,
         rconGuilds,
         roleEmojiGroupGuilds,
-        capabilityGrantGuilds,
       ]) {
         for (const row of rows) {
           guildIdSet.add(row.get("guildId") as string);
@@ -586,7 +577,6 @@ export async function registerAdminManagementRoutes(
         roleEmojis,
         authorizedUsers,
         adminRoles,
-        capabilityGrants,
         distinctGuilds: guildIdSet.size,
       };
     } catch (err) {

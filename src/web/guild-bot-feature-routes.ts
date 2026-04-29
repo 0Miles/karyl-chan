@@ -7,7 +7,6 @@ import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";
 import { RoleEmoji, addRoleEmoji } from "../models/role-emoji.model.js";
 import { RoleEmojiGroup } from "../models/role-emoji-group.model.js";
 import { RoleReceiveMessage } from "../models/role-receive-message.model.js";
-import { CapabilityGrant } from "../models/capability-grant.model.js";
 import {
   type GuildManagementRoutesOptions,
   EMOJI_REGEX,
@@ -414,57 +413,4 @@ export async function registerGuildBotFeatureRoutes(
     },
   );
 
-  // Capability grants ─────────────────────────────────────────────────
-  server.post<{
-    Params: { guildId: string };
-    Body: { capability?: unknown; roleId?: unknown };
-  }>(
-    "/api/guilds/:guildId/feature/capability-grants",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId } = request.params;
-      const b = request.body ?? {};
-      if (typeof b.capability !== "string" || !b.capability.trim()) {
-        reply.code(400).send({ error: "capability required" });
-        return;
-      }
-      if (typeof b.roleId !== "string" || !isSnowflake(b.roleId)) {
-        reply.code(400).send({ error: "roleId required" });
-        return;
-      }
-      await CapabilityGrant.upsert({
-        guildId,
-        capability: b.capability.trim(),
-        roleId: b.roleId,
-      });
-      reply.code(204).send();
-    },
-  );
-  server.delete<{
-    Params: { guildId: string; capability: string; roleId: string };
-  }>(
-    "/api/guilds/:guildId/feature/capability-grants/:capability/:roleId",
-    async (request, reply) => {
-      if (
-        !requireGuildCapability(
-          request,
-          reply,
-          request.params.guildId,
-          "manage",
-        )
-      )
-        return;
-      const { guildId, capability, roleId } = request.params;
-      await CapabilityGrant.destroy({ where: { guildId, capability, roleId } });
-      reply.code(204).send();
-    },
-  );
 }

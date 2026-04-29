@@ -42,13 +42,6 @@ export interface RoleReceiveMessageEntry extends GuildChannelRef {
     groupId: number;
 }
 
-export interface CapabilityGrantEntry {
-    capability: string;
-    roleId: string;
-    roleName: string | null;
-    roleColor: string | null;
-}
-
 export interface GuildDetail {
     guild: GuildSummary & { description: string | null };
     todoChannels: GuildChannelRef[];
@@ -57,7 +50,6 @@ export interface GuildDetail {
     roleEmojiGroups: RoleEmojiGroupEntry[];
     roleEmojis: RoleEmojiEntry[];
     roleReceiveMessages: RoleReceiveMessageEntry[];
-    capabilityGrants: CapabilityGrantEntry[];
 }
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
@@ -1000,19 +992,6 @@ export async function removeRoleReceiveMessage(guildId: string, channelId: strin
     const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/role-receive-messages/${encodeURIComponent(channelId)}/${encodeURIComponent(messageId)}`;
     const response = await authedFetch(url, { method: 'DELETE' });
     if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove role-receive message');
-}
-
-export async function addCapabilityGrant(guildId: string, capability: string, roleId: string): Promise<void> {
-    const response = await authedFetch(`/api/guilds/${encodeURIComponent(guildId)}/feature/capability-grants`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ capability, roleId })
-    });
-    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to add capability grant');
-}
-export async function removeCapabilityGrant(guildId: string, capability: string, roleId: string): Promise<void> {
-    const url = `/api/guilds/${encodeURIComponent(guildId)}/feature/capability-grants/${encodeURIComponent(capability)}/${encodeURIComponent(roleId)}`;
-    const response = await authedFetch(url, { method: 'DELETE' });
-    if (!response.ok && response.status !== 204) throw new ApiError(response.status, 'Failed to remove capability grant');
 }
 
 /** Pass `null` to clear an existing timeout, or an ISO string ≤28 days

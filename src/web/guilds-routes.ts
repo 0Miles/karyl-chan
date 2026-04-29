@@ -7,7 +7,6 @@ import { RoleEmoji } from '../models/role-emoji.model.js';
 import { RoleEmojiGroup } from '../models/role-emoji-group.model.js';
 import { RoleReceiveMessage } from '../models/role-receive-message.model.js';
 import { ChannelType } from 'discord.js';
-import { CapabilityGrant } from '../models/capability-grant.model.js';
 import { guildAccessFilter, requireAnyGuildCapability, requireGuildCapability } from './route-guards.js';
 
 export interface GuildsRoutesOptions {
@@ -72,14 +71,12 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
             rconForwardChannels,
             roleEmojiGroups,
             roleReceiveMessages,
-            capabilityGrants
         ] = await Promise.all([
             TodoChannel.findAll({ where: { guildId: guild.id } }),
             PictureOnlyChannel.findAll({ where: { guildId: guild.id } }),
             RconForwardChannel.findAll({ where: { guildId: guild.id } }),
             RoleEmojiGroup.findAll({ where: { guildId: guild.id }, order: [['name', 'ASC']] }),
             RoleReceiveMessage.findAll({ where: { guildId: guild.id } }),
-            CapabilityGrant.findAll({ where: { guildId: guild.id } })
         ]);
         // Mappings depend on which groups belong to this guild — pull
         // them by groupId rather than guildId so we don't expose other
@@ -145,12 +142,6 @@ export async function registerGuildsRoutes(server: FastifyInstance, options: Gui
                 messageId: r.getDataValue('messageId') as string,
                 groupId: r.getDataValue('groupId') as number
             })),
-            capabilityGrants: capabilityGrants.map(r => ({
-                capability: r.getDataValue('capability') as string,
-                roleId: r.getDataValue('roleId') as string,
-                roleName: roleName(r.getDataValue('roleId') as string),
-                roleColor: roleColor(r.getDataValue('roleId') as string)
-            }))
         };
     });
 

@@ -118,6 +118,17 @@ const selectedPlugin = computed(() =>
 
 const dmBehaviorChoices = computed(() => selectedPlugin.value?.manifest?.dm_behaviors ?? []);
 
+// Whether the currently-picked plugin dm_behavior advertises support
+// for continuous sessions in its manifest. Drives forwardType field
+// visibility — if the plugin can't run a continuous session,
+// forwardType is fixed to one_time and hidden from the form.
+const selectedDmBehaviorSupportsContinuous = computed(() => {
+    if (draft.type !== 'plugin') return true;
+    if (!draft.pluginBehaviorKey) return false;
+    const b = dmBehaviorChoices.value.find(x => x.key === draft.pluginBehaviorKey);
+    return !!b?.supports_continuous;
+});
+
 const dirty = computed(() => {
     const b = props.behavior;
     // Type / plugin fields are part of dirtiness so a freshly added
@@ -167,6 +178,16 @@ watch(() => draft.pluginId, () => {
     const first = dmBehaviorChoices.value[0];
     if (first && !dmBehaviorChoices.value.some(b => b.key === draft.pluginBehaviorKey)) {
         draft.pluginBehaviorKey = first.key;
+    }
+});
+
+// If the picked plugin behavior doesn't support continuous, force
+// the persisted forwardType back to one_time. Without this, a row
+// previously configured continuous on a webhook then switched to a
+// no-continuous plugin would dispatch trying to start sessions.
+watch(selectedDmBehaviorSupportsContinuous, (supports) => {
+    if (!supports && draft.forwardType === 'continuous') {
+        draft.forwardType = 'one_time';
     }
 });
 
@@ -440,11 +461,6 @@ async function onDelete() {
                 </label>
 
                 <div class="field">
-                    <span class="label">{{ t('behaviors.card.forwardType') }}</span>
-                    <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
-                </div>
-
-                <div class="field">
                     <span class="label">{{ t('behaviors.card.targetId') }}</span>
                     <AppSelectField v-model="draft.targetId" :options="targetOptions" />
                 </div>
@@ -455,6 +471,10 @@ async function onDelete() {
                 </div>
 
                 <template v-if="draft.type === 'webhook'">
+                    <div class="field">
+                        <span class="label">{{ t('behaviors.card.forwardType') }}</span>
+                        <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
+                    </div>
                     <label class="field full">
                         <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
                         <input
@@ -493,6 +513,14 @@ async function onDelete() {
                     <div v-if="dmBehaviorOptions.length > 0" class="field full">
                         <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
                         <AppSelectField v-model="draft.pluginBehaviorKey" :options="dmBehaviorOptions" />
+                    </div>
+                    <!-- Plugin's manifest declares whether this dm_behavior
+                         supports a continuous session. Hide the picker
+                         when the plugin doesn't support it (force one_time);
+                         show it otherwise so the admin can opt in. -->
+                    <div v-if="selectedDmBehaviorSupportsContinuous" class="field">
+                        <span class="label">{{ t('behaviors.card.forwardType') }}</span>
+                        <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
                     </div>
                 </template>
 
