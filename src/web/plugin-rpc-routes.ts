@@ -373,11 +373,9 @@ export async function registerPluginRpcRoutes(
     }
     const incomingBytes = Buffer.byteLength(body.value, "utf8");
     if (incomingBytes > KV_VALUE_MAX_BYTES) {
-      reply
-        .code(413)
-        .send({
-          error: `value exceeds per-row hard cap (${KV_VALUE_MAX_BYTES}B)`,
-        });
+      reply.code(413).send({
+        error: `value exceeds per-row hard cap (${KV_VALUE_MAX_BYTES}B)`,
+      });
       return;
     }
     // Quota check: sum existing bytes minus what this key already

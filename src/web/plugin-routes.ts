@@ -453,7 +453,8 @@ export async function registerPluginRoutes(
           manifestDefault,
           override: override ? override.enabled : null,
           effectiveDefault: effective,
-          enabledGuildCount: guildRowsForFeature.filter((r) => r.enabled).length,
+          enabledGuildCount: guildRowsForFeature.filter((r) => r.enabled)
+            .length,
           disabledGuildCount: guildRowsForFeature.filter((r) => !r.enabled)
             .length,
         });
