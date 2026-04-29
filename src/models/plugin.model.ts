@@ -194,10 +194,7 @@ export const expireStalePlugins = async (cutoff: Date): Promise<number[]> => {
   });
   const ids = stale.map((m) => m.getDataValue("id") as number);
   if (ids.length > 0) {
-    await Plugin.update(
-      { status: "inactive" },
-      { where: { id: ids } },
-    );
+    await Plugin.update({ status: "inactive" }, { where: { id: ids } });
   }
   return ids;
 };

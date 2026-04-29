@@ -52,7 +52,9 @@ const migration: Migration = {
     // SQLite requires column drops via table rebuild (PRAGMA
     // foreign_keys=off; rename; recreate; copy; drop). Not implementing
     // for now — Phase 1 forward-only.
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS behaviors_plugin_idx;`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS behaviors_plugin_idx;`,
+    );
   },
 };
 

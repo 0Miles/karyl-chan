@@ -10,15 +10,20 @@ import {
     type BehaviorRow,
     type BehaviorTargetSummary,
     type BehaviorTriggerType,
+    type BehaviorType,
     deleteBehavior,
     updateBehavior
 } from '../../../api/behavior';
+import type { PluginRecord } from '../../../api/plugins';
 
 const { t } = useI18n();
 
 const props = defineProps<{
     behavior: BehaviorRow;
     targets: BehaviorTargetSummary[];
+    /** Pre-loaded plugin list from the parent so the type=plugin form
+     *  has a select to populate without each card N+1-fetching. */
+    plugins?: PluginRecord[];
     /** Initial expanded state — true for newly added cards. */
     initiallyOpen?: boolean;
 }>();
@@ -46,6 +51,9 @@ interface Draft {
     webhookUrl: string;
     /** Empty = no signing (clear). Server stores AES-encrypted; UI shows plaintext. */
     webhookSecret: string;
+    type: BehaviorType;
+    pluginId: number | null;
+    pluginBehaviorKey: string;
 }
 
 function draftFrom(row: BehaviorRow): Draft {
@@ -57,8 +65,14 @@ function draftFrom(row: BehaviorRow): Draft {
         forwardType: row.forwardType,
         stopOnMatch: row.stopOnMatch,
         targetId: row.targetId,
-        webhookUrl: row.webhookUrl,
-        webhookSecret: row.webhookSecret ?? ''
+        // For type='plugin' rows the URL field holds a "plugin://…"
+        // placeholder. Hide it from the user when the form switches
+        // back to 'webhook' by zeroing here so they can type a real URL.
+        webhookUrl: row.type === 'plugin' ? '' : row.webhookUrl,
+        webhookSecret: row.webhookSecret ?? '',
+        type: row.type,
+        pluginId: row.pluginId,
+        pluginBehaviorKey: row.pluginBehaviorKey ?? '',
     };
 }
 
@@ -88,17 +102,67 @@ watch(() => props.behavior.enabled, (next) => {
     enabledLocal.value = next;
 });
 
+// Plugins offering at least one dm_behavior (eligible for selection
+// in this card). Inactive / disabled / no-dm-behavior plugins are
+// omitted so the user can't pick a routing target that won't fire.
+const eligiblePlugins = computed(() =>
+    (props.plugins ?? []).filter(p =>
+        p.enabled && p.status === 'active' && (p.manifest?.dm_behaviors?.length ?? 0) > 0
+    )
+);
+
+const selectedPlugin = computed(() =>
+    eligiblePlugins.value.find(p => p.id === draft.pluginId) ?? null
+);
+
+const dmBehaviorChoices = computed(() => selectedPlugin.value?.manifest?.dm_behaviors ?? []);
+
 const dirty = computed(() => {
     const b = props.behavior;
+    // Type / plugin fields are part of dirtiness so a freshly added
+    // webhook card switched to plugin (without other changes) still
+    // lights up the Save button.
+    if (draft.type !== b.type) return true;
+    if (draft.type === 'plugin') {
+        if ((draft.pluginId ?? null) !== (b.pluginId ?? null)) return true;
+        if ((draft.pluginBehaviorKey || '') !== (b.pluginBehaviorKey ?? '')) return true;
+    }
+    if (draft.type === 'webhook') {
+        // Compare against the encrypted-then-decrypted prop value
+        // exactly the same way pre-plugin code did.
+        if (draft.webhookUrl !== b.webhookUrl) return true;
+        if (draft.webhookSecret !== (b.webhookSecret ?? '')) return true;
+    }
     return draft.title !== b.title
         || draft.description !== b.description
         || draft.triggerType !== b.triggerType
         || draft.triggerValue !== b.triggerValue
         || draft.forwardType !== b.forwardType
         || draft.stopOnMatch !== b.stopOnMatch
-        || draft.targetId !== b.targetId
-        || draft.webhookUrl !== b.webhookUrl
-        || draft.webhookSecret !== (b.webhookSecret ?? '');
+        || draft.targetId !== b.targetId;
+});
+
+// When the user switches type within the form, auto-pick the first
+// plugin / first dm_behavior so the form lands ready-to-save instead
+// of greying out the button until they manually pick something.
+watch(() => draft.type, (next) => {
+    if (next === 'plugin' && draft.pluginId == null) {
+        const first = eligiblePlugins.value[0];
+        if (first) {
+            draft.pluginId = first.id;
+            const behavior = first.manifest?.dm_behaviors?.[0];
+            draft.pluginBehaviorKey = behavior?.key ?? '';
+        }
+    }
+});
+
+watch(() => draft.pluginId, () => {
+    // After picking a different plugin, default to its first
+    // dm_behavior. User can then narrow if multiple.
+    const first = dmBehaviorChoices.value[0];
+    if (first && !dmBehaviorChoices.value.some(b => b.key === draft.pluginBehaviorKey)) {
+        draft.pluginBehaviorKey = first.key;
+    }
 });
 
 const triggerSummary = computed(() => {
@@ -148,14 +212,23 @@ async function onSave() {
             return;
         }
     }
-    // webhookUrl is only required for type='webhook' behaviors. Plugin
-    // behaviors carry a non-functional placeholder URL the user shouldn't
-    // edit, so we don't validate it and don't include it in the patch
-    // either (the bot rejects PATCH webhookUrl unless it's a valid http
-    // URL — the placeholder isn't).
-    if (props.behavior.type !== 'plugin' && !draft.webhookUrl.trim()) {
+    // Type-specific validation. Webhook needs a real URL; plugin needs
+    // both pluginId and a behavior key declared by that plugin's
+    // manifest. Server re-validates so this is just for fast UX
+    // feedback — invalid form doesn't issue a doomed PATCH.
+    if (draft.type === 'webhook' && !draft.webhookUrl.trim()) {
         error.value = t('behaviors.card.webhookUrlRequired');
         return;
+    }
+    if (draft.type === 'plugin') {
+        if (draft.pluginId == null) {
+            error.value = t('behaviors.card.pluginRequired');
+            return;
+        }
+        if (!draft.pluginBehaviorKey) {
+            error.value = t('behaviors.card.pluginBehaviorKeyRequired');
+            return;
+        }
     }
     saving.value = true;
     try {
@@ -169,18 +242,35 @@ async function onSave() {
             stopOnMatch: draft.stopOnMatch,
             targetId: draft.targetId,
         };
-        if (props.behavior.type !== 'plugin') {
-            patch.webhookUrl = draft.webhookUrl.trim();
+        // Send `type` only when it changed — saves an unnecessary
+        // type-switch round trip on routine edits.
+        const typeChanged = draft.type !== props.behavior.type;
+        if (typeChanged) {
+            patch.type = draft.type;
+        }
+        if (draft.type === 'webhook') {
+            // Always include URL on type-change to webhook (server
+            // demands it when leaving plugin); on same-type save send
+            // it only if changed (legacy behavior).
+            if (typeChanged || draft.webhookUrl !== props.behavior.webhookUrl) {
+                patch.webhookUrl = draft.webhookUrl.trim();
+            }
             // `enabled` is intentionally NOT touched by Save — the toggle
-            // owns it through its own PATCH path. Mixing them caused a race
-            // where flipping the toggle then pressing Save reverted the
-            // server-side enabled to whatever Save's stale draft held.
-            // Only include webhookSecret in the patch if it actually changed
-            // — sending it on every save is harmless but generates noise in
-            // the audit log's `fields` list.
+            // owns it through its own PATCH path.
             const currentSecret = props.behavior.webhookSecret ?? '';
             if (draft.webhookSecret !== currentSecret) {
                 patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+            }
+        } else {
+            // type === 'plugin'. Always include pluginId + key when
+            // type changed (mandatory on PATCH); on same-type save
+            // include only if changed.
+            const pluginChanged =
+                draft.pluginId !== props.behavior.pluginId ||
+                draft.pluginBehaviorKey !== (props.behavior.pluginBehaviorKey ?? '');
+            if (typeChanged || pluginChanged) {
+                patch.pluginId = draft.pluginId;
+                patch.pluginBehaviorKey = draft.pluginBehaviorKey;
             }
         }
         const updated = await updateBehavior(props.behavior.id, patch);
@@ -334,43 +424,73 @@ async function onDelete() {
                     </select>
                 </label>
 
-                <div v-if="behavior.type === 'plugin'" class="field full plugin-info">
-                    <span class="label">{{ t('behaviors.card.pluginRoute') }}</span>
-                    <p class="plugin-info-text">
-                        <Icon icon="material-symbols:extension-outline" width="14" height="14" />
+                <fieldset class="field full type-picker">
+                    <legend class="label">{{ t('behaviors.card.dispatchType') }}</legend>
+                    <label class="type-option" :class="{ active: draft.type === 'webhook' }">
+                        <input type="radio" :value="'webhook'" v-model="draft.type" />
+                        <Icon icon="material-symbols:webhook" width="16" height="16" />
                         <span>
-                            <code>plugin#{{ behavior.pluginId }}</code>
-                            <span class="sep">→</span>
-                            <code>{{ behavior.pluginBehaviorKey }}</code>
+                            <strong>{{ t('behaviors.card.dispatchTypeWebhook') }}</strong>
+                            <small>{{ t('behaviors.card.dispatchTypeWebhookHint') }}</small>
                         </span>
-                    </p>
-                    <p class="hint">{{ t('behaviors.card.pluginRouteHint') }}</p>
-                </div>
+                    </label>
+                    <label class="type-option" :class="{ active: draft.type === 'plugin' }">
+                        <input type="radio" :value="'plugin'" v-model="draft.type" />
+                        <Icon icon="material-symbols:extension-outline" width="16" height="16" />
+                        <span>
+                            <strong>{{ t('behaviors.card.dispatchTypePlugin') }}</strong>
+                            <small>{{ t('behaviors.card.dispatchTypePluginHint') }}</small>
+                        </span>
+                    </label>
+                </fieldset>
 
-                <label v-if="behavior.type !== 'plugin'" class="field full">
-                    <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
-                    <input
-                        v-model="draft.webhookUrl"
-                        type="text"
-                        placeholder="https://discord.com/api/webhooks/…"
-                        maxlength="1000"
-                    />
-                </label>
+                <template v-if="draft.type === 'webhook'">
+                    <label class="field full">
+                        <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
+                        <input
+                            v-model="draft.webhookUrl"
+                            type="text"
+                            placeholder="https://discord.com/api/webhooks/…"
+                            maxlength="1000"
+                        />
+                    </label>
+                    <label class="field full">
+                        <span class="label">
+                            {{ t('behaviors.card.webhookSecret') }}
+                            <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
+                        </span>
+                        <input
+                            v-model="draft.webhookSecret"
+                            type="text"
+                            :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
+                            maxlength="200"
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                    </label>
+                </template>
 
-                <label v-if="behavior.type !== 'plugin'" class="field full">
-                    <span class="label">
-                        {{ t('behaviors.card.webhookSecret') }}
-                        <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
-                    </span>
-                    <input
-                        v-model="draft.webhookSecret"
-                        type="text"
-                        :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
-                        maxlength="200"
-                        autocomplete="off"
-                        spellcheck="false"
-                    />
-                </label>
+                <template v-else>
+                    <label class="field full">
+                        <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
+                        <select v-model.number="draft.pluginId">
+                            <option v-if="eligiblePlugins.length === 0" :value="null" disabled>
+                                {{ t('behaviors.card.pluginNoneAvailable') }}
+                            </option>
+                            <option v-for="p in eligiblePlugins" :key="p.id" :value="p.id">
+                                {{ p.name }} (v{{ p.version }})
+                            </option>
+                        </select>
+                    </label>
+                    <label v-if="dmBehaviorChoices.length > 0" class="field full">
+                        <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
+                        <select v-model="draft.pluginBehaviorKey">
+                            <option v-for="b in dmBehaviorChoices" :key="b.key" :value="b.key">
+                                {{ b.name }}<template v-if="b.description"> — {{ b.description }}</template>
+                            </option>
+                        </select>
+                    </label>
+                </template>
 
                 <label class="field full inline">
                     <input type="checkbox" v-model="draft.stopOnMatch" />
@@ -462,27 +582,50 @@ async function onDelete() {
 .tag-continuous { background: var(--accent-bg); color: var(--accent-text-strong); }
 .tag-stop { background: var(--warn-bg); color: var(--warn-text); }
 .tag-plugin { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
-.plugin-info {
-    background: var(--bg-page);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 0.5rem 0.6rem;
-}
-.plugin-info-text {
+
+.type-picker {
+    border: none;
+    padding: 0;
     margin: 0;
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 0.4rem;
-    color: var(--text);
 }
-.plugin-info-text code {
-    font-family: var(--font-mono, monospace);
-    font-size: 0.82rem;
-    background: var(--bg-surface);
-    padding: 0.1rem 0.35rem;
+.type-picker .label {
+    margin-bottom: 0.1rem;
+    padding: 0;
+}
+.type-option {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
+    background: var(--bg-page);
+    cursor: pointer;
+    transition: border-color 0.1s, background 0.1s;
 }
-.plugin-info-text .sep { color: var(--text-muted); margin: 0 0.2rem; }
+.type-option:hover { border-color: var(--accent); }
+.type-option.active {
+    border-color: var(--accent);
+    background: var(--accent-bg, var(--bg-surface));
+}
+.type-option input[type="radio"] {
+    margin: 0;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+}
+.type-option > svg, .type-option > .iconify { color: var(--text-muted); flex-shrink: 0; }
+.type-option.active > svg, .type-option.active > .iconify { color: var(--accent); }
+.type-option > span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+.type-option strong { font-weight: 600; color: var(--text); font-size: 0.9rem; }
+.type-option small { color: var(--text-muted); font-size: 0.78rem; line-height: 1.35; }
 
 .toggle {
     position: relative;

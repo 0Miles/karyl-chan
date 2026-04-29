@@ -43,8 +43,12 @@ const migration: Migration = {
     `);
   },
   down: async ({ queryInterface }) => {
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_guild_features_by_guild;`);
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_guild_features_unique;`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_guild_features_by_guild;`,
+    );
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_guild_features_unique;`,
+    );
     await queryInterface.dropTable("plugin_guild_features");
   },
 };

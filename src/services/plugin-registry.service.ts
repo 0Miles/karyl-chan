@@ -7,7 +7,10 @@ import {
   upsertPluginRegistration,
   type PluginRow,
 } from "../models/plugin.model.js";
-import { pluginAuthStore, PluginAuthStore } from "../web/plugin-auth.service.js";
+import {
+  pluginAuthStore,
+  PluginAuthStore,
+} from "../web/plugin-auth.service.js";
 import { botEventLog } from "../web/bot-event-log.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 import {
@@ -181,7 +184,8 @@ export function validateManifest(input: unknown): ManifestValidation {
   // shape beyond this. Stricter checks (e.g. valid Discord option
   // types) live in the command-registration layer where they're
   // actionable.
-  for (const f of (m.guild_features as ManifestGuildFeature[] | undefined) ?? []) {
+  for (const f of (m.guild_features as ManifestGuildFeature[] | undefined) ??
+    []) {
     if (!f.key || !f.name) {
       return {
         ok: false,
@@ -343,7 +347,10 @@ export class PluginRegistry {
    * any in-flight RPC fails with 401. Re-enabling requires the plugin
    * to re-register (no automatic resurrection).
    */
-  async setEnabled(pluginId: number, enabled: boolean): Promise<PluginRow | null> {
+  async setEnabled(
+    pluginId: number,
+    enabled: boolean,
+  ): Promise<PluginRow | null> {
     const row = await setEnabledModel(pluginId, enabled);
     if (row && !enabled) {
       this.auth.revokeByPluginId(pluginId);
@@ -412,11 +419,7 @@ export class PluginRegistry {
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        botEventLog.record(
-          "error",
-          "error",
-          `Plugin reaper failed: ${msg}`,
-        );
+        botEventLog.record("error", "error", `Plugin reaper failed: ${msg}`);
       }
     };
     this.reaperTimer = setInterval(tick, REAPER_INTERVAL_MS);

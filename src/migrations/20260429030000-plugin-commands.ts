@@ -58,8 +58,12 @@ const migration: Migration = {
     `);
   },
   down: async ({ queryInterface }) => {
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_commands_lookup;`);
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_commands_unique;`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_commands_lookup;`,
+    );
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_commands_unique;`,
+    );
     await queryInterface.dropTable("plugin_commands");
   },
 };

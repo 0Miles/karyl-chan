@@ -52,8 +52,12 @@ const migration: Migration = {
     `);
   },
   down: async ({ queryInterface }) => {
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_kv_quota_idx;`);
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugin_kv_lookup_uq;`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_kv_quota_idx;`,
+    );
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugin_kv_lookup_uq;`,
+    );
     await queryInterface.dropTable("plugin_kv");
   },
 };

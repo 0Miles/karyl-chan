@@ -98,15 +98,18 @@ interface OptionEntry {
  * the public API gives us the resolved values but not the raw shape
  * — we serialize down to a plugin-friendly tree.
  */
-function serializeOptions(
-  interaction: ChatInputCommandInteraction,
-): { sub_command?: string; sub_command_group?: string; options: OptionEntry[] } {
+function serializeOptions(interaction: ChatInputCommandInteraction): {
+  sub_command?: string;
+  sub_command_group?: string;
+  options: OptionEntry[];
+} {
   const subGroup = interaction.options.getSubcommandGroup(false) ?? undefined;
   const sub = interaction.options.getSubcommand(false) ?? undefined;
   // discord.js' resolver doesn't directly expose a raw tree; rebuild
   // from the data on the interaction.
-  const raw = (interaction.options as unknown as { _hoistedOptions?: OptionEntry[] })
-    ._hoistedOptions;
+  const raw = (
+    interaction.options as unknown as { _hoistedOptions?: OptionEntry[] }
+  )._hoistedOptions;
   return {
     sub_command: sub,
     sub_command_group: subGroup,
@@ -235,12 +238,9 @@ async function dispatchAutocomplete(
     await interaction.respond([]).catch(() => {});
     return;
   }
-  const url = resolveUrl(
-    plugin,
-    manifest,
-    DEFAULT_AUTOCOMPLETE_PATH,
-    { command_name: interaction.commandName },
-  );
+  const url = resolveUrl(plugin, manifest, DEFAULT_AUTOCOMPLETE_PATH, {
+    command_name: interaction.commandName,
+  });
   if (!url) {
     await interaction.respond([]).catch(() => {});
     return;
@@ -268,9 +268,9 @@ async function dispatchAutocomplete(
       await interaction.respond([]).catch(() => {});
       return;
     }
-    const data = (await res.json().catch(() => null)) as
-      | { choices?: Array<{ name: string; value: string | number }> }
-      | null;
+    const data = (await res.json().catch(() => null)) as {
+      choices?: Array<{ name: string; value: string | number }>;
+    } | null;
     await interaction.respond(data?.choices ?? []).catch(() => {});
   } catch {
     await interaction.respond([]).catch(() => {});

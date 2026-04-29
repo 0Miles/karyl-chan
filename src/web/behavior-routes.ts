@@ -203,13 +203,17 @@ export async function registerBehaviorRoutes(
     // behavior-related token at all so the page-load doesn't waste a
     // round-trip.
     const caps = request.authCapabilities as Set<AdminCapability> | undefined;
-    const access = accessibleBehaviorTargetIds(caps ?? new Set<AdminCapability>());
+    const access = accessibleBehaviorTargetIds(
+      caps ?? new Set<AdminCapability>(),
+    );
     if (access !== "all" && access.size === 0) {
       reply.code(403).send({ error: "behavior.manage capability required" });
       return;
     }
     const allowed = visibleTargetFilter(request);
-    const targets = (await findAllBehaviorTargets()).filter((t) => allowed(t.id));
+    const targets = (await findAllBehaviorTargets()).filter((t) =>
+      allowed(t.id),
+    );
     // Embed user profile for kind='user' rows so the sidebar can
     // render avatar + display name without a second round-trip per
     // entry (mirrors how DM channel summaries embed recipient).
@@ -592,19 +596,15 @@ export async function registerBehaviorRoutes(
         typeof triggerType !== "string" ||
         !TRIGGER_TYPES.includes(triggerType as BehaviorTriggerType)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `triggerType must be one of ${TRIGGER_TYPES.join("|")}`,
-          });
+        reply.code(400).send({
+          error: `triggerType must be one of ${TRIGGER_TYPES.join("|")}`,
+        });
         return;
       }
       if (!isBoundedString(triggerValue, TRIGGER_VALUE_MAX)) {
-        reply
-          .code(400)
-          .send({
-            error: `triggerValue required (max ${TRIGGER_VALUE_MAX} chars)`,
-          });
+        reply.code(400).send({
+          error: `triggerValue required (max ${TRIGGER_VALUE_MAX} chars)`,
+        });
         return;
       }
       if (triggerType === "regex" && !isValidRegex(triggerValue)) {
@@ -615,11 +615,9 @@ export async function registerBehaviorRoutes(
         typeof forwardType !== "string" ||
         !FORWARD_TYPES.includes(forwardType as BehaviorForwardType)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `forwardType must be one of ${FORWARD_TYPES.join("|")}`,
-          });
+        reply.code(400).send({
+          error: `forwardType must be one of ${FORWARD_TYPES.join("|")}`,
+        });
         return;
       }
       // Per-type validation. Webhook rows need a real URL + optional
@@ -643,11 +641,9 @@ export async function registerBehaviorRoutes(
         }
         if (typeof webhookSecret === "string" && webhookSecret.length > 0) {
           if (webhookSecret.length > WEBHOOK_SECRET_MAX) {
-            reply
-              .code(400)
-              .send({
-                error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars`,
-              });
+            reply.code(400).send({
+              error: `webhookSecret max ${WEBHOOK_SECRET_MAX} chars`,
+            });
             return;
           }
           encryptedSecret = encryptSecret(webhookSecret);
@@ -783,11 +779,9 @@ export async function registerBehaviorRoutes(
         typeof body.triggerType !== "string" ||
         !TRIGGER_TYPES.includes(body.triggerType as BehaviorTriggerType)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `triggerType must be one of ${TRIGGER_TYPES.join("|")}`,
-          });
+        reply.code(400).send({
+          error: `triggerType must be one of ${TRIGGER_TYPES.join("|")}`,
+        });
         return;
       }
       update.triggerType = body.triggerType as BehaviorTriggerType;
@@ -815,11 +809,9 @@ export async function registerBehaviorRoutes(
         typeof body.forwardType !== "string" ||
         !FORWARD_TYPES.includes(body.forwardType as BehaviorForwardType)
       ) {
-        reply
-          .code(400)
-          .send({
-            error: `forwardType must be one of ${FORWARD_TYPES.join("|")}`,
-          });
+        reply.code(400).send({
+          error: `forwardType must be one of ${FORWARD_TYPES.join("|")}`,
+        });
         return;
       }
       update.forwardType = body.forwardType as BehaviorForwardType;
@@ -879,11 +871,89 @@ export async function registerBehaviorRoutes(
       // (already checked above against existing.targetId) AND the
       // destination — otherwise a scoped user could push behaviors
       // out of their lane into one they don't manage.
-      if (newTargetId !== existing.targetId
-          && !requireBehaviorTarget(request, reply, newTargetId)) {
+      if (
+        newTargetId !== existing.targetId &&
+        !requireBehaviorTarget(request, reply, newTargetId)
+      ) {
         return;
       }
       update.targetId = newTargetId;
+    }
+
+    // Type / plugin switch. Allowed on PATCH because the UX pattern
+    // is "edit type in the card, save". When switching:
+    //   webhook → plugin: clear webhookSecret, replace webhookUrl
+    //                     with the placeholder, set pluginId / key
+    //   plugin → webhook: clear pluginId / pluginBehaviorKey, require
+    //                     a real webhookUrl (use update.webhookUrl
+    //                     above), webhookSecret optional
+    // We do this LAST so all other field updates above are already
+    // accumulated in `update`.
+    if (body.type !== undefined) {
+      const nextType: "webhook" | "plugin" =
+        body.type === "plugin" ? "plugin" : "webhook";
+      if (nextType === "plugin") {
+        const pid = Number(body.pluginId);
+        if (!Number.isInteger(pid) || pid <= 0) {
+          reply.code(400).send({ error: "pluginId required for type=plugin" });
+          return;
+        }
+        const bk = body.pluginBehaviorKey;
+        if (typeof bk !== "string" || bk.length === 0 || bk.length > 80) {
+          reply
+            .code(400)
+            .send({ error: "pluginBehaviorKey required for type=plugin" });
+          return;
+        }
+        const plugin = await findPluginById(pid);
+        if (!plugin) {
+          reply.code(404).send({ error: `plugin id=${pid} not found` });
+          return;
+        }
+        let manifest: PluginManifest | null = null;
+        try {
+          manifest = JSON.parse(plugin.manifestJson) as PluginManifest;
+        } catch {
+          /* manifest parse fail → behavior_key check below fails */
+        }
+        if (!manifest?.dm_behaviors?.some((b) => b.key === bk)) {
+          reply.code(400).send({
+            error: `plugin '${plugin.pluginKey}' does not declare dm_behavior key='${bk}'`,
+          });
+          return;
+        }
+        update.type = "plugin";
+        update.pluginId = pid;
+        update.pluginBehaviorKey = bk;
+        // Replace webhookUrl with a placeholder; a real URL on a
+        // plugin row is dead weight and could mislead future
+        // operators. webhookSecret cleared because the plugin path
+        // uses KARYL_PLUGIN_SECRET, not a per-behavior secret.
+        update.webhookUrl = encryptSecret(
+          `plugin://${plugin.pluginKey}/${bk}`,
+        );
+        update.webhookSecret = null;
+      } else {
+        // webhook: caller must supply webhookUrl (already validated
+        // above if they passed body.webhookUrl). If the existing row
+        // is a plugin row and they didn't pass a URL, refuse — we'd
+        // be left with a "plugin://" placeholder masquerading as a
+        // real webhook URL.
+        if (
+          existing.type === "plugin" &&
+          update.webhookUrl === undefined &&
+          body.webhookUrl === undefined
+        ) {
+          reply.code(400).send({
+            error:
+              "switching from plugin to webhook requires a webhookUrl",
+          });
+          return;
+        }
+        update.type = "webhook";
+        update.pluginId = null;
+        update.pluginBehaviorKey = null;
+      }
     }
 
     const updated = await updateBehavior(behaviorId, update);
@@ -979,12 +1049,10 @@ export async function registerBehaviorRoutes(
         currentIds.size !== submittedIds.size ||
         [...currentIds].some((cid) => !submittedIds.has(cid))
       ) {
-        reply
-          .code(409)
-          .send({
-            error:
-              "orderedIds does not match the current behavior set; refresh and retry",
-          });
+        reply.code(409).send({
+          error:
+            "orderedIds does not match the current behavior set; refresh and retry",
+        });
         return;
       }
       await reorderBehaviors(id, orderedIds as number[]);

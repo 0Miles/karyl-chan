@@ -58,8 +58,12 @@ const migration: Migration = {
     `);
   },
   down: async ({ queryInterface }) => {
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugins_enabled_idx;`);
-    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS plugins_status_idx;`);
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugins_enabled_idx;`,
+    );
+    await queryInterface.sequelize.query(
+      `DROP INDEX IF EXISTS plugins_status_idx;`,
+    );
     await queryInterface.dropTable("plugins");
   },
 };

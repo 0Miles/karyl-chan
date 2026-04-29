@@ -47,11 +47,10 @@ export class PluginAuthStore {
    * previously cached token for this pluginId is wiped — only the
    * latest registration is honored.
    */
-  issue(input: {
-    pluginId: number;
-    pluginKey: string;
-    scopes: string[];
-  }): { token: string; tokenHash: string } {
+  issue(input: { pluginId: number; pluginKey: string; scopes: string[] }): {
+    token: string;
+    tokenHash: string;
+  } {
     // Drop any stale records for this plugin id. There can be at most
     // one live token per plugin at a time.
     for (const [h, rec] of this.byHash) {
@@ -73,7 +72,10 @@ export class PluginAuthStore {
    * or null. Constant-time string-length-prefix prevents timing leaks
    * on short prefixes.
    */
-  verify(presentedToken: string, now: number = Date.now()): PluginAuthRecord | null {
+  verify(
+    presentedToken: string,
+    now: number = Date.now(),
+  ): PluginAuthRecord | null {
     if (!presentedToken) return null;
     const presentedHash = hashToken(presentedToken);
     const rec = this.byHash.get(presentedHash);

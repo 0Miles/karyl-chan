@@ -4,9 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import Sortable from 'sortablejs';
 import BehaviorCard from './BehaviorCard.vue';
-import AddPluginBehaviorModal from './AddPluginBehaviorModal.vue';
-import AppMenu from '../../../components/AppMenu.vue';
-import AppMenuItem from '../../../components/AppMenuItem.vue';
 import {
     addGroupMember,
     createBehavior,
@@ -20,6 +17,7 @@ import {
     type BehaviorRow,
     type BehaviorTargetSummary
 } from '../../../api/behavior';
+import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
 const { t } = useI18n();
 
@@ -65,6 +63,12 @@ watch(() => props.target.id, (id) => {
     void load(id);
 }, { immediate: true });
 
+// Load plugins once on mount; refreshed implicitly when the workspace
+// remounts (target switch, page reload). For a long-lived session
+// this means newly registered plugins won't show up until reload —
+// acceptable for Phase 1.
+void loadPlugins();
+
 function teardownSortable() {
     if (sortable) {
         sortable.destroy();
@@ -108,12 +112,30 @@ watch(behaviors, async () => {
 
 onBeforeUnmount(teardownSortable);
 
-const pluginModalVisible = ref(false);
+// Plugin list pre-loaded once for every BehaviorCard to use in its
+// type=plugin form (plugin select + dm_behavior key select). One
+// fetch instead of N+1 from each card.
+const plugins = ref<PluginRecord[]>([]);
+
+async function loadPlugins() {
+    try {
+        plugins.value = await listPlugins();
+    } catch {
+        // Non-fatal: cards just won't be able to switch to type=plugin
+        // until plugins is populated. Errors here aren't shown to the
+        // user — they'll see the empty plugin select.
+        plugins.value = [];
+    }
+}
 
 async function onAddBehavior() {
     if (loading.value) return;
     error.value = null;
     try {
+        // Always create as type='webhook' with placeholder URL. The
+        // user picks webhook vs plugin inside the new card; switching
+        // to plugin is a PATCH that swaps the URL placeholder + sets
+        // pluginId/pluginBehaviorKey atomically.
         const created = await createBehavior(props.target.id, {
             title: t('behaviors.workspace.newBehaviorDefaultTitle'),
             description: '',
@@ -122,31 +144,6 @@ async function onAddBehavior() {
             forwardType: 'one_time',
             webhookUrl: 'https://discord.com/api/webhooks/REPLACE-ME',
             type: 'webhook',
-        });
-        behaviors.value = [...behaviors.value, created];
-        newlyCreatedId.value = created.id;
-    } catch (err) {
-        error.value = err instanceof Error ? err.message : String(err);
-    }
-}
-
-function onPickPluginBehavior() {
-    pluginModalVisible.value = true;
-}
-
-async function onCreatePluginBehavior(payload: { pluginId: number; pluginBehaviorKey: string; title: string }) {
-    pluginModalVisible.value = false;
-    error.value = null;
-    try {
-        const created = await createBehavior(props.target.id, {
-            title: payload.title,
-            description: '',
-            triggerType: 'startswith',
-            triggerValue: '',
-            forwardType: 'one_time',
-            type: 'plugin',
-            pluginId: payload.pluginId,
-            pluginBehaviorKey: payload.pluginBehaviorKey,
         });
         behaviors.value = [...behaviors.value, created];
         newlyCreatedId.value = created.id;
@@ -267,33 +264,10 @@ const headerTitle = computed(() => {
                 <template v-else>{{ t('behaviors.workspace.kindGroup') }}</template>
             </span>
             <span class="spacer" />
-            <div class="add-split">
-                <button type="button" class="primary split-main" :disabled="loading" @click="onAddBehavior">
-                    <Icon icon="material-symbols:add-rounded" width="16" height="16" />
-                    {{ t('behaviors.workspace.addBehavior') }}
-                </button>
-                <AppMenu placement="bottom-end" :offset="[0, 6]">
-                    <template #trigger>
-                        <button
-                            type="button"
-                            class="primary split-toggle"
-                            :disabled="loading"
-                            :title="t('behaviors.workspace.addBehaviorMenu')"
-                            :aria-label="t('behaviors.workspace.addBehaviorMenu')"
-                        >
-                            <Icon icon="material-symbols:expand-more-rounded" width="16" height="16" />
-                        </button>
-                    </template>
-                    <AppMenuItem @click="onAddBehavior">
-                        <Icon icon="material-symbols:webhook" width="16" height="16" />
-                        {{ t('behaviors.workspace.addWebhookBehavior') }}
-                    </AppMenuItem>
-                    <AppMenuItem @click="onPickPluginBehavior">
-                        <Icon icon="material-symbols:extension-outline" width="16" height="16" />
-                        {{ t('behaviors.workspace.addPluginBehavior') }}
-                    </AppMenuItem>
-                </AppMenu>
-            </div>
+            <button type="button" class="primary" :disabled="loading" @click="onAddBehavior">
+                <Icon icon="material-symbols:add-rounded" width="16" height="16" />
+                {{ t('behaviors.workspace.addBehavior') }}
+            </button>
             <button
                 v-if="target.kind !== 'all_dms' && canManageCatalog"
                 type="button"
@@ -365,18 +339,13 @@ const headerTitle = computed(() => {
                 :key="b.id"
                 :behavior="b"
                 :targets="targets"
+                :plugins="plugins"
                 :initially-open="newlyCreatedId === b.id"
                 @updated="onUpdated"
                 @deleted="onDeleted"
                 @moved="onMoved"
             />
         </div>
-
-        <AddPluginBehaviorModal
-            :visible="pluginModalVisible"
-            @close="pluginModalVisible = false"
-            @submit="onCreatePluginBehavior"
-        />
     </section>
 </template>
 
@@ -420,14 +389,6 @@ button.primary {
 }
 button.primary.small { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
 button.primary:disabled { opacity: 0.55; cursor: not-allowed; }
-.add-split { display: inline-flex; align-items: stretch; }
-.add-split .split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 0.7rem; }
-.add-split .split-toggle {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-    border-left: 1px solid rgba(255, 255, 255, 0.25);
-    padding: 0.45rem 0.4rem;
-}
 button.danger.ghost {
     background: none;
     border: 1px solid rgba(239, 68, 68, 0.4);

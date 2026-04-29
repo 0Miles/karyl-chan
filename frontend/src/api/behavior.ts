@@ -94,6 +94,16 @@ export interface BehaviorPatch {
   stopOnMatch?: boolean;
   enabled?: boolean;
   targetId?: number;
+  /**
+   * Switch the behavior between dispatch types. When changing TO
+   * 'plugin' the patch MUST include pluginId + pluginBehaviorKey.
+   * When changing TO 'webhook' from a plugin row the patch MUST
+   * include webhookUrl (the existing field holds a "plugin://…"
+   * placeholder that doesn't pass URL validation).
+   */
+  type?: BehaviorType;
+  pluginId?: number | null;
+  pluginBehaviorKey?: string | null;
 }
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {

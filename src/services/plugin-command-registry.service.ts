@@ -338,4 +338,6 @@ export function setPluginCommandBotClient(
 ): void {
   _botClient = client;
 }
-export const pluginCommandRegistry = new PluginCommandRegistry(() => _botClient);
+export const pluginCommandRegistry = new PluginCommandRegistry(
+  () => _botClient,
+);

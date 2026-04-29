@@ -113,7 +113,10 @@ function signBody(secret: string, ts: string, body: string): string {
     .digest("hex");
 }
 
-function resolveEventsUrl(plugin: PluginRow, manifest: PluginManifest): string | null {
+function resolveEventsUrl(
+  plugin: PluginRow,
+  manifest: PluginManifest,
+): string | null {
   const path = manifest.endpoints?.events ?? DEFAULT_EVENTS_PATH;
   try {
     return new URL(path, plugin.url).toString();

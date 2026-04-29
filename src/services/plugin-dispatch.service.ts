@@ -166,7 +166,10 @@ export async function dispatchPluginDmBehavior(
   const rawText = await res.text().catch(() => "");
 
   if (!res.ok) {
-    return failure(rawText ? rawText.slice(0, 500) : `HTTP ${res.status}`, res.status);
+    return failure(
+      rawText ? rawText.slice(0, 500) : `HTTP ${res.status}`,
+      res.status,
+    );
   }
 
   // Plugin response signature is mandatory because the bot trusts the

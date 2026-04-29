@@ -56,7 +56,9 @@ function presentedBearerToken(req: FastifyRequest): string | null {
   return auth.slice(7);
 }
 
-export async function registerPluginRoutes(server: FastifyInstance): Promise<void> {
+export async function registerPluginRoutes(
+  server: FastifyInstance,
+): Promise<void> {
   // ─── Plugin-facing ───────────────────────────────────────────────
 
   /**
@@ -268,9 +270,11 @@ export async function registerPluginRoutes(server: FastifyInstance): Promise<voi
             configSchema: f.config_schema ?? [],
             surfaces: f.surfaces ?? ["bot_functions_tab"],
             enabled: row?.enabled ?? false,
-            config: row ? (safeParse(row.configJson) as Record<string, unknown>) ?? {} : {},
+            config: row
+              ? ((safeParse(row.configJson) as Record<string, unknown>) ?? {})
+              : {},
             metrics: row
-              ? (safeParse(row.metricsJson) as Record<string, unknown>) ?? {}
+              ? ((safeParse(row.metricsJson) as Record<string, unknown>) ?? {})
               : {},
             pluginEnabled: p.enabled,
             pluginStatus: p.status,
@@ -325,8 +329,7 @@ export async function registerPluginRoutes(server: FastifyInstance): Promise<voi
         return;
       }
       const body = request.body ?? {};
-      const enabled =
-        body.enabled === undefined ? undefined : !!body.enabled;
+      const enabled = body.enabled === undefined ? undefined : !!body.enabled;
       let configJson: string | undefined;
       if (body.config !== undefined) {
         if (!body.config || typeof body.config !== "object") {
@@ -338,7 +341,11 @@ export async function registerPluginRoutes(server: FastifyInstance): Promise<voi
         for (const field of feature.config_schema ?? []) {
           const v = incoming[field.key];
           if (v === undefined) continue;
-          if (field.type === "secret" && typeof v === "string" && v.length > 0) {
+          if (
+            field.type === "secret" &&
+            typeof v === "string" &&
+            v.length > 0
+          ) {
             stored[field.key] = encryptSecret(v);
           } else {
             stored[field.key] = v;

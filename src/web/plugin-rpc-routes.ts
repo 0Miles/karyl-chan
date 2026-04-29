@@ -1,9 +1,5 @@
 import type { Client } from "discordx";
-import type {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-} from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ChannelType, Routes, MessageFlags } from "discord.js";
 import { findPluginById } from "../models/plugin.model.js";
 import {
@@ -41,9 +37,7 @@ const KV_VALUE_MAX_BYTES = 64 * 1024; // hard ceiling regardless of manifest quo
 const DEFAULT_KV_QUOTA_BYTES = 64 * 1024;
 
 function rejectForbidden(reply: FastifyReply, scope: string): void {
-  reply
-    .code(403)
-    .send({ error: `plugin token missing scope '${scope}'` });
+  reply.code(403).send({ error: `plugin token missing scope '${scope}'` });
 }
 
 async function requireScope(
@@ -130,8 +124,7 @@ export async function registerPluginRpcRoutes(
       reply.code(400).send({ error: "channel_id required" });
       return;
     }
-    const content =
-      typeof body.content === "string" ? body.content : undefined;
+    const content = typeof body.content === "string" ? body.content : undefined;
     const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
     if (!content && !embeds) {
       reply.code(400).send({ error: "content or embeds required" });
@@ -146,9 +139,7 @@ export async function registerPluginRpcRoutes(
       return;
     }
     if (!channel || !channel.isTextBased() || !("send" in channel)) {
-      reply
-        .code(400)
-        .send({ error: "channel is not text-sendable" });
+      reply.code(400).send({ error: "channel is not text-sendable" });
       return;
     }
     // Block @everyone / @here / role pings unless the plugin
@@ -170,7 +161,11 @@ export async function registerPluginRpcRoutes(
         "info",
         "bot",
         `plugin ${ctx.pluginKey} sent message in channel ${body.channel_id}`,
-        { pluginId: ctx.pluginId, channelId: body.channel_id, messageId: sent.id },
+        {
+          pluginId: ctx.pluginId,
+          channelId: body.channel_id,
+          messageId: sent.id,
+        },
       );
       return { id: sent.id, channel_id: sent.channelId };
     } catch (err) {
@@ -200,7 +195,11 @@ export async function registerPluginRpcRoutes(
     }
     try {
       const channel = await bot.channels.fetch(body.channel_id);
-      if (!channel || !channel.isTextBased() || channel.type === ChannelType.GroupDM) {
+      if (
+        !channel ||
+        !channel.isTextBased() ||
+        channel.type === ChannelType.GroupDM
+      ) {
         reply.code(400).send({ error: "channel not text-based" });
         return;
       }
@@ -287,9 +286,7 @@ export async function registerPluginRpcRoutes(
       body.key.length === 0 ||
       body.key.length > KV_KEY_MAX
     ) {
-      reply
-        .code(400)
-        .send({ error: `key required (max ${KV_KEY_MAX} chars)` });
+      reply.code(400).send({ error: `key required (max ${KV_KEY_MAX} chars)` });
       return;
     }
     if (typeof body.value !== "string") {
@@ -300,7 +297,9 @@ export async function registerPluginRpcRoutes(
     if (incomingBytes > KV_VALUE_MAX_BYTES) {
       reply
         .code(413)
-        .send({ error: `value exceeds per-row hard cap (${KV_VALUE_MAX_BYTES}B)` });
+        .send({
+          error: `value exceeds per-row hard cap (${KV_VALUE_MAX_BYTES}B)`,
+        });
       return;
     }
     // Quota check: sum existing bytes minus what this key already
@@ -315,12 +314,7 @@ export async function registerPluginRpcRoutes(
       });
       return;
     }
-    const row = await setKv(
-      ctx.pluginId,
-      body.guild_id,
-      body.key,
-      body.value,
-    );
+    const row = await setKv(ctx.pluginId, body.guild_id, body.key, body.value);
     return {
       ok: true,
       bytes: row.bytes,

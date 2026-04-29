@@ -190,9 +190,7 @@ export async function createWebServer(
       // auth — plugin tokens never satisfy admin capabilities.
       if (path.startsWith("/api/plugin/")) {
         const header = request.headers.authorization;
-        const token = header?.startsWith("Bearer ")
-          ? header.slice(7)
-          : null;
+        const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
         const rec = token ? pluginAuthStore.verify(token) : null;
         if (!rec) {
           reply.code(401).send({ error: "plugin token invalid or expired" });

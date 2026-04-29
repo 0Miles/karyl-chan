@@ -151,7 +151,10 @@ bot.on("messageCreate", async (message: Message) => {
   // sends via RPC doesn't get its own send echoed back.
   if (message.author.bot) return;
   if (message.channel.type === ChannelType.DM) {
-    dispatchEventToPlugins("dm.message_create", serializeMessageForPlugin(message));
+    dispatchEventToPlugins(
+      "dm.message_create",
+      serializeMessageForPlugin(message),
+    );
   } else if (message.guildId) {
     dispatchEventToPlugins(
       "guild.message_create",
