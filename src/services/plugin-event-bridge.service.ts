@@ -10,6 +10,7 @@ import {
 } from "./webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { botEventLog } from "../web/bot-event-log.js";
+import { shouldRecord } from "../web/bot-event-dedup.js";
 
 /**
  * Bot → Plugin event dispatch. Plugins declare which event types
@@ -152,23 +153,31 @@ async function postEventToPlugin(
       signal: ctrl.signal,
     });
     if (!res.ok) {
-      botEventLog.record(
-        "warn",
-        "bot",
-        `plugin event ${eventType} → ${plugin.pluginKey} returned HTTP ${res.status}`,
-        { pluginId: plugin.id, eventType, status: res.status },
-      );
+      // Dedup at (plugin, eventType) granularity — a plugin that's
+      // returning 5xx for every dispatch shouldn't spam the bot event
+      // log at message-traffic rate. shouldRecord caps emission to
+      // once/min per key.
+      if (shouldRecord(`plugin-dispatch-fail:${plugin.id}:${eventType}`)) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin event ${eventType} → ${plugin.pluginKey} returned HTTP ${res.status}`,
+          { pluginId: plugin.id, eventType, status: res.status },
+        );
+      }
     }
     // We deliberately don't read the response body. Plugins that
     // want to react call back through /api/plugin/* RPC.
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    botEventLog.record(
-      "warn",
-      "bot",
-      `plugin event ${eventType} → ${plugin.pluginKey} dispatch failed: ${msg}`,
-      { pluginId: plugin.id, eventType, error: msg },
-    );
+    if (shouldRecord(`plugin-dispatch-net:${plugin.id}:${eventType}`)) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin event ${eventType} → ${plugin.pluginKey} dispatch failed: ${msg}`,
+        { pluginId: plugin.id, eventType, error: msg },
+      );
+    }
   } finally {
     clearTimeout(timeout);
   }
