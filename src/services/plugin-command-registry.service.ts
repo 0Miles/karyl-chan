@@ -4,6 +4,7 @@ import {
   ApplicationCommandType,
   ApplicationIntegrationType,
   InteractionContextType,
+  PermissionFlagsBits,
   type ApplicationCommandData,
   type ApplicationCommandOptionData,
   type ChannelType,
@@ -147,12 +148,27 @@ function manifestToApplicationCommand(
       .filter((t): t is ApplicationIntegrationType => t !== undefined);
     if (mapped.length > 0) data.integrationTypes = mapped;
   }
-  // default_member_permissions is a Discord permission name like
-  // "MANAGE_CHANNELS"; discord.js v14 expects a bigint string. Phase 1
-  // we just pass through unset; future work translates the string to
-  // PermissionFlagsBits[name].toString(). Plugins still get filtered
-  // by Discord-side permissions if they set the right value via
-  // their own admin (we won't surface this in v1).
+  if (
+    typeof cmd.default_member_permissions === "string" &&
+    cmd.default_member_permissions.length > 0
+  ) {
+    // Discord's API expects defaultMemberPermissions as a bigint string;
+    // PermissionFlagsBits is the discord.js name → bigint table. Names
+    // we don't recognize fall through silently (plugin sees a log line
+    // via the wrapping reconcileAll error path) — we don't 400 the
+    // whole command for one bad permission name.
+    const flags = PermissionFlagsBits as Record<string, bigint>;
+    const flag = flags[cmd.default_member_permissions];
+    if (typeof flag === "bigint") {
+      data.defaultMemberPermissions = flag.toString();
+    } else {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin-commands: unknown default_member_permissions '${cmd.default_member_permissions}' on command '${cmd.name}'; skipped`,
+      );
+    }
+  }
   return data as unknown as ApplicationCommandData;
 }
 
@@ -167,21 +183,66 @@ export class PluginCommandRegistry {
   constructor(private getBot: () => Client | null) {}
 
   /**
-   * Names that bot infrastructure already owns at the global Discord
-   * application command level. Includes:
-   *   - in-process @Slash decorators that we've explicitly hoisted
-   *     to global registration (manual / break)
-   *   - system-behavior triggerValues that get registered globally
-   *     (login — the admin-login flow's slash command)
-   * Plugins that try to ship a command with these names get a 400
-   * out of register, with the same error path as plugin-vs-plugin
-   * collisions. Future system flows append here.
+   * Names that bot infrastructure always owns and plugins must never
+   * shadow. Static fallback used when the live Discord cache isn't
+   * ready yet (early register-on-startup window).
+   *
+   * `manual` / `break` / `login` are global commands hoisted in
+   * main.ts (manual/break: discordx decorators rebound; login: system
+   * behavior). The runtime check below also asks the live bot what
+   * application commands it owns and merges those names in, so guild-
+   * scoped discordx commands like `picture-only-channel`, `todo-channel`,
+   * `role-emoji`, `rcon-forward-channel` are caught automatically as
+   * the cache fills — without needing this list to be hand-maintained.
    */
-  private static readonly RESERVED_COMMAND_NAMES = new Set([
+  private static readonly RESERVED_COMMAND_NAMES_STATIC = new Set([
     "manual",
     "break",
     "login",
   ]);
+
+  /**
+   * Compute the live "names plugins can't use" set. Pulls every
+   * application command currently known to the bot client (global +
+   * each cached guild's commands), unions in the static fallback,
+   * and excludes commands previously persisted as belonging to the
+   * same plugin (otherwise a plugin couldn't re-register its own
+   * /account because the live cache already shows /account).
+   *
+   * Returns a fresh Set each call so concurrent registers don't share
+   * mutation, and the cost (~few dozen string lookups) is trivial.
+   */
+  private async buildReservedCommandNames(
+    excludePluginId: number,
+  ): Promise<Set<string>> {
+    const reserved = new Set(
+      PluginCommandRegistry.RESERVED_COMMAND_NAMES_STATIC,
+    );
+    const ownNames = new Set<string>();
+    try {
+      const own = await findPluginCommandsByPlugin(excludePluginId);
+      for (const r of own) ownNames.add(r.name);
+    } catch {
+      // findPluginCommandsByPlugin only fails on DB outage; the
+      // collision check below would also fail — let downstream surface
+      // the real error instead of crashing here.
+    }
+    const bot = this.getBot();
+    if (!bot || !bot.application) {
+      for (const n of ownNames) reserved.delete(n);
+      return reserved;
+    }
+    for (const cmd of bot.application.commands.cache.values()) {
+      if (typeof cmd.name === "string") reserved.add(cmd.name);
+    }
+    for (const guild of bot.guilds.cache.values()) {
+      for (const cmd of guild.commands.cache.values()) {
+        if (typeof cmd.name === "string") reserved.add(cmd.name);
+      }
+    }
+    for (const n of ownNames) reserved.delete(n);
+    return reserved;
+  }
 
   /**
    * Refuse to register a plugin if its manifest commands collide
@@ -195,8 +256,9 @@ export class PluginCommandRegistry {
     incomingPluginId: number,
     manifest: PluginManifest,
   ): Promise<void> {
+    const reserved = await this.buildReservedCommandNames(incomingPluginId);
     for (const cmd of manifest.commands ?? []) {
-      if (PluginCommandRegistry.RESERVED_COMMAND_NAMES.has(cmd.name)) {
+      if (reserved.has(cmd.name)) {
         throw new ManifestCommandError(
           `command '${cmd.name}' is reserved for bot internals; ` +
             `'${incomingPluginKey}' must rename it`,
