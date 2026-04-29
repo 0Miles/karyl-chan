@@ -148,7 +148,12 @@ async function onSave() {
             return;
         }
     }
-    if (!draft.webhookUrl.trim()) {
+    // webhookUrl is only required for type='webhook' behaviors. Plugin
+    // behaviors carry a non-functional placeholder URL the user shouldn't
+    // edit, so we don't validate it and don't include it in the patch
+    // either (the bot rejects PATCH webhookUrl unless it's a valid http
+    // URL — the placeholder isn't).
+    if (props.behavior.type !== 'plugin' && !draft.webhookUrl.trim()) {
         error.value = t('behaviors.card.webhookUrlRequired');
         return;
     }
@@ -163,18 +168,20 @@ async function onSave() {
             forwardType: draft.forwardType,
             stopOnMatch: draft.stopOnMatch,
             targetId: draft.targetId,
-            webhookUrl: draft.webhookUrl.trim()
         };
-        // `enabled` is intentionally NOT touched by Save — the toggle
-        // owns it through its own PATCH path. Mixing them caused a race
-        // where flipping the toggle then pressing Save reverted the
-        // server-side enabled to whatever Save's stale draft held.
-        // Only include webhookSecret in the patch if it actually changed
-        // — sending it on every save is harmless but generates noise in
-        // the audit log's `fields` list.
-        const currentSecret = props.behavior.webhookSecret ?? '';
-        if (draft.webhookSecret !== currentSecret) {
-            patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+        if (props.behavior.type !== 'plugin') {
+            patch.webhookUrl = draft.webhookUrl.trim();
+            // `enabled` is intentionally NOT touched by Save — the toggle
+            // owns it through its own PATCH path. Mixing them caused a race
+            // where flipping the toggle then pressing Save reverted the
+            // server-side enabled to whatever Save's stale draft held.
+            // Only include webhookSecret in the patch if it actually changed
+            // — sending it on every save is harmless but generates noise in
+            // the audit log's `fields` list.
+            const currentSecret = props.behavior.webhookSecret ?? '';
+            if (draft.webhookSecret !== currentSecret) {
+                patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+            }
         }
         const updated = await updateBehavior(props.behavior.id, patch);
         if (movedTarget !== null) {
@@ -242,6 +249,14 @@ async function onDelete() {
             >
                 <Icon icon="material-symbols:stop-circle-outline-rounded" width="13" height="13" />
                 {{ t('behaviors.card.tagStopShort') }}
+            </span>
+            <span
+                v-if="behavior.type === 'plugin'"
+                class="tag tag-plugin"
+                :title="t('behaviors.card.tagPlugin')"
+            >
+                <Icon icon="material-symbols:extension-outline" width="13" height="13" />
+                {{ t('behaviors.card.tagPluginShort') }}
             </span>
             <button
                 type="button"
@@ -319,7 +334,20 @@ async function onDelete() {
                     </select>
                 </label>
 
-                <label class="field full">
+                <div v-if="behavior.type === 'plugin'" class="field full plugin-info">
+                    <span class="label">{{ t('behaviors.card.pluginRoute') }}</span>
+                    <p class="plugin-info-text">
+                        <Icon icon="material-symbols:extension-outline" width="14" height="14" />
+                        <span>
+                            <code>plugin#{{ behavior.pluginId }}</code>
+                            <span class="sep">→</span>
+                            <code>{{ behavior.pluginBehaviorKey }}</code>
+                        </span>
+                    </p>
+                    <p class="hint">{{ t('behaviors.card.pluginRouteHint') }}</p>
+                </div>
+
+                <label v-if="behavior.type !== 'plugin'" class="field full">
                     <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
                     <input
                         v-model="draft.webhookUrl"
@@ -329,7 +357,7 @@ async function onDelete() {
                     />
                 </label>
 
-                <label class="field full">
+                <label v-if="behavior.type !== 'plugin'" class="field full">
                     <span class="label">
                         {{ t('behaviors.card.webhookSecret') }}
                         <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
@@ -433,6 +461,28 @@ async function onDelete() {
 }
 .tag-continuous { background: var(--accent-bg); color: var(--accent-text-strong); }
 .tag-stop { background: var(--warn-bg); color: var(--warn-text); }
+.tag-plugin { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
+.plugin-info {
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.6rem;
+}
+.plugin-info-text {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text);
+}
+.plugin-info-text code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.82rem;
+    background: var(--bg-surface);
+    padding: 0.1rem 0.35rem;
+    border-radius: var(--radius-sm);
+}
+.plugin-info-text .sep { color: var(--text-muted); margin: 0 0.2rem; }
 
 .toggle {
     position: relative;

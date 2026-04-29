@@ -25,6 +25,8 @@ export interface BehaviorGroupMember {
   profile: BehaviorUserProfile | null;
 }
 
+export type BehaviorType = "webhook" | "plugin";
+
 export interface BehaviorRow {
   id: number;
   targetId: number;
@@ -36,14 +38,24 @@ export interface BehaviorRow {
   sortOrder: number;
   stopOnMatch: boolean;
   enabled: boolean;
-  /** Plaintext webhook URL — encrypted at rest, decrypted for the UI. */
+  /**
+   * For type='webhook': plaintext URL — encrypted at rest, decrypted
+   * for the UI.
+   * For type='plugin':  placeholder string ("plugin://<key>/<bk>"),
+   * not used at dispatch time — the live URL is read from the plugin
+   * registry. Surfaced read-only in the UI as a debug aid.
+   */
   webhookUrl: string;
   /**
-   * Optional HMAC shared secret. When set, the bot signs each
-   * outbound POST and requires a signed response. `null` = no
-   * signing/verification.
+   * Optional HMAC shared secret. Always null for type='plugin' rows
+   * (plugin path uses KARYL_PLUGIN_SECRET, not a per-behavior key).
    */
   webhookSecret: string | null;
+  type: BehaviorType;
+  /** Set when type='plugin'; references the plugins registry row. */
+  pluginId: number | null;
+  /** dm_behaviors[].key from the plugin's manifest. */
+  pluginBehaviorKey: string | null;
 }
 
 export interface NewBehaviorPayload {
@@ -52,11 +64,18 @@ export interface NewBehaviorPayload {
   triggerType: BehaviorTriggerType;
   triggerValue: string;
   forwardType: BehaviorForwardType;
-  webhookUrl: string;
+  /** Required for type='webhook' (default). Ignored when type='plugin'. */
+  webhookUrl?: string;
   /** Empty / omitted = no signing. Non-empty = enable HMAC signing. */
   webhookSecret?: string;
   stopOnMatch?: boolean;
   enabled?: boolean;
+  /** Defaults to 'webhook' on the bot side when omitted. */
+  type?: BehaviorType;
+  /** Required when type='plugin'. */
+  pluginId?: number;
+  /** Required when type='plugin'. */
+  pluginBehaviorKey?: string;
 }
 
 export interface BehaviorPatch {
