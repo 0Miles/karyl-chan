@@ -5,8 +5,8 @@ import { guildChannelEventBus, type GuildChannelEventBus } from './guild-channel
 import { avatarUrlFor, guildAvatarUrlFor, toApiMessage } from './message-mapper.js';
 import type { MessageEmoji } from './message-types.js';
 import { guildAccessFilter, requireGuildCapability } from './route-guards.js';
-import { hasGuildCapability } from '../permission/admin-capabilities.js';
-import type { AdminCapability } from './authorized-user.service.js';
+import { hasGuildCapability } from '../modules/admin/admin-capabilities.js';
+import type { AdminCapability } from '../modules/admin/authorized-user.service.js';
 import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
 
 export interface GuildChannelRoutesOptions {

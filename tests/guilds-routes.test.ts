@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { ChannelType } from 'discord.js';
 import type { Client } from 'discordx';
 import { registerGuildsRoutes } from '../src/web/guilds-routes.js';
-import type { AdminCapability } from '../src/web/authorized-user.service.js';
+import type { AdminCapability } from '../src/modules/admin/authorized-user.service.js';
 
 const GUILD_ID = '900000000000000001';
 const TEXT_CHANNEL_ID = '900000000000000002';

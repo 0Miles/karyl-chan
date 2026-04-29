@@ -6,7 +6,7 @@ import {
     isAdminCapability,
     GLOBAL_CAPABILITY_KEYS,
     makeGuildScopedCapability
-} from '../src/permission/admin-capabilities.js';
+} from '../src/modules/admin/admin-capabilities.js';
 
 describe('admin capabilities', () => {
     describe('isAdminCapability', () => {

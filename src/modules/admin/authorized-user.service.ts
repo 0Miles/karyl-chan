@@ -1,6 +1,6 @@
-import { AuthorizedUser } from "../models/authorized-user.model.js";
-import { AdminRole } from "../models/admin-role.model.js";
-import { AdminRoleCapability } from "../models/admin-role-capability.model.js";
+import { AuthorizedUser } from "./models/authorized-user.model.js";
+import { AdminRole } from "./models/admin-role.model.js";
+import { AdminRoleCapability } from "./models/admin-role-capability.model.js";
 import {
   GLOBAL_CAPABILITY_DESCRIPTIONS,
   GLOBAL_CAPABILITY_KEYS,
@@ -8,8 +8,8 @@ import {
   isAdminCapability,
   type AdminCapability,
   type GlobalCapability,
-} from "../permission/admin-capabilities.js";
-import { botEventLog } from "./bot-event-log.js";
+} from "./admin-capabilities.js";
+import { botEventLog } from "../../web/bot-event-log.js";
 
 export {
   GLOBAL_CAPABILITY_DESCRIPTIONS,

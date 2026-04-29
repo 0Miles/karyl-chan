@@ -28,7 +28,7 @@ import {
   type DispatchResult,
 } from "../../../services/webhook-dispatch.service.js";
 import { dispatchPluginDmBehavior } from "../../plugin-system/plugin-dispatch.service.js";
-import { issueLoginLinkAndReply } from "../../../services/admin-login.service.js";
+import { issueLoginLinkAndReply } from "../../admin/admin-login.service.js";
 import {
   runBreakForMessage,
   runManualForMessage,

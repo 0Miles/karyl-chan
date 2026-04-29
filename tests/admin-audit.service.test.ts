@@ -8,8 +8,8 @@ vi.hoisted(() => {
 });
 
 import { sequelize } from '../src/models/db.js';
-import { AdminAuditLog } from '../src/models/admin-audit-log.model.js';
-import { recordAudit, listAudit, verifyAuditChain } from '../src/web/admin-audit.service.js';
+import { AdminAuditLog } from '../src/modules/admin/models/admin-audit-log.model.js';
+import { recordAudit, listAudit, verifyAuditChain } from '../src/modules/admin/admin-audit.service.js';
 
 beforeAll(async () => {
     // sync (not migrations) — model definition already declares the

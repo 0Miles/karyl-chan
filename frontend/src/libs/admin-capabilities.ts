@@ -1,6 +1,6 @@
 /**
  * Admin capability tokens recognized by the backend. Mirrors
- * `src/permission/admin-capabilities.ts` on the server. The server is
+ * `src/modules/admin/admin-capabilities.ts` on the server. The server is
  * the authority for validation; this file lets the UI render the
  * catalog and apply local guards without a round-trip for data that
  * never changes at runtime.

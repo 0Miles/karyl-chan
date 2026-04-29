@@ -12,7 +12,7 @@ import type { Migration } from './runner.js';
  * will break.
  *
  * Canonicalisation MUST match
- * src/web/admin-audit.service.ts#canonicalPayload exactly. If that
+ * src/modules/admin/admin-audit.service.ts#canonicalPayload exactly. If that
  * function ever changes, version both.
  */
 

@@ -29,7 +29,7 @@ import { sequelizeRefreshStore } from "./web/refresh-token.repository.js";
 import {
   auditStoredCapabilities,
   seedDefaultRoles,
-} from "./web/authorized-user.service.js";
+} from "./modules/admin/authorized-user.service.js";
 import { botEventLog } from "./web/bot-event-log.js";
 import { shouldRecord } from "./web/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
@@ -70,7 +70,7 @@ import {
 } from "./services/in-process-command-registry.service.js";
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
-import { issueLoginLinkForInteraction } from "./services/admin-login.service.js";
+import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 

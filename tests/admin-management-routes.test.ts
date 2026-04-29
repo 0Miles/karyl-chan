@@ -6,7 +6,7 @@ vi.hoisted(() => {
 
 import Fastify, { type FastifyInstance } from 'fastify';
 import { sequelize } from '../src/models/db.js';
-import { registerAdminManagementRoutes } from '../src/web/admin-management-routes.js';
+import { registerAdminManagementRoutes } from '../src/modules/admin/admin-management-routes.js';
 import {
     addAuthorizedUser,
     createAdminRole,
@@ -14,7 +14,7 @@ import {
     invalidateCapabilityCache,
     seedDefaultRoles,
     type AdminCapability
-} from '../src/web/authorized-user.service.js';
+} from '../src/modules/admin/authorized-user.service.js';
 
 const OWNER_ID = '999999999999999999';
 const ADMIN_USER_ID = '111111111111111111';

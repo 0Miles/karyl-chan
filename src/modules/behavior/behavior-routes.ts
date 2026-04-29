@@ -6,8 +6,8 @@ import {
   hasAdminCapability,
   hasBehaviorCapability,
   type AdminCapability,
-} from "../../permission/admin-capabilities.js";
-import { recordAudit } from "../../web/admin-audit.service.js";
+} from "../admin/admin-capabilities.js";
+import { recordAudit } from "../admin/admin-audit.service.js";
 import { avatarUrlFor } from "../../web/message-mapper.js";
 import {
   isSnowflake,

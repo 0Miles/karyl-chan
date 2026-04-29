@@ -18,22 +18,22 @@ import {
   type GlobalCapability,
 } from "./authorized-user.service.js";
 import { listAudit, recordAudit } from "./admin-audit.service.js";
-import { avatarUrlFor } from "./message-mapper.js";
-import { requireCapability } from "./route-guards.js";
+import { avatarUrlFor } from "../../web/message-mapper.js";
+import { requireCapability } from "../../web/route-guards.js";
 import {
   isBoundedString,
   isNonEmptyString,
   isSnowflake,
   ROLE_DESCRIPTION_MAX,
   USER_NOTE_MAX,
-} from "./validators.js";
-import { TodoChannel } from "../modules/builtin-features/todo-channel/todo-channel.model.js";
-import { PictureOnlyChannel } from "../modules/builtin-features/picture-only/picture-only-channel.model.js";
-import { RconForwardChannel } from "../modules/builtin-features/rcon-forward/rcon-forward-channel.model.js";
-import { RoleEmojiGroup } from "../modules/builtin-features/role-emoji/role-emoji-group.model.js";
-import { RoleEmoji } from "../modules/builtin-features/role-emoji/role-emoji.model.js";
-import { AuthorizedUser } from "../models/authorized-user.model.js";
-import { AdminRole } from "../models/admin-role.model.js";
+} from "../../web/validators.js";
+import { TodoChannel } from "../builtin-features/todo-channel/todo-channel.model.js";
+import { PictureOnlyChannel } from "../builtin-features/picture-only/picture-only-channel.model.js";
+import { RconForwardChannel } from "../builtin-features/rcon-forward/rcon-forward-channel.model.js";
+import { RoleEmojiGroup } from "../builtin-features/role-emoji/role-emoji-group.model.js";
+import { RoleEmoji } from "../builtin-features/role-emoji/role-emoji.model.js";
+import { AuthorizedUser } from "./models/authorized-user.model.js";
+import { AdminRole } from "./models/admin-role.model.js";
 
 export interface AdminManagementRoutesOptions {
   bot?: Client;

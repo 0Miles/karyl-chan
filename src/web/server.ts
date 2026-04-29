@@ -15,7 +15,7 @@ import {
   resolveLoginRole,
   resolveUserCapabilities,
   type AdminCapability,
-} from "./authorized-user.service.js";
+} from "../modules/admin/authorized-user.service.js";
 import { RateLimiter } from "../utils/rate-limiter.js";
 import fastifyMultipart from "@fastify/multipart";
 
@@ -70,8 +70,8 @@ import { registerGuildChannelRoutes } from "./guild-channel-routes.js";
 import { registerGuildManagementRoutes } from "./guild-management-routes.js";
 import type { DmInboxStore } from "./dm-inbox.service.js";
 import { registerSystemRoutes } from "./system-routes.js";
-import { registerAdminManagementRoutes } from "./admin-management-routes.js";
-import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
+import { registerAdminManagementRoutes } from "../modules/admin/admin-management-routes.js";
+import { registerAdminLoginStatusRoutes } from "../modules/admin/admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { registerBehaviorRoutes } from "../modules/behavior/behavior-routes.js";
 import { registerPluginRoutes } from "../modules/plugin-system/plugin-routes.js";

@@ -21,8 +21,8 @@ import {
     revokeRoleCapability,
     seedDefaultRoles,
     type AdminCapability
-} from '../src/web/authorized-user.service.js';
-import { AdminRoleCapability } from '../src/models/admin-role-capability.model.js';
+} from '../src/modules/admin/authorized-user.service.js';
+import { AdminRoleCapability } from '../src/modules/admin/models/admin-role-capability.model.js';
 
 const OWNER_ID = '999999999999999999';
 

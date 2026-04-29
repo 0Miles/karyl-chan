@@ -9,7 +9,7 @@ import type { MessageEmoji } from './message-types.js';
 import { requireCapability } from './route-guards.js';
 import { DISCORD_MESSAGE_MAX, isSnowflake } from './validators.js';
 import { jwtService } from './jwt.service.js';
-import { resolveLoginRole } from './authorized-user.service.js';
+import { resolveLoginRole } from '../modules/admin/authorized-user.service.js';
 
 function buildBaseUrl(): string {
     const explicit = process.env.WEB_BASE_URL?.trim();

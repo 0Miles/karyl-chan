@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { fn, col, Op } from "sequelize";
-import { RefreshToken } from "../models/refresh-token.model.js";
+import { RefreshToken } from "../../models/refresh-token.model.js";
 import { listAuthorizedUsers } from "./authorized-user.service.js";
-import { requireCapability } from "./route-guards.js";
+import { requireCapability } from "../../web/route-guards.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 const requireAdmin = (request: FastifyRequest, reply: FastifyReply): boolean =>
