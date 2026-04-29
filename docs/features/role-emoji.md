@@ -97,8 +97,8 @@ reaction 觸發時，bot 直接讀取該訊息綁定的單一群組（`RoleRecei
 
 | 檔案 | 功能 |
 |---|---|
-| `src/commands/role-emoji.commands.ts` | Slash 指令 |
-| `src/events/role-emoji.events.ts` | reaction add / remove handlers |
-| `src/models/role-emoji.model.ts` | Emoji → role 對應（含排序） |
-| `src/models/role-emoji-group.model.ts` | 表情群組 |
-| `src/models/role-receive-message.model.ts` | 監聽訊息（含群組綁定） |
+| `src/modules/builtin-features/role-emoji/role-emoji.commands.ts` | Slash 指令 |
+| `src/modules/builtin-features/role-emoji/role-emoji.events.ts` | reaction add / remove handlers |
+| `src/modules/builtin-features/role-emoji/role-emoji.model.ts` | Emoji → role 對應（含排序） |
+| `src/modules/builtin-features/role-emoji/role-emoji-group.model.ts` | 表情群組 |
+| `src/modules/builtin-features/role-emoji/role-receive-message.model.ts` | 監聽訊息（含群組綁定） |

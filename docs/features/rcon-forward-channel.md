@@ -106,11 +106,11 @@ RCON 底層（連線被拒、握手失敗、timeout）的錯誤訊息**不會原
 
 | 檔案 | 功能 |
 |---|---|
-| `src/commands/rcon-forward-channel.commands.ts` | Slash 指令 + modal |
-| `src/events/rcon-forward-channel.events.ts` | messageCreate 觸發 + capability 檢查 + 定時清理 |
-| `src/services/rcon-connection.service.ts` | RCON 連線池、重連、事件分發 |
-| `src/services/rcon-queue.service.ts` | 每頻道速率限制 + 排隊邏輯 |
+| `src/modules/builtin-features/rcon-forward/rcon-forward-channel.commands.ts` | Slash 指令 + modal |
+| `src/modules/builtin-features/rcon-forward/rcon-forward-channel.events.ts` | messageCreate 觸發 + capability 檢查 + 定時清理 |
+| `src/modules/builtin-features/rcon-forward/rcon-connection.service.ts` | RCON 連線池、重連、事件分發 |
+| `src/modules/builtin-features/rcon-forward/rcon-queue.service.ts` | 每頻道速率限制 + 排隊邏輯 |
 | `src/utils/crypto.ts` | 密碼加解密 |
 | `src/utils/host-policy.ts` | Metadata endpoint 阻擋 + DNS 檢查 |
 | `src/utils/rate-limiter.ts` | 頻道級速率限制 |
-| `src/models/rcon-forward-channel.model.ts` | Sequelize 模型 |
+| `src/modules/builtin-features/rcon-forward/rcon-forward-channel.model.ts` | Sequelize 模型 |

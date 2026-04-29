@@ -74,7 +74,7 @@
 
 | 檔案 | 功能 |
 |---|---|
-| `src/commands/todo-channel.commands.ts` | Slash 指令 |
-| `src/events/todo-channel.events.ts` | messageCreate / reaction handlers |
-| `src/models/todo-channel.model.ts` | 頻道登記 |
-| `src/models/todo-message.model.ts` | Todo 訊息記錄 |
+| `src/modules/builtin-features/todo-channel/todo-channel.commands.ts` | Slash 指令 |
+| `src/modules/builtin-features/todo-channel/todo-channel.events.ts` | messageCreate / reaction handlers |
+| `src/modules/builtin-features/todo-channel/todo-channel.model.ts` | 頻道登記 |
+| `src/modules/builtin-features/todo-channel/todo-message.model.ts` | Todo 訊息記錄 |

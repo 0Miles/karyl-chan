@@ -4,9 +4,9 @@ import {
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
-import { PictureOnlyChannel } from "../models/picture-only-channel.model.js";
-import { registerInProcessCommand } from "../services/in-process-command-registry.service.js";
-import { SUCCEEDED_COLOR } from "../utils/constant.js";
+import { PictureOnlyChannel } from "./picture-only-channel.model.js";
+import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 /**
  * `/picture-only-channel <watch|stop-watch>`

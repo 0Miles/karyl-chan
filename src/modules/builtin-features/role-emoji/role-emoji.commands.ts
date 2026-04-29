@@ -12,20 +12,20 @@ import {
   findAllRoleEmojisInGroup,
   findRoleEmojiInGroup,
   removeRoleEmoji,
-} from "../models/role-emoji.model.js";
+} from "./role-emoji.model.js";
 import {
   findRoleReceiveMessage,
   removeRoleReceiveMessage,
   upsertRoleReceiveMessage,
-} from "../models/role-receive-message.model.js";
+} from "./role-receive-message.model.js";
 import {
   addRoleEmojiGroup,
   findAllRoleEmojiGroups,
   findRoleEmojiGroupByName,
   removeRoleEmojiGroup,
-} from "../models/role-emoji-group.model.js";
-import { registerInProcessCommand } from "../services/in-process-command-registry.service.js";
-import { FAILED_COLOR, SUCCEEDED_COLOR } from "../utils/constant.js";
+} from "./role-emoji-group.model.js";
+import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { FAILED_COLOR, SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 const EMOJI_REGEX =
   /(©|®|[ -㌀]|\ud83c[퀀-\udfff]|\ud83d[퀀-\udfff]|\ud83e[퀀-\udfff])|^<(a?:[^:>]+:)([^>]+)>$/;

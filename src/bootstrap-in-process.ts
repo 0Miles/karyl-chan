@@ -1,7 +1,7 @@
-import { registerPictureOnlyChannelCommands } from "./commands/picture-only-channel.commands.js";
-import { registerRconForwardChannelCommands } from "./commands/rcon-forward-channel.commands.js";
-import { registerRoleEmojiCommands } from "./commands/role-emoji.commands.js";
-import { registerTodoChannelCommands } from "./commands/todo-channel.commands.js";
+import { registerPictureOnlyChannelCommands } from "./modules/builtin-features/picture-only/picture-only-channel.commands.js";
+import { registerRconForwardChannelCommands } from "./modules/builtin-features/rcon-forward/rcon-forward-channel.commands.js";
+import { registerRoleEmojiCommands } from "./modules/builtin-features/role-emoji/role-emoji.commands.js";
+import { registerTodoChannelCommands } from "./modules/builtin-features/todo-channel/todo-channel.commands.js";
 
 /**
  * Single explicit registration point for every in-process slash

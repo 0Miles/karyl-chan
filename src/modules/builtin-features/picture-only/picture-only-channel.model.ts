@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { sequelize } from './db.js';
+import { sequelize } from '../../../models/db.js';
 
 
 export const PictureOnlyChannel = sequelize.define('PictureOnlyChannel', {

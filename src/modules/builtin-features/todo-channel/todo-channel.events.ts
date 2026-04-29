@@ -5,14 +5,14 @@ import {
   MessageType,
   PartialMessageReaction,
 } from "discord.js";
-import { findTodoChannel } from "../models/todo-channel.model.js";
+import { findTodoChannel } from "./todo-channel.model.js";
 import {
   addTodoMessage,
   removeTodoMessage,
   findChannelTodoMessages,
-} from "../models/todo-message.model.js";
-import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
-import { botEventLog } from "../web/bot-event-log.js";
+} from "./todo-message.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { botEventLog } from "../../../web/bot-event-log.js";
 
 /**
  * Hydrate a partial reaction (and its parent message) before any code

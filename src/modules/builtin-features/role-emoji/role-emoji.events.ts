@@ -4,10 +4,10 @@ import {
   Role,
   type Client,
 } from "discord.js";
-import { findRoleReceiveMessage } from "../models/role-receive-message.model.js";
-import { findRoleEmojiInGroup } from "../models/role-emoji.model.js";
-import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
-import { botEventLog } from "../web/bot-event-log.js";
+import { findRoleReceiveMessage } from "./role-receive-message.model.js";
+import { findRoleEmojiInGroup } from "./role-emoji.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { botEventLog } from "../../../web/bot-event-log.js";
 
 /**
  * Hydrate a partial reaction (and its parent message) before we read

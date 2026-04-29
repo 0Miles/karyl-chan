@@ -9,10 +9,10 @@ import {
 import {
   addTodoChannel,
   findTodoChannel,
-} from "../models/todo-channel.model.js";
-import { addTodoMessage } from "../models/todo-message.model.js";
-import { registerInProcessCommand } from "../services/in-process-command-registry.service.js";
-import { SUCCEEDED_COLOR } from "../utils/constant.js";
+} from "./todo-channel.model.js";
+import { addTodoMessage } from "./todo-message.model.js";
+import { registerInProcessCommand } from "../../../services/in-process-command-registry.service.js";
+import { SUCCEEDED_COLOR } from "../../../utils/constant.js";
 
 /**
  * `/todo-channel <watch|stop-watch|check-cache>`

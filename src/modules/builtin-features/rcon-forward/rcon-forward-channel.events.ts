@@ -1,12 +1,12 @@
 import type { Client } from "discord.js";
-import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";
-import { resolveBuiltinFeatureEnabled } from "../models/bot-feature-state.model.js";
-import { FAILED_COLOR } from "../utils/constant.js";
-import { RconQueueService } from "../services/rcon-queue.service.js";
-import { RconConnectionService } from "../services/rcon-connection.service.js";
-import { decryptSecret } from "../utils/crypto.js";
-import { botEventLog } from "../web/bot-event-log.js";
-import { shouldRecord } from "../web/bot-event-dedup.js";
+import { RconForwardChannel } from "./rcon-forward-channel.model.js";
+import { resolveBuiltinFeatureEnabled } from "../../../models/bot-feature-state.model.js";
+import { FAILED_COLOR } from "../../../utils/constant.js";
+import { RconQueueService } from "./rcon-queue.service.js";
+import { RconConnectionService } from "./rcon-connection.service.js";
+import { decryptSecret } from "../../../utils/crypto.js";
+import { botEventLog } from "../../../web/bot-event-log.js";
+import { shouldRecord } from "../../../web/bot-event-dedup.js";
 
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
 

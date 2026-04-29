@@ -1,5 +1,5 @@
 import { DataTypes } from 'sequelize';
-import { sequelize } from './db.js';
+import { sequelize } from '../../../models/db.js';
 import { RoleEmojiGroup } from './role-emoji-group.model.js';
 
 /**

@@ -53,6 +53,6 @@
 
 | 檔案 | 功能 |
 |---|---|
-| `src/commands/picture-only-channel.commands.ts` | Slash 指令 |
-| `src/events/picture-only-channel.events.ts` | messageCreate 過濾 |
-| `src/models/picture-only-channel.model.ts` | 頻道登記 |
+| `src/modules/builtin-features/picture-only/picture-only-channel.commands.ts` | Slash 指令 |
+| `src/modules/builtin-features/picture-only/picture-only-channel.events.ts` | messageCreate 過濾 |
+| `src/modules/builtin-features/picture-only/picture-only-channel.model.ts` | 頻道登記 |

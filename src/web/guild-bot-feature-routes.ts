@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { requireGuildCapability } from "./route-guards.js";
 import { isSnowflake } from "./validators.js";
-import { TodoChannel } from "../models/todo-channel.model.js";
-import { PictureOnlyChannel } from "../models/picture-only-channel.model.js";
-import { RconForwardChannel } from "../models/rcon-forward-channel.model.js";
-import { RoleEmoji, addRoleEmoji } from "../models/role-emoji.model.js";
-import { RoleEmojiGroup } from "../models/role-emoji-group.model.js";
-import { RoleReceiveMessage } from "../models/role-receive-message.model.js";
+import { TodoChannel } from "../modules/builtin-features/todo-channel/todo-channel.model.js";
+import { PictureOnlyChannel } from "../modules/builtin-features/picture-only/picture-only-channel.model.js";
+import { RconForwardChannel } from "../modules/builtin-features/rcon-forward/rcon-forward-channel.model.js";
+import { RoleEmoji, addRoleEmoji } from "../modules/builtin-features/role-emoji/role-emoji.model.js";
+import { RoleEmojiGroup } from "../modules/builtin-features/role-emoji/role-emoji-group.model.js";
+import { RoleReceiveMessage } from "../modules/builtin-features/role-emoji/role-receive-message.model.js";
 import {
   type GuildManagementRoutesOptions,
   EMOJI_REGEX,

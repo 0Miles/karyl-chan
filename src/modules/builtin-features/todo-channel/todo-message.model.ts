@@ -1,6 +1,6 @@
 import { Message } from 'discord.js';
 import { DataTypes } from 'sequelize';
-import { sequelize } from './db.js';
+import { sequelize } from '../../../models/db.js';
 
 export const TodoMessage = sequelize.define('TodoMessage', {
     messageId: {
