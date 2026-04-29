@@ -29,6 +29,11 @@ import {
   dispatchEventToPlugins,
   rebuildEventIndex,
 } from "./services/plugin-event-bridge.service.js";
+import {
+  pluginCommandRegistry,
+  setPluginCommandBotClient,
+} from "./services/plugin-command-registry.service.js";
+import { dispatchInteractionToPlugin } from "./services/plugin-interaction-dispatch.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -86,6 +91,12 @@ bot.once("ready", async () => {
     }
   }
 
+  // Reconcile plugin slash commands with Discord. Runs after the
+  // discordx initApplicationCommands above so we don't fight over
+  // the global command registry. Failures are logged inside the
+  // registry, so we just await and move on.
+  await pluginCommandRegistry.reconcileAll();
+
   console.log("Bot started");
 });
 
@@ -106,6 +117,20 @@ bot.on("guildDelete", (guild) => {
 });
 
 bot.on("interactionCreate", async (interaction: Interaction) => {
+  // Plugin commands take a fast path: we look the command up in our
+  // own table first. If it's a plugin command, we defer the reply
+  // (Discord's 3-second clock starts ticking the moment the
+  // interaction arrives) and POST the interaction details to the
+  // owning plugin. The plugin calls back through
+  // /api/plugin/interactions.respond to complete the deferred reply.
+  // discordx executeInteraction never sees plugin commands —
+  // dispatchInteractionToPlugin returns true when it claimed it.
+  try {
+    const claimed = await dispatchInteractionToPlugin(interaction);
+    if (claimed) return;
+  } catch (error) {
+    console.error("plugin interaction dispatch failed:", error);
+  }
   try {
     await bot.executeInteraction(interaction);
   } catch (error) {
@@ -307,6 +332,10 @@ async function run() {
     // re-registered (next heartbeat). With this, events flow as soon
     // as plugins are alive again.
     await rebuildEventIndex();
+    // Wire the bot client into the plugin command registry now that
+    // we have it; reconcile slash commands once the bot reports
+    // ready (deferred to the 'ready' handler below).
+    setPluginCommandBotClient(bot);
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
     const webHost = process.env.WEB_HOST ?? "0.0.0.0";

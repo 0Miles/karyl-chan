@@ -4,7 +4,7 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
-import { ChannelType } from "discord.js";
+import { ChannelType, Routes, MessageFlags } from "discord.js";
 import { findPluginById } from "../models/plugin.model.js";
 import {
   deleteKv,
@@ -369,6 +369,137 @@ export async function registerPluginRpcRoutes(
       offset,
     });
     return { keys: result.keys, total: result.total };
+  });
+
+  // ─── interactions.respond ─────────────────────────────────────────
+  /**
+   * POST /api/plugin/interactions.respond
+   * Body: { interaction_token, content?, embeds?, ephemeral? }
+   *
+   * Completes a deferred interaction reply. The bot defers immediately
+   * on receipt; the plugin processes the command, then calls this to
+   * fill in the placeholder reply within Discord's 15-minute window.
+   *
+   * `ephemeral` flips the message visible-to-others bit. If the
+   * plugin doesn't pass it, we keep whatever ephemeral state the
+   * defer already used (Discord won't let you change ephemerality
+   * after defer anyway — the flag here is informational for follow
+   * ups).
+   */
+  server.post<{
+    Body: {
+      interaction_token?: unknown;
+      content?: unknown;
+      embeds?: unknown;
+      ephemeral?: unknown;
+    };
+  }>("/api/plugin/interactions.respond", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "interactions.respond");
+    if (!ctx) return;
+    if (!bot || !bot.application) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (
+      typeof body.interaction_token !== "string" ||
+      body.interaction_token.length === 0
+    ) {
+      reply.code(400).send({ error: "interaction_token required" });
+      return;
+    }
+    const content = typeof body.content === "string" ? body.content : undefined;
+    const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
+    if (!content && !embeds) {
+      reply.code(400).send({ error: "content or embeds required" });
+      return;
+    }
+    const ephemeral = body.ephemeral === true;
+    try {
+      // Edit the original (deferred) interaction reply via Discord
+      // REST. Discord's webhook-message-edit endpoint accepts the
+      // same shape as initial response except flags is read-only;
+      // the ephemeral state was locked at defer time.
+      await bot.rest.patch(
+        Routes.webhookMessage(
+          bot.application.id,
+          body.interaction_token,
+          "@original",
+        ),
+        {
+          body: {
+            content,
+            embeds,
+            // Honor `ephemeral` only as a signal — if defer was
+            // public, Discord rejects this flag. Pass through and
+            // let Discord ignore on mismatch.
+            flags: ephemeral ? MessageFlags.Ephemeral : undefined,
+            allowed_mentions: { parse: [] },
+          },
+        },
+      );
+      return { ok: true };
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `respond failed: ${m}` });
+    }
+  });
+
+  // ─── interactions.followup ────────────────────────────────────────
+  /**
+   * POST /api/plugin/interactions.followup
+   * Body: { interaction_token, content?, embeds?, ephemeral? }
+   *
+   * Append a follow-up message to an existing interaction. Plugins
+   * use this for streaming output / multi-message replies. Discord
+   * caps at 5 follow-ups per interaction.
+   */
+  server.post<{
+    Body: {
+      interaction_token?: unknown;
+      content?: unknown;
+      embeds?: unknown;
+      ephemeral?: unknown;
+    };
+  }>("/api/plugin/interactions.followup", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "interactions.followup");
+    if (!ctx) return;
+    if (!bot || !bot.application) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (
+      typeof body.interaction_token !== "string" ||
+      body.interaction_token.length === 0
+    ) {
+      reply.code(400).send({ error: "interaction_token required" });
+      return;
+    }
+    const content = typeof body.content === "string" ? body.content : undefined;
+    const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
+    if (!content && !embeds) {
+      reply.code(400).send({ error: "content or embeds required" });
+      return;
+    }
+    const ephemeral = body.ephemeral === true;
+    try {
+      const created = (await bot.rest.post(
+        Routes.webhook(bot.application.id, body.interaction_token),
+        {
+          body: {
+            content,
+            embeds,
+            flags: ephemeral ? MessageFlags.Ephemeral : undefined,
+            allowed_mentions: { parse: [] },
+          },
+        },
+      )) as { id?: string };
+      return { ok: true, id: created.id ?? null };
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `followup failed: ${m}` });
+    }
   });
 
   // ─── plugin self-info ─────────────────────────────────────────────

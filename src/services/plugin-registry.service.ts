@@ -10,6 +10,10 @@ import {
 import { pluginAuthStore, PluginAuthStore } from "../web/plugin-auth.service.js";
 import { botEventLog } from "../web/bot-event-log.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
+import {
+  ManifestCommandError,
+  pluginCommandRegistry,
+} from "./plugin-command-registry.service.js";
 
 /**
  * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
@@ -292,6 +296,35 @@ export class PluginRegistry {
         `rebuildEventIndex after register failed: ${err instanceof Error ? err.message : String(err)}`,
       );
     });
+    // Sync slash commands. We do this AFTER the plugin row is
+    // persisted because the command registry's collision check needs
+    // a real pluginId to exclude itself from the lookup. Failures
+    // here are logged inside the command registry; we don't roll
+    // back the registration — partial-functioning plugin (events ok,
+    // commands stuck) is more useful than no plugin at all.
+    try {
+      await pluginCommandRegistry.assertNoCollisions(
+        manifest.plugin.id,
+        persisted.id,
+        manifest,
+      );
+      await pluginCommandRegistry.sync(persisted, manifest);
+    } catch (err) {
+      if (err instanceof ManifestCommandError) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin-commands: refused commands for ${manifest.plugin.id}: ${err.message}`,
+          { pluginId: persisted.id },
+        );
+      } else {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin-commands: sync failed for ${manifest.plugin.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     return { plugin: persisted, manifest, token: real.token };
   }
 
@@ -314,6 +347,30 @@ export class PluginRegistry {
     const row = await setEnabledModel(pluginId, enabled);
     if (row && !enabled) {
       this.auth.revokeByPluginId(pluginId);
+      // Strip Discord-side commands for the disabled plugin so users
+      // don't see ghost commands they can't invoke.
+      await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
+        /* logged inside the registry */
+      });
+    } else if (row && enabled) {
+      // Re-enable: re-sync commands. The plugin row's manifestJson
+      // is still authoritative even though the plugin process may
+      // have heartbeat-expired. If status='inactive' we skip — sync
+      // will run again when the plugin re-registers.
+      if (row.status === "active") {
+        const manifest = (() => {
+          try {
+            return JSON.parse(row.manifestJson) as PluginManifest;
+          } catch {
+            return null;
+          }
+        })();
+        if (manifest) {
+          await pluginCommandRegistry.sync(row, manifest).catch(() => {
+            /* logged inside the registry */
+          });
+        }
+      }
     }
     // Toggling enabled flips whether this plugin appears in event
     // dispatch fan-out; rebuild so the change takes effect on the
