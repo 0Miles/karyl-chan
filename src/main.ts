@@ -16,6 +16,7 @@ import {
 import { botEventLog } from "./web/bot-event-log.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 import { ensureAllDmsTarget } from "./models/behavior-target.model.js";
+import { pluginRegistry } from "./services/plugin-registry.service.js";
 
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
@@ -194,6 +195,12 @@ async function run() {
 
     authStore.attach(sequelizeRefreshStore);
     await authStore.init();
+
+    // Plugin heartbeat reaper. Marks plugins inactive after 75s with
+    // no heartbeat (their own cadence is 30s, so a single dropped
+    // beat doesn't trigger). Runs in-process; unref'd so it doesn't
+    // hold the event loop alive on shutdown.
+    pluginRegistry.startReaper();
 
     const webPort = parseInt(process.env.WEB_PORT ?? "3000", 10);
     const webHost = process.env.WEB_HOST ?? "0.0.0.0";

@@ -51,6 +51,7 @@ services:
       - BOT_TOKEN=${BOT_TOKEN:?Discord Token is required}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - BOT_OWNER_ID=${BOT_OWNER_ID:-}
+      - KARYL_PLUGIN_SECRET=${KARYL_PLUGIN_SECRET:-}
       # The DM login link's base URL. Derived from WEB_PORT so a
       # developer clicking the link in Discord on the same machine
       # lands on this container's port mapping. We deliberately do NOT

@@ -1,0 +1,366 @@
+import {
+  expireStalePlugins,
+  findAllPlugins,
+  findPluginByKey,
+  setPluginEnabled as setEnabledModel,
+  touchHeartbeat,
+  upsertPluginRegistration,
+  type PluginRow,
+} from "../models/plugin.model.js";
+import { pluginAuthStore, PluginAuthStore } from "../web/plugin-auth.service.js";
+import { botEventLog } from "../web/bot-event-log.js";
+
+/**
+ * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
+ * and the model layer (plugin.model). Holds:
+ *   - the heartbeat reaper interval
+ *   - cached parsed manifests for fast event-dispatch path
+ *   - the wiring to revoke tokens on admin disable / on stale-out
+ *
+ * Manifest schema validation is done here too — we'd rather fail a
+ * registration with a clear error than store a malformed manifest
+ * that breaks event dispatch later.
+ */
+
+// A plugin must heartbeat at least this often, otherwise we mark it
+// inactive and stop dispatching events to it. Tuned 2× the plugin's
+// own 30s heartbeat cadence so a single missed beat doesn't trigger.
+const HEARTBEAT_TIMEOUT_MS = 75_000;
+const REAPER_INTERVAL_MS = 30_000;
+
+export interface ManifestCommandOption {
+  type: string;
+  name: string;
+  description?: string;
+  required?: boolean;
+  channel_types?: string[];
+  options?: ManifestCommandOption[];
+  choices?: Array<{ name: string; value: string | number }>;
+}
+
+export interface ManifestCommand {
+  name: string;
+  description: string;
+  scope?: "guild" | "global";
+  default_member_permissions?: string;
+  default_ephemeral?: boolean;
+  required_capability?: string;
+  dm_permission?: boolean;
+  options?: ManifestCommandOption[];
+}
+
+export interface ManifestConfigField {
+  key: string;
+  type:
+    | "text"
+    | "textarea"
+    | "number"
+    | "boolean"
+    | "select"
+    | "channel"
+    | "role"
+    | "user"
+    | "url"
+    | "secret"
+    | "regex";
+  label: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ value: string; label: string }>;
+}
+
+export interface ManifestGuildFeature {
+  key: string;
+  name: string;
+  icon?: string;
+  description?: string;
+  enabled_by_default?: boolean;
+  events_subscribed?: string[];
+  config_schema?: ManifestConfigField[];
+  surfaces?: string[];
+  overview_metrics?: Array<{ key: string; label: string; type: string }>;
+}
+
+export interface ManifestDmBehavior {
+  key: string;
+  name: string;
+  description?: string;
+  supports_continuous?: boolean;
+  config_schema?: ManifestConfigField[];
+}
+
+export interface PluginManifest {
+  schema_version: string;
+  plugin: {
+    id: string;
+    name: string;
+    version: string;
+    description?: string;
+    author?: string;
+    homepage?: string;
+    url: string;
+    healthcheck_path?: string;
+  };
+  rpc_methods_used?: string[];
+  storage?: {
+    guild_kv?: boolean;
+    guild_kv_quota_kb?: number;
+    requires_secrets?: boolean;
+  };
+  guild_features?: ManifestGuildFeature[];
+  dm_behaviors?: ManifestDmBehavior[];
+  commands?: ManifestCommand[];
+  events_subscribed_global?: string[];
+  endpoints?: {
+    events?: string;
+    command?: string;
+    guild_feature_action?: string;
+    dm_behavior_dispatch?: string;
+  };
+}
+
+export type ManifestValidation =
+  | { ok: true; manifest: PluginManifest }
+  | { ok: false; error: string };
+
+export function validateManifest(input: unknown): ManifestValidation {
+  if (!input || typeof input !== "object") {
+    return { ok: false, error: "manifest must be an object" };
+  }
+  const m = input as Record<string, unknown>;
+  if (m.schema_version !== "1") {
+    return {
+      ok: false,
+      error: `unsupported schema_version (got ${String(m.schema_version)}, expected '1')`,
+    };
+  }
+  const plugin = m.plugin as Record<string, unknown> | undefined;
+  if (!plugin || typeof plugin !== "object") {
+    return { ok: false, error: "manifest.plugin missing" };
+  }
+  for (const k of ["id", "name", "version", "url"] as const) {
+    if (typeof plugin[k] !== "string" || (plugin[k] as string).length === 0) {
+      return { ok: false, error: `manifest.plugin.${k} required` };
+    }
+  }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(plugin.id as string)) {
+    return {
+      ok: false,
+      error: "manifest.plugin.id must match [a-z0-9][a-z0-9-]*",
+    };
+  }
+  // URL must be parseable; reject non-http(s) up front so we don't
+  // try to fetch over a weird scheme later.
+  try {
+    const url = new URL(plugin.url as string);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return { ok: false, error: "manifest.plugin.url must be http(s)" };
+    }
+  } catch {
+    return { ok: false, error: "manifest.plugin.url is not a valid URL" };
+  }
+  // The arrays are optional but if present must be arrays.
+  for (const k of [
+    "rpc_methods_used",
+    "guild_features",
+    "dm_behaviors",
+    "commands",
+    "events_subscribed_global",
+  ] as const) {
+    if (m[k] !== undefined && !Array.isArray(m[k])) {
+      return { ok: false, error: `manifest.${k} must be an array` };
+    }
+  }
+  // Light per-feature / per-behavior validation; we trust well-formed
+  // shape beyond this. Stricter checks (e.g. valid Discord option
+  // types) live in the command-registration layer where they're
+  // actionable.
+  for (const f of (m.guild_features as ManifestGuildFeature[] | undefined) ?? []) {
+    if (!f.key || !f.name) {
+      return {
+        ok: false,
+        error: "every guild_feature requires key + name",
+      };
+    }
+  }
+  for (const b of (m.dm_behaviors as ManifestDmBehavior[] | undefined) ?? []) {
+    if (!b.key || !b.name) {
+      return { ok: false, error: "every dm_behavior requires key + name" };
+    }
+  }
+  for (const c of (m.commands as ManifestCommand[] | undefined) ?? []) {
+    if (!c.name || !c.description) {
+      return {
+        ok: false,
+        error: "every command requires name + description",
+      };
+    }
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(c.name)) {
+      return {
+        ok: false,
+        error: `command.name '${c.name}' invalid (Discord constraint: ^[a-z0-9][a-z0-9-]{0,31}$)`,
+      };
+    }
+  }
+  return { ok: true, manifest: input as PluginManifest };
+}
+
+export interface RegisterResult {
+  plugin: PluginRow;
+  manifest: PluginManifest;
+  /** Cleartext token; never stored, only returned to the plugin once. */
+  token: string;
+}
+
+export class PluginRegistry {
+  private reaperTimer: NodeJS.Timeout | null = null;
+  private auth: PluginAuthStore;
+
+  constructor(auth: PluginAuthStore) {
+    this.auth = auth;
+  }
+
+  /**
+   * Idempotent registration. Re-registers (e.g. plugin restart) just
+   * issue a fresh token and update the manifest snapshot — admin's
+   * `enabled` flag stays where they last set it.
+   */
+  async register(rawManifest: unknown): Promise<RegisterResult> {
+    const v = validateManifest(rawManifest);
+    if (!v.ok) {
+      throw new ManifestError(v.error);
+    }
+    const manifest = v.manifest;
+
+    // Mint token first, persist hash. Cleartext goes back to the
+    // plugin in the response and is never stored.
+    const scopes = manifest.rpc_methods_used ?? [];
+    // Stable id for token cache: we can't use the not-yet-known
+    // plugins.id row id, so we use pluginKey as identity here, then
+    // reissue with the real id once we have it. The auth store keys
+    // by tokenHash so the second issue() supersedes the first.
+    const placeholderToken = this.auth.issue({
+      pluginId: -1,
+      pluginKey: manifest.plugin.id,
+      scopes,
+    });
+    const persisted = await upsertPluginRegistration({
+      pluginKey: manifest.plugin.id,
+      name: manifest.plugin.name,
+      version: manifest.plugin.version,
+      url: manifest.plugin.url,
+      manifestJson: JSON.stringify(manifest),
+      tokenHash: placeholderToken.tokenHash,
+    });
+    // Re-issue with the real plugins.id so the auth record carries the
+    // db-backed id (used by RPC handlers to filter scopes per plugin).
+    this.auth.revokeToken(placeholderToken.token);
+    const real = this.auth.issue({
+      pluginId: persisted.id,
+      pluginKey: manifest.plugin.id,
+      scopes,
+    });
+    // Persist the real hash in place of the placeholder.
+    persisted.tokenHash = real.tokenHash;
+    await upsertPluginRegistration({
+      pluginKey: manifest.plugin.id,
+      name: manifest.plugin.name,
+      version: manifest.plugin.version,
+      url: manifest.plugin.url,
+      manifestJson: JSON.stringify(manifest),
+      tokenHash: real.tokenHash,
+    });
+
+    botEventLog.record(
+      "info",
+      "bot",
+      `Plugin registered: ${manifest.plugin.id} v${manifest.plugin.version}`,
+      {
+        pluginId: persisted.id,
+        pluginKey: manifest.plugin.id,
+        version: manifest.plugin.version,
+      },
+    );
+    return { plugin: persisted, manifest, token: real.token };
+  }
+
+  /**
+   * Heartbeat from a plugin: stamp lastHeartbeatAt, ensure status is
+   * active, slide token expiry. Called only from the route handler
+   * which has already verified the bearer token.
+   */
+  async heartbeat(pluginId: number, token: string): Promise<void> {
+    await touchHeartbeat(pluginId);
+    this.auth.refresh(token);
+  }
+
+  /**
+   * Admin toggle. Disabling a plugin revokes its token immediately —
+   * any in-flight RPC fails with 401. Re-enabling requires the plugin
+   * to re-register (no automatic resurrection).
+   */
+  async setEnabled(pluginId: number, enabled: boolean): Promise<PluginRow | null> {
+    const row = await setEnabledModel(pluginId, enabled);
+    if (row && !enabled) {
+      this.auth.revokeByPluginId(pluginId);
+    }
+    return row;
+  }
+
+  async list(): Promise<PluginRow[]> {
+    return findAllPlugins();
+  }
+
+  async findByKey(pluginKey: string): Promise<PluginRow | null> {
+    return findPluginByKey(pluginKey);
+  }
+
+  /**
+   * Start the heartbeat reaper. Call from main.ts after migrations
+   * have run. Idempotent: calling twice is a no-op.
+   */
+  startReaper(now: () => number = Date.now): void {
+    if (this.reaperTimer) return;
+    const tick = async () => {
+      try {
+        const cutoff = new Date(now() - HEARTBEAT_TIMEOUT_MS);
+        const ids = await expireStalePlugins(cutoff);
+        for (const id of ids) {
+          this.auth.revokeByPluginId(id);
+          botEventLog.record(
+            "warn",
+            "bot",
+            `Plugin marked inactive (heartbeat timeout): id=${id}`,
+            { pluginId: id, cutoff: cutoff.toISOString() },
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        botEventLog.record(
+          "error",
+          "error",
+          `Plugin reaper failed: ${msg}`,
+        );
+      }
+    };
+    this.reaperTimer = setInterval(tick, REAPER_INTERVAL_MS);
+    this.reaperTimer.unref();
+  }
+
+  stopReaper(): void {
+    if (this.reaperTimer) {
+      clearInterval(this.reaperTimer);
+      this.reaperTimer = null;
+    }
+  }
+}
+
+export class ManifestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManifestError";
+  }
+}
+
+export const pluginRegistry = new PluginRegistry(pluginAuthStore);

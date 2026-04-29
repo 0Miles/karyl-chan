@@ -74,6 +74,7 @@ import { registerAdminManagementRoutes } from "./admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "./admin-login-status-routes.js";
 import { registerBotEventRoutes } from "./bot-event-routes.js";
 import { registerBehaviorRoutes } from "./behavior-routes.js";
+import { registerPluginRoutes } from "./plugin-routes.js";
 import { requireAnyCapability } from "./route-guards.js";
 import { botEventLog } from "./bot-event-log.js";
 import { shouldRecord } from "./bot-event-dedup.js";
@@ -163,6 +164,14 @@ export async function createWebServer(
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
     if (pathOnly(request.url) === "/api/health") return;
+    // Plugin-facing endpoints have their own auth model (setup secret
+    // for register, plugin bearer token for heartbeat / RPC). Admin
+    // endpoints under /api/plugins still go through this hook below.
+    {
+      const path = pathOnly(request.url);
+      if (path === "/api/plugins/register") return;
+      if (path === "/api/plugins/heartbeat") return;
+    }
     if (!authEnabled) {
       // Dev-only branch (production fails to boot without
       // BOT_OWNER_ID; see the guard above). Hand requests a
@@ -498,6 +507,7 @@ export async function createWebServer(
   await registerAdminLoginStatusRoutes(server);
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
+  await registerPluginRoutes(server);
 
   if (bot) {
     server.get("/api/bot/status", async (request, reply) => {
