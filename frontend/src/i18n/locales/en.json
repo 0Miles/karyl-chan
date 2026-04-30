@@ -1023,7 +1023,11 @@
             "deleteConfirm": "Delete offline plugin \"{name}\"? This will also remove all its KV data, config, and feature settings and cannot be undone.",
             "deleteSuccess": "Plugin deleted",
             "deleteFailed": "Delete failed",
-            "cannotDeleteActive": "Cannot delete an active plugin — stop the plugin and wait for it to go inactive first"
+            "cannotDeleteActive": "Cannot delete an active plugin — stop the plugin and wait for it to go inactive first",
+            "deleteAllOffline": "Delete all",
+            "deleteAllConfirmTitle": "Delete all offline plugins",
+            "deleteAllConfirm": "Delete all {n} offline plugins? Each plugin's KV, config, and feature settings will be removed and cannot be recovered.",
+            "deleteAllProgress": "Progress: {done} / {total}"
         }
     },
     "picker": {

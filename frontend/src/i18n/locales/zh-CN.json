@@ -1023,7 +1023,11 @@
             "deleteConfirm": "确定删除离线 plugin「{name}」？此操作会同时删除其所有 KV / config / feature 设置，无法恢复。",
             "deleteSuccess": "Plugin 已删除",
             "deleteFailed": "删除失败",
-            "cannotDeleteActive": "无法删除仍在线的 plugin，请先停止 plugin 并等待 inactive 后再试"
+            "cannotDeleteActive": "无法删除仍在线的 plugin，请先停止 plugin 并等待 inactive 后再试",
+            "deleteAllOffline": "全部删除",
+            "deleteAllConfirmTitle": "删除全部离线 Plugin",
+            "deleteAllConfirm": "确定删除全部 {n} 个离线 plugin？每个 plugin 的 KV / config / feature 设置都会一并删除，无法恢复。",
+            "deleteAllProgress": "进度：{done} / {total}"
         }
     },
     "picker": {

@@ -217,7 +217,9 @@ export async function generatePluginSetupSecret(
   const r = await authedFetch("/api/plugins/setup-secret", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(secret !== undefined ? { pluginKey, secret } : { pluginKey }),
+    body: JSON.stringify(
+      secret !== undefined ? { pluginKey, secret } : { pluginKey },
+    ),
   });
   return jsonOrThrow<GenerateSetupSecretResult>(r);
 }

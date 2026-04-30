@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
-import { listPlugins, type PluginRecord } from '../../../api/plugins';
+import { deletePlugin, listPlugins, type PluginRecord } from '../../../api/plugins';
 import PluginCard from './PluginCard.vue';
+import AppModal from '../../../components/AppModal.vue';
 
 const { t } = useI18n();
 
@@ -43,6 +44,52 @@ function onScopesUpdated(payload: { id: number; approvedScopes: string[]; pendin
 
 function onDeleted(id: number) {
     plugins.value = plugins.value.filter(p => p.id !== id);
+}
+
+// ── Delete-all-offline ───────────────────────────────────────────
+const deleteAllModalOpen = ref(false);
+const deletingAll = ref(false);
+const deleteAllError = ref<string | null>(null);
+const deleteAllProgress = ref<{ done: number; total: number } | null>(null);
+
+async function confirmDeleteAllOffline() {
+    if (deletingAll.value) return;
+    const targets = inactivePlugins.value.slice();
+    if (targets.length === 0) {
+        deleteAllModalOpen.value = false;
+        return;
+    }
+    deletingAll.value = true;
+    deleteAllError.value = null;
+    deleteAllProgress.value = { done: 0, total: targets.length };
+    const failures: string[] = [];
+    for (const p of targets) {
+        try {
+            await deletePlugin(p.id);
+            plugins.value = plugins.value.filter(x => x.id !== p.id);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            failures.push(`${p.pluginKey}: ${msg}`);
+        }
+        deleteAllProgress.value = {
+            done: (deleteAllProgress.value?.done ?? 0) + 1,
+            total: targets.length,
+        };
+    }
+    deletingAll.value = false;
+    if (failures.length === 0) {
+        deleteAllModalOpen.value = false;
+        deleteAllProgress.value = null;
+    } else {
+        deleteAllError.value = failures.join('\n');
+    }
+}
+
+function closeDeleteAllModal() {
+    if (deletingAll.value) return;
+    deleteAllModalOpen.value = false;
+    deleteAllError.value = null;
+    deleteAllProgress.value = null;
 }
 
 onMounted(load);
@@ -87,16 +134,28 @@ onMounted(load);
 
         <!-- Offline group (collapsible, default collapsed) -->
         <div v-if="inactivePlugins.length > 0" class="group">
-            <button type="button" class="group-head group-toggle" @click="offlineOpen = !offlineOpen">
-                <span class="group-dot offline" />
-                <span class="group-label">{{ t('admin.plugins.offlineCount', { n: inactivePlugins.length }) }}</span>
-                <Icon
-                    :icon="offlineOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'"
-                    width="16"
-                    height="16"
-                    class="group-chevron"
-                />
-            </button>
+            <div class="group-head group-head-offline">
+                <button type="button" class="group-toggle-btn" @click="offlineOpen = !offlineOpen">
+                    <span class="group-dot offline" />
+                    <span class="group-label">{{ t('admin.plugins.offlineCount', { n: inactivePlugins.length }) }}</span>
+                    <Icon
+                        :icon="offlineOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'"
+                        width="16"
+                        height="16"
+                        class="group-chevron"
+                    />
+                </button>
+                <button
+                    type="button"
+                    class="delete-all-btn"
+                    :disabled="deletingAll"
+                    :title="t('admin.plugins.deleteAllOffline')"
+                    @click="deleteAllModalOpen = true"
+                >
+                    <Icon icon="material-symbols:delete-sweep-outline" width="16" height="16" />
+                    <span>{{ t('admin.plugins.deleteAllOffline') }}</span>
+                </button>
+            </div>
             <div v-if="offlineOpen" class="card-list">
                 <PluginCard
                     v-for="p in inactivePlugins"
@@ -108,6 +167,31 @@ onMounted(load);
                 />
             </div>
         </div>
+
+        <AppModal
+            :visible="deleteAllModalOpen"
+            :title="t('admin.plugins.deleteAllConfirmTitle')"
+            :close-on-backdrop="!deletingAll"
+            :close-on-escape="!deletingAll"
+            @close="closeDeleteAllModal"
+        >
+            <div class="modal-body">
+                <p>{{ t('admin.plugins.deleteAllConfirm', { n: inactivePlugins.length }) }}</p>
+                <p v-if="deleteAllProgress" class="progress">
+                    {{ t('admin.plugins.deleteAllProgress', { done: deleteAllProgress.done, total: deleteAllProgress.total }) }}
+                </p>
+                <pre v-if="deleteAllError" class="error" role="alert">{{ deleteAllError }}</pre>
+                <div class="modal-actions">
+                    <button type="button" class="ghost" :disabled="deletingAll" @click="closeDeleteAllModal">
+                        {{ t('common.cancel') }}
+                    </button>
+                    <button type="button" class="danger" :disabled="deletingAll || inactivePlugins.length === 0" @click="confirmDeleteAllOffline">
+                        <Icon v-if="deletingAll" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
+                        {{ deletingAll ? t('common.loading') : t('admin.plugins.deleteAllOffline') }}
+                    </button>
+                </div>
+            </div>
+        </AppModal>
     </div>
 </template>
 
@@ -178,14 +262,78 @@ onMounted(load);
     gap: 0.45rem;
     padding: 0.2rem 0.1rem;
 }
-.group-toggle {
+.group-toggle,
+.group-toggle-btn {
     background: none;
     border: none;
     cursor: pointer;
     color: var(--text-muted);
     text-align: left;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
 }
-.group-toggle:hover .group-label { color: var(--text); }
+.group-toggle:hover .group-label,
+.group-toggle-btn:hover .group-label { color: var(--text); }
+.group-head-offline {
+    justify-content: space-between;
+}
+.delete-all-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 35%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--danger, #dc2626) 8%, transparent);
+    color: var(--danger, #dc2626);
+    cursor: pointer;
+}
+.delete-all-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger, #dc2626) 15%, transparent);
+}
+.delete-all-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.modal-body { display: flex; flex-direction: column; gap: 0.75rem; }
+.modal-body .progress { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+.modal-body pre.error {
+    white-space: pre-wrap;
+    background: color-mix(in srgb, var(--danger, #dc2626) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 30%, transparent);
+    border-radius: var(--radius-base);
+    padding: 0.5rem;
+    font-size: 0.78rem;
+    color: var(--danger, #dc2626);
+    max-height: 12rem;
+    overflow: auto;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+.modal-actions .danger {
+    background: var(--danger, #dc2626);
+    color: white;
+    border: none;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.modal-actions .danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.modal-actions .ghost {
+    background: none;
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    color: var(--text);
+}
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .group-dot {
     width: 8px;
     height: 8px;
