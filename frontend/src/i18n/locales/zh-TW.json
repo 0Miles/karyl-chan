@@ -944,7 +944,16 @@
             "manifestRaw": "顯示完整 manifest",
             "dmBehaviorsCount": "DM 行為 × {n}",
             "guildFeaturesCount": "伺服器功能 × {n}",
-            "commandsCount": "Slash 指令 × {n}"
+            "commandsCount": "Slash 指令 × {n}",
+            "scopes": {
+                "approved": "已批准的 RPC 權限",
+                "pending": "待批准的 RPC 權限",
+                "pendingCount": "{n} 個權限待審",
+                "pendingHint": "有 {n} 個新 RPC 權限請求待 admin 批准，點擊審查",
+                "approveButton": "批准",
+                "approveModalTitle": "審查 RPC 權限請求",
+                "approveConfirm": "以下 RPC 權限由「{name}」請求，批准後將立即生效："
+            }
         }
     },
     "picker": {

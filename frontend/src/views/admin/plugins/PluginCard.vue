@@ -2,7 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+import AppModal from '../../../components/AppModal.vue';
 import {
+    approvePluginScopes,
     getPluginConfig,
     setPluginConfig,
     setPluginEnabled,
@@ -16,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'updated', plugin: { id: number; pluginKey: string; enabled: boolean }): void;
+    (e: 'scopes-updated', payload: { id: number; approvedScopes: string[]; pendingScopes: string[] }): void;
 }>();
 
 const { t } = useI18n();
@@ -135,6 +138,39 @@ const commandCount = computed(() => globalCommandCount.value + featureCommandCou
 const rpcScopes = computed(() => props.plugin.manifest?.rpc_methods_used ?? []);
 const description = computed(() => props.plugin.manifest?.plugin.description ?? '');
 
+// ── Scope approval ──────────────────────────────────────────────────
+const approvedScopes = ref<string[]>(props.plugin.approvedScopes ?? []);
+const pendingScopes = ref<string[]>(props.plugin.pendingScopes ?? []);
+
+// Keep local refs in sync when the parent reloads and passes fresh data
+watch(() => props.plugin.approvedScopes, (v) => { approvedScopes.value = v ?? []; });
+watch(() => props.plugin.pendingScopes, (v) => { pendingScopes.value = v ?? []; });
+
+const approveModalOpen = ref(false);
+const approving = ref(false);
+const approveError = ref<string | null>(null);
+
+async function confirmApproveScopes() {
+    if (approving.value) return;
+    approving.value = true;
+    approveError.value = null;
+    try {
+        const result = await approvePluginScopes(props.plugin.id);
+        approvedScopes.value = result.approved;
+        pendingScopes.value = result.pending;
+        approveModalOpen.value = false;
+        emit('scopes-updated', {
+            id: props.plugin.id,
+            approvedScopes: result.approved,
+            pendingScopes: result.pending,
+        });
+    } catch (err) {
+        approveError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        approving.value = false;
+    }
+}
+
 async function onToggleEnabled() {
     if (saving.value) return;
     const next = !enabledLocal.value;
@@ -173,6 +209,16 @@ async function onToggleEnabled() {
             </button>
             <span class="status-dot" :style="{ background: statusColor }" :title="statusLabel" />
             <span class="status-text">{{ statusLabel }}</span>
+            <button
+                v-if="pendingScopes.length > 0"
+                type="button"
+                class="pending-badge"
+                :title="t('admin.plugins.scopes.pendingHint', { n: pendingScopes.length })"
+                @click.stop="approveModalOpen = true"
+            >
+                <Icon icon="material-symbols:security-rounded" width="13" height="13" />
+                {{ t('admin.plugins.scopes.pendingCount', { n: pendingScopes.length }) }}
+            </button>
             <button
                 type="button"
                 role="switch"
@@ -213,7 +259,23 @@ async function onToggleEnabled() {
                     <dt>{{ t('admin.plugins.lastHeartbeat') }}</dt>
                     <dd>{{ lastHeartbeat }}</dd>
                 </div>
-                <div class="meta-row" v-if="rpcScopes.length > 0">
+                <div class="meta-row" v-if="approvedScopes.length > 0">
+                    <dt>{{ t('admin.plugins.scopes.approved') }}</dt>
+                    <dd>
+                        <code v-for="s in approvedScopes" :key="s" class="scope-chip scope-chip--approved">{{ s }}</code>
+                    </dd>
+                </div>
+                <div class="meta-row" v-if="pendingScopes.length > 0">
+                    <dt>{{ t('admin.plugins.scopes.pending') }}</dt>
+                    <dd class="pending-row">
+                        <code v-for="s in pendingScopes" :key="s" class="scope-chip scope-chip--pending">{{ s }}</code>
+                        <button type="button" class="approve-btn" :disabled="approving" @click="approveModalOpen = true">
+                            <Icon icon="material-symbols:check-circle-outline-rounded" width="14" height="14" />
+                            {{ t('admin.plugins.scopes.approveButton') }}
+                        </button>
+                    </dd>
+                </div>
+                <div class="meta-row" v-else-if="approvedScopes.length === 0 && rpcScopes.length > 0">
                     <dt>{{ t('admin.plugins.rpcScopes') }}</dt>
                     <dd>
                         <code v-for="s in rpcScopes" :key="s" class="scope-chip">{{ s }}</code>
@@ -288,6 +350,32 @@ async function onToggleEnabled() {
             <p v-if="error" class="error" role="alert">{{ error }}</p>
         </div>
     </article>
+
+    <!-- Scope approve confirmation modal -->
+    <AppModal
+        :visible="approveModalOpen"
+        :title="t('admin.plugins.scopes.approveModalTitle')"
+        :close-on-backdrop="!approving"
+        :close-on-escape="!approving"
+        @close="approveModalOpen = false"
+    >
+        <div class="approve-modal-body">
+            <p class="approve-modal-desc">{{ t('admin.plugins.scopes.approveConfirm', { name: plugin.name }) }}</p>
+            <div class="approve-scope-list" role="list">
+                <code v-for="s in pendingScopes" :key="s" role="listitem" class="scope-chip scope-chip--pending">{{ s }}</code>
+            </div>
+            <p v-if="approveError" class="error" role="alert">{{ approveError }}</p>
+            <div class="approve-modal-actions">
+                <button type="button" class="ghost" :disabled="approving" @click="approveModalOpen = false">
+                    {{ t('common.cancel') }}
+                </button>
+                <button type="button" class="primary" :disabled="approving" @click="confirmApproveScopes">
+                    <Icon v-if="approving" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
+                    {{ approving ? t('common.loading') : t('admin.plugins.scopes.approveButton') }}
+                </button>
+            </div>
+        </div>
+    </AppModal>
 </template>
 
 <style scoped>
@@ -504,4 +592,122 @@ async function onToggleEnabled() {
     font-size: 0.85rem;
 }
 .config-actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Scope chips ─────────────────────────────────────────────────── */
+.scope-chip--approved {
+    background: color-mix(in srgb, var(--success, #16a34a) 14%, var(--bg-page));
+    color: var(--success, #16a34a);
+    border: 1px solid color-mix(in srgb, var(--success, #16a34a) 30%, transparent);
+}
+.scope-chip--pending {
+    background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-page));
+    color: var(--warning, #d97706);
+    border: 1px solid color-mix(in srgb, var(--warning, #d97706) 30%, transparent);
+}
+
+/* ── Pending badge in card header ───────────────────────────────── */
+.pending-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0.18rem 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-surface));
+    color: var(--warning, #d97706);
+    border: 1px solid color-mix(in srgb, var(--warning, #d97706) 35%, transparent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.pending-badge:hover {
+    background: color-mix(in srgb, var(--warning, #d97706) 22%, var(--bg-surface));
+}
+
+/* ── Pending row in meta table ──────────────────────────────────── */
+.pending-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: center;
+}
+.approve-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.18rem 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.approve-btn:hover { filter: brightness(1.1); }
+.approve-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Approve modal internals ─────────────────────────────────────── */
+.approve-modal-body {
+    padding: 0.9rem 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.approve-modal-desc {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+.approve-scope-list {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+.approve-scope-list code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--warning, #d97706) 14%, var(--bg-page));
+    color: var(--warning, #d97706);
+    border: 1px solid color-mix(in srgb, var(--warning, #d97706) 30%, transparent);
+}
+.approve-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border);
+}
+.approve-modal-actions .ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.approve-modal-actions .ghost:hover { background: var(--bg-surface-hover); }
+.approve-modal-actions .ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+.approve-modal-actions .primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.approve-modal-actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
 </style>

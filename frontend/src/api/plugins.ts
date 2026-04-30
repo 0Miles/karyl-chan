@@ -79,6 +79,8 @@ export interface PluginRecord {
   enabled: boolean;
   lastHeartbeatAt: string | null;
   manifest: PluginManifest | null;
+  approvedScopes: string[];
+  pendingScopes: string[];
 }
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
@@ -173,4 +175,20 @@ export async function setPluginConfig(
     body: JSON.stringify({ values }),
   });
   return jsonOrThrow<{ accepted: string[]; skipped: string[] }>(r);
+}
+
+// ─── Plugin scope approval ─────────────────────────────────────────
+
+export interface ApproveScopesResult {
+  approved: string[];
+  pending: string[];
+}
+
+export async function approvePluginScopes(
+  id: number,
+): Promise<ApproveScopesResult> {
+  const r = await authedFetch(`/api/plugins/${id}/approve-scopes`, {
+    method: "POST",
+  });
+  return jsonOrThrow<ApproveScopesResult>(r);
 }

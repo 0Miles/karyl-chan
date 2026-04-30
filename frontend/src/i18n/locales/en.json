@@ -944,7 +944,16 @@
             "manifestRaw": "Show raw manifest",
             "dmBehaviorsCount": "{n} DM behavior(s)",
             "guildFeaturesCount": "{n} guild feature(s)",
-            "commandsCount": "{n} slash command(s)"
+            "commandsCount": "{n} slash command(s)",
+            "scopes": {
+                "approved": "Approved RPC scopes",
+                "pending": "Pending RPC scopes",
+                "pendingCount": "{n} scope(s) pending",
+                "pendingHint": "{n} new RPC scope(s) awaiting admin approval — click to review",
+                "approveButton": "Approve",
+                "approveModalTitle": "Review RPC scope request",
+                "approveConfirm": "The following RPC scopes are requested by \"{name}\". Once approved they take effect immediately:"
+            }
         }
     },
     "picker": {

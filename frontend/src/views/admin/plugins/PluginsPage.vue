@@ -29,6 +29,14 @@ function onUpdated(updated: { id: number; pluginKey: string; enabled: boolean })
     );
 }
 
+function onScopesUpdated(payload: { id: number; approvedScopes: string[]; pendingScopes: string[] }) {
+    plugins.value = plugins.value.map(p =>
+        p.id === payload.id
+            ? { ...p, approvedScopes: payload.approvedScopes, pendingScopes: payload.pendingScopes }
+            : p
+    );
+}
+
 onMounted(load);
 </script>
 
@@ -56,6 +64,7 @@ onMounted(load);
                 :key="p.id"
                 :plugin="p"
                 @updated="onUpdated"
+                @scopes-updated="onScopesUpdated"
             />
         </div>
     </div>
