@@ -1,4 +1,12 @@
-import { vi, afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  vi,
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { Client } from "discordx";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
@@ -23,6 +31,7 @@ import {
   JwtService,
   type JwtClaims,
 } from "../src/modules/web-core/jwt.service.js";
+import { botEventLog } from "../src/modules/bot-events/bot-event-log.js";
 
 interface FakeBotOptions {
   ready?: boolean;
@@ -514,6 +523,83 @@ describe("web server", () => {
         expect(response.statusCode).toBe(401);
         expect(response.json().error).toBe("Unauthorized");
       });
+    });
+  });
+
+  // Issue 8.1 fix: botEventLog must never expose internal error details
+  // (SQL text, file paths, stack traces). Server-side pino log keeps the
+  // full error; the admin-UI-visible botEventLog gets a generic message.
+  describe("auth.exchange: issueTokens failure does not leak error detail to botEventLog (issue 8.1)", () => {
+    const OWNER_ID = "owner-8-1";
+    const baseClaims: JwtClaims = {
+      purpose: "login",
+      userId: OWNER_ID,
+      guildId: null,
+      channelId: "dm-channel",
+      messageId: "msg-8-1",
+    };
+    let server: FastifyInstance;
+    let store: AuthStore;
+    let jwt: JwtService;
+
+    beforeAll(async () => {
+      process.env.BOT_OWNER_ID = OWNER_ID;
+      // No sequelize.sync() needed: OWNER_ID resolveLoginRole takes the
+      // owner bypass path (no DB query), and issueTokens is mocked, so
+      // the test never touches the DB. The previous describe already ran
+      // sequelize.close(), so we must not call sequelize here.
+      store = new AuthStore();
+      jwt = new JwtService(randomBytes(64));
+      server = await createWebServer({
+        staticRoot: undefined,
+        authStore: store,
+        jwtService: jwt,
+      });
+      await server.ready();
+    });
+
+    afterAll(async () => {
+      await server.close();
+      store.stop();
+      delete process.env.BOT_OWNER_ID;
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("writes generic 'Token issuance failed' to botEventLog and does not include SQL-like error detail", async () => {
+      const SQL_FRAGMENT =
+        "SQLITE_CONSTRAINT: UNIQUE constraint failed: refresh_tokens.token_hash";
+      vi.spyOn(store, "issueTokens").mockRejectedValueOnce(
+        new Error(SQL_FRAGMENT),
+      );
+      const recordSpy = vi.spyOn(botEventLog, "record");
+
+      const { token } = jwt.sign(baseClaims);
+      const response = await server.inject({
+        method: "POST",
+        url: "/api/auth/exchange",
+        payload: { token },
+      });
+
+      expect(response.statusCode).toBe(500);
+
+      const authErrorCalls = recordSpy.mock.calls.filter(
+        (call) => call[1] === "auth" && call[0] === "error",
+      );
+      expect(authErrorCalls.length).toBeGreaterThanOrEqual(1);
+      for (const call of authErrorCalls) {
+        const message = call[2] as string;
+        expect(message).not.toContain(SQL_FRAGMENT);
+        expect(message).not.toContain("SQLITE_CONSTRAINT");
+        expect(message).toBe("Token issuance failed");
+        // Metadata must not regress into a leak channel either —
+        // serialize the whole context arg and grep the same fragment.
+        const contextSerialized = JSON.stringify(call[3] ?? {});
+        expect(contextSerialized).not.toContain(SQL_FRAGMENT);
+        expect(contextSerialized).not.toContain("SQLITE_CONSTRAINT");
+      }
     });
   });
 });

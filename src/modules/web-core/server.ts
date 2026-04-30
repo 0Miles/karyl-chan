@@ -128,6 +128,8 @@ export interface CreateWebServerOptions {
   /** Override JWT issuer/verifier for tests; defaults to the singleton. */
   jwtService?: JwtService;
   dmInbox?: DmInboxStore;
+  /** Injected DM rate limiter for tests; production uses the module-level singleton. */
+  dmLimiter?: { isRateLimited(key: string): boolean };
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -446,17 +448,13 @@ export async function createWebServer(
       } catch (err) {
         // Most plausible cause is the SQLite refresh-token persistence
         // throwing. The full error (which can include SQL error text,
-        // file paths, or stack traces) is logged server-side; the
-        // client gets a generic message so we don't hand probers free
-        // intel on internal state.
-        const detail = err instanceof Error ? err.message : String(err);
+        // file paths, or stack traces) is logged server-side only; the
+        // admin UI gets a generic message so we don't leak internal
+        // state through botEventLog.
         request.log.error({ err }, "auth.exchange: issueTokens failed");
-        botEventLog.record(
-          "error",
-          "auth",
-          `Token issuance failed: ${detail}`,
-          { userId: claims.userId },
-        );
+        botEventLog.record("error", "auth", "Token issuance failed", {
+          userId: claims.userId,
+        });
         reply.code(500).send({ error: "Token issuance failed" });
       }
     },
@@ -597,7 +595,7 @@ export async function createWebServer(
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
   await registerPluginRoutes(server, { bot });
-  await registerPluginRpcRoutes(server, { bot });
+  await registerPluginRpcRoutes(server, { bot, dmLimiter: options.dmLimiter });
   await registerVoiceRpcRoutes(server, { bot });
   await registerBotFeatureRoutes(server, { bot });
 

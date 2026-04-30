@@ -11,6 +11,7 @@ import {
 import { config } from "../../config.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { moduleLogger } from "../../logger.js";
 import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 import {
   ManifestCommandError,
@@ -20,6 +21,8 @@ import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+
+const log = moduleLogger("plugin-registry");
 
 /**
  * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
@@ -372,10 +375,11 @@ export class PluginRegistry {
     // Refresh the event subscription index so this plugin's
     // events_subscribed start receiving fan-out immediately.
     await rebuildEventIndex().catch((err) => {
+      log.error({ err }, "rebuildEventIndex after register failed");
       botEventLog.record(
         "warn",
         "bot",
-        `rebuildEventIndex after register failed: ${err instanceof Error ? err.message : String(err)}`,
+        "rebuildEventIndex after register failed",
       );
     });
     // Sync slash commands. We do this AFTER the plugin row is
@@ -400,10 +404,14 @@ export class PluginRegistry {
           { pluginId: persisted.id },
         );
       } else {
+        log.error(
+          { err },
+          `plugin-commands: sync failed for ${manifest.plugin.id}`,
+        );
         botEventLog.record(
           "warn",
           "bot",
-          `plugin-commands: sync failed for ${manifest.plugin.id}: ${err instanceof Error ? err.message : String(err)}`,
+          `plugin-commands: sync failed for ${manifest.plugin.id}`,
         );
       }
     }
@@ -510,8 +518,8 @@ export class PluginRegistry {
           });
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        botEventLog.record("error", "error", `Plugin reaper failed: ${msg}`);
+        log.error({ err }, "plugin reaper failed");
+        botEventLog.record("error", "error", "Plugin reaper failed");
       }
     };
     this.reaperTimer = setInterval(tick, REAPER_INTERVAL_MS);

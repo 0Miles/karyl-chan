@@ -114,14 +114,13 @@ process.on("unhandledRejection", (reason) => {
   // could cut the cleanup short.
   if (shuttingDown) return;
   if (migrationsApplied) {
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    const stack = reason instanceof Error ? reason.stack : undefined;
-    botEventLog.record(
-      "error",
-      "error",
-      `Unhandled promise rejection: ${msg}`,
-      stack ? { stack } : undefined,
-    );
+    // Stack stays in pino server log only. botEventLog feeds the
+    // admin UI, which serializes context as-is — putting the stack
+    // there would just relocate the leak issue 8.1 was meant to fix.
+    botEventLog.record("error", "error", "Unhandled promise rejection", {
+      errorType:
+        reason instanceof Error ? reason.constructor.name : typeof reason,
+    });
   }
   setTimeout(() => process.exit(1), FATAL_FLUSH_MS);
 });
@@ -130,12 +129,9 @@ process.on("uncaughtException", (error) => {
   log.error({ err: error }, "Uncaught exception");
   if (shuttingDown) return;
   if (migrationsApplied) {
-    botEventLog.record(
-      "error",
-      "error",
-      `Uncaught exception: ${error.message}`,
-      error.stack ? { stack: error.stack } : undefined,
-    );
+    botEventLog.record("error", "error", "Uncaught exception", {
+      errorType: error.constructor.name,
+    });
   }
   setTimeout(() => process.exit(1), FATAL_FLUSH_MS);
 });
@@ -285,14 +281,11 @@ bot.once("ready", async () => {
       await owner.createDM();
     } catch (err) {
       log.error({ err }, "Failed to cache owner DM channel");
-      const msg = err instanceof Error ? err.message : String(err);
       const errorType = err instanceof Error ? err.constructor.name : "unknown";
-      botEventLog.record(
-        "warn",
-        "bot",
-        `Failed to cache owner DM channel: ${msg}`,
-        { ownerId, errorType },
-      );
+      botEventLog.record("warn", "bot", "Failed to cache owner DM channel", {
+        ownerId,
+        errorType,
+      });
     }
   }
 
@@ -316,11 +309,8 @@ bot.once("ready", async () => {
   // ONLY in DMs. discordx keeps routing the interaction handler via
   // its decorators — we only changed how Discord lists the command.
   await rebindDmOnlyCommandsAsGlobal().catch((err) => {
-    botEventLog.record(
-      "warn",
-      "bot",
-      `rebindDmOnlyCommandsAsGlobal failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    log.error({ err }, "rebindDmOnlyCommandsAsGlobal failed");
+    botEventLog.record("warn", "bot", "rebindDmOnlyCommandsAsGlobal failed");
   });
 
   log.info({ stage: "boot" }, "bot started");
@@ -658,9 +648,8 @@ async function run() {
     await bot.login(config.bot.token);
   } catch (ex) {
     log.error({ err: ex }, "startup failed");
-    const msg = ex instanceof Error ? ex.message : String(ex);
     const errorType = ex instanceof Error ? ex.constructor.name : "unknown";
-    botEventLog.record("error", "web", `Startup failed: ${msg}`, {
+    botEventLog.record("error", "web", "Startup failed", {
       phase: "main",
       errorType,
     });

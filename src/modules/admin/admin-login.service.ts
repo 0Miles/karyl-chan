@@ -103,9 +103,8 @@ export async function issueLoginLinkAndReply(
     await message.reply(formatLoginReply(result));
     return true;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     log.error({ err }, "admin-login issue failed (message)");
-    botEventLog.record("error", "feature", `Admin login DM failed: ${msg}`, {
+    botEventLog.record("error", "feature", "Admin login DM failed", {
       userId: message.author.id,
     });
     return false;
@@ -147,9 +146,8 @@ export async function issueLoginLinkForInteraction(
     });
     return true;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
     log.error({ err }, "admin-login issue failed (interaction)");
-    botEventLog.record("error", "feature", `Admin login slash failed: ${msg}`, {
+    botEventLog.record("error", "feature", "Admin login slash failed", {
       userId: interaction.user.id,
     });
     return false;
