@@ -697,6 +697,17 @@ export async function registerDmRoutes(
 
   server.get("/api/dm/events", async (request, reply) => {
     if (!requireCapability(request, reply, "dm.message")) return;
+
+    // Reject before hijacking the socket so we can still send a normal
+    // HTTP 503 response. Once hijack() is called + writeHead(200) is sent,
+    // we can no longer change the status code.
+    if (events.isAtLimit()) {
+      reply
+        .code(503)
+        .send({ error: "Too many SSE connections, try again later" });
+      return;
+    }
+
     // Hand the socket to us — without this fastify auto-sends a body once
     // the async handler returns, which races with our SSE writes and the
     // browser sees the connection close immediately.

@@ -55,9 +55,10 @@ const stubConfig: AppConfig = {
     maxQueueSize: 100,
     connectionTimeoutMs: 1_800_000,
     cleanupIntervalMs: 300_000,
+    maxConnections: 50,
   },
   botEvents: { dedupWindowMs: 60_000, dedupMaxKeys: 1_000 },
-  dm: { maxFetchCount: 500, maxAttachmentBytes: 1_000_000 },
+  dm: { maxFetchCount: 500, maxAttachmentBytes: 1_000_000, sseMaxListeners: 200 },
 };
 
 // ---------------------------------------------------------------------------

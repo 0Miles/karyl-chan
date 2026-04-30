@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import { config } from "../../config.js";
 import type { Message } from "../web-core/message-types.js";
 
 export interface VoiceMember {
@@ -48,18 +49,35 @@ export type GuildChannelEvent =
 
 export type GuildChannelEventListener = (event: GuildChannelEvent) => void;
 
+export class EmitterLimitError extends Error {
+  constructor(limit: number) {
+    super(`SSE listener limit reached (max ${limit})`);
+    this.name = "EmitterLimitError";
+  }
+}
+
 export class GuildChannelEventBus {
   private emitter = new EventEmitter();
+  private readonly maxListeners: number;
 
-  constructor() {
-    this.emitter.setMaxListeners(0);
+  constructor(maxListeners?: number) {
+    this.maxListeners = maxListeners ?? config.dm.sseMaxListeners;
+    this.emitter.setMaxListeners(this.maxListeners);
   }
 
   publish(event: GuildChannelEvent): void {
     this.emitter.emit("event", event);
   }
 
+  isAtLimit(): boolean {
+    return this.emitter.listenerCount("event") >= this.maxListeners;
+  }
+
   subscribe(listener: GuildChannelEventListener): () => void {
+    const current = this.emitter.listenerCount("event");
+    if (current >= this.maxListeners) {
+      throw new EmitterLimitError(this.maxListeners);
+    }
     this.emitter.on("event", listener);
     return () => this.emitter.off("event", listener);
   }

@@ -375,6 +375,35 @@ describe("DM routes", () => {
     expect(usersRemove).toHaveBeenCalledWith("bot1");
   });
 
+  describe("GET /api/dm/events SSE listener limit", () => {
+    it("returns 503 when the event bus is at its listener limit", async () => {
+      // Build a bus with limit=1 and fill the single slot.
+      const fullBus = new DmEventBus(1);
+      fullBus.subscribe(() => {});
+
+      const bot = fakeBot({});
+      const { registerDmRoutes } =
+        await import("../src/modules/dm-inbox/dm-routes.js");
+      const fastify = (await import("fastify")).default({ logger: false });
+      fastify.addHook("onRequest", async (request) => {
+        request.authUserId = "test";
+        request.authCapabilities = new Set(["admin"]);
+      });
+      await registerDmRoutes(fastify, { bot, inbox, eventBus: fullBus });
+      await fastify.ready();
+      try {
+        const r = await fastify.inject({
+          method: "GET",
+          url: "/api/dm/events",
+        });
+        expect(r.statusCode).toBe(503);
+        expect(r.json().error).toMatch(/too many sse connections/i);
+      } finally {
+        await fastify.close();
+      }
+    });
+  });
+
   describe("DmEventBus integration", () => {
     it("publishes channel-touched when a new DM is started through the route", async () => {
       const userFetch = vi.fn(async () => ({

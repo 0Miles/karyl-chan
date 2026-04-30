@@ -7,6 +7,22 @@ import { registerGuildChannelRoutes } from "../src/modules/guild-management/guil
 import { GuildChannelEventBus } from "../src/modules/guild-management/guild-channel-event-bus.js";
 import type { AdminCapability } from "../src/modules/admin/authorized-user.service.js";
 
+async function buildServerWithEventBus(
+  bot: Client,
+  eventBus: GuildChannelEventBus,
+  caps: AdminCapability[] = ["admin"],
+): Promise<FastifyInstance> {
+  const fastify = Fastify({ logger: false });
+  fastify.addHook("onRequest", async (request) => {
+    request.authUserId = "test-user";
+    request.authCapabilities = new Set(caps);
+  });
+  await fastify.register(fastifyMultipart);
+  await registerGuildChannelRoutes(fastify, { bot, eventBus });
+  await fastify.ready();
+  return fastify;
+}
+
 const GUILD_ID = "900000000000000001";
 const CHANNEL_ID = "900000000000000002";
 const FORUM_ID = "900000000000000003";
@@ -491,5 +507,29 @@ describe("message validation guards", () => {
     });
     expect(r.statusCode).toBe(400);
     expect(sendSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/guilds/events SSE listener limit", () => {
+  it("returns 503 when the event bus is at its listener limit", async () => {
+    // Create a bus with limit=0 so the very first connection is rejected.
+    const eventBus = new GuildChannelEventBus(1);
+    // Fill the single slot.
+    eventBus.subscribe(() => {});
+
+    server = await buildServerWithEventBus(fakeBot(fakeGuild()), eventBus);
+    const r = await server.inject({
+      method: "GET",
+      url: "/api/guilds/events",
+    });
+    expect(r.statusCode).toBe(503);
+    expect(r.json().error).toMatch(/too many sse connections/i);
+  });
+
+  it("reports not at limit when below the listener cap", () => {
+    // Sanity-check that isAtLimit() returns false for a fresh bus,
+    // which is the precondition that makes the SSE handler proceed.
+    const eventBus = new GuildChannelEventBus(200);
+    expect(eventBus.isAtLimit()).toBe(false);
   });
 });

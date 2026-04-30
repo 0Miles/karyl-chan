@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   DmEventBus,
+  EmitterLimitError,
   type DmEvent,
 } from "../src/modules/dm-inbox/dm-event-bus.js";
 import {
   GuildChannelEventBus,
+  EmitterLimitError as GuildEmitterLimitError,
   type GuildChannelEvent,
 } from "../src/modules/guild-management/guild-channel-event-bus.js";
 
@@ -47,6 +49,32 @@ describe("DmEventBus", () => {
       }),
     ).not.toThrow();
   });
+
+  it("allows subscribing up to the listener limit", () => {
+    const bus = new DmEventBus(3);
+    expect(bus.isAtLimit()).toBe(false);
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    expect(bus.isAtLimit()).toBe(true);
+  });
+
+  it("throws EmitterLimitError when the listener limit is exceeded", () => {
+    const bus = new DmEventBus(2);
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    expect(() => bus.subscribe(vi.fn())).toThrow(EmitterLimitError);
+  });
+
+  it("isAtLimit returns false after unsubscribe frees a slot", () => {
+    const bus = new DmEventBus(1);
+    const off = bus.subscribe(vi.fn());
+    expect(bus.isAtLimit()).toBe(true);
+    off();
+    expect(bus.isAtLimit()).toBe(false);
+    // Can subscribe again after freeing
+    expect(() => bus.subscribe(vi.fn())).not.toThrow();
+  });
 });
 
 describe("GuildChannelEventBus", () => {
@@ -67,5 +95,30 @@ describe("GuildChannelEventBus", () => {
     off();
     bus.publish(event);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows subscribing up to the listener limit", () => {
+    const bus = new GuildChannelEventBus(3);
+    expect(bus.isAtLimit()).toBe(false);
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    expect(bus.isAtLimit()).toBe(true);
+  });
+
+  it("throws EmitterLimitError when the listener limit is exceeded", () => {
+    const bus = new GuildChannelEventBus(2);
+    bus.subscribe(vi.fn());
+    bus.subscribe(vi.fn());
+    expect(() => bus.subscribe(vi.fn())).toThrow(GuildEmitterLimitError);
+  });
+
+  it("isAtLimit returns false after unsubscribe frees a slot", () => {
+    const bus = new GuildChannelEventBus(1);
+    const off = bus.subscribe(vi.fn());
+    expect(bus.isAtLimit()).toBe(true);
+    off();
+    expect(bus.isAtLimit()).toBe(false);
+    expect(() => bus.subscribe(vi.fn())).not.toThrow();
   });
 });

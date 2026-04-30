@@ -40,6 +40,16 @@ export interface QueuedCommand {
 const MAX_RETRY_ATTEMPTS = config.rcon.maxRetryAttempts;
 const MAX_QUEUE_SIZE = config.rcon.maxQueueSize;
 const CONNECTION_TIMEOUT = config.rcon.connectionTimeoutMs;
+const MAX_CONNECTIONS = config.rcon.maxConnections;
+
+export class RconLimitError extends Error {
+  constructor(host: string, limit: number) {
+    super(
+      `RCON connection limit reached (${limit}): cannot open new connection to ${host}. Remove unused rcon-forward channels to free slots.`,
+    );
+    this.name = "RconLimitError";
+  }
+}
 
 export class RconConnectionService {
   private static connectionMap: RconConnectionManager = {};
@@ -77,6 +87,17 @@ export class RconConnectionService {
     this.connectionLocks.set(connectionName, connectionLockPromise);
 
     try {
+      const isNew = !this.connectionMap[connectionName];
+      if (isNew && Object.keys(this.connectionMap).length >= MAX_CONNECTIONS) {
+        botEventLog.record(
+          "warn",
+          "feature",
+          `RCON connection limit reached (${MAX_CONNECTIONS}): refused new connection to ${host}:${port}`,
+          { host, port, limit: MAX_CONNECTIONS },
+        );
+        throw new RconLimitError(host, MAX_CONNECTIONS);
+      }
+
       await assertAllowedTarget(host, port);
 
       if (this.connectionMap[connectionName]) {
@@ -113,6 +134,9 @@ export class RconConnectionService {
       lockResolver.resolve();
       return true;
     } catch (error) {
+      if (error instanceof RconLimitError) {
+        throw error;
+      }
       log.error({ err: error, connectionName }, "Connection init failed");
       botEventLog.record(
         "error",

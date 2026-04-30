@@ -129,6 +129,17 @@ export async function registerGuildChannelRoutes(
       reply.code(403).send({ error: "guild capability required" });
       return;
     }
+
+    // Reject before hijacking the socket so we can still send a normal
+    // HTTP 503 response. Once hijack() is called + writeHead(200) is sent,
+    // we can no longer change the status code.
+    if (events.isAtLimit()) {
+      reply
+        .code(503)
+        .send({ error: "Too many SSE connections, try again later" });
+      return;
+    }
+
     reply.hijack();
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream",

@@ -375,6 +375,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.rcon.cleanupIntervalMs",
   },
+  "rcon.maxConnections": {
+    group: "rcon",
+    envVar: "RCON_MAX_CONNECTIONS",
+    sensitivity: "public",
+    editability: "runtime-capable",
+    productionRequired: false,
+    descriptionKey: "config.rcon.maxConnections",
+  },
 
   // ── botEvents ─────────────────────────────────────────────────────────────
   "botEvents.dedupWindowMs": {
@@ -410,6 +418,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     editability: "runtime-capable",
     productionRequired: false,
     descriptionKey: "config.dm.maxAttachmentBytes",
+  },
+  "dm.sseMaxListeners": {
+    group: "dm",
+    envVar: "SSE_MAX_LISTENERS",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.dm.sseMaxListeners",
   },
 };
 

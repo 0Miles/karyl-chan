@@ -63,6 +63,7 @@ export interface AppConfig {
     maxQueueSize: number;
     connectionTimeoutMs: number;
     cleanupIntervalMs: number;
+    maxConnections: number;
   };
   botEvents: {
     dedupWindowMs: number;
@@ -71,6 +72,7 @@ export interface AppConfig {
   dm: {
     maxFetchCount: number;
     maxAttachmentBytes: number;
+    sseMaxListeners: number;
   };
 }
 
@@ -207,6 +209,7 @@ function loadConfig(): AppConfig {
         30 * 60 * 1000,
       ),
       cleanupIntervalMs: parseIntEnv("RCON_CLEANUP_INTERVAL_MS", 5 * 60 * 1000),
+      maxConnections: parseIntEnv("RCON_MAX_CONNECTIONS", 50),
     },
     botEvents: {
       dedupWindowMs: parseIntEnv("BOT_EVENTS_DEDUP_WINDOW_MS", 60_000),
@@ -215,6 +218,7 @@ function loadConfig(): AppConfig {
     dm: {
       maxFetchCount: parseIntEnv("DM_MAX_FETCH_COUNT", 500),
       maxAttachmentBytes: parseIntEnv("DM_MAX_ATTACHMENT_BYTES", 1_000_000),
+      sseMaxListeners: parseIntEnv("SSE_MAX_LISTENERS", 200),
     },
   };
 
