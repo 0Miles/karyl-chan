@@ -10,7 +10,8 @@
             "admin": "后台权限",
             "profile": "个人资料",
             "signOut": "退出登录",
-            "accountMenu": "账号菜单"
+            "accountMenu": "账号菜单",
+            "systemSettings": "系统设置"
         },
         "mobile": {
             "openMenu": "打开菜单",
@@ -925,6 +926,49 @@
                 "manage": "仅限此服务器管理成员、角色、设置与 bot 功能。"
             }
         },
+        "systemSettings": {
+            "title": "系统设置",
+            "subtitle": "Boot 时冻结的环境变量配置，仅供查看。",
+            "retry": "重试",
+            "readiness": {
+                "allSet": "生产必要环境变量：全部已配置",
+                "missing": "生产必要环境变量：缺少 {count} 个",
+                "env": "当前环境：{env}"
+            },
+            "runtime": {
+                "title": "运行时可编辑设置",
+                "empty": "当前所有设置在 boot 时冻结，不支持运行时修改"
+            },
+            "readonly": {
+                "title": "只读设置（按分组）"
+            },
+            "status": {
+                "configured": "已配置",
+                "unset": "未配置"
+            },
+            "badge": {
+                "sensitive": "机密",
+                "semisensitive": "半机密",
+                "public": "公开",
+                "envonly": "仅 ENV",
+                "runtimeCapable": "可改（未启用）",
+                "runtimeEditable": "可改（已启用）",
+                "prodRequired": "生产必要"
+            },
+            "group": {
+                "bot": "Bot 核心",
+                "web": "Web 服务器",
+                "db": "数据库",
+                "crypto": "加密",
+                "jwt": "JWT",
+                "plugin": "插件系统",
+                "behavior": "行为模块",
+                "admin": "Admin",
+                "rcon": "RCON",
+                "botEvents": "Bot 事件",
+                "dm": "DM 系统"
+            }
+        },
         "plugins": {
             "title": "插件",
             "subtitle": "已注册到 bot 的 sibling 服务。Plugin 启动后会主动向 bot 注册,启用后才会接收事件并被 behavior 引用。",
@@ -1088,6 +1132,65 @@
             "deleteConfirm": "确定要删除行为「{title}」?",
             "dragHint": "拖曳排序",
             "moreActions": "更多操作"
+        }
+    },
+    "config": {
+        "bot": {
+            "token": "Bot Token（Discord API 密钥）",
+            "ownerId": "Bot 拥有者 Discord ID",
+            "clientId": "Bot 客户端 ID",
+            "clientSecret": "Bot 客户端密钥",
+            "guildId": "默认服务器 ID",
+            "logLevel": "日志级别"
+        },
+        "web": {
+            "port": "HTTP 监听端口",
+            "host": "HTTP 监听地址",
+            "baseUrl": "对外 Base URL",
+            "corsOrigin": "CORS 允许来源"
+        },
+        "db": {
+            "url": "数据库连接 URL",
+            "poolMin": "连接池最小数",
+            "poolMax": "连接池最大数"
+        },
+        "crypto": {
+            "encryptionKey": "静态数据加密密钥（AES-256）"
+        },
+        "jwt": {
+            "secret": "JWT 签名密钥",
+            "accessTtl": "Access Token 有效时间（秒）",
+            "refreshTtl": "Refresh Token 有效时间（秒）"
+        },
+        "plugin": {
+            "sharedSecret": "Plugin 共享验证密钥",
+            "heartbeatInterval": "心跳间隔（毫秒）",
+            "heartbeatTimeout": "心跳超时（毫秒）"
+        },
+        "behavior": {
+            "enabled": "行为模块是否启用",
+            "webhookTimeout": "Webhook 请求超时（毫秒）",
+            "maxRetries": "Webhook 最大重试次数"
+        },
+        "admin": {
+            "sessionTtl": "Admin Session 有效时间（秒）",
+            "maxLoginAttempts": "最大登录尝试次数"
+        },
+        "rcon": {
+            "enabled": "RCON 是否启用",
+            "host": "RCON 主机地址",
+            "port": "RCON 端口",
+            "password": "RCON 密码"
+        },
+        "botEvents": {
+            "retentionDays": "事件保留天数",
+            "maxEvents": "最大事件条数",
+            "enabled": "Bot 事件记录是否启用"
+        },
+        "dm": {
+            "enabled": "DM 功能是否启用",
+            "rateLimit": "DM 速率限制（每分钟）",
+            "maxHistory": "DM 历史消息缓存条数"
         }
     }
 }

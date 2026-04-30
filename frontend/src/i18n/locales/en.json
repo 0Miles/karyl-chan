@@ -10,7 +10,8 @@
             "admin": "Admin access",
             "profile": "Profile",
             "signOut": "Sign out",
-            "accountMenu": "Account menu"
+            "accountMenu": "Account menu",
+            "systemSettings": "System settings"
         },
         "mobile": {
             "openMenu": "Open menu",
@@ -925,6 +926,49 @@
                 "manage": "Manage members, roles, settings, and bot features in this server only."
             }
         },
+        "systemSettings": {
+            "title": "System settings",
+            "subtitle": "Environment-variable configuration frozen at boot — read-only.",
+            "retry": "Retry",
+            "readiness": {
+                "allSet": "Production-required env vars: all set",
+                "missing": "Production-required env vars: {count} missing",
+                "env": "current env: {env}"
+            },
+            "runtime": {
+                "title": "Runtime-editable settings",
+                "empty": "All settings are frozen at boot — no runtime modifications available"
+            },
+            "readonly": {
+                "title": "Read-only settings (by group)"
+            },
+            "status": {
+                "configured": "configured",
+                "unset": "unset"
+            },
+            "badge": {
+                "sensitive": "sensitive",
+                "semisensitive": "semi-sensitive",
+                "public": "public",
+                "envonly": "env-only",
+                "runtimeCapable": "rt-capable",
+                "runtimeEditable": "rt-editable",
+                "prodRequired": "prod-required"
+            },
+            "group": {
+                "bot": "Bot core",
+                "web": "Web server",
+                "db": "Database",
+                "crypto": "Crypto",
+                "jwt": "JWT",
+                "plugin": "Plugin system",
+                "behavior": "Behavior module",
+                "admin": "Admin",
+                "rcon": "RCON",
+                "botEvents": "Bot events",
+                "dm": "DM system"
+            }
+        },
         "plugins": {
             "title": "Plugins",
             "subtitle": "Sibling services registered with the bot. A plugin self-registers on startup; once enabled it can receive events and be referenced by behaviors.",
@@ -1088,6 +1132,65 @@
             "deleteConfirm": "Delete behavior \"{title}\"?",
             "dragHint": "Drag to reorder",
             "moreActions": "More actions"
+        }
+    },
+    "config": {
+        "bot": {
+            "token": "Bot token (Discord API key)",
+            "ownerId": "Bot owner Discord ID",
+            "clientId": "Bot client ID",
+            "clientSecret": "Bot client secret",
+            "guildId": "Default guild ID",
+            "logLevel": "Log level"
+        },
+        "web": {
+            "port": "HTTP listen port",
+            "host": "HTTP listen host",
+            "baseUrl": "Public base URL",
+            "corsOrigin": "CORS allowed origins"
+        },
+        "db": {
+            "url": "Database connection URL",
+            "poolMin": "Connection pool minimum",
+            "poolMax": "Connection pool maximum"
+        },
+        "crypto": {
+            "encryptionKey": "At-rest encryption key (AES-256)"
+        },
+        "jwt": {
+            "secret": "JWT signing secret",
+            "accessTtl": "Access token TTL (seconds)",
+            "refreshTtl": "Refresh token TTL (seconds)"
+        },
+        "plugin": {
+            "sharedSecret": "Plugin shared auth secret",
+            "heartbeatInterval": "Heartbeat interval (ms)",
+            "heartbeatTimeout": "Heartbeat timeout (ms)"
+        },
+        "behavior": {
+            "enabled": "Behavior module enabled",
+            "webhookTimeout": "Webhook request timeout (ms)",
+            "maxRetries": "Webhook max retries"
+        },
+        "admin": {
+            "sessionTtl": "Admin session TTL (seconds)",
+            "maxLoginAttempts": "Max login attempts"
+        },
+        "rcon": {
+            "enabled": "RCON enabled",
+            "host": "RCON host",
+            "port": "RCON port",
+            "password": "RCON password"
+        },
+        "botEvents": {
+            "retentionDays": "Event retention (days)",
+            "maxEvents": "Max stored events",
+            "enabled": "Bot event log enabled"
+        },
+        "dm": {
+            "enabled": "DM feature enabled",
+            "rateLimit": "DM rate limit (per minute)",
+            "maxHistory": "DM history cache size"
         }
     }
 }

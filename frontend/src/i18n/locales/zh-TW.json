@@ -10,7 +10,8 @@
             "admin": "後台權限",
             "profile": "個人資料",
             "signOut": "登出",
-            "accountMenu": "帳號選單"
+            "accountMenu": "帳號選單",
+            "systemSettings": "系統設定"
         },
         "mobile": {
             "openMenu": "開啟選單",
@@ -925,6 +926,49 @@
                 "manage": "僅限於此伺服器管理成員、角色、設定與 bot 功能。"
             }
         },
+        "systemSettings": {
+            "title": "系統設定",
+            "subtitle": "Boot 時凍結的環境變數設定，僅供檢視。",
+            "retry": "重試",
+            "readiness": {
+                "allSet": "Production 必要環境變數：全部已設定",
+                "missing": "Production 必要環境變數：缺少 {count} 個",
+                "env": "目前環境：{env}"
+            },
+            "runtime": {
+                "title": "Runtime 可編輯設定",
+                "empty": "目前所有設定於 boot 時凍結，無法 runtime 修改"
+            },
+            "readonly": {
+                "title": "唯讀設定（按群組）"
+            },
+            "status": {
+                "configured": "已設定",
+                "unset": "未設定"
+            },
+            "badge": {
+                "sensitive": "機密",
+                "semisensitive": "半機密",
+                "public": "公開",
+                "envonly": "僅 ENV",
+                "runtimeCapable": "可改（未啟用）",
+                "runtimeEditable": "可改（已啟用）",
+                "prodRequired": "PROD 必要"
+            },
+            "group": {
+                "bot": "Bot 核心",
+                "web": "Web 伺服器",
+                "db": "資料庫",
+                "crypto": "加密",
+                "jwt": "JWT",
+                "plugin": "Plugin 系統",
+                "behavior": "行為模組",
+                "admin": "Admin",
+                "rcon": "RCON",
+                "botEvents": "Bot 事件",
+                "dm": "DM 系統"
+            }
+        },
         "plugins": {
             "title": "外掛",
             "subtitle": "已註冊到 bot 的 sibling 服務。Plugin 會在啟動後主動向 bot 註冊,啟用後才會接收事件與被指派 behavior。",
@@ -1088,6 +1132,65 @@
             "deleteConfirm": "確定要刪除行為「{title}」?",
             "dragHint": "拖曳排序",
             "moreActions": "更多操作"
+        }
+    },
+    "config": {
+        "bot": {
+            "token": "Bot Token（Discord API 金鑰）",
+            "ownerId": "Bot 擁有者 Discord ID",
+            "clientId": "Bot 客戶端 ID",
+            "clientSecret": "Bot 客戶端密鑰",
+            "guildId": "預設伺服器 ID",
+            "logLevel": "日誌層級"
+        },
+        "web": {
+            "port": "HTTP 監聽埠",
+            "host": "HTTP 監聽位址",
+            "baseUrl": "對外 Base URL",
+            "corsOrigin": "CORS 允許來源"
+        },
+        "db": {
+            "url": "資料庫連線 URL",
+            "poolMin": "連線池最小數",
+            "poolMax": "連線池最大數"
+        },
+        "crypto": {
+            "encryptionKey": "靜態資料加密金鑰（AES-256）"
+        },
+        "jwt": {
+            "secret": "JWT 簽名密鑰",
+            "accessTtl": "Access Token 有效時間（秒）",
+            "refreshTtl": "Refresh Token 有效時間（秒）"
+        },
+        "plugin": {
+            "sharedSecret": "Plugin 共用驗證密鑰",
+            "heartbeatInterval": "心跳間隔（毫秒）",
+            "heartbeatTimeout": "心跳逾時（毫秒）"
+        },
+        "behavior": {
+            "enabled": "行為模組是否啟用",
+            "webhookTimeout": "Webhook 請求逾時（毫秒）",
+            "maxRetries": "Webhook 最大重試次數"
+        },
+        "admin": {
+            "sessionTtl": "Admin Session 有效時間（秒）",
+            "maxLoginAttempts": "最大登入嘗試次數"
+        },
+        "rcon": {
+            "enabled": "RCON 是否啟用",
+            "host": "RCON 主機位址",
+            "port": "RCON 埠號",
+            "password": "RCON 密碼"
+        },
+        "botEvents": {
+            "retentionDays": "事件保留天數",
+            "maxEvents": "最大事件筆數",
+            "enabled": "Bot 事件記錄是否啟用"
+        },
+        "dm": {
+            "enabled": "DM 功能是否啟用",
+            "rateLimit": "DM 速率限制（每分鐘）",
+            "maxHistory": "DM 歷史訊息快取筆數"
         }
     }
 }
