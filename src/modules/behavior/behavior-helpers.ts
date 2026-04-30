@@ -11,6 +11,10 @@ import { avatarUrlFor } from "../web-core/message-mapper.js";
 import { decryptSecret } from "../../utils/crypto.js";
 import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./dm-slash-rebind.service.js";
 import type { BehaviorRow } from "./models/behavior.model.js";
+import {
+  assertExternalTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 export interface BehaviorRoutesOptions {
   bot?: Client;
@@ -120,13 +124,27 @@ export function visibleTargetFilter(
   return (targetId: number) => access.has(String(targetId));
 }
 
-export function isValidWebhookUrl(value: string): boolean {
+export async function isValidWebhookUrl(
+  value: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  let u: URL;
   try {
-    const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
+    u = new URL(value);
   } catch {
-    return false;
+    return { ok: false, reason: "無效的 URL 格式" };
   }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    return { ok: false, reason: "Webhook URL 必須使用 http 或 https" };
+  }
+  const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
+  try {
+    await assertExternalTarget(u.hostname, port);
+  } catch (err) {
+    const reason =
+      err instanceof HostPolicyError ? err.message : "Webhook 目標不被允許";
+    return { ok: false, reason };
+  }
+  return { ok: true };
 }
 
 export function isValidRegex(value: string): boolean {

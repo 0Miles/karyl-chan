@@ -16,6 +16,10 @@ import {
   ManifestCommandError,
   pluginCommandRegistry,
 } from "./plugin-command-registry.service.js";
+import {
+  assertPluginTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 /**
  * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
@@ -167,7 +171,9 @@ export type ManifestValidation =
   | { ok: true; manifest: PluginManifest }
   | { ok: false; error: string };
 
-export function validateManifest(input: unknown): ManifestValidation {
+export async function validateManifest(
+  input: unknown,
+): Promise<ManifestValidation> {
   if (!input || typeof input !== "object") {
     return { ok: false, error: "manifest must be an object" };
   }
@@ -195,13 +201,28 @@ export function validateManifest(input: unknown): ManifestValidation {
   }
   // URL must be parseable; reject non-http(s) up front so we don't
   // try to fetch over a weird scheme later.
+  let parsedUrl: URL;
   try {
-    const url = new URL(plugin.url as string);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
+    parsedUrl = new URL(plugin.url as string);
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       return { ok: false, error: "manifest.plugin.url must be http(s)" };
     }
   } catch {
     return { ok: false, error: "manifest.plugin.url is not a valid URL" };
+  }
+  // SSRF guard: validate plugin URL against host policy (metadata blocked;
+  // RFC1918 allowed for docker-internal services).
+  const pluginPort = parsedUrl.port
+    ? Number(parsedUrl.port)
+    : parsedUrl.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertPluginTarget(parsedUrl.hostname, pluginPort);
+  } catch (err) {
+    const msg =
+      err instanceof HostPolicyError ? err.message : "Plugin 目標不被允許";
+    return { ok: false, error: `manifest.plugin.url: ${msg}` };
   }
   // The arrays are optional but if present must be arrays.
   for (const k of [
@@ -293,7 +314,7 @@ export class PluginRegistry {
    * `enabled` flag stays where they last set it.
    */
   async register(rawManifest: unknown): Promise<RegisterResult> {
-    const v = validateManifest(rawManifest);
+    const v = await validateManifest(rawManifest);
     if (!v.ok) {
       throw new ManifestError(v.error);
     }

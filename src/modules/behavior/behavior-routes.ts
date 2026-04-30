@@ -1,8 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import {
-  isBoundedString,
-  isNonEmptyString,
-} from "../web-core/validators.js";
+import { isBoundedString, isNonEmptyString } from "../web-core/validators.js";
 import { recordAudit } from "../admin/admin-audit.service.js";
 import { encryptSecret } from "../../utils/crypto.js";
 import {
@@ -188,13 +185,16 @@ export async function registerBehaviorRoutes(
       let resolvedPluginId: number | null = null;
       let resolvedPluginBehaviorKey: string | null = null;
       if (behaviorType === "webhook") {
-        if (
-          !isNonEmptyString(webhookUrl) ||
-          webhookUrl.length > WEBHOOK_URL_MAX ||
-          !isValidWebhookUrl(webhookUrl)
-        ) {
+        const webhookValidation =
+          isNonEmptyString(webhookUrl) && webhookUrl.length <= WEBHOOK_URL_MAX
+            ? await isValidWebhookUrl(webhookUrl)
+            : {
+                ok: false as const,
+                reason: "webhookUrl required (must be a valid http/https URL)",
+              };
+        if (!webhookValidation.ok) {
           reply.code(400).send({
-            error: "webhookUrl required (must be a valid http/https URL)",
+            error: webhookValidation.reason,
           });
           return;
         }
@@ -207,7 +207,7 @@ export async function registerBehaviorRoutes(
           }
           encryptedSecret = encryptSecret(webhookSecret);
         }
-        encryptedUrlField = encryptSecret(webhookUrl);
+        encryptedUrlField = encryptSecret(webhookUrl as string);
       } else {
         // type === 'plugin'
         const pluginId = Number(pluginIdInput);
@@ -423,18 +423,20 @@ export async function registerBehaviorRoutes(
       // URL is required on the row, so no "clear" semantics —
       // only "set to a new value". Empty string is rejected;
       // omit the field to leave it untouched.
-      if (
-        typeof body.webhookUrl !== "string" ||
-        body.webhookUrl.length === 0 ||
-        body.webhookUrl.length > WEBHOOK_URL_MAX ||
-        !isValidWebhookUrl(body.webhookUrl)
-      ) {
-        reply
-          .code(400)
-          .send({ error: "webhookUrl must be a valid http/https URL" });
+      const patchWebhookValidation =
+        typeof body.webhookUrl === "string" &&
+        body.webhookUrl.length > 0 &&
+        body.webhookUrl.length <= WEBHOOK_URL_MAX
+          ? await isValidWebhookUrl(body.webhookUrl)
+          : {
+              ok: false as const,
+              reason: "webhookUrl must be a valid http/https URL",
+            };
+      if (!patchWebhookValidation.ok) {
+        reply.code(400).send({ error: patchWebhookValidation.reason });
         return;
       }
-      update.webhookUrl = encryptSecret(body.webhookUrl);
+      update.webhookUrl = encryptSecret(body.webhookUrl as string);
     }
     if (body.webhookSecret !== undefined) {
       // null OR empty string = clear the secret (disable signing).
