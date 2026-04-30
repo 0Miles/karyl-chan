@@ -101,7 +101,9 @@ function onBackdropClick() {
                             <Icon icon="material-symbols:close-rounded" width="18" height="18" />
                         </button>
                     </header>
-                    <slot />
+                    <div class="app-modal-body">
+                        <slot />
+                    </div>
                 </div>
             </div>
         </Transition>
@@ -235,6 +237,18 @@ function onBackdropClick() {
     flex-shrink: 0;
 }
 .app-modal-drawer-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ── Desktop body wrapper ───────────────────────────────────────── */
+/* Structural wrapper that matches the mobile .app-modal-drawer-body.
+   Padding is intentionally 0 — callers are responsible for spacing
+   their slot content. AppConfirmDialog and similar leaf components
+   supply their own inner padding. */
+.app-modal-body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;

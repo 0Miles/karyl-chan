@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { deletePlugin, listPlugins, type PluginRecord } from '../../../api/plugins';
 import PluginCard from './PluginCard.vue';
-import AppModal from '../../../components/AppModal.vue';
+import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 
 const { t } = useI18n();
 
@@ -168,30 +168,18 @@ onMounted(load);
             </div>
         </div>
 
-        <AppModal
+        <AppConfirmDialog
             :visible="deleteAllModalOpen"
             :title="t('admin.plugins.deleteAllConfirmTitle')"
-            :close-on-backdrop="!deletingAll"
-            :close-on-escape="!deletingAll"
+            :message="t('admin.plugins.deleteAllConfirm', { n: inactivePlugins.length })"
+            :confirm-label="t('admin.plugins.deleteAllOffline')"
+            confirm-variant="danger"
+            :loading="deletingAll"
+            :error="deleteAllError ?? undefined"
+            :progress="deleteAllProgress ? t('admin.plugins.deleteAllProgress', { done: deleteAllProgress.done, total: deleteAllProgress.total }) : undefined"
             @close="closeDeleteAllModal"
-        >
-            <div class="modal-body">
-                <p>{{ t('admin.plugins.deleteAllConfirm', { n: inactivePlugins.length }) }}</p>
-                <p v-if="deleteAllProgress" class="progress">
-                    {{ t('admin.plugins.deleteAllProgress', { done: deleteAllProgress.done, total: deleteAllProgress.total }) }}
-                </p>
-                <pre v-if="deleteAllError" class="error" role="alert">{{ deleteAllError }}</pre>
-                <div class="modal-actions">
-                    <button type="button" class="ghost" :disabled="deletingAll" @click="closeDeleteAllModal">
-                        {{ t('common.cancel') }}
-                    </button>
-                    <button type="button" class="danger" :disabled="deletingAll || inactivePlugins.length === 0" @click="confirmDeleteAllOffline">
-                        <Icon v-if="deletingAll" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
-                        {{ deletingAll ? t('common.loading') : t('admin.plugins.deleteAllOffline') }}
-                    </button>
-                </div>
-            </div>
-        </AppModal>
+            @confirm="confirmDeleteAllOffline"
+        />
     </div>
 </template>
 
@@ -298,42 +286,6 @@ onMounted(load);
     opacity: 0.5;
     cursor: not-allowed;
 }
-.modal-body { display: flex; flex-direction: column; gap: 0.75rem; }
-.modal-body .progress { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
-.modal-body pre.error {
-    white-space: pre-wrap;
-    background: color-mix(in srgb, var(--danger, #dc2626) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 30%, transparent);
-    border-radius: var(--radius-base);
-    padding: 0.5rem;
-    font-size: 0.78rem;
-    color: var(--danger, #dc2626);
-    max-height: 12rem;
-    overflow: auto;
-}
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
-.modal-actions .danger {
-    background: var(--danger, #dc2626);
-    color: white;
-    border: none;
-    padding: 0.4rem 0.9rem;
-    border-radius: var(--radius-base);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-}
-.modal-actions .danger:disabled { opacity: 0.5; cursor: not-allowed; }
-.modal-actions .ghost {
-    background: none;
-    border: 1px solid var(--border);
-    padding: 0.4rem 0.9rem;
-    border-radius: var(--radius-base);
-    cursor: pointer;
-    color: var(--text);
-}
-.spin { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
 .group-dot {
     width: 8px;
     height: 8px;

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
+import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 import {
     approvePluginScopes,
     deletePlugin,
@@ -482,27 +483,17 @@ async function confirmDelete() {
     </article>
 
     <!-- Setup secret: confirm modal -->
-    <AppModal
+    <AppConfirmDialog
         :visible="setupSecretConfirmOpen"
         :title="t('admin.plugins.setupSecret.confirmTitle')"
-        :close-on-backdrop="!setupSecretGenerating"
-        :close-on-escape="!setupSecretGenerating"
+        :message="t('admin.plugins.setupSecret.confirmBody', { name: plugin.name })"
+        :confirm-label="t('admin.plugins.setupSecret.button')"
+        confirm-variant="danger"
+        :loading="setupSecretGenerating"
+        :error="setupSecretError ?? undefined"
         @close="setupSecretConfirmOpen = false"
-    >
-        <div class="approve-modal-body">
-            <p class="approve-modal-desc">{{ t('admin.plugins.setupSecret.confirmBody', { name: plugin.name }) }}</p>
-            <p v-if="setupSecretError" class="error" role="alert">{{ setupSecretError }}</p>
-            <div class="approve-modal-actions">
-                <button type="button" class="ghost" :disabled="setupSecretGenerating" @click="setupSecretConfirmOpen = false">
-                    {{ t('common.cancel') }}
-                </button>
-                <button type="button" class="danger" :disabled="setupSecretGenerating" @click="confirmGenerateSetupSecret">
-                    <Icon v-if="setupSecretGenerating" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
-                    {{ setupSecretGenerating ? t('admin.plugins.setupSecret.generating') : t('admin.plugins.setupSecret.button') }}
-                </button>
-            </div>
-        </div>
-    </AppModal>
+        @confirm="confirmGenerateSetupSecret"
+    />
 
     <!-- Setup secret: result modal (cleartext, shown once) -->
     <AppModal
@@ -572,17 +563,17 @@ async function confirmDelete() {
         :close-on-escape="!approving"
         @close="approveModalOpen = false"
     >
-        <div class="approve-modal-body">
-            <p class="approve-modal-desc">{{ t('admin.plugins.scopes.approveConfirm', { name: plugin.name }) }}</p>
+        <div class="acd-scope-body">
+            <p class="acd-scope-desc">{{ t('admin.plugins.scopes.approveConfirm', { name: plugin.name }) }}</p>
             <div class="approve-scope-list" role="list">
                 <code v-for="s in pendingScopes" :key="s" role="listitem" class="scope-chip scope-chip--pending">{{ s }}</code>
             </div>
             <p v-if="approveError" class="error" role="alert">{{ approveError }}</p>
-            <div class="approve-modal-actions">
-                <button type="button" class="ghost" :disabled="approving" @click="approveModalOpen = false">
+            <div class="acd-scope-actions">
+                <button type="button" class="acd-scope-btn acd-scope-btn--ghost" :disabled="approving" @click="approveModalOpen = false">
                     {{ t('common.cancel') }}
                 </button>
-                <button type="button" class="primary" :disabled="approving" @click="confirmApproveScopes">
+                <button type="button" class="acd-scope-btn acd-scope-btn--primary" :disabled="approving" @click="confirmApproveScopes">
                     <Icon v-if="approving" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
                     {{ approving ? t('common.loading') : t('admin.plugins.scopes.approveButton') }}
                 </button>
@@ -591,27 +582,17 @@ async function confirmDelete() {
     </AppModal>
 
     <!-- Delete plugin confirmation modal -->
-    <AppModal
+    <AppConfirmDialog
         :visible="deleteModalOpen"
         :title="t('admin.plugins.deleteConfirmTitle')"
-        :close-on-backdrop="!deleting"
-        :close-on-escape="!deleting"
+        :message="t('admin.plugins.deleteConfirm', { name: plugin.name })"
+        :confirm-label="t('admin.plugins.menu.delete')"
+        confirm-variant="danger"
+        :loading="deleting"
+        :error="deleteError ?? undefined"
         @close="deleteModalOpen = false"
-    >
-        <div class="approve-modal-body">
-            <p class="approve-modal-desc">{{ t('admin.plugins.deleteConfirm', { name: plugin.name }) }}</p>
-            <p v-if="deleteError" class="error" role="alert">{{ deleteError }}</p>
-            <div class="approve-modal-actions">
-                <button type="button" class="ghost" :disabled="deleting" @click="deleteModalOpen = false">
-                    {{ t('common.cancel') }}
-                </button>
-                <button type="button" class="danger" :disabled="deleting" @click="confirmDelete">
-                    <Icon v-if="deleting" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
-                    {{ deleting ? t('common.loading') : t('admin.plugins.menu.delete') }}
-                </button>
-            </div>
-        </div>
-    </AppModal>
+        @confirm="confirmDelete"
+    />
 </template>
 
 <style scoped>
@@ -910,23 +891,6 @@ async function confirmDelete() {
     border-color: color-mix(in srgb, var(--danger, #dc2626) 65%, transparent);
 }
 
-/* ── Confirm modal: danger action button ─────────────────────────── */
-.approve-modal-actions .danger {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.4rem 0.85rem;
-    background: var(--danger, #dc2626);
-    color: #fff;
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-.approve-modal-actions .danger:disabled { opacity: 0.55; cursor: not-allowed; }
-.approve-modal-actions .danger:not(:disabled):hover { filter: brightness(1.1); }
-
 /* ── Secret result modal ─────────────────────────────────────────── */
 .secret-result-body {
     padding: 0.9rem 1rem 0.75rem;
@@ -1109,14 +1073,14 @@ async function confirmDelete() {
     background: color-mix(in srgb, var(--danger, #dc2626) 9%, var(--bg-surface));
 }
 
-/* ── Approve modal internals ─────────────────────────────────────── */
-.approve-modal-body {
+/* ── Scope approve modal internals ───────────────────────────────── */
+.acd-scope-body {
     padding: 0.9rem 1rem 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
 }
-.approve-modal-desc {
+.acd-scope-desc {
     margin: 0;
     color: var(--text);
     font-size: 0.9rem;
@@ -1137,38 +1101,36 @@ async function confirmDelete() {
     color: var(--warning, #d97706);
     border: 1px solid color-mix(in srgb, var(--warning, #d97706) 30%, transparent);
 }
-.approve-modal-actions {
+.acd-scope-actions {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
     padding-top: 0.25rem;
     border-top: 1px solid var(--border);
 }
-.approve-modal-actions .ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 0.4rem 0.85rem;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-}
-.approve-modal-actions .ghost:hover { background: var(--bg-surface-hover); }
-.approve-modal-actions .ghost:disabled { opacity: 0.55; cursor: not-allowed; }
-.approve-modal-actions .primary {
+.acd-scope-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     padding: 0.4rem 0.85rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+.acd-scope-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.acd-scope-btn--ghost {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+.acd-scope-btn--ghost:not(:disabled):hover { background: var(--bg-surface-hover); }
+.acd-scope-btn--primary {
     background: var(--accent);
     color: var(--text-on-accent);
     border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 500;
 }
-.approve-modal-actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.acd-scope-btn--primary:not(:disabled):hover { filter: brightness(1.1); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.8s linear infinite; }
 </style>
