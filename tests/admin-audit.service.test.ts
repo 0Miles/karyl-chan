@@ -21,6 +21,7 @@ import {
   recordAudit,
   listAudit,
   verifyAuditChain,
+  _stableStringifyForTest as stableStringify,
 } from "../src/modules/admin/admin-audit.service.js";
 
 beforeAll(async () => {
@@ -213,6 +214,86 @@ describe("admin audit hash chain", () => {
         description: "has 中文 and emoji 😀",
         capabilities: ["admin", "dm.message"],
       });
+    });
+  });
+
+  describe("stableStringify canonicalisation", () => {
+    it("produces the same output regardless of key insertion order", () => {
+      const a = stableStringify({ z: 1, a: 2, m: 3 });
+      const b = stableStringify({ m: 3, z: 1, a: 2 });
+      const c = stableStringify({ a: 2, m: 3, z: 1 });
+      expect(a).toBe(b);
+      expect(b).toBe(c);
+      // Verify keys are actually sorted
+      expect(a).toBe('{"a":2,"m":3,"z":1}');
+    });
+
+    it("strips undefined values and produces the same output as an object without those keys", () => {
+      const withUndef = stableStringify({ a: 1, b: undefined, c: 3 });
+      const withoutUndef = stableStringify({ a: 1, c: 3 });
+      expect(withUndef).toBe(withoutUndef);
+      expect(withUndef).toBe('{"a":1,"c":3}');
+    });
+
+    it("serialises Date objects as ISO-8601 strings", () => {
+      const d = new Date("2026-04-30T12:00:00.000Z");
+      const result = stableStringify({ ts: d });
+      expect(result).toBe('{"ts":"2026-04-30T12:00:00.000Z"}');
+    });
+
+    it("Date object and its ISO string produce the same bytes", () => {
+      const d = new Date("2026-01-01T00:00:00.000Z");
+      const fromDate = stableStringify({ ts: d });
+      const fromString = stableStringify({ ts: d.toISOString() });
+      expect(fromDate).toBe(fromString);
+    });
+
+    it("sorts keys recursively in nested objects", () => {
+      const result = stableStringify({ z: { b: 2, a: 1 }, a: { y: 9, x: 8 } });
+      expect(result).toBe('{"a":{"x":8,"y":9},"z":{"a":1,"b":2}}');
+    });
+
+    it("preserves array element order (arrays are not sorted)", () => {
+      const result = stableStringify([3, 1, 2]);
+      expect(result).toBe("[3,1,2]");
+    });
+
+    it("context with different key orders produces same chain hash (write + verify)", async () => {
+      // Write a row with keys in one order
+      await recordAudit("owner1", "role.update", "admin", {
+        z: "last",
+        a: "first",
+        m: "middle",
+      });
+      // The chain must verify — if write-time and verify-time use the
+      // same stableStringify, the hash is identical regardless of the
+      // key order the caller used.
+      const result = await verifyAuditChain();
+      expect(result.valid).toBe(true);
+    });
+
+    it("context with undefined values records correctly and chain verifies", async () => {
+      // undefined values should be stripped; chain must still verify
+      await recordAudit("owner1", "role.update", "admin", {
+        present: "yes",
+        absent: undefined,
+      });
+      const result = await verifyAuditChain();
+      expect(result.valid).toBe(true);
+      const [entry] = await listAudit({ limit: 1 });
+      // undefined key is stripped from the stored context
+      expect(entry.context).not.toHaveProperty("absent");
+      expect(entry.context).toMatchObject({ present: "yes" });
+    });
+
+    it("context with Date object records correctly and chain verifies", async () => {
+      const ts = new Date("2026-04-30T08:00:00.000Z");
+      await recordAudit("owner1", "role.update", "admin", {
+        createdAt: ts,
+        reason: "test",
+      });
+      const result = await verifyAuditChain();
+      expect(result.valid).toBe(true);
     });
   });
 });

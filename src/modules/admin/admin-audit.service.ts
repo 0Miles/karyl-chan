@@ -7,6 +7,63 @@ import { moduleLogger } from "../../logger.js";
 
 const log = moduleLogger("admin-audit");
 
+/**
+ * Stable (canonical) JSON serialisation for use in hash-chain inputs.
+ *
+ * Guarantees:
+ *   - Object keys are sorted recursively so key-ordering differences in
+ *     the caller do not produce different byte sequences.
+ *   - Date objects are serialised as their ISO-8601 string so
+ *     `new Date("2026-01-01")` and an already-serialised ISO string both
+ *     produce the same bytes.
+ *   - `undefined` values are stripped (JSON.stringify already drops them
+ *     silently; we make the stripping explicit and log a warning so the
+ *     caller knows the field was omitted from the hash input).
+ *
+ * This helper is intentionally ~20 lines with no external dependencies.
+ * It replaces bare JSON.stringify in every site that contributes bytes to
+ * the audit hash chain.
+ */
+function stableStringify(value: unknown, path = ""): string {
+  if (value === undefined) {
+    log.warn({ path }, "audit stableStringify: undefined value stripped from hash input");
+    return "null";
+  }
+  if (value === null) return "null";
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
+  if (Array.isArray(value)) {
+    return "[" + value.map((v, i) => stableStringify(v, `${path}[${i}]`)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const sorted = Object.keys(value as Record<string, unknown>)
+      .filter((k) => {
+        if ((value as Record<string, unknown>)[k] === undefined) {
+          log.warn({ path: path ? `${path}.${k}` : k }, "audit stableStringify: undefined value stripped from hash input");
+          return false;
+        }
+        return true;
+      })
+      .sort();
+    return (
+      "{" +
+      sorted
+        .map((k) => {
+          const v = stableStringify((value as Record<string, unknown>)[k], path ? `${path}.${k}` : k);
+          return `${JSON.stringify(k)}:${v}`;
+        })
+        .join(",") +
+      "}"
+    );
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Exported for unit-testing only.  Not part of the public API.
+ * Prefixed with underscore to signal test-internal usage.
+ */
+export const _stableStringifyForTest = stableStringify;
+
 export interface AdminAuditEntry {
   id: number;
   actorUserId: string;
@@ -37,12 +94,16 @@ function canonicalPayload(
   contextJson: string | null,
   createdAtMs: number,
 ): string {
-  return JSON.stringify({
-    actorUserId,
+  // Keys are already in a fixed, alphabetical order here, but we use
+  // stableStringify for consistency — any nested value (e.g. a Date
+  // buried inside contextJson is already a string at this point, so the
+  // main benefit is the consistent serialisation contract).
+  return stableStringify({
     action,
-    target,
+    actorUserId,
     context: contextJson,
     createdAt: createdAtMs,
+    target,
   });
 }
 
@@ -55,8 +116,16 @@ function canonicalPayload(
  */
 function contextToCanonicalString(value: unknown): string | null {
   if (value === null || value === undefined) return null;
+  // Pre-migration rows stored the context as a raw JSON string in a TEXT
+  // column.  Those rows were hashed against that exact string at write
+  // time, so we must NOT re-encode them — returning the string verbatim
+  // preserves backward compatibility for existing chain links.
   if (typeof value === "string") return value;
-  return JSON.stringify(value);
+  // Post-migration rows: the column is DataTypes.JSON and Sequelize
+  // returns a parsed object.  Re-serialise with stableStringify so that
+  // key-ordering differences between write-time and verify-time do not
+  // produce false positives.
+  return stableStringify(value);
 }
 
 function chainHash(previousHash: string | null, payload: string): string {
@@ -87,7 +156,7 @@ export async function recordAudit(
   target: string | null = null,
   context: Record<string, unknown> | null = null,
 ): Promise<void> {
-  const contextJson = context ? JSON.stringify(context) : null;
+  const contextJson = context ? stableStringify(context) : null;
   const createdAt = new Date();
   try {
     await sequelize.transaction(async (tx: Transaction) => {
