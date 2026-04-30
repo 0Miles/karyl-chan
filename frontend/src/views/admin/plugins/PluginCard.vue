@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import {
     approvePluginScopes,
+    generatePluginSetupSecret,
     getPluginConfig,
     setPluginConfig,
     setPluginEnabled,
@@ -169,6 +170,55 @@ async function confirmApproveScopes() {
     } finally {
         approving.value = false;
     }
+}
+
+// ── Setup secret ────────────────────────────────────────────────────
+const setupSecretConfirmOpen = ref(false);
+const setupSecretResultOpen = ref(false);
+const setupSecretGenerating = ref(false);
+const setupSecretError = ref<string | null>(null);
+const setupSecretValue = ref('');
+const setupSecretCopied = ref(false);
+const setupSecretAcknowledged = ref(false);
+
+async function confirmGenerateSetupSecret() {
+    if (setupSecretGenerating.value) return;
+    setupSecretGenerating.value = true;
+    setupSecretError.value = null;
+    try {
+        const result = await generatePluginSetupSecret(props.plugin.pluginKey);
+        setupSecretValue.value = result.setupSecret;
+        setupSecretAcknowledged.value = false;
+        setupSecretCopied.value = false;
+        setupSecretConfirmOpen.value = false;
+        setupSecretResultOpen.value = true;
+    } catch (err) {
+        setupSecretError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        setupSecretGenerating.value = false;
+    }
+}
+
+async function copySetupSecret() {
+    try {
+        await navigator.clipboard.writeText(setupSecretValue.value);
+        setupSecretCopied.value = true;
+        setTimeout(() => { setupSecretCopied.value = false; }, 2000);
+    } catch {
+        // Fallback: select the input text
+        const el = document.getElementById(`setup-secret-input-${props.plugin.id}`) as HTMLInputElement | null;
+        if (el) {
+            el.select();
+            el.setSelectionRange(0, el.value.length);
+        }
+    }
+}
+
+function closeSecretResult() {
+    setupSecretResultOpen.value = false;
+    setupSecretValue.value = '';
+    setupSecretAcknowledged.value = false;
+    setupSecretCopied.value = false;
 }
 
 async function onToggleEnabled() {
@@ -342,6 +392,18 @@ async function onToggleEnabled() {
                 </div>
             </section>
 
+            <!-- Setup secret section -->
+            <section class="setup-secret-section">
+                <button
+                    type="button"
+                    class="setup-secret-btn"
+                    @click="setupSecretConfirmOpen = true"
+                >
+                    <Icon icon="material-symbols:key-outline-rounded" width="14" height="14" />
+                    {{ t('admin.plugins.setupSecret.button') }}
+                </button>
+            </section>
+
             <details v-if="plugin.manifest" class="manifest-fold">
                 <summary>{{ t('admin.plugins.manifestRaw') }}</summary>
                 <pre>{{ JSON.stringify(plugin.manifest, null, 2) }}</pre>
@@ -350,6 +412,89 @@ async function onToggleEnabled() {
             <p v-if="error" class="error" role="alert">{{ error }}</p>
         </div>
     </article>
+
+    <!-- Setup secret: confirm modal -->
+    <AppModal
+        :visible="setupSecretConfirmOpen"
+        :title="t('admin.plugins.setupSecret.confirmTitle')"
+        :close-on-backdrop="!setupSecretGenerating"
+        :close-on-escape="!setupSecretGenerating"
+        @close="setupSecretConfirmOpen = false"
+    >
+        <div class="approve-modal-body">
+            <p class="approve-modal-desc">{{ t('admin.plugins.setupSecret.confirmBody', { name: plugin.name }) }}</p>
+            <p v-if="setupSecretError" class="error" role="alert">{{ setupSecretError }}</p>
+            <div class="approve-modal-actions">
+                <button type="button" class="ghost" :disabled="setupSecretGenerating" @click="setupSecretConfirmOpen = false">
+                    {{ t('common.cancel') }}
+                </button>
+                <button type="button" class="danger" :disabled="setupSecretGenerating" @click="confirmGenerateSetupSecret">
+                    <Icon v-if="setupSecretGenerating" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
+                    {{ setupSecretGenerating ? t('admin.plugins.setupSecret.generating') : t('admin.plugins.setupSecret.button') }}
+                </button>
+            </div>
+        </div>
+    </AppModal>
+
+    <!-- Setup secret: result modal (cleartext, shown once) -->
+    <AppModal
+        :visible="setupSecretResultOpen"
+        :title="t('admin.plugins.setupSecret.resultTitle')"
+        :close-on-backdrop="false"
+        :close-on-escape="false"
+        width="min(540px, 94vw)"
+        @close="closeSecretResult"
+    >
+        <div class="secret-result-body">
+            <p class="secret-result-label">{{ t('admin.plugins.setupSecret.secretLabel') }}</p>
+            <div class="secret-input-row">
+                <input
+                    :id="`setup-secret-input-${plugin.id}`"
+                    type="text"
+                    class="secret-input"
+                    :value="setupSecretValue"
+                    readonly
+                    spellcheck="false"
+                    autocomplete="off"
+                    @click="($event.target as HTMLInputElement).select()"
+                />
+                <button type="button" class="copy-btn" :class="{ copied: setupSecretCopied }" @click="copySetupSecret">
+                    <Icon
+                        :icon="setupSecretCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'"
+                        width="15"
+                        height="15"
+                    />
+                    {{ setupSecretCopied ? t('admin.plugins.setupSecret.copiedButton') : t('admin.plugins.setupSecret.copyButton') }}
+                </button>
+            </div>
+            <p class="secret-instruction">{{ t('admin.plugins.setupSecret.instruction') }}</p>
+            <div class="secret-env-hint">
+                <code>{{ t('admin.plugins.setupSecret.envHint', { secret: setupSecretValue }) }}</code>
+            </div>
+            <div class="secret-warning" role="alert">
+                <Icon icon="material-symbols:warning-outline-rounded" width="15" height="15" class="secret-warning-icon" />
+                <span>{{ t('admin.plugins.setupSecret.warning') }}</span>
+            </div>
+            <label class="secret-ack-label">
+                <input
+                    type="checkbox"
+                    v-model="setupSecretAcknowledged"
+                    class="secret-ack-checkbox"
+                />
+                <span>{{ t('admin.plugins.setupSecret.checkboxLabel') }}</span>
+            </label>
+            <div class="secret-result-actions">
+                <button
+                    type="button"
+                    class="primary"
+                    :disabled="!setupSecretAcknowledged"
+                    @click="closeSecretResult"
+                >
+                    {{ t('admin.plugins.setupSecret.closeButton') }}
+                </button>
+            </div>
+        </div>
+    </AppModal>
 
     <!-- Scope approve confirmation modal -->
     <AppModal
@@ -647,6 +792,175 @@ async function onToggleEnabled() {
 }
 .approve-btn:hover { filter: brightness(1.1); }
 .approve-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Setup secret section ────────────────────────────────────────── */
+.setup-secret-section {
+    display: flex;
+    padding-top: 0.1rem;
+}
+.setup-secret-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--danger, #dc2626);
+    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 45%, transparent);
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+.setup-secret-btn:hover {
+    background: color-mix(in srgb, var(--danger, #dc2626) 9%, var(--bg-surface));
+    border-color: color-mix(in srgb, var(--danger, #dc2626) 65%, transparent);
+}
+
+/* ── Confirm modal: danger action button ─────────────────────────── */
+.approve-modal-actions .danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem 0.85rem;
+    background: var(--danger, #dc2626);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.approve-modal-actions .danger:disabled { opacity: 0.55; cursor: not-allowed; }
+.approve-modal-actions .danger:not(:disabled):hover { filter: brightness(1.1); }
+
+/* ── Secret result modal ─────────────────────────────────────────── */
+.secret-result-body {
+    padding: 0.9rem 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+.secret-result-label {
+    margin: 0;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-strong);
+}
+.secret-input-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: stretch;
+}
+.secret-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-strong);
+    cursor: text;
+    user-select: all;
+}
+.secret-input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+}
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    flex-shrink: 0;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.copy-btn:hover { background: var(--bg-surface-hover, var(--bg-page)); }
+.copy-btn.copied {
+    background: color-mix(in srgb, var(--success, #16a34a) 14%, var(--bg-surface));
+    color: var(--success, #16a34a);
+    border-color: color-mix(in srgb, var(--success, #16a34a) 35%, transparent);
+}
+.secret-instruction {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.secret-env-hint {
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.7rem;
+    overflow-x: auto;
+}
+.secret-env-hint code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.82rem;
+    color: var(--text-strong);
+    white-space: nowrap;
+}
+.secret-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    padding: 0.5rem 0.65rem;
+    background: color-mix(in srgb, var(--warning, #d97706) 11%, var(--bg-surface));
+    border: 1px solid color-mix(in srgb, var(--warning, #d97706) 35%, transparent);
+    border-radius: var(--radius-sm);
+    font-size: 0.82rem;
+    color: var(--warning, #d97706);
+    line-height: 1.45;
+}
+.secret-warning-icon {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+.secret-ack-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+}
+.secret-ack-checkbox {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+.secret-result-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.25rem;
+    border-top: 1px solid var(--border);
+}
+.secret-result-actions .primary {
+    padding: 0.4rem 0.85rem;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.secret-result-actions .primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
 
 /* ── Approve modal internals ─────────────────────────────────────── */
 .approve-modal-body {

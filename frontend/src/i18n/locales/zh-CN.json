@@ -953,6 +953,21 @@
                 "approveButton": "批准",
                 "approveModalTitle": "审查 RPC 权限请求",
                 "approveConfirm": "以下 RPC 权限由「{name}」请求，批准后将立即生效："
+            },
+            "setupSecret": {
+                "button": "生成 Setup Secret",
+                "confirmTitle": "生成新的 Setup Secret",
+                "confirmBody": "将为「{name}」生成新的 setup secret。旧的 secret 会立即失效，必须将新的值写入该 plugin 的 .env 并重启 plugin。要继续吗？",
+                "resultTitle": "Setup Secret",
+                "secretLabel": "Setup Secret",
+                "copyButton": "复制",
+                "copiedButton": "已复制",
+                "instruction": "请将以下值写入 plugin 的 .env 并重启 plugin：",
+                "envHint": "KARYL_PLUGIN_SETUP_SECRET={secret}",
+                "warning": "关闭此窗口后将无法再次查看。如已丢失需重新生成（会作废当前的）。",
+                "checkboxLabel": "我已将 secret 写入 plugin 的 .env",
+                "closeButton": "关闭",
+                "generating": "生成中…"
             }
         }
     },

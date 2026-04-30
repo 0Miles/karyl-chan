@@ -953,6 +953,21 @@
                 "approveButton": "Approve",
                 "approveModalTitle": "Review RPC scope request",
                 "approveConfirm": "The following RPC scopes are requested by \"{name}\". Once approved they take effect immediately:"
+            },
+            "setupSecret": {
+                "button": "Generate Setup Secret",
+                "confirmTitle": "Generate New Setup Secret",
+                "confirmBody": "A new setup secret will be generated for \"{name}\". The old secret will be invalidated immediately — you must write the new value into this plugin's .env and restart it. Continue?",
+                "resultTitle": "Setup Secret",
+                "secretLabel": "Setup Secret",
+                "copyButton": "Copy",
+                "copiedButton": "Copied",
+                "instruction": "Copy the value below into your plugin .env and restart the plugin:",
+                "envHint": "KARYL_PLUGIN_SETUP_SECRET={secret}",
+                "warning": "This value will not be shown again. If lost, you must regenerate (which invalidates the current one).",
+                "checkboxLabel": "I have saved this secret to the plugin .env",
+                "closeButton": "Close",
+                "generating": "Generating…"
             }
         }
     },
