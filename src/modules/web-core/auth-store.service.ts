@@ -29,6 +29,10 @@ export interface IssuedTokens {
   accessExpiresAt: number;
   refreshToken: string;
   refreshExpiresAt: number;
+  /** The owner id these tokens belong to. Included so callers (e.g.
+   *  the refresh endpoint) can re-check capabilities without a
+   *  separate token-lookup step. */
+  ownerId: string;
 }
 
 export interface RefreshStoreAdapter {
@@ -103,7 +107,7 @@ export class AuthStore {
         expiresAt: refreshExpiresAt,
       });
     }
-    return { accessToken, accessExpiresAt, refreshToken, refreshExpiresAt };
+    return { accessToken, accessExpiresAt, refreshToken, refreshExpiresAt, ownerId };
   }
 
   verifyAccessToken(token: string, now: number = Date.now()): string | null {

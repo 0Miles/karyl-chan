@@ -432,7 +432,9 @@ export async function createWebServer(
         return;
       }
       try {
-        const tokens = await auth.issueTokens(claims.userId);
+        const { ownerId: _drop, ...tokens } = await auth.issueTokens(
+          claims.userId,
+        );
         botEventLog.record(
           "info",
           "auth",
@@ -493,7 +495,19 @@ export async function createWebServer(
         reply.code(401).send({ error: "Invalid or expired refresh token" });
         return;
       }
-      return issued;
+      // Re-check capabilities after rotation: the user may have been
+      // removed or had their role stripped since the refresh token was
+      // issued. If they now have zero capabilities the new tokens are
+      // immediately revoked and the request is rejected — a removed user
+      // must not be able to silently extend their session via refresh.
+      const caps = await resolveUserCapabilities(issued.ownerId, ownerId);
+      if (caps.size === 0) {
+        await auth.revokeOwner(issued.ownerId);
+        reply.code(401).send({ error: "User no longer authorized" });
+        return;
+      }
+      const { ownerId: _drop, ...rotated } = issued;
+      return rotated;
     },
   );
 
@@ -550,6 +564,28 @@ export async function createWebServer(
       reply.code(204).send();
     },
   );
+
+  // Any authenticated user can revoke all of their own tokens across
+  // every device in one shot. Useful when a device is lost or a session
+  // is suspected compromised. Unlike /api/auth/logout (single-device),
+  // this sweeps every access token, refresh token, and SSE ticket for
+  // the caller — they will need to log in again on every device.
+  server.post("/api/auth/logout-all", async (request, reply) => {
+    if (!authEnabled) {
+      reply.code(204).send();
+      return;
+    }
+    const header = request.headers.authorization;
+    const accessToken = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    const userId = accessToken ? auth.verifyAccessToken(accessToken) : null;
+    if (!userId) {
+      reply.code(401).send({ error: "Unauthorized" });
+      return;
+    }
+    await auth.revokeOwner(userId);
+    botEventLog.record("info", "auth", `logout-all triggered`, { userId });
+    reply.code(204).send();
+  });
 
   // /api/health, /api/health/live, /api/health/ready are registered
   // by registerSystemRoutes() (web-core/system-routes.ts). They're

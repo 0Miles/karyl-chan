@@ -11,6 +11,7 @@ import {
 } from "./admin-capabilities.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { config } from "../../config.js";
+import { authStore } from "../web-core/auth-store.service.js";
 
 export {
   GLOBAL_CAPABILITY_DESCRIPTIONS,
@@ -228,6 +229,7 @@ export async function addAuthorizedUser(
 export async function removeAuthorizedUser(userId: string): Promise<boolean> {
   const deleted = await AuthorizedUser.destroy({ where: { userId } });
   invalidateCapabilityCache(userId);
+  if (deleted > 0) await authStore.revokeOwner(userId);
   return deleted > 0;
 }
 
@@ -272,11 +274,20 @@ export async function deleteAdminRole(name: string): Promise<boolean> {
   // Cap rows cascade manually — sequelize doesn't enforce FKs on SQLite by
   // default here. Any AuthorizedUser still referencing this role will
   // resolve to an empty capability set and be treated as unauthorized.
+  //
+  // Revoke tokens for every user on this role before destroying rows so
+  // we can still query the membership list.
+  const affectedUsers = await AuthorizedUser.findAll({ where: { role: name } });
   await AdminRoleCapability.destroy({ where: { role: name } });
   const removed = await AdminRole.destroy({ where: { name } });
   // Role-level mutations can affect any number of users — clearing the
   // whole cache is simpler and still cheap (we rebuild on next request).
   invalidateCapabilityCache();
+  if (removed > 0) {
+    for (const user of affectedUsers) {
+      await authStore.revokeOwner(user.getDataValue("userId") as string);
+    }
+  }
   return removed > 0;
 }
 
@@ -295,6 +306,12 @@ export async function revokeRoleCapability(
   role: string,
   capability: AdminCapability,
 ): Promise<void> {
+  // Revoke tokens for every user on this role before destroying the
+  // capability row so the membership list is still queryable.
+  const affectedUsers = await AuthorizedUser.findAll({ where: { role } });
   await AdminRoleCapability.destroy({ where: { role, capability } });
   invalidateCapabilityCache();
+  for (const user of affectedUsers) {
+    await authStore.revokeOwner(user.getDataValue("userId") as string);
+  }
 }
