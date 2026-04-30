@@ -281,6 +281,22 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.plugin.kvValueMaxBytes",
   },
+  "plugin.dmRatePerSec": {
+    group: "plugin",
+    envVar: "PLUGIN_DM_PER_SEC",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.plugin.dmRatePerSec",
+  },
+  "plugin.dmWindowMs": {
+    group: "plugin",
+    envVar: "PLUGIN_DM_WINDOW_MS",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.plugin.dmWindowMs",
+  },
 
   // ── behavior ─────────────────────────────────────────────────────────────
   "behavior.profileCacheTtlMs": {
@@ -389,19 +405,12 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
  *
  * Example: { a: { b: 1 }, c: 2 } → ["a.b", "c"]
  */
-function collectLeafPaths(
-  obj: Record<string, unknown>,
-  prefix = "",
-): string[] {
+function collectLeafPaths(obj: Record<string, unknown>, prefix = ""): string[] {
   const paths: string[] = [];
   for (const key of Object.keys(obj)) {
     const full = prefix ? `${prefix}.${key}` : key;
     const value = obj[key];
-    if (
-      value !== null &&
-      typeof value === "object" &&
-      !Array.isArray(value)
-    ) {
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
       paths.push(...collectLeafPaths(value as Record<string, unknown>, full));
     } else {
       paths.push(full);
@@ -419,7 +428,9 @@ function collectLeafPaths(
  * silent data-exposure at runtime.
  */
 export function validateMetadataCoverage(config: AppConfig): void {
-  const expected = collectLeafPaths(config as unknown as Record<string, unknown>);
+  const expected = collectLeafPaths(
+    config as unknown as Record<string, unknown>,
+  );
   for (const path of expected) {
     if (!(path in CONFIG_METADATA)) {
       throw new Error(

@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { config } from "../../config.js";
 import { ChannelType, Routes, MessageFlags } from "discord.js";
+import { RateLimiter } from "../../utils/rate-limiter.js";
 import { findPluginById } from "./models/plugin.model.js";
 import {
   deleteKv,
@@ -40,7 +41,15 @@ import type { PluginManifest } from "./plugin-registry.service.js";
 
 export interface PluginRpcOptions {
   bot?: Client;
+  /** Injected for tests; production uses the module-level singleton. */
+  dmLimiter?: { isRateLimited(key: string): boolean };
 }
+
+/** Module-level singleton — one limiter shared across all requests. */
+const defaultDmLimiter = new RateLimiter({
+  max: config.plugin.dmRatePerSec,
+  windowMs: config.plugin.dmWindowMs,
+});
 
 const KV_KEY_MAX = 200;
 const KV_VALUE_MAX_BYTES = config.plugin.kvValueMaxBytes; // hard ceiling regardless of manifest quota
@@ -102,6 +111,7 @@ export async function registerPluginRpcRoutes(
   options: PluginRpcOptions,
 ): Promise<void> {
   const bot = options.bot;
+  const dmLimiter = options.dmLimiter ?? defaultDmLimiter;
 
   // ─── messages.send ────────────────────────────────────────────────
   /**
@@ -255,6 +265,27 @@ export async function registerPluginRpcRoutes(
     const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
     if (!content && !embeds) {
       reply.code(400).send({ error: "content or embeds required" });
+      return;
+    }
+    // Per-plugin DM rate limit: enforced *before* bot.users.fetch() so
+    // attackers can't spam invalid user_ids to hammer Discord's REST
+    // (each fetch is a real GET /users/:id) without ever consuming the
+    // bucket. Cost: every well-formed call consumes one slot even if
+    // the user turns out not to exist — that's exactly what we want
+    // because Discord doesn't care whether the id resolves.
+    if (dmLimiter.isRateLimited(`plugin:${ctx.pluginId}:send_dm`)) {
+      if (shouldRecord(`plugin-rpc-dm-rate:${ctx.pluginId}`)) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin ${ctx.pluginKey} exceeded DM rate limit`,
+          { pluginId: ctx.pluginId },
+        );
+      }
+      reply
+        .code(429)
+        .header("Retry-After", "1")
+        .send({ error: "rate limited" });
       return;
     }
     let user;

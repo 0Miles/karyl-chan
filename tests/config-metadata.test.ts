@@ -43,6 +43,8 @@ const stubConfig: AppConfig = {
     commandDispatchTimeoutMs: 5_000,
     autocompleteTimeoutMs: 1_500,
     kvValueMaxBytes: 65_536,
+    dmRatePerSec: 30,
+    dmWindowMs: 1_000,
   },
   behavior: { profileCacheTtlMs: 300_000 },
   admin: { profileCacheTtlMs: 300_000, sessionCacheTtlMs: 30_000 },

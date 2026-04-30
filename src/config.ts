@@ -46,6 +46,8 @@ export interface AppConfig {
     commandDispatchTimeoutMs: number;
     autocompleteTimeoutMs: number;
     kvValueMaxBytes: number;
+    dmRatePerSec: number;
+    dmWindowMs: number;
   };
   behavior: {
     profileCacheTtlMs: number;
@@ -174,6 +176,8 @@ function loadConfig(): AppConfig {
         1_500,
       ),
       kvValueMaxBytes: parseIntEnv("PLUGIN_KV_VALUE_MAX_BYTES", 64 * 1024),
+      dmRatePerSec: parseIntEnv("PLUGIN_DM_PER_SEC", 30),
+      dmWindowMs: parseIntEnv("PLUGIN_DM_WINDOW_MS", 1000),
     },
     behavior: {
       profileCacheTtlMs: parseIntEnv(
@@ -206,6 +210,21 @@ function loadConfig(): AppConfig {
       maxAttachmentBytes: parseIntEnv("DM_MAX_ATTACHMENT_BYTES", 1_000_000),
     },
   };
+
+  // Fail-fast: PLUGIN_DM_PER_SEC=0 makes every request 429; PLUGIN_DM_WINDOW_MS=0
+  // makes the bucket always-empty and silently disables the limiter. Reject both
+  // at boot so a misconfigured deployment can't quietly lose the SSRF / DM-spam
+  // protection.
+  if (cfg.plugin.dmRatePerSec < 1) {
+    throw new Error(
+      `Config error: PLUGIN_DM_PER_SEC must be >= 1 (got ${cfg.plugin.dmRatePerSec})`,
+    );
+  }
+  if (cfg.plugin.dmWindowMs < 1) {
+    throw new Error(
+      `Config error: PLUGIN_DM_WINDOW_MS must be >= 1 (got ${cfg.plugin.dmWindowMs})`,
+    );
+  }
 
   // Fail-fast: validate CIDR syntax when TRUSTED_PROXY is enabled.
   if (cfg.web.trustedProxy) {
