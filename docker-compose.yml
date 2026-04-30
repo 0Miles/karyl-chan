@@ -66,7 +66,12 @@ services:
     ports:
       - "${WEB_PORT:-902}:3000"
     volumes:
-      - karyl-chan-data:/usr/src/app/data
+      # Bind-mount the project's ./data directory so dev (npm run dev)
+      # and the docker bot share the exact same SQLite file. Container
+      # `node` user is uid=1000, matching most local users; if your host
+      # uid differs, adjust ownership of ./data accordingly or fall back
+      # to a named volume.
+      - ./data:/usr/src/app/data
     networks:
       - karyl-chan-net
     restart: unless-stopped
@@ -94,8 +99,6 @@ services:
       # can take 30-60s after the web server already accepts requests.
       start_period: 90s
 
-volumes:
-  karyl-chan-data:
 
 networks:
   # External so `docker compose down` doesn't tear it down and break

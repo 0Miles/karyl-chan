@@ -11,4 +11,8 @@ node_modules
 
 storage.sqlite
 token
-data/**/*
+# Bind-mounted SQLite (host ↔ docker share). Keep the dir, ignore
+# the DB itself + sqlite WAL/SHM sidecars + manual .bak snapshots.
+data/database.sqlite
+data/database.sqlite-*
+data/*.bak

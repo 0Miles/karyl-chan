@@ -8,34 +8,30 @@ SQLite 單檔；預設位置：
 |---|---|
 | 本機（未設 `SQLITE_DB_PATH`） | `./data/database.sqlite` |
 | Docker 容器內 | `/usr/src/app/data/database.sqlite` |
-| Docker volume | `karyl-chan-data` mount 到上述容器路徑 |
+| Docker mount | bind mount `./data` → `/usr/src/app/data`（dev 與 docker 共用同一檔） |
 
 ### 備份
 
-最簡單的做法（容器運行時可直接複製）：
+因為 docker 走 bind mount，host 的 `./data/database.sqlite` 與容器內的檔案是同一個 inode，直接 cp 即可：
 
 ```bash
-# 如果用 docker compose（image 部署）
-docker compose cp bot:/usr/src/app/data/database.sqlite ./karyl-chan-$(date +%Y%m%d).sqlite
-
-# 如果用本機部署
 cp ./data/database.sqlite ./backup/karyl-chan-$(date +%Y%m%d).sqlite
 ```
 
-SQLite 單檔的備份原子性需要注意：執行時最好先 `VACUUM INTO`：
+SQLite 單檔的備份原子性需要注意：執行時最好先 `VACUUM INTO`，避免 copy 到 partial 寫入狀態：
 
 ```bash
-docker compose exec bot sqlite3 /usr/src/app/data/database.sqlite "VACUUM INTO '/tmp/backup.sqlite'"
-docker compose cp bot:/tmp/backup.sqlite ./karyl-chan-$(date +%Y%m%d).sqlite
+docker compose exec bot sqlite3 /usr/src/app/data/database.sqlite "VACUUM INTO '/usr/src/app/data/backup.sqlite'"
+mv data/backup.sqlite ./karyl-chan-$(date +%Y%m%d).sqlite
 ```
 
 ### 還原
 
-停止 bot → 覆寫檔案 → 啟動：
+停止 bot → 覆寫 host 檔案（bind mount 自動同步進容器）→ 啟動：
 
 ```bash
 docker compose stop bot
-docker compose cp ./karyl-chan-20260422.sqlite bot:/usr/src/app/data/database.sqlite
+cp ./karyl-chan-20260422.sqlite ./data/database.sqlite
 docker compose start bot
 ```
 
@@ -150,7 +146,7 @@ npm audit fix --force           # 含破壞性升級（需測試）
 
 ### 資料 volume
 
-`karyl-chan-data` named volume 保存在 Docker 的 volume 儲存。刪除容器不影響資料；要同時刪資料需 `docker compose down -v`。
+DB 檔案以 bind mount 直接放在專案的 `./data/database.sqlite`，所以 `docker compose down -v` 不會刪它（host 檔案不在 docker 管理範圍）。要清空資料：先停 bot，再 `rm ./data/database.sqlite`。要徹底重建環境（含舊的 `karyl-chan-data` named volume，從 bind mount 切換前可能還留著）：`docker volume rm karyl-chan_karyl-chan-data`。
 
 ### watchtower 自動更新
 
