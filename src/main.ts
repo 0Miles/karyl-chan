@@ -84,6 +84,48 @@ import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.servic
 
 const log = moduleLogger("main");
 
+// Set to true once runPendingMigrations() completes so the process-level
+// error handlers below know the bot_events table exists and is safe to write.
+let migrationsApplied = false;
+
+// Register process-level error handlers exactly once at module load, so
+// repeated resetBot() → run() cycles never stack duplicate listeners.
+// Before migrations finish we log-only (DB table may not exist yet);
+// after that we also persist to bot_events.
+// 4s flush window covers SQLite busy_timeout (3000 ms) so the bot_events
+// row has a chance to land even when there's lock contention. We don't
+// .unref() the timer — we want it to keep the event loop alive for the
+// full window even if other refs (Discord WS, http server) have torn down.
+const FATAL_FLUSH_MS = 4_000;
+
+process.on("unhandledRejection", (reason) => {
+  log.error({ err: reason }, "Unhandled promise rejection");
+  if (migrationsApplied) {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    botEventLog.record(
+      "error",
+      "error",
+      `Unhandled promise rejection: ${msg}`,
+      stack ? { stack } : undefined,
+    );
+  }
+  setTimeout(() => process.exit(1), FATAL_FLUSH_MS);
+});
+
+process.on("uncaughtException", (error) => {
+  log.error({ err: error }, "Uncaught exception");
+  if (migrationsApplied) {
+    botEventLog.record(
+      "error",
+      "error",
+      `Uncaught exception: ${error.message}`,
+      error.stack ? { stack: error.stack } : undefined,
+    );
+  }
+  setTimeout(() => process.exit(1), FATAL_FLUSH_MS);
+});
+
 let webServer: Awaited<ReturnType<typeof startWebServer>> | null = null;
 
 export const bot = new Client({
@@ -479,6 +521,7 @@ async function run() {
     setReady("db", true);
     const migrations = await runPendingMigrations();
     setReady("migrations", true);
+    migrationsApplied = true;
     // The webhook-behavior migration seeds the all_dms singleton row,
     // but a fresh install where sequelize.sync() created the table
     // first leaves the migration's CREATE-guarded INSERT a no-op for
@@ -502,26 +545,6 @@ async function run() {
       );
     }
 
-    // Register process-level error handlers only after migrations have run
-    // so bot_events table is guaranteed to exist before we attempt to write to it.
-    process.on("unhandledRejection", (reason) => {
-      log.error({ err: reason }, "Unhandled promise rejection");
-      const msg = reason instanceof Error ? reason.message : String(reason);
-      botEventLog.record(
-        "error",
-        "error",
-        `Unhandled promise rejection: ${msg}`,
-      );
-    });
-
-    process.on("uncaughtException", (error) => {
-      log.error({ err: error }, "Uncaught exception");
-      botEventLog.record(
-        "error",
-        "error",
-        `Uncaught exception: ${error.message}`,
-      );
-    });
     await seedDefaultRoles();
     await auditStoredCapabilities();
 
