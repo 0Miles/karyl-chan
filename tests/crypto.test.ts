@@ -49,27 +49,29 @@ describe('crypto', () => {
         });
     });
 
-    describe('legacy plaintext fallback', () => {
-        it('returns value unchanged when no v1: prefix', () => {
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            expect(decryptSecret('legacy-plaintext')).toBe('legacy-plaintext');
-            expect(warn).toHaveBeenCalledOnce();
+    describe('legacy format rejection (post v2-uplift migration)', () => {
+        it('throws on v0 plaintext with migration hint', () => {
+            expect(() => decryptSecret('legacy-plaintext')).toThrow(
+                /unknown encryption format; run migration 20260430030000-encryption-v2-uplift/,
+            );
         });
 
-        it('warns only when a legacy value is seen', () => {
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            decryptSecret(encryptSecret('x'));
-            expect(warn).not.toHaveBeenCalled();
+        it('throws on v1 ciphertext with migration hint', () => {
+            // Craft a syntactically valid v1 blob (the brute-force path is gone)
+            const v1Value = 'v1:aabbcc==:ddeeff==:001122==';
+            expect(() => decryptSecret(v1Value)).toThrow(
+                /unknown encryption format; run migration 20260430030000-encryption-v2-uplift/,
+            );
+        });
+
+        it('does not throw on v2 values (no regression)', () => {
+            expect(() => decryptSecret(encryptSecret('x'))).not.toThrow();
         });
     });
 
     describe('malformed input', () => {
         it('rejects v2: values without all 5 segments', () => {
             expect(() => decryptSecret('v2:only-one-part')).toThrow(/Invalid v2 encrypted value format/);
-        });
-
-        it('rejects v1: values without all 4 segments', () => {
-            expect(() => decryptSecret('v1:only-one-part')).toThrow(/Invalid v1 encrypted value format/);
         });
 
         it('rejects tampered ciphertext (GCM tag mismatch)', () => {

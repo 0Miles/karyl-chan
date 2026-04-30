@@ -4,9 +4,10 @@ import {
   createHash,
   randomBytes,
 } from "crypto";
+import { moduleLogger } from "../logger.js";
 
+const log = moduleLogger("crypto");
 const ALGO = "aes-256-gcm";
-const ENC_VERSION_V1 = "v1";
 const ENC_VERSION_V2 = "v2";
 const IV_BYTES = 12;
 const KEY_BYTES = 32;
@@ -104,30 +105,13 @@ export function decryptSecret(value: string): string {
       );
     return decryptWith(key.bytes, ivB64, tagB64, ctB64);
   }
-  if (value.startsWith(`${ENC_VERSION_V1}:`)) {
-    // v1 didn't embed a key id. Try every loaded key in order so an
-    // existing v1 ciphertext keeps decrypting through a rotation, as
-    // long as the original key is still in ENCRYPTION_KEY.
-    const parts = value.split(":");
-    if (parts.length !== 4)
-      throw new Error("Invalid v1 encrypted value format");
-    const [, ivB64, tagB64, ctB64] = parts;
-    for (const key of keys) {
-      try {
-        return decryptWith(key.bytes, ivB64, tagB64, ctB64);
-      } catch {
-        /* GCM auth failure → try next key */
-      }
-    }
-    throw new Error("v1 ciphertext does not decrypt with any configured key");
-  }
-  // Pre-encryption legacy: a few rows from before the v1 cutover are
-  // still raw plaintext. Warn loudly so an operator re-saves them.
-  // console.warn preserved: crypto.test.ts spies on console.warn for
-  // this exact callsite as a contract test. Using pino here would break
-  // the test assertion without changing the observable behaviour.
-  console.warn(
-    "decryptSecret: legacy plaintext value detected; re-save via /rcon-forward-channel edit to encrypt at rest.",
+  // v0 plaintext and v1 ciphertext are no longer supported. Run the
+  // encryption-v2-uplift migration to backfill all stored values.
+  log.error(
+    { prefix: value.slice(0, 8) },
+    "decryptSecret: unknown encryption format detected; run migration 20260430030000-encryption-v2-uplift",
   );
-  return value;
+  throw new Error(
+    "unknown encryption format; run migration 20260430030000-encryption-v2-uplift",
+  );
 }
