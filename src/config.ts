@@ -19,6 +19,9 @@ export interface AppConfig {
     sslCertPath: string | null;
     sslKeyPath: string | null;
     sslCaPath: string | null;
+    trustedProxy: boolean;
+    trustedProxyCidrs: string[];
+    trustCloudflare: boolean;
   };
   db: {
     sqlitePath: string | null;
@@ -82,6 +85,32 @@ function strEnv(name: string): string | null {
   return v && v.length > 0 ? v : null;
 }
 
+function parseBoolEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  return raw.trim() === "true";
+}
+
+function parseCidrListEnv(name: string): string[] {
+  const raw = process.env[name];
+  if (!raw || raw.trim() === "") return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+// Rough structural check: "host/prefixlen". Full IP validity is left
+// to proxy-addr at runtime; this catches obvious typos at boot time.
+// Exported so tests can assert the boot-time fail-fast contract without
+// needing to re-import the whole config module.
+export function isValidCidrSyntax(cidr: string): boolean {
+  const slash = cidr.lastIndexOf("/");
+  if (slash === -1) return false;
+  const prefix = parseInt(cidr.slice(slash + 1), 10);
+  return !isNaN(prefix) && prefix >= 0 && prefix <= 128;
+}
+
 function loadConfig(): AppConfig {
   const rawEnv = (process.env.NODE_ENV ?? "development").trim();
   const env =
@@ -112,6 +141,9 @@ function loadConfig(): AppConfig {
       sslCertPath: strEnv("SSL_CERT_PATH"),
       sslKeyPath: strEnv("SSL_KEY_PATH"),
       sslCaPath: strEnv("SSL_CA_PATH"),
+      trustedProxy: parseBoolEnv("TRUSTED_PROXY", false),
+      trustedProxyCidrs: parseCidrListEnv("TRUSTED_PROXY_CIDRS"),
+      trustCloudflare: parseBoolEnv("TRUST_CLOUDFLARE", false),
     },
     db: {
       sqlitePath: strEnv("SQLITE_DB_PATH"),
@@ -175,6 +207,17 @@ function loadConfig(): AppConfig {
     },
   };
 
+  // Fail-fast: validate CIDR syntax when TRUSTED_PROXY is enabled.
+  if (cfg.web.trustedProxy) {
+    for (const cidr of cfg.web.trustedProxyCidrs) {
+      if (!isValidCidrSyntax(cidr)) {
+        throw new Error(
+          `Config error: TRUSTED_PROXY_CIDRS contains invalid CIDR "${cidr}"`,
+        );
+      }
+    }
+  }
+
   // production 額外強制檢查（對齊既有 main.ts / server.ts 的安全要求）
   if (env === "production") {
     if (!cfg.bot.ownerId) {
@@ -196,3 +239,36 @@ function loadConfig(): AppConfig {
 }
 
 export const config: AppConfig = loadConfig();
+
+/**
+ * Compute the Fastify trustProxy value from the web config section and the
+ * provided Cloudflare CIDR lists.
+ *
+ * Exported as a pure function so it can be unit-tested independently of
+ * the config singleton and the Fastify server.
+ *
+ * Returns:
+ *   false         — when trustedProxy is disabled (default)
+ *   string[]      — the combined CIDR list when trustedProxy is enabled
+ *
+ * Throws if trustedProxy=true but the resulting CIDR list is empty.
+ */
+export function resolveTrustProxy(
+  webCfg: AppConfig["web"],
+  cloudflareCidrsV4: string[],
+  cloudflareCidrsV6: string[],
+): false | string[] {
+  if (!webCfg.trustedProxy) return false;
+  const cidrs = [
+    ...webCfg.trustedProxyCidrs,
+    ...(webCfg.trustCloudflare
+      ? [...cloudflareCidrsV4, ...cloudflareCidrsV6]
+      : []),
+  ];
+  if (cidrs.length === 0) {
+    throw new Error(
+      "Config error: TRUSTED_PROXY=true but TRUSTED_PROXY_CIDRS and TRUST_CLOUDFLARE are both empty — no trusted proxy defined",
+    );
+  }
+  return cidrs;
+}

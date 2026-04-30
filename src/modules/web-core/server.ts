@@ -1,5 +1,9 @@
 import Fastify, { FastifyInstance } from "fastify";
-import { config } from "../../config.js";
+import { config, resolveTrustProxy } from "../../config.js";
+import {
+  CLOUDFLARE_CIDRS_V4,
+  CLOUDFLARE_CIDRS_V6,
+} from "../../utils/cloudflare-ip-ranges.js";
 import fastifyStatic from "@fastify/static";
 import fastifyHelmet from "@fastify/helmet";
 import { Client } from "discord.js";
@@ -36,9 +40,12 @@ const writeRateLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 function clientKey(request: import("fastify").FastifyRequest): string {
-  // x-forwarded-for is only honored in trust-proxy'd deployments; raw
-  // socket address is the baseline. We don't configure trust-proxy
-  // today so request.ip is the immediate peer.
+  // request.ip reflects the trust-proxy configuration: when
+  // config.web.trustedProxy is true and CIDRs are provided, Fastify
+  // unwraps X-Forwarded-For for peers that match those CIDRs; otherwise
+  // it falls back to the immediate socket peer. The trust-proxy value is
+  // computed in createWebServer from config.web.trustedProxy,
+  // config.web.trustedProxyCidrs, and config.web.trustCloudflare.
   return request.ip || "unknown";
 }
 
@@ -155,11 +162,17 @@ export async function createWebServer(
   options: CreateWebServerOptions = {},
 ): Promise<FastifyInstance> {
   const https = resolveHttpsOptions();
+  const trustProxy = resolveTrustProxy(
+    config.web,
+    CLOUDFLARE_CIDRS_V4,
+    CLOUDFLARE_CIDRS_V6,
+  );
   const server = Fastify({
     logger: {
       level: process.env.NODE_ENV === "production" ? "info" : "debug",
     },
     ...(https ? { https } : {}),
+    ...(trustProxy !== false ? { trustProxy } : {}),
   });
 
   const ownerId = process.env.BOT_OWNER_ID?.trim() || null;

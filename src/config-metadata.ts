@@ -118,6 +118,30 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.web.sslCaPath",
   },
+  "web.trustedProxy": {
+    group: "web",
+    envVar: "TRUSTED_PROXY",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.trustedProxy",
+  },
+  "web.trustedProxyCidrs": {
+    group: "web",
+    envVar: "TRUSTED_PROXY_CIDRS",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.trustedProxyCidrs",
+  },
+  "web.trustCloudflare": {
+    group: "web",
+    envVar: "TRUST_CLOUDFLARE",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.trustCloudflare",
+  },
 
   // ── db ───────────────────────────────────────────────────────────────────
   "db.sqlitePath": {
