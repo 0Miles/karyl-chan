@@ -1,28 +1,27 @@
-import { onBeforeUnmount, watch, type Ref } from 'vue';
-import { useEscapeStack } from './use-escape-stack';
+import { onBeforeUnmount, watch, type Ref } from "vue";
+import { useEscapeStack } from "./use-escape-stack";
 
-export type DrawerPlacement = 'bottom' | 'top' | 'left' | 'right';
+export type DrawerPlacement = "bottom" | "top" | "left" | "right";
 
 export interface UseDrawerOptions {
-    /** Reactive flag controlling the drawer's mounted/open state. */
-    visible: Ref<boolean>;
-    /** Edge the panel is anchored to and slides in from. Default: 'bottom'. */
-    placement?: DrawerPlacement;
-    /** Called when the user dismisses the drawer (backdrop click / Escape). */
-    onClose?: () => void;
-    /** Escape closes the drawer. Default: true. */
-    closeOnEscape?: boolean;
+  /** Reactive flag controlling the drawer's mounted/open state. */
+  visible: Ref<boolean>;
+  /** Edge the panel is anchored to and slides in from. Default: 'bottom'. */
+  placement?: DrawerPlacement;
+  /** Called when the user dismisses the drawer (backdrop click / Escape). */
+  onClose?: () => void;
+  /** Escape closes the drawer. Default: true. */
+  closeOnEscape?: boolean;
 }
 
 export interface UseDrawerReturn {
-    placement: DrawerPlacement;
-    backdropClass: string;
-    panelClass: string;
-    backdropTransition: string;
-    panelTransition: string;
-    close: () => void;
+  placement: DrawerPlacement;
+  backdropClass: string;
+  panelClass: string;
+  backdropTransition: string;
+  panelTransition: string;
+  close: () => void;
 }
-
 
 /**
  * Generic drawer behavior: escape-stack registration, placement-driven
@@ -31,25 +30,29 @@ export interface UseDrawerReturn {
  * without a one-size-fits-all wrapper component.
  */
 export function useDrawer(options: UseDrawerOptions): UseDrawerReturn {
-    const placement: DrawerPlacement = options.placement ?? 'bottom';
-    const closeOnEscape = options.closeOnEscape !== false;
-    const { register, unregister } = useEscapeStack();
+  const placement: DrawerPlacement = options.placement ?? "bottom";
+  const closeOnEscape = options.closeOnEscape !== false;
+  const { register, unregister } = useEscapeStack();
 
-    const close = () => options.onClose?.();
+  const close = () => options.onClose?.();
 
-    watch(options.visible, (v) => {
-        if (v) register(closeOnEscape ? close : null);
-        else unregister();
-    }, { immediate: true });
+  watch(
+    options.visible,
+    (v) => {
+      if (v) register(closeOnEscape ? close : null);
+      else unregister();
+    },
+    { immediate: true },
+  );
 
-    onBeforeUnmount(unregister);
+  onBeforeUnmount(unregister);
 
-    return {
-        placement,
-        backdropClass: 'drawer-backdrop',
-        panelClass: 'drawer-panel',
-        backdropTransition: 'drawer-fade',
-        panelTransition: `drawer-slide-${placement}`,
-        close
-    };
+  return {
+    placement,
+    backdropClass: "drawer-backdrop",
+    panelClass: "drawer-panel",
+    backdropTransition: "drawer-fade",
+    panelTransition: `drawer-slide-${placement}`,
+    close,
+  };
 }
