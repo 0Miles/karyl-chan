@@ -77,14 +77,6 @@ function fakeBot(
 }
 
 describe("DM routes", () => {
-  const originalOwnerId = process.env.BOT_OWNER_ID;
-  beforeAll(() => {
-    delete process.env.BOT_OWNER_ID;
-  });
-  afterAll(() => {
-    if (originalOwnerId === undefined) delete process.env.BOT_OWNER_ID;
-    else process.env.BOT_OWNER_ID = originalOwnerId;
-  });
 
   let server: FastifyInstance;
   let inbox: InMemoryDmInbox;

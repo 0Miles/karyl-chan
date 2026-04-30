@@ -38,6 +38,8 @@ import { AdminRole } from "./models/admin-role.model.js";
 
 export interface AdminManagementRoutesOptions {
   bot?: Client;
+  /** Override owner ids for tests; production uses ownerIds. */
+  ownerIds?: string[];
 }
 
 interface UserProfile {
@@ -95,10 +97,6 @@ async function fetchProfile(
 const requireAdmin = (request: FastifyRequest, reply: FastifyReply): boolean =>
   requireCapability(request, reply, "admin");
 
-function readOwnerId(): string | null {
-  return process.env.BOT_OWNER_ID?.trim() || null;
-}
-
 /**
  * Admin-only management surface for non-owner access: CRUD on the
  * authorized_users allow-list, admin_roles definitions, and the
@@ -111,6 +109,7 @@ export async function registerAdminManagementRoutes(
   options: AdminManagementRoutesOptions = {},
 ): Promise<void> {
   const { bot } = options;
+  const ownerIds = options.ownerIds ?? config.bot.ownerIds;
   // Current session's identity + computed capability set. Used by the
   // frontend to render the avatar button, the profile page, and to gate
   // capability-aware UI elements without re-walking authorized_users on
@@ -123,8 +122,7 @@ export async function registerAdminManagementRoutes(
       reply.code(401).send({ error: "Unauthorized" });
       return;
     }
-    const ownerId = readOwnerId();
-    const isOwner = ownerId !== null && request.authUserId === ownerId;
+    const isOwner = ownerIds.includes(request.authUserId);
     const row = isOwner ? null : await findAuthorizedUser(request.authUserId);
     const profile = await fetchProfile(bot, request.authUserId);
     return {
@@ -147,40 +145,45 @@ export async function registerAdminManagementRoutes(
   server.get("/api/admin/users", async (request, reply) => {
     if (!requireAdmin(request, reply)) return;
     const rows = await listAuthorizedUsers();
-    const ownerId = readOwnerId();
+    
+    const ownerIdSet = new Set(ownerIds);
+    const rowUserIds = new Set(rows.map((r) => r.userId));
 
-    // Every profile fetch (owner included) runs concurrently — the
-    // owner isn't special enough to pay extra latency for serializing.
+    // Every profile fetch (owners included) runs concurrently.
     const profileJobs = new Map<string, Promise<UserProfile | null>>();
-    if (ownerId) profileJobs.set(ownerId, fetchProfile(bot, ownerId));
+    for (const oid of ownerIds) {
+      profileJobs.set(oid, fetchProfile(bot, oid));
+    }
     for (const row of rows) {
-      if (ownerId && row.userId === ownerId) continue; // deduped below
+      if (ownerIdSet.has(row.userId)) continue; // deduped below
       profileJobs.set(row.userId, fetchProfile(bot, row.userId));
     }
     await Promise.all(profileJobs.values());
 
     const hydrated: AdminUserView[] = [];
-    if (ownerId) {
-      hydrated.push({
-        userId: ownerId,
-        role: "owner",
-        note: null,
-        isOwner: true,
-        profile: (await profileJobs.get(ownerId)) ?? null,
-      });
+    // Synthetic entries for owners not already in authorized_users
+    for (const oid of ownerIds) {
+      if (!rowUserIds.has(oid)) {
+        hydrated.push({
+          userId: oid,
+          role: "owner",
+          note: null,
+          isOwner: true,
+          profile: (await profileJobs.get(oid)) ?? null,
+        });
+      }
     }
     for (const row of rows) {
       // Defensive: if an owner somehow lives in authorized_users, fold
-      // it into the owner entry rather than surfacing a duplicate.
-      if (ownerId && row.userId === ownerId) continue;
+      // isOwner:true in instead of surfacing a duplicate synthetic entry.
       hydrated.push({
         ...row,
-        isOwner: false,
+        isOwner: ownerIdSet.has(row.userId),
         profile: (await profileJobs.get(row.userId)) ?? null,
       });
     }
 
-    return { ownerId, users: hydrated };
+    return { ownerIds, users: hydrated };
   });
 
   server.post<{ Body: { userId?: unknown; role?: unknown; note?: unknown } }>(
@@ -204,12 +207,12 @@ export async function registerAdminManagementRoutes(
         reply.code(400).send({ error: `note must be ≤${USER_NOTE_MAX} chars` });
         return;
       }
-      // Block setting an allow-list row for the owner itself — owner
-      // is always implicitly admin, and a stale row would mislead.
+      // Block setting an allow-list row for any owner — owners are
+      // always implicitly admin, and a stale row would mislead.
       // Generic error message to avoid telling a (possibly stolen)
-      // admin token whether a given userId is the owner.
-      const ownerId = readOwnerId();
-      if (ownerId && body.userId === ownerId) {
+      // admin token whether a given userId is an owner.
+      
+      if (ownerIds.includes(body.userId as string)) {
         reply.code(400).send({ error: "userId not allowed" });
         return;
       }
@@ -225,11 +228,11 @@ export async function registerAdminManagementRoutes(
       }
       // Self-lockout guard: moving yourself to a role without the
       // `admin` capability would make this the last request you could
-      // make. Owner is exempt via the BOT_OWNER_ID bypass.
+      // make. Owners are exempt via the ownerIds bypass.
       if (
         request.authUserId &&
         body.userId === request.authUserId &&
-        request.authUserId !== ownerId &&
+        !ownerIds.includes(request.authUserId) &&
         !targetRole.capabilities.includes("admin")
       ) {
         reply.code(400).send({
@@ -262,12 +265,11 @@ export async function registerAdminManagementRoutes(
         reply.code(400).send({ error: "userId must be a Discord snowflake" });
         return;
       }
-      const ownerId = readOwnerId();
       // Self-lockout guard: deleting your own allow-list row severs access
-      // the moment the capability cache expires. Owner is exempt.
+      // the moment the capability cache expires. Owners are exempt.
       if (
         request.authUserId === request.params.userId &&
-        request.authUserId !== ownerId
+        !ownerIds.includes(request.authUserId ?? "")
       ) {
         reply
           .code(400)
@@ -395,10 +397,12 @@ export async function registerAdminManagementRoutes(
       if (!requireAdmin(request, reply)) return;
       // Block nuking the only admin-capable role the caller is actually
       // using — otherwise the request that just deleted it will be the
-      // last one they can make. Owner is exempt since they retain access
-      // via BOT_OWNER_ID bypass.
-      const ownerId = readOwnerId();
-      if (request.authUserId && request.authUserId !== ownerId) {
+      // last one they can make. Owners are exempt since they retain access
+      // via ownerIds bypass.
+      if (
+        request.authUserId &&
+        !ownerIds.includes(request.authUserId)
+      ) {
         const allUsers = await listAuthorizedUsers();
         const self = allUsers.find((u) => u.userId === request.authUserId);
         if (self && self.role === request.params.name) {
@@ -458,11 +462,10 @@ export async function registerAdminManagementRoutes(
       }
       // Mirror of the "don't nuke your own role" guard — revoking the
       // `admin` token from your own role is instant self-lockout.
-      const ownerId = readOwnerId();
       if (
         request.params.capability === "admin" &&
         request.authUserId &&
-        request.authUserId !== ownerId
+        !ownerIds.includes(request.authUserId)
       ) {
         const allUsers = await listAuthorizedUsers();
         const self = allUsers.find((u) => u.userId === request.authUserId);

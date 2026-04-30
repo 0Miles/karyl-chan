@@ -56,14 +56,6 @@ function makeFakeBot(options: FakeBotOptions = {}): Client {
 }
 
 describe("web server", () => {
-  const originalOwnerId = process.env.BOT_OWNER_ID;
-  beforeAll(() => {
-    delete process.env.BOT_OWNER_ID;
-  });
-  afterAll(() => {
-    if (originalOwnerId === undefined) delete process.env.BOT_OWNER_ID;
-    else process.env.BOT_OWNER_ID = originalOwnerId;
-  });
 
   describe("without static root", () => {
     let server: FastifyInstance;
@@ -266,7 +258,6 @@ describe("web server", () => {
     let jwt: JwtService;
 
     beforeAll(async () => {
-      process.env.BOT_OWNER_ID = OWNER_ID;
       // resolveLoginRole hits authorized_users for any non-owner
       // userId; the table needs to exist even though the test only
       // expects to find it empty.
@@ -277,6 +268,7 @@ describe("web server", () => {
         staticRoot: undefined,
         authStore: store,
         jwtService: jwt,
+        ownerIds: [OWNER_ID],
       });
       await server.ready();
     });
@@ -284,7 +276,6 @@ describe("web server", () => {
     afterAll(async () => {
       await server.close();
       store.stop();
-      delete process.env.BOT_OWNER_ID;
       await sequelize.close();
     });
 
@@ -445,6 +436,7 @@ describe("web server", () => {
           staticRoot: spaStaticRoot,
           authStore: spaStore,
           jwtService: new JwtService(randomBytes(64)),
+          ownerIds: [OWNER_ID],
         });
         await spaServer.ready();
       });
@@ -543,7 +535,6 @@ describe("web server", () => {
     let jwt: JwtService;
 
     beforeAll(async () => {
-      process.env.BOT_OWNER_ID = OWNER_ID;
       // No sequelize.sync() needed: OWNER_ID resolveLoginRole takes the
       // owner bypass path (no DB query), and issueTokens is mocked, so
       // the test never touches the DB. The previous describe already ran
@@ -554,6 +545,7 @@ describe("web server", () => {
         staticRoot: undefined,
         authStore: store,
         jwtService: jwt,
+        ownerIds: [OWNER_ID],
       });
       await server.ready();
     });
@@ -561,7 +553,6 @@ describe("web server", () => {
     afterAll(async () => {
       await server.close();
       store.stop();
-      delete process.env.BOT_OWNER_ID;
     });
 
     afterEach(() => {

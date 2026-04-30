@@ -65,8 +65,24 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     envVar: "BOT_OWNER_ID",
     sensitivity: "semi-sensitive",
     editability: "env-only",
-    productionRequired: true,
+    productionRequired: false,
     descriptionKey: "config.bot.ownerId",
+  },
+  "bot.ownerIds": {
+    group: "bot",
+    envVar: "BOT_OWNER_IDS",
+    sensitivity: "semi-sensitive",
+    editability: "env-only",
+    productionRequired: true,
+    descriptionKey: "config.bot.ownerIds",
+  },
+  "bot.enableTyping": {
+    group: "bot",
+    envVar: "BOT_ENABLE_TYPING",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.bot.enableTyping",
   },
 
   // ── web ──────────────────────────────────────────────────────────────────
@@ -149,6 +165,30 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     editability: "env-only",
     productionRequired: false,
     descriptionKey: "config.web.deprecateGlobalPluginSecret",
+  },
+  "web.bodyLimitBytes": {
+    group: "web",
+    envVar: "WEB_BODY_LIMIT_BYTES",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.bodyLimitBytes",
+  },
+  "web.multipartFieldSizeBytes": {
+    group: "web",
+    envVar: "WEB_MULTIPART_FIELD_SIZE_BYTES",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.multipartFieldSizeBytes",
+  },
+  "web.multipartFieldsLimit": {
+    group: "web",
+    envVar: "WEB_MULTIPART_FIELDS_LIMIT",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.multipartFieldsLimit",
   },
 
   // ── db ───────────────────────────────────────────────────────────────────

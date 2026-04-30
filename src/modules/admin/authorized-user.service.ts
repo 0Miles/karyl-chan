@@ -33,8 +33,8 @@ export interface AdminRoleRecord {
   capabilities: AdminCapability[];
 }
 
-function readOwnerId(): string | null {
-  return process.env.BOT_OWNER_ID?.trim() || null;
+function readOwnerIds(): string[] {
+  return config.bot.ownerIds;
 }
 
 // ── User-session cache ────────────────────────────────────────────────────
@@ -138,13 +138,13 @@ async function capabilitiesForRole(
 
 /**
  * Single source of truth for "who is this token-bearer and what can they do?".
- * Owner → every capability, role label 'owner'. Anyone else → their
- * authorized_users row + the role's granted capabilities. Unknown user →
- * empty set, null role. Cached by userId with a short TTL.
+ * Any owner (set-membership in ownerIds) → every capability, role label 'owner'.
+ * Anyone else → their authorized_users row + the role's granted capabilities.
+ * Unknown user → empty set, null role. Cached by userId with a short TTL.
  */
 export async function resolveUserSession(
   userId: string,
-  ownerId: string | null = readOwnerId(),
+  ownerIds: string[] = readOwnerIds(),
   now: number = Date.now(),
 ): Promise<UserSession> {
   // Owner bypass is constant-time — no DB work, no caching needed.
@@ -152,7 +152,7 @@ export async function resolveUserSession(
   // including per-guild scoped ones); listing every global token here
   // would still leave per-guild scopes unhandled, so the bypass token
   // is the only honest representation.
-  if (ownerId && userId === ownerId) {
+  if (ownerIds.includes(userId)) {
     return { role: "owner", caps: new Set<AdminCapability>(["admin"]) };
   }
   const cached = sessionCache.get(userId);
@@ -172,29 +172,29 @@ export async function resolveUserSession(
 }
 
 /**
- * Combined resolution: bot owner gets every capability; any other user gets
+ * Combined resolution: bot owner(s) get every capability; any other user gets
  * the set defined by their assigned role. Returns an empty set (caller should
  * treat as unauthorized) for users with no entry in authorized_users.
  */
 export async function resolveUserCapabilities(
   userId: string,
-  ownerId: string | null = readOwnerId(),
+  ownerIds: string[] = readOwnerIds(),
   now: number = Date.now(),
 ): Promise<Set<AdminCapability>> {
-  return (await resolveUserSession(userId, ownerId, now)).caps;
+  return (await resolveUserSession(userId, ownerIds, now)).caps;
 }
 
 /**
- * Lightweight "can this user log in?" check. Owner is always allowed; any
+ * Lightweight "can this user log in?" check. Any owner is always allowed; any
  * other user needs a row in authorized_users AND at least one capability
  * granted via their role. The returned role name is what we put in the
  * login-link message and (optionally) the session context.
  */
 export async function resolveLoginRole(
   userId: string,
-  ownerId: string | null = readOwnerId(),
+  ownerIds: string[] = readOwnerIds(),
 ): Promise<string | null> {
-  const session = await resolveUserSession(userId, ownerId);
+  const session = await resolveUserSession(userId, ownerIds);
   if (session.caps.size === 0) return null;
   return session.role;
 }

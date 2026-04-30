@@ -73,7 +73,7 @@ describe("seedDefaultRoles", () => {
 
 describe("resolveUserCapabilities", () => {
   it("bypasses for the owner — single `admin` token (which short-circuits every check), no DB hit needed", async () => {
-    const caps = await resolveUserCapabilities(OWNER_ID, OWNER_ID);
+    const caps = await resolveUserCapabilities(OWNER_ID, [OWNER_ID]);
     // Owner carries just the bypass token. Per-guild scoped tokens
     // can't be enumerated up-front, so listing every global token
     // here would still leave gaps — `admin` is the only honest
@@ -83,7 +83,7 @@ describe("resolveUserCapabilities", () => {
   });
 
   it("returns empty for an unknown user", async () => {
-    const caps = await resolveUserCapabilities("unknown-id", OWNER_ID);
+    const caps = await resolveUserCapabilities("unknown-id", [OWNER_ID]);
     expect(caps.size).toBe(0);
   });
 
@@ -91,7 +91,7 @@ describe("resolveUserCapabilities", () => {
     await createAdminRole("mod");
     await grantRoleCapability("mod", "dm.message");
     await addAuthorizedUser("111111111111111111", "mod");
-    const caps = await resolveUserCapabilities("111111111111111111", OWNER_ID);
+    const caps = await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
     expect(caps.has("dm.message" as AdminCapability)).toBe(true);
     expect(caps.has("admin" as AdminCapability)).toBe(false);
   });
@@ -99,7 +99,7 @@ describe("resolveUserCapabilities", () => {
   it("user assigned to a role with no capabilities resolves to empty set", async () => {
     await createAdminRole("empty");
     await addAuthorizedUser("222222222222222222", "empty");
-    const caps = await resolveUserCapabilities("222222222222222222", OWNER_ID);
+    const caps = await resolveUserCapabilities("222222222222222222", [OWNER_ID]);
     expect(caps.size).toBe(0);
   });
 
@@ -108,7 +108,7 @@ describe("resolveUserCapabilities", () => {
     await grantRoleCapability("mod", "dm.message");
     await addAuthorizedUser("333333333333333333", "mod");
     // Warm the cache.
-    await resolveUserCapabilities("333333333333333333", OWNER_ID);
+    await resolveUserCapabilities("333333333333333333", [OWNER_ID]);
     // Mutate the DB *directly* — grantRoleCapability would
     // invalidate the cache internally, which would defeat the
     // point of this test. Bypass via the model.
@@ -118,7 +118,7 @@ describe("resolveUserCapabilities", () => {
     });
     // Second call within the TTL should still report the cached set
     // — proving the cache is what we read from, not the DB.
-    const caps = await resolveUserCapabilities("333333333333333333", OWNER_ID);
+    const caps = await resolveUserCapabilities("333333333333333333", [OWNER_ID]);
     expect(caps.has("guild.message" as AdminCapability)).toBe(false);
   });
 
@@ -126,13 +126,13 @@ describe("resolveUserCapabilities", () => {
     await createAdminRole("mod");
     await grantRoleCapability("mod", "dm.message");
     await addAuthorizedUser("333333333333333333", "mod");
-    await resolveUserCapabilities("333333333333333333", OWNER_ID);
+    await resolveUserCapabilities("333333333333333333", [OWNER_ID]);
     await AdminRoleCapability.create({
       role: "mod",
       capability: "guild.message",
     });
     invalidateCapabilityCache("333333333333333333");
-    const caps = await resolveUserCapabilities("333333333333333333", OWNER_ID);
+    const caps = await resolveUserCapabilities("333333333333333333", [OWNER_ID]);
     expect(caps.has("guild.message" as AdminCapability)).toBe(true);
   });
 
@@ -141,15 +141,15 @@ describe("resolveUserCapabilities", () => {
     await grantRoleCapability("a", "dm.message");
     await addAuthorizedUser("111111111111111111", "a");
     await addAuthorizedUser("222222222222222222", "a");
-    await resolveUserCapabilities("111111111111111111", OWNER_ID);
-    await resolveUserCapabilities("222222222222222222", OWNER_ID);
+    await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
+    await resolveUserCapabilities("222222222222222222", [OWNER_ID]);
     await AdminRoleCapability.create({
       role: "a",
       capability: "guild.message",
     });
     invalidateCapabilityCache();
-    const a = await resolveUserCapabilities("111111111111111111", OWNER_ID);
-    const b = await resolveUserCapabilities("222222222222222222", OWNER_ID);
+    const a = await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
+    const b = await resolveUserCapabilities("222222222222222222", [OWNER_ID]);
     expect(a.has("guild.message" as AdminCapability)).toBe(true);
     expect(b.has("guild.message" as AdminCapability)).toBe(true);
   });
@@ -157,7 +157,7 @@ describe("resolveUserCapabilities", () => {
 
 describe("resolveLoginRole", () => {
   it('returns "owner" for the owner', async () => {
-    const role = await resolveLoginRole(OWNER_ID, OWNER_ID);
+    const role = await resolveLoginRole(OWNER_ID, [OWNER_ID]);
     expect(role).toBe("owner");
   });
 
@@ -165,19 +165,19 @@ describe("resolveLoginRole", () => {
     await createAdminRole("mod");
     await grantRoleCapability("mod", "dm.message");
     await addAuthorizedUser("111111111111111111", "mod");
-    const role = await resolveLoginRole("111111111111111111", OWNER_ID);
+    const role = await resolveLoginRole("111111111111111111", [OWNER_ID]);
     expect(role).toBe("mod");
   });
 
   it("returns null for a user whose role has no capabilities (effectively disabled)", async () => {
     await createAdminRole("empty");
     await addAuthorizedUser("222222222222222222", "empty");
-    const role = await resolveLoginRole("222222222222222222", OWNER_ID);
+    const role = await resolveLoginRole("222222222222222222", [OWNER_ID]);
     expect(role).toBeNull();
   });
 
   it("returns null for an unknown user", async () => {
-    const role = await resolveLoginRole("unknown", OWNER_ID);
+    const role = await resolveLoginRole("unknown", [OWNER_ID]);
     expect(role).toBeNull();
   });
 });
@@ -202,12 +202,12 @@ describe("user CRUD", () => {
     await createAdminRole("a");
     await grantRoleCapability("a", "dm.message");
     await addAuthorizedUser("111111111111111111", "a");
-    await resolveUserCapabilities("111111111111111111", OWNER_ID);
+    await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
     await createAdminRole("b");
     await grantRoleCapability("b", "guild.message");
     // Switch role — the cache for this user must be busted by the upsert.
     await addAuthorizedUser("111111111111111111", "b");
-    const caps = await resolveUserCapabilities("111111111111111111", OWNER_ID);
+    const caps = await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
     expect(caps.has("guild.message" as AdminCapability)).toBe(true);
     expect(caps.has("dm.message" as AdminCapability)).toBe(false);
   });
@@ -283,12 +283,57 @@ describe("role CRUD", () => {
     // Warm the cache.
     const before = await resolveUserCapabilities(
       "111111111111111111",
-      OWNER_ID,
+      [OWNER_ID],
     );
     expect(before.has("guild.message" as AdminCapability)).toBe(true);
     await revokeRoleCapability("a", "guild.message");
-    const after = await resolveUserCapabilities("111111111111111111", OWNER_ID);
+    const after = await resolveUserCapabilities("111111111111111111", [OWNER_ID]);
     expect(after.has("guild.message" as AdminCapability)).toBe(false);
+  });
+});
+
+describe("multi-owner (BOT_OWNER_IDS)", () => {
+  const OWNER_A = "111111111111000001";
+  const OWNER_B = "111111111111000002";
+  const OWNER_C = "111111111111000003";
+
+  it("all owners in ownerIds get admin capability", async () => {
+    const owners = [OWNER_A, OWNER_B, OWNER_C];
+    for (const id of owners) {
+      const caps = await resolveUserCapabilities(id, owners);
+      expect(caps.has("admin" as AdminCapability)).toBe(true);
+    }
+  });
+
+  it("non-owner without DB row is still unauthorized", async () => {
+    const caps = await resolveUserCapabilities(
+      "888888888888888888",
+      [OWNER_A, OWNER_B],
+    );
+    expect(caps.size).toBe(0);
+  });
+
+  it("BOT_OWNER_IDS overrides BOT_OWNER_ID (single) when both supplied", async () => {
+    // Simulated by passing ownerIds=[A,B] with userId=A — both should be owner
+    const capsA = await resolveUserCapabilities(OWNER_A, [OWNER_A, OWNER_B]);
+    const capsB = await resolveUserCapabilities(OWNER_B, [OWNER_A, OWNER_B]);
+    expect(capsA.has("admin" as AdminCapability)).toBe(true);
+    expect(capsB.has("admin" as AdminCapability)).toBe(true);
+  });
+
+  it("legacy single-owner array ([A]) still grants A admin capability", async () => {
+    const caps = await resolveUserCapabilities(OWNER_A, [OWNER_A]);
+    expect(caps.has("admin" as AdminCapability)).toBe(true);
+  });
+
+  it("empty ownerIds means no owner bypass — user without DB row is unauthorized", async () => {
+    const caps = await resolveUserCapabilities(OWNER_A, []);
+    expect(caps.size).toBe(0);
+  });
+
+  it("resolveLoginRole returns 'owner' for each owner in list", async () => {
+    const role = await resolveLoginRole(OWNER_B, [OWNER_A, OWNER_B]);
+    expect(role).toBe("owner");
   });
 });
 

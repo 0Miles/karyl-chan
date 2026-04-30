@@ -130,6 +130,8 @@ export interface CreateWebServerOptions {
   dmInbox?: DmInboxStore;
   /** Injected DM rate limiter for tests; production uses the module-level singleton. */
   dmLimiter?: { isRateLimited(key: string): boolean };
+  /** Override owner ids for tests; production uses config.bot.ownerIds. */
+  ownerIds?: string[];
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -173,14 +175,15 @@ export async function createWebServer(
     logger: {
       level: process.env.NODE_ENV === "production" ? "info" : "debug",
     },
+    bodyLimit: config.web.bodyLimitBytes,
     ...(https ? { https } : {}),
     ...(trustProxy !== false ? { trustProxy } : {}),
   });
 
-  const ownerId = process.env.BOT_OWNER_ID?.trim() || null;
+  const ownerIds = options.ownerIds ?? config.bot.ownerIds;
   const auth = options.authStore ?? defaultAuthStore;
   const jwt = options.jwtService ?? defaultJwtService;
-  const authEnabled = !!ownerId;
+  const authEnabled = ownerIds.length > 0;
 
   if (!authEnabled) {
     // Refuse to boot in production rather than silently serve admin APIs
@@ -188,11 +191,11 @@ export async function createWebServer(
     // prominent warning so local work isn't blocked.
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "BOT_OWNER_ID must be set in production — refusing to start an unauthenticated admin API",
+        "BOT_OWNER_IDS (or BOT_OWNER_ID) must be set in production — refusing to start an unauthenticated admin API",
       );
     }
     server.log.warn(
-      "BOT_OWNER_ID is not set — /api endpoints are UNAUTHENTICATED (dev only)",
+      "BOT_OWNER_IDS is not set — /api endpoints are UNAUTHENTICATED (dev only)",
     );
   }
 
@@ -273,7 +276,7 @@ export async function createWebServer(
     // call — even if they still hold an un-expired access token. Owner
     // always resolves to every capability; other users resolve via the
     // authorized_users → admin_role_capabilities join.
-    const capabilities = await resolveUserCapabilities(userId, ownerId);
+    const capabilities = await resolveUserCapabilities(userId, ownerIds);
     if (capabilities.size === 0) {
       botEventLog.record(
         "warn",
@@ -302,9 +305,11 @@ export async function createWebServer(
     }
   });
 
-  // Security headers. 'unsafe-inline' on style-src is required for
-  // Vue's scoped styles. script-src is now strict-self only — lottie
-  // stickers use the `_light` build (see MessageSticker.vue) which
+  // Security headers. Vue 3 production build extracts all scoped styles
+  // into separate .css files (verified via `vite build` dist output — no
+  // inline <style> tags in index.html), so 'unsafe-inline' is not needed
+  // and has been removed from style-src. script-src is strict-self only —
+  // lottie stickers use the `_light` build (see MessageSticker.vue) which
   // doesn't need `new Function`, so we can drop `unsafe-eval`.
   // Discord CDN hosts every avatar + custom emoji + sticker we render,
   // so it's whitelisted under img-src / media-src. connect-src adds
@@ -334,7 +339,7 @@ export async function createWebServer(
           "https://media.discordapp.net",
         ],
         "font-src": ["'self'", "data:"],
-        "style-src": ["'self'", "'unsafe-inline'"],
+        "style-src": ["'self'"],
         "script-src": ["'self'"],
         "script-src-attr": ["'none'"],
         "connect-src": [
@@ -353,7 +358,14 @@ export async function createWebServer(
   });
 
   await server.register(fastifyMultipart, {
-    limits: { fileSize: 25 * 1024 * 1024, files: 10 },
+    limits: {
+      fileSize: 25 * 1024 * 1024,
+      files: 10,
+      fields: config.web.multipartFieldsLimit,
+      fieldSize: config.web.multipartFieldSizeBytes,
+      fieldNameSize: 256,
+      headerPairs: 100,
+    },
   });
 
   server.post<{ Body: { token?: unknown } }>(
@@ -406,7 +418,7 @@ export async function createWebServer(
       // in. Authorization can change between issuance and exchange
       // (role demotion, account removal); resolveLoginRole reflects
       // the current state.
-      const role = await resolveLoginRole(claims.userId);
+      const role = await resolveLoginRole(claims.userId, ownerIds);
       if (!role) {
         request.log.warn(
           {
@@ -500,7 +512,7 @@ export async function createWebServer(
       // issued. If they now have zero capabilities the new tokens are
       // immediately revoked and the request is rejected — a removed user
       // must not be able to silently extend their session via refresh.
-      const caps = await resolveUserCapabilities(issued.ownerId, ownerId);
+      const caps = await resolveUserCapabilities(issued.ownerId, ownerIds);
       if (caps.size === 0) {
         await auth.revokeOwner(issued.ownerId);
         reply.code(401).send({ error: "User no longer authorized" });

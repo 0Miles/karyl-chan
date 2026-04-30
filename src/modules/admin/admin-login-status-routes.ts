@@ -4,13 +4,10 @@ import { RefreshToken } from "../web-core/models/refresh-token.model.js";
 import { listAuthorizedUsers } from "./authorized-user.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { config } from "../../config.js";
 
 const requireAdmin = (request: FastifyRequest, reply: FastifyReply): boolean =>
   requireCapability(request, reply, "admin");
-
-function readOwnerId(): string | null {
-  return process.env.BOT_OWNER_ID?.trim() || null;
-}
 
 interface AdminLoginStatusEntry {
   userId: string;
@@ -80,25 +77,27 @@ export async function registerAdminLoginStatusRoutes(
       const [users, { lastLoginAtMap, hasActiveSessionSet }] =
         await Promise.all([listAuthorizedUsers(), fetchTokenAggregates(now)]);
 
-      const ownerId = readOwnerId();
+      const ownerIds = config.bot.ownerIds;
+      const ownerIdSet = new Set(ownerIds);
+      const usersInTableIds = new Set(users.map((u) => u.userId));
 
-      // Build the full list: owner entry (synthetic or folded) + authorized users.
-      // Owner pinned first. If owner is also in authorized_users, fold
+      // Build the full list: owner entries (synthetic or folded) + authorized users.
+      // Owners pinned first. If an owner is also in authorized_users, fold
       // isOwner:true into that entry instead of duping.
-      const ownerInTable = ownerId
-        ? users.some((u) => u.userId === ownerId)
-        : false;
       const admins: AdminLoginStatusEntry[] = [];
 
-      if (ownerId && !ownerInTable) {
-        admins.push({
-          userId: ownerId,
-          role: "owner",
-          note: null,
-          lastLoginAt: lastLoginAtMap.get(ownerId) ?? null,
-          hasActiveSession: hasActiveSessionSet.has(ownerId),
-          isOwner: true,
-        });
+      // Synthetic entries for owners that are NOT in authorized_users
+      for (const ownerId of ownerIds) {
+        if (!usersInTableIds.has(ownerId)) {
+          admins.push({
+            userId: ownerId,
+            role: "owner",
+            note: null,
+            lastLoginAt: lastLoginAtMap.get(ownerId) ?? null,
+            hasActiveSession: hasActiveSessionSet.has(ownerId),
+            isOwner: true,
+          });
+        }
       }
 
       for (const user of users) {
@@ -108,7 +107,7 @@ export async function registerAdminLoginStatusRoutes(
           note: user.note,
           lastLoginAt: lastLoginAtMap.get(user.userId) ?? null,
           hasActiveSession: hasActiveSessionSet.has(user.userId),
-          isOwner: ownerId !== null && user.userId === ownerId,
+          isOwner: ownerIdSet.has(user.userId),
         });
       }
 

@@ -46,6 +46,10 @@ function parseKeys(raw: string): EncKey[] {
  * over stored ciphertexts, then drop the old key on the next deploy.
  */
 function getKeys(): EncKey[] {
+  // Read directly from process.env on every call so key rotation (prepending
+  // a new key to ENCRYPTION_KEY) takes effect without a restart. This is an
+  // intentional exception to the "read env via config singleton" rule: the
+  // key set is operationally changed at runtime and must be re-read each call.
   const raw = process.env.ENCRYPTION_KEY;
   if (!raw) {
     throw new Error(

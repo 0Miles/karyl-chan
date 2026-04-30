@@ -144,12 +144,17 @@ export const bot = new Client({
     IntentsBitField.Flags.GuildMembers,
     IntentsBitField.Flags.GuildMessages,
     IntentsBitField.Flags.GuildMessageReactions,
-    IntentsBitField.Flags.GuildMessageTyping,
     IntentsBitField.Flags.GuildVoiceStates,
     IntentsBitField.Flags.MessageContent,
     IntentsBitField.Flags.DirectMessages,
     IntentsBitField.Flags.DirectMessageReactions,
-    IntentsBitField.Flags.DirectMessageTyping,
+    // Typing intents are high-frequency/low-value; opt-in via BOT_ENABLE_TYPING.
+    ...(config.bot.enableTyping
+      ? [
+          IntentsBitField.Flags.GuildMessageTyping,
+          IntentsBitField.Flags.DirectMessageTyping,
+        ]
+      : []),
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
@@ -270,12 +275,11 @@ bot.once("ready", async () => {
   // we-recreate the commands. Skip it; the registry handles sync.
   await syncInProcessCommandsToDiscord(bot);
 
-  // Pre-cache the owner's DM channel. discord.js silently drops
+  // Pre-cache each owner's DM channel. discord.js silently drops
   // MESSAGE_CREATE events for DM channels that aren't already cached
   // (createChannel can't infer DM type from a message-shaped payload),
   // so without this the owner-login-dm handler never fires.
-  const ownerId = process.env.BOT_OWNER_ID?.trim() || null;
-  if (ownerId) {
+  for (const ownerId of config.bot.ownerIds) {
     try {
       const owner = await bot.users.fetch(ownerId);
       await owner.createDM();

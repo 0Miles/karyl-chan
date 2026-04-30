@@ -52,7 +52,6 @@ const store = authStore;
 let server: FastifyInstance;
 
 beforeAll(async () => {
-  process.env.BOT_OWNER_ID = OWNER_ID;
   await sequelize.sync({ force: true });
   // Pass the same singleton to the server so HTTP endpoint tests share
   // the same token map.
@@ -60,13 +59,13 @@ beforeAll(async () => {
     staticRoot: undefined,
     authStore: store,
     jwtService: new JwtService(randomBytes(64)),
+    ownerIds: [OWNER_ID],
   });
   await server.ready();
 });
 
 afterAll(async () => {
   await server.close();
-  delete process.env.BOT_OWNER_ID;
   await sequelize.close();
 });
 

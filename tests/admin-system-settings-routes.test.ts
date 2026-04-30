@@ -273,9 +273,11 @@ describe("productionReadiness", () => {
     const pr = snapshot.productionReadiness;
 
     // requiredKeys must include the four known required fields.
+    // bot.ownerIds is the authoritative production-required field;
+    // bot.ownerId is a backward-compat alias and is no longer required.
     const knownRequired = [
       "bot.token",
-      "bot.ownerId",
+      "bot.ownerIds",
       "crypto.encryptionKey",
       "plugin.sharedSecret",
     ];

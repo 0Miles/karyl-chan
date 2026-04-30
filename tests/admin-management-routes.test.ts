@@ -44,7 +44,7 @@ async function buildServer(actor: {
     request.authUserId = actor.userId;
     request.authCapabilities = new Set(actor.caps);
   });
-  await registerAdminManagementRoutes(fastify);
+  await registerAdminManagementRoutes(fastify, { ownerIds: [OWNER_ID] });
   await fastify.ready();
   return fastify;
 }
@@ -56,7 +56,6 @@ beforeAll(async () => {
 beforeEach(async () => {
   await sequelize.sync({ force: true });
   invalidateCapabilityCache();
-  process.env.BOT_OWNER_ID = OWNER_ID;
   await seedDefaultRoles();
 });
 
@@ -65,7 +64,6 @@ afterEach(() => {
 });
 
 afterAll(async () => {
-  delete process.env.BOT_OWNER_ID;
   await sequelize.close();
 });
 

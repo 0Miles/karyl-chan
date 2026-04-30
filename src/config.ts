@@ -10,7 +10,13 @@ export interface AppConfig {
   env: "production" | "development" | "test";
   bot: {
     token: string;
+    /** Primary owner id for backward compatibility (ownerIds[0] ?? null). */
     ownerId: string | null;
+    /** All owner-equivalent user ids. Sourced from BOT_OWNER_IDS (comma-separated),
+     * or falls back to BOT_OWNER_ID (single). Empty array means no owner configured. */
+    ownerIds: string[];
+    /** When true, GuildMessageTyping and DirectMessageTyping intents are registered. */
+    enableTyping: boolean;
   };
   web: {
     port: number;
@@ -23,6 +29,12 @@ export interface AppConfig {
     trustedProxyCidrs: string[];
     trustCloudflare: boolean;
     deprecateGlobalPluginSecret: boolean;
+    /** Global Fastify bodyLimit (bytes). Applies to all non-multipart routes. */
+    bodyLimitBytes: number;
+    /** Per-field size cap for multipart uploads (bytes). */
+    multipartFieldSizeBytes: number;
+    /** Maximum number of non-file fields allowed in a multipart request. */
+    multipartFieldsLimit: number;
   };
   db: {
     sqlitePath: string | null;
@@ -134,11 +146,24 @@ function loadConfig(): AppConfig {
     throw new Error("Config error: BOT_TOKEN is required");
   }
 
+  // BOT_OWNER_IDS takes precedence over BOT_OWNER_ID when both are set.
+  const ownerIdsRaw = strEnv("BOT_OWNER_IDS");
+  const ownerIds: string[] = ownerIdsRaw
+    ? ownerIdsRaw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    : strEnv("BOT_OWNER_ID")
+      ? [strEnv("BOT_OWNER_ID") as string]
+      : [];
+
   const cfg: AppConfig = {
     env,
     bot: {
       token: botToken ?? "",
-      ownerId: strEnv("BOT_OWNER_ID"),
+      ownerIds,
+      ownerId: ownerIds[0] ?? null,
+      enableTyping: parseBoolEnv("BOT_ENABLE_TYPING", false),
     },
     web: {
       port: parseIntEnv("WEB_PORT", 3000),
@@ -154,6 +179,12 @@ function loadConfig(): AppConfig {
         "DEPRECATE_GLOBAL_PLUGIN_SECRET",
         false,
       ),
+      bodyLimitBytes: parseIntEnv("WEB_BODY_LIMIT_BYTES", 30 * 1024 * 1024),
+      multipartFieldSizeBytes: parseIntEnv(
+        "WEB_MULTIPART_FIELD_SIZE_BYTES",
+        1 * 1024 * 1024,
+      ),
+      multipartFieldsLimit: parseIntEnv("WEB_MULTIPART_FIELDS_LIMIT", 50),
     },
     db: {
       sqlitePath: strEnv("SQLITE_DB_PATH"),
@@ -250,9 +281,9 @@ function loadConfig(): AppConfig {
 
   // production 額外強制檢查（對齊既有 main.ts / server.ts 的安全要求）
   if (env === "production") {
-    if (!cfg.bot.ownerId) {
+    if (cfg.bot.ownerIds.length === 0) {
       throw new Error(
-        "Config error: BOT_OWNER_ID must be set in production — refusing to start an unauthenticated admin API",
+        "Config error: BOT_OWNER_IDS (or BOT_OWNER_ID) must be set in production — refusing to start an unauthenticated admin API",
       );
     }
     if (!cfg.crypto.encryptionKey) {

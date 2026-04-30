@@ -12,7 +12,7 @@ import {
 // ---------------------------------------------------------------------------
 const stubConfig: AppConfig = {
   env: "test",
-  bot: { token: "tok", ownerId: null },
+  bot: { token: "tok", ownerId: null, ownerIds: [], enableTyping: false },
   web: {
     port: 3000,
     host: "0.0.0.0",
@@ -24,6 +24,9 @@ const stubConfig: AppConfig = {
     trustedProxyCidrs: [],
     trustCloudflare: false,
     deprecateGlobalPluginSecret: false,
+    bodyLimitBytes: 31_457_280,
+    multipartFieldSizeBytes: 1_048_576,
+    multipartFieldsLimit: 50,
   },
   db: { sqlitePath: null },
   crypto: { encryptionKey: null },
@@ -58,7 +61,11 @@ const stubConfig: AppConfig = {
     maxConnections: 50,
   },
   botEvents: { dedupWindowMs: 60_000, dedupMaxKeys: 1_000 },
-  dm: { maxFetchCount: 500, maxAttachmentBytes: 1_000_000, sseMaxListeners: 200 },
+  dm: {
+    maxFetchCount: 500,
+    maxAttachmentBytes: 1_000_000,
+    sseMaxListeners: 200,
+  },
 };
 
 // ---------------------------------------------------------------------------

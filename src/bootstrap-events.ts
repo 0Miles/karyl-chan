@@ -1,4 +1,5 @@
 import type { Client } from "discord.js";
+import { config } from "./config.js";
 import { registerDmInboxEvents } from "./modules/dm-inbox/events/dm-inbox.events.js";
 import { registerGuildChannelEvents } from "./modules/guild-management/events/guild-channel.events.js";
 import { registerPictureOnlyChannelEvents } from "./modules/builtin-features/picture-only/picture-only-channel.events.js";
@@ -25,7 +26,11 @@ export function bootstrapEventHandlers(client: Client): void {
   registerRconForwardChannelEvents(client);
   registerRoleEmojiEvents(client);
   registerTodoChannelEvents(client);
-  registerTypingStartEvents(client);
+  // Typing events require GuildMessageTyping / DirectMessageTyping intents.
+  // These are high-frequency/low-value; only register when BOT_ENABLE_TYPING=true.
+  if (config.bot.enableTyping) {
+    registerTypingStartEvents(client);
+  }
   registerVoiceStateEvents(client);
   registerWebhookBehaviorEvents(client);
 }
