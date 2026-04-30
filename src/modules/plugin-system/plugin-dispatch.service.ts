@@ -1,11 +1,8 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import type { RESTPostAPIWebhookWithTokenJSONBody } from "discord.js";
 import type { APIMessage } from "discord.js";
 import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import {
-  SIGNATURE_HEADER,
-  TIMESTAMP_HEADER,
   type DispatchResult,
 } from "../behavior/webhook-dispatch.service.js";
 import { config } from "../../config.js";
@@ -14,6 +11,10 @@ import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import {
+  buildOutboundSignatureHeaders,
+  verifyInboundSignature,
+} from "../../utils/hmac.js";
 
 /**
  * Dispatch DM behavior payloads through a registered plugin.
@@ -35,23 +36,9 @@ import {
  * caring which dispatcher produced it.
  */
 
-const SIGNATURE_VERSION = "v0";
 const REPLAY_WINDOW_SECONDS = 300;
 const DEFAULT_DM_DISPATCH_PATH = "/dm/{behavior_key}/dispatch";
 const BEHAVIOR_END_RE = /\[BEHAVIOR:END\]/gi;
-
-function signBody(secret: string, ts: string, body: string): string {
-  return createHmac("sha256", secret)
-    .update(`${SIGNATURE_VERSION}:${ts}:${body}`)
-    .digest("hex");
-}
-
-function constantTimeEq(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
 
 function parseManifest(plugin: PluginRow): PluginManifest | null {
   try {
@@ -74,39 +61,6 @@ function resolveDispatchUrl(
   } catch {
     return null;
   }
-}
-
-/**
- * Verify the HMAC headers a plugin slapped onto its response. Mirrors
- * webhook-dispatch.service.verifyResponseSignature; duplicated rather
- * than imported to keep both dispatchers self-contained for now.
- */
-function verifyResponseSignature(
-  secret: string,
-  headers: Headers,
-  rawBody: string,
-  nowSec: number,
-): { ok: true } | { ok: false; reason: string } {
-  const sig = headers.get(SIGNATURE_HEADER);
-  const ts = headers.get(TIMESTAMP_HEADER);
-  if (!sig || !ts) {
-    return {
-      ok: false,
-      reason: "missing X-Karyl-Signature/Timestamp on response",
-    };
-  }
-  const tsNum = Number.parseInt(ts, 10);
-  if (!Number.isFinite(tsNum)) {
-    return { ok: false, reason: "malformed X-Karyl-Timestamp on response" };
-  }
-  if (Math.abs(nowSec - tsNum) > REPLAY_WINDOW_SECONDS) {
-    return { ok: false, reason: "response timestamp outside replay window" };
-  }
-  const expected = `${SIGNATURE_VERSION}=${signBody(secret, ts, rawBody)}`;
-  if (!constantTimeEq(sig, expected)) {
-    return { ok: false, reason: "response signature mismatch" };
-  }
-  return { ok: true };
 }
 
 export interface PluginDispatchOptions {
@@ -174,11 +128,15 @@ export async function dispatchPluginDmBehavior(
   }
 
   const body = JSON.stringify(options.payload);
-  const ts = Math.floor(Date.now() / 1000).toString();
+  const sigHeaders = buildOutboundSignatureHeaders(
+    signingKey,
+    "POST",
+    parsedDispatchUrl.pathname,
+    body,
+  );
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    [TIMESTAMP_HEADER]: ts,
-    [SIGNATURE_HEADER]: `${SIGNATURE_VERSION}=${signBody(signingKey, ts, body)}`,
+    ...sigHeaders,
   };
 
   let res: Response;
@@ -201,11 +159,13 @@ export async function dispatchPluginDmBehavior(
   // returned content enough to relay it back into the user's DM. A
   // missing/bad signature could let an attacker on the network
   // hijack the response if the signing key wasn't shared.
-  const verdict = verifyResponseSignature(
+  const verdict = verifyInboundSignature(
     signingKey,
     res.headers,
     rawText,
     Math.floor(Date.now() / 1000),
+    "POST",
+    parsedDispatchUrl.pathname,
   );
   if (!verdict.ok) {
     return failure(verdict.reason, res.status);

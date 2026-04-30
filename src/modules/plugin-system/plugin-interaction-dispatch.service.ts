@@ -1,4 +1,3 @@
-import { createHmac } from "crypto";
 import { config } from "../../config.js";
 import {
   type Interaction,
@@ -10,16 +9,13 @@ import {
   type PluginCommandRow,
 } from "./models/plugin-command.model.js";
 import { findPluginById, type PluginRow } from "./models/plugin.model.js";
-import {
-  SIGNATURE_HEADER,
-  TIMESTAMP_HEADER,
-} from "../behavior/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import { buildOutboundSignatureHeaders } from "../../utils/hmac.js";
 
 /**
  * Inbound Discord interaction → plugin dispatcher.
@@ -44,7 +40,6 @@ import {
  * customId convention; handled in a follow-up.
  */
 
-const SIGNATURE_VERSION = "v0";
 const DEFAULT_COMMAND_PATH = "/commands/{command_name}";
 const DEFAULT_AUTOCOMPLETE_PATH = "/commands/{command_name}/autocomplete";
 const COMMAND_DISPATCH_TIMEOUT_MS = config.plugin.commandDispatchTimeoutMs;
@@ -58,18 +53,15 @@ function parseManifest(plugin: PluginRow): PluginManifest | null {
   }
 }
 
-function signBody(secret: string, ts: string, body: string): string {
-  return createHmac("sha256", secret)
-    .update(`${SIGNATURE_VERSION}:${ts}:${body}`)
-    .digest("hex");
-}
-
-function buildHeaders(secret: string, body: string): Record<string, string> {
-  const ts = Math.floor(Date.now() / 1000).toString();
+function buildHeaders(
+  secret: string,
+  url: string,
+  body: string,
+): Record<string, string> {
+  const urlPath = new URL(url).pathname;
   return {
     "Content-Type": "application/json",
-    [SIGNATURE_HEADER]: `${SIGNATURE_VERSION}=${signBody(secret, ts, body)}`,
-    [TIMESTAMP_HEADER]: ts,
+    ...buildOutboundSignatureHeaders(secret, "POST", urlPath, body),
   };
 }
 
@@ -225,7 +217,7 @@ async function dispatchChatInputCommand(
     locale: interaction.locale ?? null,
   };
   const body = JSON.stringify(payload);
-  const headers = buildHeaders(sharedSecret, body);
+  const headers = buildHeaders(sharedSecret, url, body);
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), COMMAND_DISPATCH_TIMEOUT_MS);
@@ -310,7 +302,7 @@ async function dispatchAutocomplete(
     user: { id: interaction.user.id },
   };
   const body = JSON.stringify(payload);
-  const headers = buildHeaders(sharedSecret, body);
+  const headers = buildHeaders(sharedSecret, url, body);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), AUTOCOMPLETE_TIMEOUT_MS);
   try {

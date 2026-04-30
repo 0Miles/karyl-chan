@@ -1,14 +1,9 @@
-import { createHmac } from "crypto";
 import { config } from "../../config.js";
 import {
   findAllPlugins,
   findPluginById,
   type PluginRow,
 } from "./models/plugin.model.js";
-import {
-  SIGNATURE_HEADER,
-  TIMESTAMP_HEADER,
-} from "../behavior/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
@@ -16,6 +11,12 @@ import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import {
+  SIGNATURE_HEADER,
+  SIGNATURE_HEADER_V1,
+  TIMESTAMP_HEADER,
+  buildOutboundSignatureHeaders,
+} from "../../utils/hmac.js";
 
 /**
  * Bot → Plugin event dispatch. Plugins declare which event types
@@ -34,7 +35,6 @@ import {
  * /api/plugin/* RPC routes.
  */
 
-const SIGNATURE_VERSION = "v0";
 const DEFAULT_EVENTS_PATH = "/events";
 const DISPATCH_TIMEOUT_MS = config.plugin.dispatchTimeoutMs;
 
@@ -113,12 +113,6 @@ export async function rebuildEventIndex(): Promise<void> {
   index.set(m);
 }
 
-function signBody(secret: string, ts: string, body: string): string {
-  return createHmac("sha256", secret)
-    .update(`${SIGNATURE_VERSION}:${ts}:${body}`)
-    .digest("hex");
-}
-
 function resolveEventsUrl(
   plugin: PluginRow,
   manifest: PluginManifest,
@@ -166,8 +160,12 @@ async function postEventToPlugin(
 
   const signingKey = pluginSpecificKey ?? sharedSecret;
   const body = JSON.stringify({ type: eventType, data });
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = `${SIGNATURE_VERSION}=${signBody(signingKey, ts, body)}`;
+  const sigHeaders = buildOutboundSignatureHeaders(
+    signingKey,
+    "POST",
+    parsedEventsUrl.pathname,
+    body,
+  );
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), DISPATCH_TIMEOUT_MS);
   try {
@@ -175,8 +173,9 @@ async function postEventToPlugin(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        [SIGNATURE_HEADER]: sig,
-        [TIMESTAMP_HEADER]: ts,
+        [SIGNATURE_HEADER]: sigHeaders[SIGNATURE_HEADER],
+        [SIGNATURE_HEADER_V1]: sigHeaders[SIGNATURE_HEADER_V1],
+        [TIMESTAMP_HEADER]: sigHeaders[TIMESTAMP_HEADER],
       },
       body,
       signal: ctrl.signal,

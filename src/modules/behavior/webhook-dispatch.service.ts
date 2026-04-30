@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import {
   type APIMessage,
   type RESTPostAPIWebhookWithTokenJSONBody,
@@ -7,6 +6,10 @@ import {
   assertExternalTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import {
+  buildOutboundSignatureHeaders,
+  verifyInboundSignature,
+} from "../../utils/hmac.js";
 
 /**
  * Sentinel that a downstream webhook returns in its response body when
@@ -22,24 +25,23 @@ const BEHAVIOR_END_RE = /\[BEHAVIOR:END\]/gi;
  * HMAC headers exchanged in both directions when a behavior has a
  * webhookSecret configured.
  *
- *   X-Karyl-Timestamp  — unix epoch seconds (string), bound into the
- *                        signed payload to make replay attacks
- *                        infeasible inside a small acceptance window.
- *   X-Karyl-Signature  — versioned HMAC: `v0=<hex sha256>`. The
- *                        version prefix lets us evolve the scheme
- *                        later without ambiguity.
+ *   X-Karyl-Timestamp     — unix epoch seconds (string), bound into the
+ *                           signed payload to make replay attacks
+ *                           infeasible inside a small acceptance window.
+ *   X-Karyl-Signature     — v0 HMAC: `v0=<hex sha256>` (backward-compat).
+ *   X-Karyl-Signature-V1  — v1 HMAC: `v1=<hex sha256>`, binds method +
+ *                           URL path so cross-endpoint replay is blocked.
  *
- * Outbound: bot signs `v0:<timestamp>:<request body>` and sets both
- * headers on the POST so the server can verify the request.
- * Inbound:  the server is expected to return both headers on its
- * response (signed against `v0:<timestamp>:<response body>`); a
- * mismatch / missing header / stale timestamp marks the dispatch as
- * failed and the response is NOT relayed to the user.
+ * Outbound: bot sends both headers so old receivers (v0 only) and
+ * new receivers (v1 preferred) both validate correctly.
+ * Inbound:  bot prefers X-Karyl-Signature-V1 if present, falls back to
+ * X-Karyl-Signature (v0). Both must fail for the response to be rejected.
  */
-export const SIGNATURE_HEADER = "x-karyl-signature";
-export const TIMESTAMP_HEADER = "x-karyl-timestamp";
-const SIGNATURE_VERSION = "v0";
-const REPLAY_WINDOW_SECONDS = 300;
+export {
+  SIGNATURE_HEADER,
+  SIGNATURE_HEADER_V1,
+  TIMESTAMP_HEADER,
+} from "../../utils/hmac.js";
 
 export interface DispatchResult {
   ok: boolean;
@@ -62,55 +64,6 @@ export interface DispatchResult {
   relayContent: string;
 }
 
-function signBody(secret: string, timestamp: string, body: string): string {
-  return createHmac("sha256", secret)
-    .update(`${SIGNATURE_VERSION}:${timestamp}:${body}`)
-    .digest("hex");
-}
-
-function constantTimeEq(a: string, b: string): boolean {
-  const ab = Buffer.from(a, "utf8");
-  const bb = Buffer.from(b, "utf8");
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
-
-type SignatureCheck = { ok: true } | { ok: false; reason: string };
-
-/**
- * Validate `X-Karyl-Signature` + `X-Karyl-Timestamp` against the
- * received body using the same scheme as the outbound signer. The
- * caller invokes this only when a secret is configured; without one
- * we don't expect any signature on the response.
- */
-function verifyResponseSignature(
-  secret: string,
-  headers: Headers,
-  rawBody: string,
-  nowSec: number,
-): SignatureCheck {
-  const sigHeader = headers.get(SIGNATURE_HEADER);
-  const tsHeader = headers.get(TIMESTAMP_HEADER);
-  if (!sigHeader || !tsHeader) {
-    return {
-      ok: false,
-      reason: "missing X-Karyl-Signature/Timestamp on response",
-    };
-  }
-  const tsNum = Number.parseInt(tsHeader, 10);
-  if (!Number.isFinite(tsNum)) {
-    return { ok: false, reason: "malformed X-Karyl-Timestamp on response" };
-  }
-  if (Math.abs(nowSec - tsNum) > REPLAY_WINDOW_SECONDS) {
-    return { ok: false, reason: "response timestamp outside replay window" };
-  }
-  const expected = `${SIGNATURE_VERSION}=${signBody(secret, tsHeader, rawBody)}`;
-  if (!constantTimeEq(sigHeader, expected)) {
-    return { ok: false, reason: "response signature mismatch" };
-  }
-  return { ok: true };
-}
-
 export interface DispatchOptions {
   /**
    * When set, sign the outgoing request and require a matching
@@ -129,8 +82,8 @@ export interface DispatchOptions {
  * usually indicate operator misconfiguration; surfacing the first
  * failure quickly is more useful than silently retrying.
  *
- * When `options.secret` is set, the request is HMAC-signed and the
- * response's signature is verified before the body is treated as
+ * When `options.secret` is set, the request is HMAC-signed (dual v0+v1)
+ * and the response's signature is verified before the body is treated as
  * trusted. A signature failure surfaces as `{ ok: false }` with no
  * `relayContent`, so the user never sees forged content.
  */
@@ -162,10 +115,13 @@ export async function dispatchWebhook(
 
   const secret = options.secret;
   if (secret) {
-    const ts = Math.floor(Date.now() / 1000).toString();
-    headers[TIMESTAMP_HEADER] = ts;
-    headers[SIGNATURE_HEADER] =
-      `${SIGNATURE_VERSION}=${signBody(secret, ts, body)}`;
+    const sigHeaders = buildOutboundSignatureHeaders(
+      secret,
+      "POST",
+      url.pathname,
+      body,
+    );
+    Object.assign(headers, sigHeaders);
   }
 
   const webhookPort = url.port
@@ -209,11 +165,13 @@ export async function dispatchWebhook(
   }
 
   if (secret) {
-    const verdict = verifyResponseSignature(
+    const verdict = verifyInboundSignature(
       secret,
       res.headers,
       rawText,
       Math.floor(Date.now() / 1000),
+      "POST",
+      url.pathname,
     );
     if (!verdict.ok) {
       return {
