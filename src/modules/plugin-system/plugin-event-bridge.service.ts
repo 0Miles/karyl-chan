@@ -12,6 +12,10 @@ import {
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
+import {
+  assertPluginTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 /**
  * Bot → Plugin event dispatch. Plugins declare which event types
@@ -137,6 +141,28 @@ async function postEventToPlugin(
   if (!manifest) return;
   const url = resolveEventsUrl(plugin, manifest);
   if (!url) return;
+
+  const parsedEventsUrl = new URL(url);
+  const eventsPort = parsedEventsUrl.port
+    ? Number(parsedEventsUrl.port)
+    : parsedEventsUrl.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertPluginTarget(parsedEventsUrl.hostname, eventsPort);
+  } catch (err) {
+    if (!(err instanceof HostPolicyError)) throw err;
+    if (shouldRecord(`plugin-dispatch-policy:${plugin.id}:${eventType}`)) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `plugin event ${eventType} → ${plugin.pluginKey} pre-flight 拒絕: ${err.message}`,
+        { pluginId: plugin.id, eventType },
+      );
+    }
+    return;
+  }
+
   const body = JSON.stringify({ type: eventType, data });
   const ts = Math.floor(Date.now() / 1000).toString();
   const sig = `${SIGNATURE_VERSION}=${signBody(sharedSecret, ts, body)}`;

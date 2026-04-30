@@ -3,6 +3,10 @@ import {
   type APIMessage,
   type RESTPostAPIWebhookWithTokenJSONBody,
 } from "discord.js";
+import {
+  assertExternalTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 /**
  * Sentinel that a downstream webhook returns in its response body when
@@ -162,6 +166,18 @@ export async function dispatchWebhook(
     headers[TIMESTAMP_HEADER] = ts;
     headers[SIGNATURE_HEADER] =
       `${SIGNATURE_VERSION}=${signBody(secret, ts, body)}`;
+  }
+
+  const webhookPort = url.port
+    ? Number(url.port)
+    : url.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertExternalTarget(url.hostname, webhookPort);
+  } catch (err) {
+    if (!(err instanceof HostPolicyError)) throw err;
+    return { ok: false, error: err.message, ended: false, relayContent: "" };
   }
 
   let res: Response;

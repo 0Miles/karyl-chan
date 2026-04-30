@@ -16,6 +16,10 @@ import {
 } from "../behavior/webhook-dispatch.service.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import {
+  assertPluginTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 /**
  * Inbound Discord interaction → plugin dispatcher.
@@ -162,6 +166,28 @@ async function dispatchChatInputCommand(
     return;
   }
 
+  const parsedCmdUrl = new URL(url);
+  const cmdPort = parsedCmdUrl.port
+    ? Number(parsedCmdUrl.port)
+    : parsedCmdUrl.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertPluginTarget(parsedCmdUrl.hostname, cmdPort);
+  } catch (err) {
+    if (!(err instanceof HostPolicyError)) throw err;
+    botEventLog.record(
+      "warn",
+      "bot",
+      `plugin-interaction: pre-flight host-policy 拒絕 ${plugin.pluginKey}/${interaction.commandName}: ${err.message}`,
+      { pluginId: plugin.id },
+    );
+    await interaction
+      .editReply({ content: `⚠ Plugin 端點不被允許: ${err.message}` })
+      .catch(() => {});
+    return;
+  }
+
   const opts = serializeOptions(interaction);
   const payload = {
     interaction_id: interaction.id,
@@ -256,6 +282,21 @@ async function dispatchAutocomplete(
     await interaction.respond([]).catch(() => {});
     return;
   }
+
+  const parsedAcUrl = new URL(url);
+  const acPort = parsedAcUrl.port
+    ? Number(parsedAcUrl.port)
+    : parsedAcUrl.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertPluginTarget(parsedAcUrl.hostname, acPort);
+  } catch (err) {
+    if (!(err instanceof HostPolicyError)) throw err;
+    await interaction.respond([]).catch(() => {});
+    return;
+  }
+
   const focused = interaction.options.getFocused(true);
   const payload = {
     interaction_id: interaction.id,

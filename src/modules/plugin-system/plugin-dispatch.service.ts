@@ -10,6 +10,10 @@ import {
 } from "../behavior/webhook-dispatch.service.js";
 import { config } from "../../config.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import {
+  assertPluginTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
 
 /**
  * Dispatch DM behavior payloads through a registered plugin.
@@ -147,6 +151,25 @@ export async function dispatchPluginDmBehavior(
   const sharedSecret = config.plugin.sharedSecret;
   if (!sharedSecret) {
     return failure("KARYL_PLUGIN_SECRET not configured on bot");
+  }
+
+  const parsedDispatchUrl = new URL(url);
+  const pluginPort = parsedDispatchUrl.port
+    ? Number(parsedDispatchUrl.port)
+    : parsedDispatchUrl.protocol === "https:"
+      ? 443
+      : 80;
+  try {
+    await assertPluginTarget(parsedDispatchUrl.hostname, pluginPort);
+  } catch (err) {
+    if (!(err instanceof HostPolicyError)) throw err;
+    botEventLog.record(
+      "warn",
+      "bot",
+      `plugin-dispatch: pre-flight host-policy 拒絕 ${plugin.pluginKey}: ${err.message}`,
+      { pluginId: plugin.id, pluginKey: plugin.pluginKey },
+    );
+    return failure(err.message);
   }
 
   const body = JSON.stringify(options.payload);
