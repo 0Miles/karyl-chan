@@ -68,7 +68,7 @@ karyl-chan 的 plugin 是「同 docker network 的 sibling 服務」,不是 in-p
 ```bash
 # .env
 KARYL_PLUGIN_SECRET=<跟 bot 同一把 32-byte hex,openssl rand -hex 32>
-KARYL_BOT_URL=http://karyl-chan:3000   # docker network 內 sibling 解析
+BOT_URL=http://karyl-chan:3000   # docker network 內 sibling 解析
 PLUGIN_URL=http://my-plugin:3000        # bot 用來連我們回來的位址
 PORT=3000
 ```
@@ -160,7 +160,7 @@ services:
     container_name: my-plugin
     environment:
       - KARYL_PLUGIN_SECRET=${KARYL_PLUGIN_SECRET:-}
-      - KARYL_BOT_URL=http://karyl-chan:3000
+      - BOT_URL=http://karyl-chan:3000
       - PLUGIN_URL=http://my-plugin:3000
       - PORT=3000
     networks:
@@ -894,7 +894,7 @@ services:
     environment:
       - PORT=3000
       - KARYL_PLUGIN_SECRET=${KARYL_PLUGIN_SECRET:-}
-      - KARYL_BOT_URL=${KARYL_BOT_URL:-http://karyl-chan:3000}
+      - BOT_URL=${BOT_URL:-http://karyl-chan:3000}
       - PLUGIN_URL=${PLUGIN_URL:-http://my-plugin:3000}
     networks:
       - karyl-chan-net

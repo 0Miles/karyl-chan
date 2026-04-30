@@ -22,11 +22,11 @@ function stubResolve(address: string, family: 4 | 6 = 4) {
 describe("assertExternalTarget", () => {
   beforeEach(() => {
     mockedLookup.mockReset();
-    delete process.env.KARYL_WEBHOOK_ALLOW_PRIVATE;
+    delete process.env.WEBHOOK_ALLOW_PRIVATE;
   });
 
   afterEach(() => {
-    delete process.env.KARYL_WEBHOOK_ALLOW_PRIVATE;
+    delete process.env.WEBHOOK_ALLOW_PRIVATE;
   });
 
   it("rejects cloud metadata 169.254.169.254", async () => {
@@ -114,9 +114,9 @@ describe("assertExternalTarget", () => {
     ).rejects.toBeInstanceOf(HostPolicyError);
   });
 
-  describe("KARYL_WEBHOOK_ALLOW_PRIVATE=true escape hatch", () => {
+  describe("WEBHOOK_ALLOW_PRIVATE=true escape hatch", () => {
     beforeEach(() => {
-      process.env.KARYL_WEBHOOK_ALLOW_PRIVATE = "true";
+      process.env.WEBHOOK_ALLOW_PRIVATE = "true";
     });
 
     it("allows RFC1918 10.0.0.5 when escape hatch enabled", async () => {
@@ -228,7 +228,7 @@ describe("assertPluginTarget", () => {
 describe("IPv6 bypass guards", () => {
   beforeEach(() => {
     mockedLookup.mockReset();
-    delete process.env.KARYL_WEBHOOK_ALLOW_PRIVATE;
+    delete process.env.WEBHOOK_ALLOW_PRIVATE;
   });
 
   it("blocks IPv4-mapped IPv6 loopback ::ffff:127.0.0.1 (literal)", async () => {

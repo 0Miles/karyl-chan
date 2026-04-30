@@ -224,7 +224,7 @@ export async function assertAllowedTarget(
  * ranges, loopback, unspecified, and the IPv6 equivalents. Only public
  * internet addresses are accepted.
  *
- * Escape hatch: set env KARYL_WEBHOOK_ALLOW_PRIVATE=true to skip the
+ * Escape hatch: set env WEBHOOK_ALLOW_PRIVATE=true to skip the
  * RFC1918 check (metadata is still blocked). Intended for ops debugging
  * only — never enable in production.
  */
@@ -240,7 +240,7 @@ export async function assertExternalTarget(
     throw new HostPolicyError("無效的端口號碼");
   }
 
-  const allowPrivate = process.env.KARYL_WEBHOOK_ALLOW_PRIVATE === "true";
+  const allowPrivate = process.env.WEBHOOK_ALLOW_PRIVATE === "true";
   const denyExternal = (): never => {
     throw new HostPolicyError("Webhook 目標不被允許");
   };
