@@ -22,6 +22,7 @@ import {
 } from "./models/plugin-config.model.js";
 import { encryptSecret } from "../../utils/crypto.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
+import { recordAudit } from "../admin/admin-audit.service.js";
 
 /**
  * Plugin-facing endpoints (register / heartbeat) AND admin-facing
@@ -189,6 +190,8 @@ export async function registerPluginRoutes(
         enabled: p.enabled,
         lastHeartbeatAt: p.lastHeartbeatAt,
         manifest: safeParse(p.manifestJson),
+        approvedScopes: safeParseArray(p.approvedScopesJson),
+        pendingScopes: safeParseArray(p.pendingScopesJson ?? "[]"),
       })),
     };
   });
@@ -783,6 +786,58 @@ export async function registerPluginRoutes(
     return { accepted, skipped };
   });
 
+  /**
+   * POST /api/plugins/:id/approve-scopes
+   *
+   * Admin approves all pending scopes for a plugin. Moves
+   * pendingScopes → approvedScopes (union), clears pending. The plugin
+   * must re-register to receive a token that includes the newly approved
+   * scopes (tokens are only issued at registration time).
+   *
+   * Requires admin capability.
+   */
+  server.post<{ Params: { id: string } }>(
+    "/api/plugins/:id/approve-scopes",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const id = Number(request.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        reply.code(400).send({ error: "invalid id" });
+        return;
+      }
+      const updated = await pluginRegistry.approveScopes(id);
+      if (!updated) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      const approved = safeParseArray(updated.approvedScopesJson);
+      await recordAudit(
+        request.authUserId ?? "system",
+        "plugin.approve_scopes",
+        `plugin:${id}`,
+        {
+          pluginId: id,
+          pluginKey: updated.pluginKey,
+          approvedScopes: approved,
+        },
+      );
+      botEventLog.record(
+        "info",
+        "bot",
+        `Plugin scopes approved by admin: ${updated.pluginKey} scopes=${approved.join(",")}`,
+        {
+          pluginId: id,
+          pluginKey: updated.pluginKey,
+          approvedScopes: approved,
+        },
+      );
+      return {
+        approved,
+        pending: [],
+      };
+    },
+  );
+
   /** POST /api/plugins/:id/enable | /disable */
   server.post<{ Params: { id: string }; Body: { enabled?: unknown } }>(
     "/api/plugins/:id/enabled",
@@ -827,4 +882,14 @@ function safeParse(json: string): unknown {
   } catch {
     return null;
   }
+}
+
+function safeParseArray(json: string): string[] {
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) return parsed as string[];
+  } catch {
+    // ignore malformed
+  }
+  return [];
 }

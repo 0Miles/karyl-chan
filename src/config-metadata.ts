@@ -297,6 +297,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.plugin.dmWindowMs",
   },
+  "plugin.autoApproveScopes": {
+    group: "plugin",
+    envVar: "PLUGIN_AUTO_APPROVE_SCOPES",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.plugin.autoApproveScopes",
+  },
 
   // ── behavior ─────────────────────────────────────────────────────────────
   "behavior.profileCacheTtlMs": {
