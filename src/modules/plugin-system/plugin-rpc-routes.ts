@@ -18,6 +18,8 @@ import {
 } from "./models/plugin-config.model.js";
 import { decryptSecret } from "../../utils/crypto.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
+import { findEnabledFeaturesByPluginGuild } from "../feature-toggle/models/plugin-guild-feature.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 
 /**
@@ -149,6 +151,36 @@ export async function registerPluginRpcRoutes(
     if (!channel || !channel.isTextBased() || !("send" in channel)) {
       reply.code(400).send({ error: "channel is not text-sendable" });
       return;
+    }
+    // Per-guild feature gate: plugin must have at least one enabled
+    // feature in the target guild. DM and group-DM channels are exempt
+    // (no guildId). Threads inherit guildId from their parent and go
+    // through the gate, which is the intended behaviour.
+    const channelGuildId =
+      "guildId" in channel && typeof channel.guildId === "string"
+        ? channel.guildId
+        : null;
+    if (channelGuildId && !channel.isDMBased()) {
+      const enabledFeatures = await findEnabledFeaturesByPluginGuild(
+        ctx.pluginId,
+        channelGuildId,
+      );
+      if (enabledFeatures.length === 0) {
+        if (
+          shouldRecord(
+            `plugin-rpc-feature-block:${ctx.pluginId}:${channelGuildId}`,
+          )
+        ) {
+          botEventLog.record(
+            "warn",
+            "feature",
+            `plugin ${ctx.pluginKey} tried to send to guild ${channelGuildId} without enabled feature`,
+            { pluginId: ctx.pluginId, guildId: channelGuildId },
+          );
+        }
+        reply.code(403).send({ error: "plugin not enabled in this guild" });
+        return;
+      }
     }
     // Block @everyone / @here / role pings unless the plugin
     // explicitly opts in. Default to "no parsed mentions" so a

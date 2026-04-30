@@ -79,6 +79,20 @@ export const findFeatureRowsByPlugin = async (
   return rows.map(rowOf);
 };
 
+/**
+ * Returns all enabled feature rows for a specific (pluginId, guildId) pair.
+ * An empty result means the plugin has no active features in that guild.
+ */
+export const findEnabledFeaturesByPluginGuild = async (
+  pluginId: number,
+  guildId: string,
+): Promise<PluginGuildFeatureRow[]> => {
+  const rows = await PluginGuildFeature.findAll({
+    where: { pluginId, guildId, enabled: true },
+  });
+  return rows.map(rowOf);
+};
+
 export interface UpsertFeatureInput {
   pluginId: number;
   guildId: string;
