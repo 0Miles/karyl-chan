@@ -78,6 +78,7 @@ import {
 } from "./metrics.js";
 import { registerAdminManagementRoutes } from "../admin/admin-management-routes.js";
 import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-routes.js";
+import { registerAdminSystemSettingsRoutes } from "../admin/admin-system-settings-routes.js";
 import { registerBotEventRoutes } from "../bot-events/bot-event-routes.js";
 import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
 import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
@@ -579,6 +580,7 @@ export async function createWebServer(
   const bot = options.bot;
   await registerAdminManagementRoutes(server, { bot });
   await registerAdminLoginStatusRoutes(server);
+  await registerAdminSystemSettingsRoutes(server);
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
   await registerPluginRoutes(server, { bot });
