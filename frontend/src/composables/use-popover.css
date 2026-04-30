@@ -1,0 +1,32 @@
+/*
+ * Popover placement-entry animation keyframes and utility classes.
+ * Imported by: main.ts (global, once at app init)
+ * Discipline: per-instance chrome (padding, colour, border) stays in the
+ *   caller's scoped style; this file is only for shared animation primitives.
+ */
+
+[data-popover-entering] *{transition:none!important}
+@keyframes popoverSlideDownAndFade{
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideUpAndFade{
+    from{opacity:0;transform:translateY(10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideLeftAndFade{
+    from{opacity:0;transform:translateX(10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+@keyframes popoverSlideRightAndFade{
+    from{opacity:0;transform:translateX(-10px)}
+    to{opacity:1;transform:translateY(0)}
+}
+.popover-anim-down-normal{animation:popoverSlideDownAndFade .2s ease 0s 1 normal both}
+.popover-anim-down-reverse{animation:popoverSlideDownAndFade .2s ease 0s 1 reverse both}
+.popover-anim-up-normal{animation:popoverSlideUpAndFade .2s ease 0s 1 normal both}
+.popover-anim-up-reverse{animation:popoverSlideUpAndFade .2s ease 0s 1 reverse both}
+.popover-anim-left-normal{animation:popoverSlideLeftAndFade .2s ease 0s 1 normal both}
+.popover-anim-left-reverse{animation:popoverSlideLeftAndFade .2s ease 0s 1 reverse both}
+.popover-anim-right-normal{animation:popoverSlideRightAndFade .2s ease 0s 1 normal both}
+.popover-anim-right-reverse{animation:popoverSlideRightAndFade .2s ease 0s 1 reverse both}

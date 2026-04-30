@@ -150,8 +150,7 @@ function onContentClick() {
          mount; visibility gated by popoverVisible. -->
     <div
         ref="contentEl"
-        class="app-popover-content"
-        style="display: none"
+        class="app-popover-content app-popover-content--hidden"
         @click="onContentClick"
     >
         <slot :close="close" :is-open="isOpen" />
@@ -196,6 +195,9 @@ function onContentClick() {
        float above the modal's surface, not behind it. The mobile drawer
        branch below already sits at 2000/2001 for the same reason. */
     z-index: 1600;
+}
+.app-popover-content--hidden {
+    display: none;
 }
 .app-popover-drawer-panel {
     max-height: 70vh;

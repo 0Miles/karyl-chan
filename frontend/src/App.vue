@@ -272,7 +272,7 @@ function navigate() {
                 <div
                     id="mobile-nav-extras"
                     class="mobile-overlay-extras"
-                    :style="{ display: overlayView === 'extras' ? 'flex' : 'none' }"
+                    :class="{ 'mobile-overlay-extras--visible': overlayView === 'extras' }"
                 ></div>
             </div>
         </Transition>
@@ -476,9 +476,12 @@ function navigate() {
 .mobile-overlay-extras {
     flex: 1;
     min-height: 0;
-    display: flex;
+    display: none;
     flex-direction: column;
     overflow: hidden;
+}
+.mobile-overlay-extras--visible {
+    display: flex;
 }
 
 @media (max-width: 768px) {

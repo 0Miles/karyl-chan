@@ -10,7 +10,7 @@
  *   1. Types + utility exports             (~lines 30 – 380)
  *      TriggerType, PopoverOptions, PopoverInstance, UsePopoverOptions,
  *      UsePopoverReturn, PLACEMENTS, createVirtualElement{,FromEvent},
- *      getScrollParent{,s}, ensurePopoverStyle, DEFAULT_OPTIONS
+ *      getScrollParent{,s}, DEFAULT_OPTIONS
  *
  *   2. createPopover() — imperative API    (~lines 380 – 1050)
  *      Internal sub-sections (search by header comments):
@@ -128,46 +128,6 @@ export interface UsePopoverReturn {
   hide: () => void;
   toggle: () => void;
   update: () => void;
-}
-
-// Enter 動畫期間抑制子元素 CSS transition + 注入 placement keyframes / classes。
-// 於首次 createPopover 時注入到 document.head。
-let popoverStyleInjected = false;
-
-const PLACEMENT_ANIM_CSS = `
-[data-popover-entering] *{transition:none!important}
-@keyframes popoverSlideDownAndFade{
-    from{opacity:0;transform:translateY(-10px)}
-    to{opacity:1;transform:translateY(0)}
-}
-@keyframes popoverSlideUpAndFade{
-    from{opacity:0;transform:translateY(10px)}
-    to{opacity:1;transform:translateY(0)}
-}
-@keyframes popoverSlideLeftAndFade{
-    from{opacity:0;transform:translateX(10px)}
-    to{opacity:1;transform:translateY(0)}
-}
-@keyframes popoverSlideRightAndFade{
-    from{opacity:0;transform:translateX(-10px)}
-    to{opacity:1;transform:translateY(0)}
-}
-.popover-anim-down-normal{animation:popoverSlideDownAndFade .2s ease 0s 1 normal both}
-.popover-anim-down-reverse{animation:popoverSlideDownAndFade .2s ease 0s 1 reverse both}
-.popover-anim-up-normal{animation:popoverSlideUpAndFade .2s ease 0s 1 normal both}
-.popover-anim-up-reverse{animation:popoverSlideUpAndFade .2s ease 0s 1 reverse both}
-.popover-anim-left-normal{animation:popoverSlideLeftAndFade .2s ease 0s 1 normal both}
-.popover-anim-left-reverse{animation:popoverSlideLeftAndFade .2s ease 0s 1 reverse both}
-.popover-anim-right-normal{animation:popoverSlideRightAndFade .2s ease 0s 1 normal both}
-.popover-anim-right-reverse{animation:popoverSlideRightAndFade .2s ease 0s 1 reverse both}
-`.trim();
-
-function ensurePopoverStyle() {
-  if (popoverStyleInjected || typeof document === "undefined") return;
-  popoverStyleInjected = true;
-  const s = document.createElement("style");
-  s.textContent = PLACEMENT_ANIM_CSS;
-  document.head.appendChild(s);
 }
 
 const PLACEMENT_ANIM_DIR: Record<string, "down" | "up" | "left" | "right"> = {
@@ -435,7 +395,6 @@ export function createPopover(
   content: HTMLElement,
   options: PopoverOptions = {},
 ): PopoverInstance {
-  ensurePopoverStyle();
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   let reference = initialReference;
 

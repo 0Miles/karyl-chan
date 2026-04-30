@@ -93,9 +93,8 @@ function onContentClick() {
          mount; visibility gated by popoverVisible. -->
     <div
         ref="contentEl"
-        class="app-menu"
+        class="app-menu app-menu--hidden"
         role="menu"
-        style="display: none"
         @click="onContentClick"
     >
         <slot :close="close" :is-open="isOpen" />
@@ -146,6 +145,9 @@ function onContentClick() {
     border-radius: var(--radius-base);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     z-index: 1600;
+}
+.app-menu--hidden {
+    display: none;
 }
 .app-menu-drawer-panel {
     max-height: 70vh;
