@@ -19,6 +19,7 @@ import { requireCapability } from "../web-core/route-guards.js";
 import { DISCORD_MESSAGE_MAX, isSnowflake } from "../web-core/validators.js";
 import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "../admin/authorized-user.service.js";
+import { safeWriteSseEvent } from "../web-core/sse-helper.js";
 
 function buildBaseUrl(): string {
   if (config.web.baseUrl) return config.web.baseUrl.replace(/\/+$/, "");
@@ -717,18 +718,23 @@ export async function registerDmRoutes(
     }, 25_000);
     heartbeat.unref();
 
-    const unsubscribe = events.subscribe((event) => {
-      try {
-        reply.raw.write(`event: ${event.type}\n`);
-        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-      } catch (err) {
-        request.log.error({ err }, "failed to write SSE event");
+    let unsubscribe: (() => void) | null = null;
+    unsubscribe = events.subscribe((event) => {
+      const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+      const result = safeWriteSseEvent(reply, payload, {
+        path: "/api/dm/events",
+      });
+      if (!result.ok) {
+        clearInterval(heartbeat);
+        unsubscribe?.();
+        unsubscribe = null;
       }
     });
 
     request.raw.on("close", () => {
       clearInterval(heartbeat);
-      unsubscribe();
+      unsubscribe?.();
+      unsubscribe = null;
     });
   });
 }

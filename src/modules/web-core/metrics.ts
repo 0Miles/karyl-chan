@@ -79,6 +79,16 @@ export const botEventLogWritesTotal = new Counter({
   registers: [metricsRegistry],
 });
 
+// SSE backpressure disconnection counter — incremented when a slow SSE
+// client's write buffer exceeds the threshold and the connection is
+// force-destroyed. Labelled by path template (bounded cardinality).
+export const sseBackpressureDisconnectsTotal = new Counter({
+  name: "karyl_sse_backpressure_disconnects_total",
+  help: "SSE connections force-closed due to write buffer backpressure",
+  labelNames: ["path"] as const,
+  registers: [metricsRegistry],
+});
+
 // Gauges read at scrape time via collect() callbacks so we never
 // double-write or drift.
 let botRef: Client | null = null;

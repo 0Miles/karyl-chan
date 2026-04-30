@@ -24,6 +24,7 @@ import {
 import { hasGuildCapability } from "../admin/admin-capabilities.js";
 import type { AdminCapability } from "../admin/authorized-user.service.js";
 import { DISCORD_MESSAGE_MAX, isSnowflake } from "../web-core/validators.js";
+import { safeWriteSseEvent } from "../web-core/sse-helper.js";
 
 export interface GuildChannelRoutesOptions {
   bot: Client;
@@ -146,21 +147,26 @@ export async function registerGuildChannelRoutes(
     }, 25_000);
     heartbeat.unref();
 
-    const unsubscribe = events.subscribe((event) => {
+    let unsubscribe: (() => void) | null = null;
+    unsubscribe = events.subscribe((event) => {
       // Drop events for guilds this caller can't see — `message`
       // scope is enough since these are all message-shaped events.
       if (!caps || !hasGuildCapability(caps, event.guildId, "message")) return;
-      try {
-        reply.raw.write(`event: ${event.type}\n`);
-        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-      } catch (err) {
-        request.log.error({ err }, "failed to write guild SSE event");
+      const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+      const result = safeWriteSseEvent(reply, payload, {
+        path: "/api/guilds/events",
+      });
+      if (!result.ok) {
+        clearInterval(heartbeat);
+        unsubscribe?.();
+        unsubscribe = null;
       }
     });
 
     request.raw.on("close", () => {
       clearInterval(heartbeat);
-      unsubscribe();
+      unsubscribe?.();
+      unsubscribe = null;
     });
   });
 
