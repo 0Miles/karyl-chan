@@ -1012,7 +1012,18 @@
                 "checkboxLabel": "我已將 secret 寫入 plugin 的 .env",
                 "closeButton": "關閉",
                 "generating": "生成中…"
-            }
+            },
+            "online": "線上",
+            "offline": "離線",
+            "offlineCount": "離線 ({n})",
+            "menu": {
+                "delete": "刪除"
+            },
+            "deleteConfirmTitle": "刪除離線 Plugin",
+            "deleteConfirm": "確定刪除離線 plugin「{name}」？此動作會同時刪除其所有 KV / config / feature 設定，無法恢復。",
+            "deleteSuccess": "Plugin 已刪除",
+            "deleteFailed": "刪除失敗",
+            "cannotDeleteActive": "無法刪除仍在線的 plugin，請先停止 plugin 並等待 inactive 後再試"
         }
     },
     "picker": {

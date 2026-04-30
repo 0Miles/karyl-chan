@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import {
     approvePluginScopes,
+    deletePlugin,
     generatePluginSetupSecret,
     getPluginConfig,
     setPluginConfig,
@@ -20,6 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
     (e: 'updated', plugin: { id: number; pluginKey: string; enabled: boolean }): void;
     (e: 'scopes-updated', payload: { id: number; approvedScopes: string[]; pendingScopes: string[] }): void;
+    (e: 'deleted', id: number): void;
 }>();
 
 const { t } = useI18n();
@@ -237,6 +239,55 @@ async function onToggleEnabled() {
         saving.value = false;
     }
 }
+
+// ── Delete (inactive plugins only) ──────────────────────────────────
+const menuOpen = ref(false);
+const deleteModalOpen = ref(false);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
+
+function openMenu(e: Event) {
+    e.stopPropagation();
+    if (menuOpen.value) {
+        closeMenu();
+        return;
+    }
+    menuOpen.value = true;
+    // One-shot click-outside: anything that bubbles to document closes
+    // the menu. The next tick (via setTimeout 0) skips the click that
+    // just opened it.
+    setTimeout(() => document.addEventListener('click', closeMenu, { once: true }), 0);
+}
+
+function closeMenu() {
+    menuOpen.value = false;
+    document.removeEventListener('click', closeMenu);
+}
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', closeMenu);
+});
+
+function openDeleteModal() {
+    closeMenu();
+    deleteModalOpen.value = true;
+    deleteError.value = null;
+}
+
+async function confirmDelete() {
+    if (deleting.value) return;
+    deleting.value = true;
+    deleteError.value = null;
+    try {
+        await deletePlugin(props.plugin.id);
+        deleteModalOpen.value = false;
+        emit('deleted', props.plugin.id);
+    } catch (err) {
+        deleteError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        deleting.value = false;
+    }
+}
 </script>
 
 <template>
@@ -280,6 +331,23 @@ async function onToggleEnabled() {
             >
                 <span class="slider" aria-hidden="true"></span>
             </button>
+            <!-- Three-dot menu: only for inactive plugins -->
+            <div v-if="plugin.status === 'inactive'" class="more-wrap">
+                <button
+                    type="button"
+                    class="more-btn"
+                    :title="t('admin.plugins.menu.delete')"
+                    @click="openMenu"
+                >
+                    <Icon icon="material-symbols:more-vert" width="16" height="16" />
+                </button>
+                <div v-if="menuOpen" class="more-menu" @click.stop>
+                    <button type="button" class="more-menu-item danger" @click="openDeleteModal">
+                        <Icon icon="material-symbols:delete-outline-rounded" width="14" height="14" />
+                        {{ t('admin.plugins.menu.delete') }}
+                    </button>
+                </div>
+            </div>
         </header>
 
         <div v-if="open" class="card-body">
@@ -521,6 +589,29 @@ async function onToggleEnabled() {
             </div>
         </div>
     </AppModal>
+
+    <!-- Delete plugin confirmation modal -->
+    <AppModal
+        :visible="deleteModalOpen"
+        :title="t('admin.plugins.deleteConfirmTitle')"
+        :close-on-backdrop="!deleting"
+        :close-on-escape="!deleting"
+        @close="deleteModalOpen = false"
+    >
+        <div class="approve-modal-body">
+            <p class="approve-modal-desc">{{ t('admin.plugins.deleteConfirm', { name: plugin.name }) }}</p>
+            <p v-if="deleteError" class="error" role="alert">{{ deleteError }}</p>
+            <div class="approve-modal-actions">
+                <button type="button" class="ghost" :disabled="deleting" @click="deleteModalOpen = false">
+                    {{ t('common.cancel') }}
+                </button>
+                <button type="button" class="danger" :disabled="deleting" @click="confirmDelete">
+                    <Icon v-if="deleting" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
+                    {{ deleting ? t('common.loading') : t('admin.plugins.menu.delete') }}
+                </button>
+            </div>
+        </div>
+    </AppModal>
 </template>
 
 <style scoped>
@@ -528,7 +619,9 @@ async function onToggleEnabled() {
     border: 1px solid var(--border);
     border-radius: var(--radius-base);
     background: var(--bg-surface);
-    overflow: hidden;
+    /* Don't clip absolutely-positioned descendants (more-menu drops out
+       of the header). The radius is preserved by .card-head's own
+       border-radius rather than relying on the parent to mask. */
 }
 .card.is-disabled .title { color: var(--text-muted); }
 .card-head {
@@ -960,6 +1053,60 @@ async function onToggleEnabled() {
 .secret-result-actions .primary:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+/* ── Three-dot more menu ─────────────────────────────────────────── */
+.more-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.more-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.12s, color 0.12s;
+}
+.more-btn:hover {
+    background: var(--bg-surface-hover, var(--bg-page));
+    color: var(--text);
+}
+.more-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 50;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 120px;
+    padding: 0.2rem 0;
+}
+.more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    padding: 0.4rem 0.75rem;
+    background: none;
+    border: none;
+    text-align: left;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text);
+}
+.more-menu-item:hover { background: var(--bg-surface-hover, var(--bg-page)); }
+.more-menu-item.danger { color: var(--danger, #dc2626); }
+.more-menu-item.danger:hover {
+    background: color-mix(in srgb, var(--danger, #dc2626) 9%, var(--bg-surface));
 }
 
 /* ── Approve modal internals ─────────────────────────────────────── */

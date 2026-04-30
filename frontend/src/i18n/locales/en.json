@@ -1012,7 +1012,18 @@
                 "checkboxLabel": "I have saved this secret to the plugin .env",
                 "closeButton": "Close",
                 "generating": "Generating…"
-            }
+            },
+            "online": "Online",
+            "offline": "Offline",
+            "offlineCount": "Offline ({n})",
+            "menu": {
+                "delete": "Delete"
+            },
+            "deleteConfirmTitle": "Delete Offline Plugin",
+            "deleteConfirm": "Delete offline plugin \"{name}\"? This will also remove all its KV data, config, and feature settings and cannot be undone.",
+            "deleteSuccess": "Plugin deleted",
+            "deleteFailed": "Delete failed",
+            "cannotDeleteActive": "Cannot delete an active plugin — stop the plugin and wait for it to go inactive first"
         }
     },
     "picker": {

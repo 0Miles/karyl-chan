@@ -193,6 +193,16 @@ export async function approvePluginScopes(
   return jsonOrThrow<ApproveScopesResult>(r);
 }
 
+// ─── Plugin delete ─────────────────────────────────────────────────
+
+export async function deletePlugin(id: number): Promise<void> {
+  const r = await authedFetch(`/api/plugins/${id}`, { method: "DELETE" });
+  if (!r.ok) {
+    const body = (await r.json().catch(() => ({}))) as { error?: string };
+    throw new ApiError(r.status, body.error ?? `${r.status} ${r.statusText}`);
+  }
+}
+
 // ─── Plugin setup secret ───────────────────────────────────────────
 
 export interface GenerateSetupSecretResult {

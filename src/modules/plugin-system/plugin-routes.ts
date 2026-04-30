@@ -24,7 +24,9 @@ import { encryptSecret } from "../../utils/crypto.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { recordAudit } from "../admin/admin-audit.service.js";
 import {
+  deletePlugin,
   findPluginByKey,
+  findPluginById,
   setPluginSetupSecretHash,
 } from "./models/plugin.model.js";
 import { createHash, randomBytes } from "crypto";
@@ -950,6 +952,87 @@ export async function registerPluginRoutes(
           enabled: updated.enabled,
         },
       };
+    },
+  );
+
+  /**
+   * DELETE /api/plugins/:id
+   *
+   * Hard-delete a plugin that is currently inactive. Active plugins
+   * cannot be deleted — the admin must wait for the reaper to mark
+   * them inactive first (i.e. stop the plugin container and wait ~75 s).
+   *
+   * Side-effects on success:
+   *   1. Revokes the in-memory auth token.
+   *   2. Unregisters all Discord commands.
+   *   3. Destroys the DB row (cascade wipes kv/config/features/commands).
+   *   4. Rebuilds the event bridge index.
+   *
+   * Returns 204 on success.
+   * Returns 409 if status === "active".
+   * Returns 404 if the plugin is not found.
+   *
+   * Requires admin capability.
+   */
+  server.delete<{ Params: { id: string } }>(
+    "/api/plugins/:id",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const pluginId = Number(request.params.id);
+      if (!Number.isInteger(pluginId) || pluginId <= 0) {
+        reply.code(400).send({ error: "invalid id" });
+        return;
+      }
+      const plugin = await findPluginById(pluginId);
+      if (!plugin) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      if (plugin.status === "active") {
+        reply.code(409).send({
+          error:
+            "cannot delete active plugin; stop the plugin process and wait ~75s for the heartbeat reaper to mark it inactive",
+        });
+        return;
+      }
+
+      // 1. Revoke in-memory token so any lingering bearer auth fails.
+      pluginAuthStore.revokeByPluginId(pluginId);
+
+      // 2. Unregister Discord commands (best-effort; logs internally).
+      const { pluginCommandRegistry } = await import(
+        "./plugin-command-registry.service.js"
+      );
+      await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
+        /* logged inside unregisterAll */
+      });
+
+      // 3. Destroy the DB row. ON DELETE CASCADE wipes related tables.
+      await deletePlugin(pluginId);
+
+      // 4. Rebuild the event-dispatch index so the deleted plugin is gone.
+      const { rebuildEventIndex } = await import(
+        "./plugin-event-bridge.service.js"
+      );
+      await rebuildEventIndex().catch(() => {
+        /* non-fatal; will self-heal on next bot restart */
+      });
+
+      // Audit + operation log.
+      await recordAudit(
+        request.authUserId ?? "system",
+        "plugin.delete",
+        String(pluginId),
+        { pluginKey: plugin.pluginKey },
+      );
+      botEventLog.record(
+        "warn",
+        "bot",
+        `Plugin deleted by admin: ${plugin.pluginKey} (id=${pluginId})`,
+        { pluginId, pluginKey: plugin.pluginKey, actor: request.authUserId },
+      );
+
+      reply.code(204).send();
     },
   );
 

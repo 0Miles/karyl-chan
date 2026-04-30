@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
@@ -10,6 +10,10 @@ const { t } = useI18n();
 const plugins = ref<PluginRecord[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const offlineOpen = ref(false);
+
+const activePlugins = computed(() => plugins.value.filter(p => p.status === 'active'));
+const inactivePlugins = computed(() => plugins.value.filter(p => p.status === 'inactive'));
 
 async function load() {
     loading.value = true;
@@ -37,6 +41,10 @@ function onScopesUpdated(payload: { id: number; approvedScopes: string[]; pendin
     );
 }
 
+function onDeleted(id: number) {
+    plugins.value = plugins.value.filter(p => p.id !== id);
+}
+
 onMounted(load);
 </script>
 
@@ -58,14 +66,47 @@ onMounted(load);
         </p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-        <div v-if="plugins.length > 0" class="card-list">
-            <PluginCard
-                v-for="p in plugins"
-                :key="p.id"
-                :plugin="p"
-                @updated="onUpdated"
-                @scopes-updated="onScopesUpdated"
-            />
+        <!-- Online group -->
+        <div v-if="activePlugins.length > 0" class="group">
+            <div class="group-head">
+                <span class="group-dot online" />
+                <span class="group-label">{{ t('admin.plugins.online') }}</span>
+                <span class="group-count">{{ activePlugins.length }}</span>
+            </div>
+            <div class="card-list">
+                <PluginCard
+                    v-for="p in activePlugins"
+                    :key="p.id"
+                    :plugin="p"
+                    @updated="onUpdated"
+                    @scopes-updated="onScopesUpdated"
+                    @deleted="onDeleted"
+                />
+            </div>
+        </div>
+
+        <!-- Offline group (collapsible, default collapsed) -->
+        <div v-if="inactivePlugins.length > 0" class="group">
+            <button type="button" class="group-head group-toggle" @click="offlineOpen = !offlineOpen">
+                <span class="group-dot offline" />
+                <span class="group-label">{{ t('admin.plugins.offlineCount', { n: inactivePlugins.length }) }}</span>
+                <Icon
+                    :icon="offlineOpen ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'"
+                    width="16"
+                    height="16"
+                    class="group-chevron"
+                />
+            </button>
+            <div v-if="offlineOpen" class="card-list">
+                <PluginCard
+                    v-for="p in inactivePlugins"
+                    :key="p.id"
+                    :plugin="p"
+                    @updated="onUpdated"
+                    @scopes-updated="onScopesUpdated"
+                    @deleted="onDeleted"
+                />
+            </div>
         </div>
     </div>
 </template>
@@ -123,5 +164,54 @@ onMounted(load);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+/* ── Plugin groups (online / offline) ───────────────────────────── */
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.group-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.2rem 0.1rem;
+}
+.group-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    text-align: left;
+}
+.group-toggle:hover .group-label { color: var(--text); }
+.group-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.group-dot.online  { background: var(--success, #16a34a); }
+.group-dot.offline { background: var(--text-muted); }
+.group-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.group-count {
+    font-size: 0.78rem;
+    color: var(--text-faint, var(--text-muted));
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.08rem 0.45rem;
+}
+.group-chevron {
+    margin-left: auto;
+    color: var(--text-muted);
+    flex-shrink: 0;
 }
 </style>

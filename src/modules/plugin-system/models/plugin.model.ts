@@ -272,6 +272,24 @@ function parseJsonArray(json: string): string[] {
 }
 
 /**
+ * Hard-delete a plugin row by id. Returns true if a row was deleted,
+ * false if the id was not found.
+ *
+ * The DB schema sets ON DELETE CASCADE on all related tables
+ * (plugin_kv, plugin_configs, plugin_commands, plugin_guild_features,
+ * plugin_feature_defaults), so the single destroy call is sufficient
+ * to clean up all child rows. The caller is responsible for revoking
+ * the in-memory auth token and unregistering Discord commands before
+ * calling this.
+ */
+export const deletePlugin = async (id: number): Promise<boolean> => {
+  const row = await Plugin.findByPk(id);
+  if (!row) return false;
+  await row.destroy();
+  return true;
+};
+
+/**
  * Mark every plugin whose last heartbeat is older than `cutoff` as
  * inactive. Returns affected ids so the caller can also revoke their
  * tokens / log the failure.
