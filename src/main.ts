@@ -81,6 +81,7 @@ import {
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
 import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";
+import { shutdownAllRconConnections } from "./modules/builtin-features/rcon-forward/rcon-forward-channel.events.js";
 
 const log = moduleLogger("main");
 
@@ -100,6 +101,10 @@ const FATAL_FLUSH_MS = 4_000;
 
 process.on("unhandledRejection", (reason) => {
   log.error({ err: reason }, "Unhandled promise rejection");
+  // Don't schedule a fatal exit while gracefulShutdown is already in
+  // flight — that 4s timer would race with shutdown's 30s budget and
+  // could cut the cleanup short.
+  if (shuttingDown) return;
   if (migrationsApplied) {
     const msg = reason instanceof Error ? reason.message : String(reason);
     const stack = reason instanceof Error ? reason.stack : undefined;
@@ -115,6 +120,7 @@ process.on("unhandledRejection", (reason) => {
 
 process.on("uncaughtException", (error) => {
   log.error({ err: error }, "Uncaught exception");
+  if (shuttingDown) return;
   if (migrationsApplied) {
     botEventLog.record(
       "error",
@@ -142,6 +148,61 @@ export const bot = new Client({
     IntentsBitField.Flags.DirectMessageTyping,
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+});
+
+let shuttingDown = false;
+const SHUTDOWN_TIMEOUT_MS = 30_000;
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (shuttingDown) {
+    // Second signal during shutdown = "I'm impatient, force exit now."
+    // Common case: operator hits Ctrl+C twice when something hangs.
+    log.warn({ signal }, "shutdown already in progress, forcing exit");
+    process.exit(1);
+  }
+  shuttingDown = true;
+  log.info({ signal }, "graceful shutdown begin");
+
+  // Forced-exit guard: if any step hangs (SSE close, Discord WS handshake,
+  // RCON socket close), we still die after SHUTDOWN_TIMEOUT_MS. We do NOT
+  // .unref() the timer — its job is to fire even when other refs are gone.
+  const timeout = setTimeout(() => {
+    log.error("graceful shutdown timed out, forcing exit");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+
+  try {
+    // 1. Stop accepting new HTTP requests; fastify drains in-flight ones.
+    if (webServer) {
+      await webServer.close();
+    }
+    // 2. Stop background timers / cleanup.
+    pluginRegistry.stopReaper();
+    authStore.stop();
+    // 3. Close RCON sockets (was registered as its own SIGTERM handler;
+    // pulled in here so we don't race with this shutdown).
+    await shutdownAllRconConnections();
+    // 4. Close Discord gateway WS so the gateway flips us offline now.
+    await bot.destroy();
+    // 5. Close DB last — earlier steps may still be writing.
+    await sequelize.close();
+    clearTimeout(timeout);
+    log.info({ signal }, "graceful shutdown complete");
+    process.exit(0);
+  } catch (err) {
+    clearTimeout(timeout);
+    log.error({ err, signal }, "graceful shutdown failed");
+    process.exit(1);
+  }
+}
+
+// Use process.on (not once) so a second signal during shutdown can hit
+// the "force exit" branch above instead of being silently dropped.
+process.on("SIGTERM", () => {
+  void gracefulShutdown("SIGTERM");
+});
+process.on("SIGINT", () => {
+  void gracefulShutdown("SIGINT");
 });
 
 // @discordjs/rest auto-clears its bearer token whenever ANY request

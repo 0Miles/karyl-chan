@@ -29,16 +29,17 @@ const cleanupTimer = setInterval(async () => {
 }, CLEANUP_INTERVAL);
 cleanupTimer.unref();
 
-async function shutdownAllConnections() {
+// Exported so main.ts's gracefulShutdown can drive cleanup as part of
+// the coordinated shutdown sequence — registering signal handlers here
+// would race with main.ts and process.exit could orphan in-flight
+// cleanupConnection promises.
+export async function shutdownAllRconConnections(): Promise<void> {
   clearInterval(cleanupTimer);
   const connections = RconConnectionService.getAllConnections();
   for (const connectionName of Object.keys(connections)) {
     await RconConnectionService.cleanupConnection(connectionName);
   }
 }
-
-process.once("SIGINT", shutdownAllConnections);
-process.once("SIGTERM", shutdownAllConnections);
 
 export function registerRconForwardChannelEvents(client: Client): void {
   client.on("messageCreate", async (message) => {

@@ -70,6 +70,9 @@ services:
     networks:
       - karyl-chan-net
     restart: unless-stopped
+    # Give the in-process gracefulShutdown 30s budget room before docker
+    # SIGKILLs us; main.ts SHUTDOWN_TIMEOUT_MS is 30_000.
+    stop_grace_period: 35s
     healthcheck:
       # Pure-node healthcheck — the runtime image doesn't ship curl
       # or wget, but node itself is always available. Sibling projects
