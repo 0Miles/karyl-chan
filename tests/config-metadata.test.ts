@@ -23,6 +23,7 @@ const stubConfig: AppConfig = {
     trustedProxy: false,
     trustedProxyCidrs: [],
     trustCloudflare: false,
+    deprecateGlobalPluginSecret: false,
   },
   db: { sqlitePath: null },
   crypto: { encryptionKey: null },

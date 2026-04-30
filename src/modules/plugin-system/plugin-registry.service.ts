@@ -5,6 +5,7 @@ import {
   findPluginById,
   findPluginByKey,
   setPluginEnabled as setEnabledModel,
+  setPluginDispatchHmacKey,
   touchHeartbeat,
   upsertPluginRegistration,
   type PluginRow,
@@ -22,6 +23,7 @@ import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import { randomBytes } from "crypto";
 
 const log = moduleLogger("plugin-registry");
 
@@ -336,6 +338,12 @@ export interface RegisterResult {
   manifest: PluginManifest;
   /** Cleartext token; never stored, only returned to the plugin once. */
   token: string;
+  /**
+   * Cleartext dispatch HMAC key for this plugin. Returned once at registration;
+   * never returned again. The plugin SDK (A-2) uses this key to verify inbound
+   * dispatch signatures from the bot.
+   */
+  dispatchHmacKey: string;
 }
 
 export class PluginRegistry {
@@ -498,7 +506,28 @@ export class PluginRegistry {
         );
       }
     }
-    return { plugin: persisted, manifest, token: real.token };
+    // ── Dispatch HMAC key ──────────────────────────────────────────────
+    // Generate once and persist. On re-registration the existing key is
+    // reused so plugins that have cached it don't break. The cleartext
+    // is returned in the response exactly once — after that only the DB
+    // copy exists (and it's bot-internal, never surfaced to admin reads).
+    let dispatchHmacKeyCleartext: string;
+    if (persisted.dispatchHmacKey) {
+      // Re-registration: reuse the existing key.
+      dispatchHmacKeyCleartext = persisted.dispatchHmacKey;
+    } else {
+      // First registration (or migration with NULL): generate a new key.
+      dispatchHmacKeyCleartext = randomBytes(32).toString("hex");
+      await setPluginDispatchHmacKey(persisted.id, dispatchHmacKeyCleartext);
+      persisted.dispatchHmacKey = dispatchHmacKeyCleartext;
+    }
+
+    return {
+      plugin: persisted,
+      manifest,
+      token: real.token,
+      dispatchHmacKey: dispatchHmacKeyCleartext,
+    };
   }
 
   /**

@@ -46,6 +46,8 @@ export const Plugin = sequelize.define(
       defaultValue: "[]",
     },
     pendingScopesJson: { type: DataTypes.TEXT, allowNull: true },
+    setupSecretHash: { type: DataTypes.TEXT, allowNull: true },
+    dispatchHmacKey: { type: DataTypes.TEXT, allowNull: true },
   },
   {
     tableName: "plugins",
@@ -68,6 +70,10 @@ export interface PluginRow {
   lastHeartbeatAt: Date | null;
   approvedScopesJson: string;
   pendingScopesJson: string | null;
+  /** SHA-256 hash of the per-plugin setup secret. NULL means use global fallback. */
+  setupSecretHash: string | null;
+  /** Cleartext HMAC key for signing outbound dispatches to this plugin. NULL means use global fallback. */
+  dispatchHmacKey: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +95,10 @@ function rowOf(model: InstanceType<typeof Plugin>): PluginRow {
       (model.getDataValue("approvedScopesJson") as string | null) ?? "[]",
     pendingScopesJson:
       (model.getDataValue("pendingScopesJson") as string | null) ?? null,
+    setupSecretHash:
+      (model.getDataValue("setupSecretHash") as string | null) ?? null,
+    dispatchHmacKey:
+      (model.getDataValue("dispatchHmacKey") as string | null) ?? null,
     createdAt: model.getDataValue("createdAt") as Date,
     updatedAt: model.getDataValue("updatedAt") as Date,
   };
@@ -175,6 +185,37 @@ export const upsertPluginRegistration = async (
     pendingScopesJson: input.pendingScopesJson,
   });
   return rowOf(created);
+};
+
+/**
+ * Write the hashed setup secret for a plugin.
+ * Pass the *hash* of the cleartext secret — the cleartext is never stored.
+ * Returns the updated row, or null if the plugin does not exist.
+ */
+export const setPluginSetupSecretHash = async (
+  id: number,
+  hash: string,
+): Promise<PluginRow | null> => {
+  const row = await Plugin.findByPk(id);
+  if (!row) return null;
+  await row.update({ setupSecretHash: hash });
+  return rowOf(row);
+};
+
+/**
+ * Write the cleartext dispatch HMAC key for a plugin.
+ * This is stored in cleartext because the bot needs to use it to sign outbound
+ * requests; only the server process ever reads this column.
+ * Returns the updated row, or null if the plugin does not exist.
+ */
+export const setPluginDispatchHmacKey = async (
+  id: number,
+  key: string,
+): Promise<PluginRow | null> => {
+  const row = await Plugin.findByPk(id);
+  if (!row) return null;
+  await row.update({ dispatchHmacKey: key });
+  return rowOf(row);
 };
 
 export const touchHeartbeat = async (

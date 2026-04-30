@@ -142,6 +142,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.web.trustCloudflare",
   },
+  "web.deprecateGlobalPluginSecret": {
+    group: "plugin",
+    envVar: "DEPRECATE_GLOBAL_PLUGIN_SECRET",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.web.deprecateGlobalPluginSecret",
+  },
 
   // ── db ───────────────────────────────────────────────────────────────────
   "db.sqlitePath": {

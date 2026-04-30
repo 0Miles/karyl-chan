@@ -148,8 +148,9 @@ export async function dispatchPluginDmBehavior(
   if (!url) {
     return failure(`plugin ${plugin.pluginKey} dispatch URL invalid`);
   }
-  const sharedSecret = config.plugin.sharedSecret;
-  if (!sharedSecret) {
+  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
+  const signingKey = plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
+  if (!signingKey) {
     return failure("KARYL_PLUGIN_SECRET not configured on bot");
   }
 
@@ -177,7 +178,7 @@ export async function dispatchPluginDmBehavior(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     [TIMESTAMP_HEADER]: ts,
-    [SIGNATURE_HEADER]: `${SIGNATURE_VERSION}=${signBody(sharedSecret, ts, body)}`,
+    [SIGNATURE_HEADER]: `${SIGNATURE_VERSION}=${signBody(signingKey, ts, body)}`,
   };
 
   let res: Response;
@@ -199,9 +200,9 @@ export async function dispatchPluginDmBehavior(
   // Plugin response signature is mandatory because the bot trusts the
   // returned content enough to relay it back into the user's DM. A
   // missing/bad signature could let an attacker on the network
-  // hijack the response if KARYL_PLUGIN_SECRET wasn't shared.
+  // hijack the response if the signing key wasn't shared.
   const verdict = verifyResponseSignature(
-    sharedSecret,
+    signingKey,
     res.headers,
     rawText,
     Math.floor(Date.now() / 1000),

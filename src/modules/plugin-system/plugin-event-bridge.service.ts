@@ -136,6 +136,7 @@ async function postEventToPlugin(
   eventType: string,
   data: unknown,
   sharedSecret: string,
+  pluginSpecificKey?: string,
 ): Promise<void> {
   const manifest = parseManifest(plugin);
   if (!manifest) return;
@@ -163,9 +164,10 @@ async function postEventToPlugin(
     return;
   }
 
+  const signingKey = pluginSpecificKey ?? sharedSecret;
   const body = JSON.stringify({ type: eventType, data });
   const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = `${SIGNATURE_VERSION}=${signBody(sharedSecret, ts, body)}`;
+  const sig = `${SIGNATURE_VERSION}=${signBody(signingKey, ts, body)}`;
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), DISPATCH_TIMEOUT_MS);
   try {
@@ -218,12 +220,6 @@ async function postEventToPlugin(
 export function dispatchEventToPlugins(eventType: string, data: unknown): void {
   if (!index.hasSubscribers(eventType)) return;
   const sharedSecret = config.plugin.sharedSecret;
-  if (!sharedSecret) {
-    // No secret configured → plugin signing is impossible. Logging
-    // every event would spam, so just skip silently. The reaper /
-    // boot logic already warns once that plugin mode is off.
-    return;
-  }
   const ids = index.subscribers(eventType);
   // Fire all dispatches in parallel; we do not await. Errors per
   // plugin are logged inside postEventToPlugin and do not propagate.
@@ -231,7 +227,19 @@ export function dispatchEventToPlugins(eventType: string, data: unknown): void {
     ids.map(async (id) => {
       const plugin = await findPluginById(id);
       if (!plugin || !plugin.enabled || plugin.status !== "active") return;
-      await postEventToPlugin(plugin, eventType, data, sharedSecret);
+      // Per-plugin key takes precedence; fall back to global shared
+      // secret. When neither is available (post-A-3 bot with not-yet-
+      // migrated plugin), skip silently — boot warning already noted
+      // the global secret is missing.
+      const signingKey = plugin.dispatchHmacKey ?? sharedSecret;
+      if (!signingKey) return;
+      await postEventToPlugin(
+        plugin,
+        eventType,
+        data,
+        signingKey,
+        plugin.dispatchHmacKey ?? undefined,
+      );
     }),
   );
 }

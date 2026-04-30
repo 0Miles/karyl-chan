@@ -22,6 +22,7 @@ export interface AppConfig {
     trustedProxy: boolean;
     trustedProxyCidrs: string[];
     trustCloudflare: boolean;
+    deprecateGlobalPluginSecret: boolean;
   };
   db: {
     sqlitePath: string | null;
@@ -147,6 +148,10 @@ function loadConfig(): AppConfig {
       trustedProxy: parseBoolEnv("TRUSTED_PROXY", false),
       trustedProxyCidrs: parseCidrListEnv("TRUSTED_PROXY_CIDRS"),
       trustCloudflare: parseBoolEnv("TRUST_CLOUDFLARE", false),
+      deprecateGlobalPluginSecret: parseBoolEnv(
+        "DEPRECATE_GLOBAL_PLUGIN_SECRET",
+        false,
+      ),
     },
     db: {
       sqlitePath: strEnv("SQLITE_DB_PATH"),

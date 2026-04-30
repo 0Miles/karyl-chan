@@ -127,7 +127,9 @@ async function dispatchChatInputCommand(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  const sharedSecret = config.plugin.sharedSecret;
+  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
+  const sharedSecret =
+    plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
   if (!sharedSecret) {
     await interaction.reply({
       content: "⚠ KARYL_PLUGIN_SECRET 未設定,plugin 派送已停用。",
@@ -270,7 +272,9 @@ async function dispatchAutocomplete(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  const sharedSecret = config.plugin.sharedSecret;
+  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
+  const sharedSecret =
+    plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
   if (!sharedSecret) {
     await interaction.respond([]).catch(() => {});
     return;
