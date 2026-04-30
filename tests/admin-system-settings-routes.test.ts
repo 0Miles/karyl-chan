@@ -267,19 +267,18 @@ describe("GET /api/admin/system-settings — response shape", () => {
 describe("productionReadiness", () => {
   it("missingKeys contains paths where productionRequired=true but value is falsy", async () => {
     // In the test environment, BOT_TOKEN is set to "" by config.ts fallback,
-    // and BOT_OWNER_ID / ENCRYPTION_KEY / KARYL_PLUGIN_SECRET are typically
+    // and BOT_OWNER_ID / ENCRYPTION_KEY are typically
     // unset → should appear in missingKeys.
     const snapshot = buildSystemSettingsSnapshot();
     const pr = snapshot.productionReadiness;
 
-    // requiredKeys must include the four known required fields.
+    // requiredKeys must include the three known required fields.
     // bot.ownerIds is the authoritative production-required field;
     // bot.ownerId is a backward-compat alias and is no longer required.
     const knownRequired = [
       "bot.token",
       "bot.ownerIds",
       "crypto.encryptionKey",
-      "plugin.sharedSecret",
     ];
     for (const key of knownRequired) {
       expect(pr.requiredKeys).toContain(key);

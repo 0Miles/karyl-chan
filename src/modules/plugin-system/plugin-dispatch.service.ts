@@ -2,10 +2,7 @@ import type { RESTPostAPIWebhookWithTokenJSONBody } from "discord.js";
 import type { APIMessage } from "discord.js";
 import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import {
-  type DispatchResult,
-} from "../behavior/webhook-dispatch.service.js";
-import { config } from "../../config.js";
+import { type DispatchResult } from "../behavior/webhook-dispatch.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import {
   assertPluginTarget,
@@ -26,10 +23,8 @@ import {
  *   2. We do NOT append `?wait=true`. That's a Discord-webhook quirk;
  *      plugin endpoints are arbitrary HTTP and shouldn't have query
  *      strings forced on them.
- *   3. The HMAC key is the bot-wide KARYL_PLUGIN_SECRET, not a
- *      per-behavior secret. Plugins know this secret from their own
- *      env (used for registration) so the same key works in both
- *      directions. Per-plugin HMAC keys are deferred to Phase 2.
+ *   3. The HMAC key is the per-plugin `dispatchHmacKey` stored in the
+ *      plugin's DB row. Dispatch is rejected if the key is absent.
  *
  * Returns the same DispatchResult shape as the webhook path so the
  * caller (webhook-behavior.events) can use one branch's result without
@@ -102,10 +97,11 @@ export async function dispatchPluginDmBehavior(
   if (!url) {
     return failure(`plugin ${plugin.pluginKey} dispatch URL invalid`);
   }
-  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
-  const signingKey = plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
+  const signingKey = plugin.dispatchHmacKey;
   if (!signingKey) {
-    return failure("KARYL_PLUGIN_SECRET not configured on bot");
+    return failure(
+      `plugin ${plugin.pluginKey} has no dispatch HMAC key; plugin must re-register`,
+    );
   }
 
   const parsedDispatchUrl = new URL(url);

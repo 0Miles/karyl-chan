@@ -973,7 +973,7 @@
             "title": "外掛",
             "subtitle": "已註冊到 bot 的 sibling 服務。Plugin 會在啟動後主動向 bot 註冊,啟用後才會接收事件與被指派 behavior。",
             "empty": "目前沒有 plugin 註冊到 bot。",
-            "emptyHint": "Plugin 啟動時會自動註冊。確認該 container 與 bot 在同個 docker network、且設置了相同的 KARYL_PLUGIN_SECRET。",
+            "emptyHint": "Plugin 啟動時會自動註冊。確認該 container 與 bot 在同個 docker network、且已由 admin 透過 POST /api/plugins/setup-secret 設置 per-plugin secret。",
             "statusActive": "在線",
             "statusInactive": "離線",
             "toggleEnabled": "已啟用 (點擊停用)",

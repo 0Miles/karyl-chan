@@ -52,7 +52,7 @@ export interface BehaviorRow {
   webhookUrl: string;
   /**
    * Optional HMAC shared secret. Always null for type='plugin' rows
-   * (plugin path uses KARYL_PLUGIN_SECRET, not a per-behavior key).
+   * (plugin path uses the per-plugin dispatchHmacKey, not a per-behavior key).
    */
   webhookSecret: string | null;
   type: BehaviorType;

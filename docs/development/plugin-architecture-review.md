@@ -19,24 +19,13 @@
 
 ## 安全性
 
-### 🔴 KARYL_PLUGIN_SECRET 全域共用 (S1)
+### ✅ Per-plugin HMAC key (S1) — 已解決 (A-3)
 
-所有 plugin 與 bot 共享同一把 HMAC 簽章金鑰。一個 plugin 漏洞 → 攻擊者
-拿到 secret → 可冒充 bot 對任一 plugin 發 dispatch、可冒充任一 plugin
-回傳 response。Plugin 數量越多風險越大。
+每個 plugin 有獨立的 `dispatchHmacKey`（bot register 時 mint，DB 儲存明文，
+plugin 存在 memory）。Register 用 `KARYL_PLUGIN_SETUP_SECRET`（per-plugin，
+admin 預先建立）。全域 `KARYL_PLUGIN_SECRET` 已從 codebase 完全移除。
 
-**改進方向**
-
-- Bot 在 register 成功時為每個 plugin 額外 mint 一把 sign key (32-byte
-  hex),回傳給 plugin、bot 端存 SHA-256 hash 與明文(明文必須留,因為
-  bot 簽 dispatch 時要用)。後續 dispatch / response 都用 per-plugin
-  key,KARYL_PLUGIN_SECRET 只保留 register 階段的初始信任憑證。
-- 每次 re-register 換 key,舊 key 立即失效。
-- Plugin 端要記得 secret;若 bot 重啟丟失明文(例如改 in-memory only),
-  下一次 dispatch 會 401,plugin 自動 re-register 即可。
-
-**位置**:`src/modules/behavior/webhook-dispatch.service.ts`、
-`src/modules/plugin-system/plugin-rpc-routes.ts`、各 plugin client `hmac.ts`。
+一個 plugin 洩漏只影響自己，不影響其他 plugin。
 
 ### 🟡 required_capability 未 enforce (S2)
 
@@ -70,11 +59,11 @@ if (cmd.default_member_permissions) {
 
 ### 🟢 Plugin manifest 沒被 sign (S4)
 
-第一次 register 拿著明文 manifest 去比 setup secret。攻擊者若搶到
-KARYL_PLUGIN_SECRET 與正確 manifest 結構,就能在 docker network 上偽
-造另一個 plugin 註冊。緩解方式:setup secret 配合 IP whitelist 或
-docker network policy(目前 docker compose 已是 sibling network,實務
-上難偽造,但邏輯上仍是漏洞)。
+第一次 register 拿著明文 manifest 去比 per-plugin setup secret。攻擊者若
+搶到某個 plugin 的 setup secret 與正確 manifest 結構,就能偽造該 plugin
+的 register。緩解方式:setup secret 配合 IP whitelist 或 docker network
+policy（目前 docker compose 已是 sibling network,實務上難偽造,但邏輯上
+仍是漏洞）。
 
 ---
 

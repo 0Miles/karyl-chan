@@ -31,7 +31,7 @@ karyl-chan 的 plugin 是「同 docker network 的 sibling 服務」,不是 in-p
 | **Plugin** | 一個獨立 docker container,啟動後 POST `/api/plugins/register` 給 bot,並維持 30s heartbeat |
 | **Manifest** | Plugin 用一份 JSON 描述自己:能力 (rpc_methods_used)、提供的 dm_behaviors / guild_features / commands、訂閱的 events、HTTP endpoints 路徑 |
 | **Plugin token** | Bot 在 register 成功後給 plugin 一把 bearer token,plugin 用它呼叫 `/api/plugin/*` RPC。token 在 plugin 重新 register 或 admin disable 時失效 |
-| **`KARYL_PLUGIN_SECRET`** | Bot 與所有 plugin 共享的對稱秘密。同時用於:(1) plugin 第一次 register 時的 setup secret (header `X-Plugin-Setup-Secret`)、(2) `/dm/*/dispatch`、`/events`、`/commands/*` 三條 bot→plugin 路徑的 HMAC 簽章 |
+| **`KARYL_PLUGIN_SETUP_SECRET`** | 每個 plugin 各自的對稱秘密。Admin 透過 `POST /api/plugins/setup-secret` 預先建立，cleartext 寫進 plugin 的 `.env`。Register 時用於 `X-Plugin-Setup-Secret` header，register 成功後 bot 核發 `dispatchHmacKey` 用於 bot→plugin 路徑的 HMAC 簽章 |
 | **Status vs Enabled** | `status` 是 runtime liveness (heartbeat 驅動,>75s 沒收到變 inactive)。`enabled` 是 admin 在 admin UI 切的開關。**兩者都需 true 才會收到事件 / dispatch** |
 
 ### 兩條 bot↔plugin 軸線
@@ -52,8 +52,8 @@ karyl-chan 的 plugin 是「同 docker network 的 sibling 服務」,不是 in-p
                         └──────────────────────────┘
 ```
 
-* **Bot → Plugin**:HMAC 用 `KARYL_PLUGIN_SECRET`(plugin 先驗章再處理)
-* **Plugin → Bot**:Bearer plugin token(bot 從 in-memory token store 驗證)
+* **Bot → Plugin**:HMAC 用 `dispatchHmacKey`（register 時 bot 核發給 plugin，plugin 先驗章再處理）
+* **Plugin → Bot**:Bearer plugin token（bot 從 in-memory token store 驗證）
 
 兩條軸線**獨立**,不要把 plugin token 用來簽 bot→plugin 的請求,也不要在 RPC 中送 HMAC headers。
 
@@ -67,7 +67,9 @@ karyl-chan 的 plugin 是「同 docker network 的 sibling 服務」,不是 in-p
 
 ```bash
 # .env
-KARYL_PLUGIN_SECRET=<跟 bot 同一把 32-byte hex,openssl rand -hex 32>
+# Admin 先執行 POST /api/plugins/setup-secret { pluginKey: "my-plugin" }
+# 拿到的 setupSecret 填這裡：
+KARYL_PLUGIN_SETUP_SECRET=<admin 核發的 cleartext secret>
 BOT_URL=http://karyl-chan:3000   # docker network 內 sibling 解析
 PLUGIN_URL=http://my-plugin:3000        # bot 用來連我們回來的位址
 PORT=3000
@@ -159,7 +161,7 @@ services:
     build: .
     container_name: my-plugin
     environment:
-      - KARYL_PLUGIN_SECRET=${KARYL_PLUGIN_SECRET:-}
+      - KARYL_PLUGIN_SETUP_SECRET=${KARYL_PLUGIN_SETUP_SECRET:-}
       - BOT_URL=http://karyl-chan:3000
       - PLUGIN_URL=http://my-plugin:3000
       - PORT=3000
@@ -893,7 +895,7 @@ services:
       - .env
     environment:
       - PORT=3000
-      - KARYL_PLUGIN_SECRET=${KARYL_PLUGIN_SECRET:-}
+      - KARYL_PLUGIN_SETUP_SECRET=${KARYL_PLUGIN_SETUP_SECRET:-}
       - BOT_URL=${BOT_URL:-http://karyl-chan:3000}
       - PLUGIN_URL=${PLUGIN_URL:-http://my-plugin:3000}
     networks:
@@ -942,8 +944,10 @@ CMD ["node", "dist/index.js"]
 # 1. 確認 karyl-chan-net 存在
 docker network ls | grep karyl-chan-net || docker network create karyl-chan-net
 
-# 2. .env 中的 KARYL_PLUGIN_SECRET 必須跟 bot 同
-grep '^KARYL_PLUGIN_SECRET=' /path/to/karyl-chan/.env > .env
+# 2. Admin 先呼叫 setup-secret 建立 per-plugin secret（bot 需先 healthy）：
+#    POST /api/plugins/setup-secret { "pluginKey": "my-plugin" }
+#    複製回傳的 setupSecret，寫進 .env：
+echo "KARYL_PLUGIN_SETUP_SECRET=<setup-secret>" >> .env
 
 # 3. up
 docker compose up --build -d
@@ -980,7 +984,7 @@ docker logs my-plugin | grep "registered with bot"
 | Component(button/select)/Modal 互動 routing 沒做 | plugin 發訊息含 button,user 點下 bot 不知 route 給誰。設計用 `<plugin_id>:` custom_id prefix | Phase 2 |
 | `messages.edit` route 是 stub | 不要假設可用 | Phase 2 |
 | `metrics.report` RPC 不存在 | overview_metrics 這欄位 manifest 接受但無人推送 | Phase 3 |
-| Per-plugin HMAC key | 共用 `KARYL_PLUGIN_SECRET`,單個 secret 洩漏會影響全部 plugin | Phase 3 |
+| Per-plugin HMAC key | 已實作（A-3 完成）：每個 plugin 各有獨立 `dispatchHmacKey` | ✅ Done |
 | Per-plugin RPC rate limit | 單一 plugin 可 saturate bot RPC | Phase 3 |
 | Plugin disable 時 plugin_guild_features rows 行為 | 目前保留 row + disabled flag。若 admin 永久移除 plugin row(尚無 UI),CASCADE 刪除 | — |
 

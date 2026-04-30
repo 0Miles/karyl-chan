@@ -158,14 +158,6 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.web.trustCloudflare",
   },
-  "web.deprecateGlobalPluginSecret": {
-    group: "plugin",
-    envVar: "DEPRECATE_GLOBAL_PLUGIN_SECRET",
-    sensitivity: "public",
-    editability: "env-only",
-    productionRequired: false,
-    descriptionKey: "config.web.deprecateGlobalPluginSecret",
-  },
   "web.bodyLimitBytes": {
     group: "web",
     envVar: "WEB_BODY_LIMIT_BYTES",
@@ -265,14 +257,6 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
   },
 
   // ── plugin ───────────────────────────────────────────────────────────────
-  "plugin.sharedSecret": {
-    group: "plugin",
-    envVar: "KARYL_PLUGIN_SECRET",
-    sensitivity: "sensitive",
-    editability: "env-only",
-    productionRequired: true,
-    descriptionKey: "config.plugin.sharedSecret",
-  },
   "plugin.tokenTtlMs": {
     group: "plugin",
     envVar: "PLUGIN_TOKEN_TTL_MS",

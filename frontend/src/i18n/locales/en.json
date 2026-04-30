@@ -973,7 +973,7 @@
             "title": "Plugins",
             "subtitle": "Sibling services registered with the bot. A plugin self-registers on startup; once enabled it can receive events and be referenced by behaviors.",
             "empty": "No plugins are registered yet.",
-            "emptyHint": "Plugins auto-register at startup. Make sure the container is on the same docker network and shares the bot's KARYL_PLUGIN_SECRET.",
+            "emptyHint": "Plugins auto-register at startup. Make sure the container is on the same docker network and admin has run POST /api/plugins/setup-secret to provision the per-plugin secret.",
             "statusActive": "online",
             "statusInactive": "offline",
             "toggleEnabled": "Enabled (click to disable)",

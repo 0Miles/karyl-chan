@@ -973,7 +973,7 @@
             "title": "插件",
             "subtitle": "已注册到 bot 的 sibling 服务。Plugin 启动后会主动向 bot 注册,启用后才会接收事件并被 behavior 引用。",
             "empty": "目前没有 plugin 注册到 bot。",
-            "emptyHint": "Plugin 启动时会自动注册。确认该 container 与 bot 在同一 docker network、且配置了相同的 KARYL_PLUGIN_SECRET。",
+            "emptyHint": "Plugin 启动时会自动注册。确认该 container 与 bot 在同一 docker network、且已由 admin 通过 POST /api/plugins/setup-secret 设置 per-plugin secret。",
             "statusActive": "在线",
             "statusInactive": "离线",
             "toggleEnabled": "已启用 (点击停用)",

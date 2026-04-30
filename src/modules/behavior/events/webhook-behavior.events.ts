@@ -185,10 +185,10 @@ async function dispatchAndHandle(
     };
   }
 
-  // Phase 1 plugin dispatch path. Behavior rows discriminated by
-  // `type`: 'plugin' rows route through the plugin's DM behavior
-  // endpoint (URL resolved live from plugins.url, HMAC signed with
-  // KARYL_PLUGIN_SECRET); 'webhook' rows keep the legacy direct-POST
+  // Plugin dispatch path. Behavior rows discriminated by `type`:
+  // 'plugin' rows route through the plugin's DM behavior endpoint
+  // (URL resolved live from plugins.url, HMAC signed with the plugin's
+  // dispatchHmacKey); 'webhook' rows keep the legacy direct-POST
   // path that decrypts the per-behavior URL/secret.
   if (behavior.type === "plugin") {
     if (behavior.pluginId == null || !behavior.pluginBehaviorKey) {

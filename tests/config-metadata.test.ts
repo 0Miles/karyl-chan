@@ -23,7 +23,6 @@ const stubConfig: AppConfig = {
     trustedProxy: false,
     trustedProxyCidrs: [],
     trustCloudflare: false,
-    deprecateGlobalPluginSecret: false,
     bodyLimitBytes: 31_457_280,
     multipartFieldSizeBytes: 1_048_576,
     multipartFieldsLimit: 50,
@@ -39,7 +38,6 @@ const stubConfig: AppConfig = {
     cleanupIntervalMs: 60_000,
   },
   plugin: {
-    sharedSecret: null,
     tokenTtlMs: 3_600_000,
     heartbeatTimeoutMs: 75_000,
     reaperIntervalMs: 30_000,
@@ -112,7 +110,7 @@ describe("validateMetadataCoverage", () => {
 // ---------------------------------------------------------------------------
 
 describe("sensitive field set", () => {
-  it("sensitive fields are exactly the expected four keys", () => {
+  it("sensitive fields are exactly the expected three keys", () => {
     const actualSensitive = new Set(
       Object.entries(CONFIG_METADATA)
         .filter(([, meta]) => meta.sensitivity === "sensitive")
@@ -122,7 +120,6 @@ describe("sensitive field set", () => {
       "bot.token",
       "crypto.encryptionKey",
       "jwt.secret",
-      "plugin.sharedSecret",
     ]);
     expect(actualSensitive).toEqual(expected);
   });

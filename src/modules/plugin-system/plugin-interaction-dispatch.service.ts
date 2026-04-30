@@ -119,12 +119,10 @@ async function dispatchChatInputCommand(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
-  const sharedSecret =
-    plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
-  if (!sharedSecret) {
+  const dispatchKey = plugin.dispatchHmacKey;
+  if (!dispatchKey) {
     await interaction.reply({
-      content: "⚠ KARYL_PLUGIN_SECRET 未設定,plugin 派送已停用。",
+      content: "⚠ Plugin 尚未完成 re-register，dispatch key 不存在。",
       ephemeral: true,
     });
     return;
@@ -217,7 +215,7 @@ async function dispatchChatInputCommand(
     locale: interaction.locale ?? null,
   };
   const body = JSON.stringify(payload);
-  const headers = buildHeaders(sharedSecret, url, body);
+  const headers = buildHeaders(dispatchKey, url, body);
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), COMMAND_DISPATCH_TIMEOUT_MS);
@@ -264,10 +262,8 @@ async function dispatchAutocomplete(
   plugin: PluginRow,
   manifest: PluginManifest,
 ): Promise<void> {
-  // Per-plugin dispatch key takes precedence; fall back to global shared secret.
-  const sharedSecret =
-    plugin.dispatchHmacKey ?? config.plugin.sharedSecret;
-  if (!sharedSecret) {
+  const dispatchKey = plugin.dispatchHmacKey;
+  if (!dispatchKey) {
     await interaction.respond([]).catch(() => {});
     return;
   }
@@ -302,7 +298,7 @@ async function dispatchAutocomplete(
     user: { id: interaction.user.id },
   };
   const body = JSON.stringify(payload);
-  const headers = buildHeaders(sharedSecret, url, body);
+  const headers = buildHeaders(dispatchKey, url, body);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), AUTOCOMPLETE_TIMEOUT_MS);
   try {

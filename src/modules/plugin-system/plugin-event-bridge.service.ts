@@ -129,8 +129,7 @@ async function postEventToPlugin(
   plugin: PluginRow,
   eventType: string,
   data: unknown,
-  sharedSecret: string,
-  pluginSpecificKey?: string,
+  signingKey: string,
 ): Promise<void> {
   const manifest = parseManifest(plugin);
   if (!manifest) return;
@@ -158,7 +157,6 @@ async function postEventToPlugin(
     return;
   }
 
-  const signingKey = pluginSpecificKey ?? sharedSecret;
   const body = JSON.stringify({ type: eventType, data });
   const sigHeaders = buildOutboundSignatureHeaders(
     signingKey,
@@ -218,7 +216,6 @@ async function postEventToPlugin(
  */
 export function dispatchEventToPlugins(eventType: string, data: unknown): void {
   if (!index.hasSubscribers(eventType)) return;
-  const sharedSecret = config.plugin.sharedSecret;
   const ids = index.subscribers(eventType);
   // Fire all dispatches in parallel; we do not await. Errors per
   // plugin are logged inside postEventToPlugin and do not propagate.
@@ -226,19 +223,11 @@ export function dispatchEventToPlugins(eventType: string, data: unknown): void {
     ids.map(async (id) => {
       const plugin = await findPluginById(id);
       if (!plugin || !plugin.enabled || plugin.status !== "active") return;
-      // Per-plugin key takes precedence; fall back to global shared
-      // secret. When neither is available (post-A-3 bot with not-yet-
-      // migrated plugin), skip silently — boot warning already noted
-      // the global secret is missing.
-      const signingKey = plugin.dispatchHmacKey ?? sharedSecret;
+      // Dispatch key is mandatory. Plugins that don't have one yet must
+      // re-register to obtain one — skip silently here.
+      const signingKey = plugin.dispatchHmacKey;
       if (!signingKey) return;
-      await postEventToPlugin(
-        plugin,
-        eventType,
-        data,
-        signingKey,
-        plugin.dispatchHmacKey ?? undefined,
-      );
+      await postEventToPlugin(plugin, eventType, data, signingKey);
     }),
   );
 }

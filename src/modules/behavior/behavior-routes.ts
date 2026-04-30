@@ -538,7 +538,7 @@ export async function registerBehaviorRoutes(
         // Replace webhookUrl with a placeholder; a real URL on a
         // plugin row is dead weight and could mislead future
         // operators. webhookSecret cleared because the plugin path
-        // uses KARYL_PLUGIN_SECRET, not a per-behavior secret.
+        // uses the per-plugin dispatchHmacKey, not a per-behavior secret.
         update.webhookUrl = encryptSecret(`plugin://${plugin.pluginKey}/${bk}`);
         update.webhookSecret = null;
       } else {

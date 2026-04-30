@@ -28,7 +28,6 @@ export interface AppConfig {
     trustedProxy: boolean;
     trustedProxyCidrs: string[];
     trustCloudflare: boolean;
-    deprecateGlobalPluginSecret: boolean;
     /** Global Fastify bodyLimit (bytes). Applies to all non-multipart routes. */
     bodyLimitBytes: number;
     /** Per-field size cap for multipart uploads (bytes). */
@@ -51,7 +50,6 @@ export interface AppConfig {
     cleanupIntervalMs: number;
   };
   plugin: {
-    sharedSecret: string | null;
     tokenTtlMs: number;
     heartbeatTimeoutMs: number;
     reaperIntervalMs: number;
@@ -175,10 +173,6 @@ function loadConfig(): AppConfig {
       trustedProxy: parseBoolEnv("TRUSTED_PROXY", false),
       trustedProxyCidrs: parseCidrListEnv("TRUSTED_PROXY_CIDRS"),
       trustCloudflare: parseBoolEnv("TRUST_CLOUDFLARE", false),
-      deprecateGlobalPluginSecret: parseBoolEnv(
-        "DEPRECATE_GLOBAL_PLUGIN_SECRET",
-        false,
-      ),
       bodyLimitBytes: parseIntEnv("WEB_BODY_LIMIT_BYTES", 30 * 1024 * 1024),
       multipartFieldSizeBytes: parseIntEnv(
         "WEB_MULTIPART_FIELD_SIZE_BYTES",
@@ -201,7 +195,6 @@ function loadConfig(): AppConfig {
       cleanupIntervalMs: parseIntEnv("JWT_CLEANUP_INTERVAL_MS", 60 * 1000),
     },
     plugin: {
-      sharedSecret: strEnv("KARYL_PLUGIN_SECRET"),
       tokenTtlMs: parseIntEnv("PLUGIN_TOKEN_TTL_MS", 60 * 60 * 1000),
       heartbeatTimeoutMs: parseIntEnv("PLUGIN_HEARTBEAT_TIMEOUT_MS", 75_000),
       reaperIntervalMs: parseIntEnv("PLUGIN_REAPER_INTERVAL_MS", 30_000),
@@ -288,11 +281,6 @@ function loadConfig(): AppConfig {
     }
     if (!cfg.crypto.encryptionKey) {
       throw new Error("Config error: ENCRYPTION_KEY must be set in production");
-    }
-    if (!cfg.plugin.sharedSecret) {
-      throw new Error(
-        "Config error: KARYL_PLUGIN_SECRET must be set in production",
-      );
     }
   }
 

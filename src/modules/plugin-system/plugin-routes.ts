@@ -1,7 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Client } from "discord.js";
 import { ManifestError, pluginRegistry } from "./plugin-registry.service.js";
-import { config } from "../../config.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
@@ -28,6 +27,7 @@ import {
   findPluginByKey,
   findPluginById,
   setPluginSetupSecretHash,
+  upsertPluginRegistration,
 } from "./models/plugin.model.js";
 import { createHash, randomBytes } from "crypto";
 
@@ -38,9 +38,11 @@ import { createHash, randomBytes } from "crypto";
  * makes both halves visible side by side.
  *
  * Auth model:
- *   /api/plugins/register   — gated by shared KARYL_PLUGIN_SECRET
- *                             header (X-Plugin-Setup-Secret). Plugins
- *                             that don't have the secret can't register.
+ *   /api/plugins/register   — gated by per-plugin setup secret stored in
+ *                             the plugin's DB row (X-Plugin-Setup-Secret
+ *                             header). Admin must pre-provision the secret
+ *                             via POST /api/plugins/setup-secret before the
+ *                             plugin can register. No global fallback.
  *   /api/plugins/heartbeat  — gated by the bearer plugin token issued
  *                             at registration.
  *   /api/plugins (admin)    — gated by admin capability 'admin' or
@@ -87,7 +89,10 @@ export async function registerPluginRoutes(
    * POST /api/plugins/register
    *
    * Body: { manifest: <Manifest> }
-   * Headers: X-Plugin-Setup-Secret: <KARYL_PLUGIN_SECRET>
+   * Headers: X-Plugin-Setup-Secret: <per-plugin secret>
+   *
+   * The plugin must have a row in the DB with a setupSecretHash set via
+   * POST /api/plugins/setup-secret before this endpoint will accept it.
    *
    * Returns: { plugin: { id, pluginKey, ... }, token: "<cleartext>" }
    * The token is the only time it's ever returned in cleartext —
@@ -111,9 +116,9 @@ export async function registerPluginRoutes(
         return;
       }
 
-      // ── Dual-mode secret verification ──────────────────────────────
-      // Step 1: extract pluginKey from the manifest (without full validation
-      // yet) so we can look up any per-plugin secret.
+      // ── Per-plugin secret verification ────────────────────────────
+      // Extract pluginKey from the manifest (without full validation
+      // yet) so we can look up the per-plugin secret.
       const rawManifest = request.body?.manifest;
       const manifestPluginId =
         rawManifest &&
@@ -127,73 +132,49 @@ export async function registerPluginRoutes(
           ? ((rawManifest as { plugin: { id: string } }).plugin.id as string)
           : null;
 
-      let authenticated = false;
-
-      if (manifestPluginId) {
-        const pluginRow = await findPluginByKey(manifestPluginId);
-        if (pluginRow?.setupSecretHash) {
-          // Per-plugin mode: compare against the stored hash.
-          const presentedHash = hashSecret(presented);
-          authenticated = PluginAuthStore.constantTimeEqual(
-            presentedHash,
-            pluginRow.setupSecretHash,
-          );
-          // Per-plugin secret set but wrong → reject immediately.
-          // Do NOT fall back to global when per-plugin secret is configured.
-          if (!authenticated) {
-            const ip = request.ip;
-            if (shouldRecord(`pluginAuth:${ip}`)) {
-              botEventLog.record(
-                "warn",
-                "auth",
-                "Plugin registration rejected (bad per-plugin setup secret)",
-                { ip, pluginKey: manifestPluginId },
-              );
-            }
-            reply.code(401).send({ error: "invalid setup secret" });
-            return;
-          }
-        }
+      if (!manifestPluginId) {
+        reply.code(401).send({ error: "invalid setup secret" });
+        return;
       }
 
-      if (!authenticated) {
-        // Global fallback path.
-        const globalSecret = config.plugin.sharedSecret;
-        if (!globalSecret) {
-          // No global secret and no per-plugin secret → refuse.
-          reply.code(503).send({
-            error:
-              "KARYL_PLUGIN_SECRET not configured on the bot — plugin registration disabled",
-          });
-          return;
+      const pluginRow = await findPluginByKey(manifestPluginId);
+      if (!pluginRow?.setupSecretHash) {
+        // Plugin has no pre-provisioned setup secret — admin must call
+        // POST /api/plugins/setup-secret first.
+        const ip = request.ip;
+        if (shouldRecord(`pluginAuth:${ip}`)) {
+          botEventLog.record(
+            "warn",
+            "auth",
+            `Plugin registration rejected: plugin '${manifestPluginId}' has no setup secret; admin must run POST /api/plugins/setup-secret first`,
+            { ip, pluginKey: manifestPluginId },
+          );
         }
-        if (config.web.deprecateGlobalPluginSecret) {
-          // Global fallback explicitly deprecated: only per-plugin secrets allowed.
-          const ip = request.ip;
-          if (shouldRecord(`pluginAuth:${ip}`)) {
-            botEventLog.record(
-              "warn",
-              "auth",
-              "Plugin registration rejected (global secret fallback deprecated)",
-              { ip, pluginKey: manifestPluginId ?? "unknown" },
-            );
-          }
-          reply.code(401).send({ error: "invalid setup secret" });
-          return;
+        reply.code(401).send({
+          error: `plugin '${manifestPluginId}' has no setup secret; admin must run POST /api/plugins/setup-secret first`,
+        });
+        return;
+      }
+
+      // Compare presented secret against stored hash.
+      const presentedHash = hashSecret(presented);
+      if (
+        !PluginAuthStore.constantTimeEqual(
+          presentedHash,
+          pluginRow.setupSecretHash,
+        )
+      ) {
+        const ip = request.ip;
+        if (shouldRecord(`pluginAuth:${ip}`)) {
+          botEventLog.record(
+            "warn",
+            "auth",
+            "Plugin registration rejected (bad per-plugin setup secret)",
+            { ip, pluginKey: manifestPluginId },
+          );
         }
-        if (!PluginAuthStore.constantTimeEqual(presented, globalSecret)) {
-          const ip = request.ip;
-          if (shouldRecord(`pluginAuth:${ip}`)) {
-            botEventLog.record(
-              "warn",
-              "auth",
-              "Plugin registration rejected (bad setup secret)",
-              { ip },
-            );
-          }
-          reply.code(401).send({ error: "invalid setup secret" });
-          return;
-        }
+        reply.code(401).send({ error: "invalid setup secret" });
+        return;
       }
 
       try {
@@ -1000,9 +981,8 @@ export async function registerPluginRoutes(
       pluginAuthStore.revokeByPluginId(pluginId);
 
       // 2. Unregister Discord commands (best-effort; logs internally).
-      const { pluginCommandRegistry } = await import(
-        "./plugin-command-registry.service.js"
-      );
+      const { pluginCommandRegistry } =
+        await import("./plugin-command-registry.service.js");
       await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
         /* logged inside unregisterAll */
       });
@@ -1011,9 +991,8 @@ export async function registerPluginRoutes(
       await deletePlugin(pluginId);
 
       // 4. Rebuild the event-dispatch index so the deleted plugin is gone.
-      const { rebuildEventIndex } = await import(
-        "./plugin-event-bridge.service.js"
-      );
+      const { rebuildEventIndex } =
+        await import("./plugin-event-bridge.service.js");
       await rebuildEventIndex().catch(() => {
         /* non-fatal; will self-heal on next bot restart */
       });
@@ -1041,13 +1020,18 @@ export async function registerPluginRoutes(
    *
    * Admin pre-generates a per-plugin setup secret. The cleartext is
    * returned exactly once and must be placed in the plugin's .env as
-   * X-Plugin-Setup-Secret. The bot stores only the SHA-256 hash.
+   * KARYL_PLUGIN_SETUP_SECRET. The bot stores only the SHA-256 hash.
+   *
+   * If the pluginKey does not yet have a DB row, a placeholder row is
+   * automatically created (status='inactive', enabled=false) so that the
+   * secret can be stored before the plugin first registers.
    *
    * Body: { pluginKey: string, secret?: string }
-   *   - pluginKey: the plugin's manifest id (must already have a row)
+   *   - pluginKey: the plugin's manifest id
    *   - secret:    optional; if omitted the bot generates a 32-byte hex secret
    *
-   * Returns: { pluginKey, setupSecret: "<cleartext-once>" }
+   * Returns: { pluginKey, setupSecret: "<cleartext-once>", created: boolean }
+   *   created=true when a placeholder row was auto-created for the pluginKey.
    *
    * Requires admin capability.
    */
@@ -1072,10 +1056,30 @@ export async function registerPluginRoutes(
       return;
     }
 
-    const pluginRow = await findPluginByKey(key);
+    let pluginRow = await findPluginByKey(key);
+    let created = false;
     if (!pluginRow) {
-      reply.code(404).send({ error: "plugin not found" });
-      return;
+      // Auto-create a placeholder row so the secret can be stored before
+      // the plugin first registers. The plugin's register call will fill in
+      // the real manifest, url, and token via upsertPluginRegistration.
+      pluginRow = await upsertPluginRegistration({
+        pluginKey: key,
+        name: key,
+        version: "0.0.0",
+        url: "http://placeholder",
+        manifestJson: "{}",
+        tokenHash: "",
+        approvedScopesJson: "[]",
+        pendingScopesJson: null,
+        defaultEnabled: false,
+      });
+      created = true;
+      botEventLog.record(
+        "info",
+        "bot",
+        `Admin created placeholder plugin row for '${key}' via setup-secret`,
+        { pluginKey: key, actor: request.authUserId },
+      );
     }
 
     const cleartext =
@@ -1090,16 +1094,25 @@ export async function registerPluginRoutes(
       request.authUserId ?? "system",
       "plugin.setup_secret",
       String(pluginRow.id),
-      { pluginKey: key, secretSource: bodySecret ? "supplied" : "generated" },
+      {
+        pluginKey: key,
+        secretSource: bodySecret ? "supplied" : "generated",
+        placeholderCreated: created,
+      },
     );
     botEventLog.record(
       "info",
       "bot",
       `Per-plugin setup secret set by admin for ${key}`,
-      { pluginId: pluginRow.id, pluginKey: key, actor: request.authUserId },
+      {
+        pluginId: pluginRow.id,
+        pluginKey: key,
+        actor: request.authUserId,
+        placeholderCreated: created,
+      },
     );
 
-    return { pluginKey: key, setupSecret: cleartext };
+    return { pluginKey: key, setupSecret: cleartext, created };
   });
 }
 

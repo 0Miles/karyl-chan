@@ -116,9 +116,8 @@ export class PluginAuthStore {
   }
 
   /**
-   * Constant-time compare two tokens. Used to verify the plugin's
-   * shared registration secret (KARYL_PLUGIN_SECRET) before issuing
-   * a token.
+   * Constant-time compare two strings. Used to verify the plugin's
+   * per-plugin setup secret hash before issuing a token.
    */
   static constantTimeEqual(a: string, b: string): boolean {
     const ab = Buffer.from(a, "utf8");
