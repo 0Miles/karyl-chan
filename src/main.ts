@@ -82,8 +82,16 @@ import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
 import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";
 import { shutdownAllRconConnections } from "./modules/builtin-features/rcon-forward/rcon-forward-channel.events.js";
+import { validateMetadataCoverage } from "./config-metadata.js";
 
 const log = moduleLogger("main");
+
+// Fail-closed boot assertion: every config leaf must have explicit
+// classification in config-metadata.ts. We run this at module load
+// (not inside run()) so a missing entry crashes the process once,
+// instead of being caught by the resetBot retry loop and crash-looping
+// every 10 seconds.
+validateMetadataCoverage(config);
 
 // Set to true once runPendingMigrations() completes so the process-level
 // error handlers below know the bot_events table exists and is safe to write.
