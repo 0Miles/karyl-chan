@@ -647,11 +647,22 @@ export async function createWebServer(
     });
 
     server.setNotFoundHandler((request, reply) => {
-      if (request.method !== "GET") {
-        reply.code(404).send({ error: "Not Found" });
+      // /api fall-through is checked first so non-GET methods get the
+      // same 401-vs-404 treatment. Otherwise POST /api/auth/nonexistent
+      // would short-circuit to 404 here (the auth hook whitelists
+      // /api/auth/*) and leak which auth subpaths really exist.
+      // dev-mode (BOT_OWNER_ID unset) makes the auth hook stamp
+      // authUserId="dev" on every request, so this path returns 404
+      // there too — endpoint enumeration only matters once auth is on.
+      if (request.url.startsWith("/api")) {
+        if (request.authUserId || request.pluginAuth) {
+          reply.code(404).send({ error: "Not Found" });
+        } else {
+          reply.code(401).send({ error: "Unauthorized" });
+        }
         return;
       }
-      if (request.url.startsWith("/api")) {
+      if (request.method !== "GET") {
         reply.code(404).send({ error: "Not Found" });
         return;
       }

@@ -416,5 +416,104 @@ describe("web server", () => {
       });
       expect(reuse.statusCode).toBe(401);
     });
+
+    // Issue 4.2 fix: setNotFoundHandler must return 401 (not 404) for
+    // unauthenticated /api/* paths, so attackers cannot enumerate endpoints
+    // by comparing "protected" (401) vs "missing" (404) responses.
+    describe("setNotFoundHandler: 401 vs 404 for /api/* (issue 4.2)", () => {
+      let spaServer: FastifyInstance;
+      let spaStore: AuthStore;
+      let spaStaticRoot: string;
+
+      beforeAll(async () => {
+        spaStaticRoot = mkdtempSync(join(tmpdir(), "karyl-web-notfound-"));
+        writeFileSync(
+          join(spaStaticRoot, "index.html"),
+          "<!doctype html><title>spa</title>",
+        );
+        spaStore = new AuthStore();
+        spaServer = await createWebServer({
+          staticRoot: spaStaticRoot,
+          authStore: spaStore,
+          jwtService: new JwtService(randomBytes(64)),
+        });
+        await spaServer.ready();
+      });
+
+      afterAll(async () => {
+        await spaServer.close();
+        spaStore.stop();
+        rmSync(spaStaticRoot, { recursive: true, force: true });
+      });
+
+      it("returns 401 for unauthenticated GET /api/* that does not exist", async () => {
+        const response = await spaServer.inject({
+          method: "GET",
+          url: "/api/does-not-exist",
+        });
+        expect(response.statusCode).toBe(401);
+        expect(response.json().error).toBe("Unauthorized");
+      });
+
+      it("returns 404 for authenticated GET /api/* that does not exist", async () => {
+        const { accessToken } = await spaStore.issueTokens(OWNER_ID);
+        const response = await spaServer.inject({
+          method: "GET",
+          url: "/api/does-not-exist",
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+        expect(response.statusCode).toBe(404);
+        expect(response.json().error).toBe("Not Found");
+      });
+
+      it("returns 401 for unauthenticated GET /api/auth/* that does not exist", async () => {
+        // /api/auth/* skips the auth hook so authUserId is never set;
+        // the setNotFoundHandler must still return 401 for unknown sub-paths.
+        const response = await spaServer.inject({
+          method: "GET",
+          url: "/api/auth/nonexistent-endpoint",
+        });
+        expect(response.statusCode).toBe(401);
+        expect(response.json().error).toBe("Unauthorized");
+      });
+
+      it("returns 200 for GET /api/health without a token (whitelisted)", async () => {
+        const response = await spaServer.inject({
+          method: "GET",
+          url: "/api/health",
+        });
+        expect(response.statusCode).toBe(200);
+      });
+
+      it("falls back to index.html for non-api GET routes (SPA fallback unchanged)", async () => {
+        const response = await spaServer.inject({
+          method: "GET",
+          url: "/some/spa/route",
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain("<title>spa</title>");
+      });
+
+      it("returns 401 for unauthenticated POST /api/auth/* that does not exist", async () => {
+        // Same enumeration vector as the GET case but via POST. The
+        // /api/* prefix branch must run before the method check so
+        // attackers can't probe auth subpaths with non-GET requests.
+        const response = await spaServer.inject({
+          method: "POST",
+          url: "/api/auth/nonexistent-endpoint",
+        });
+        expect(response.statusCode).toBe(401);
+        expect(response.json().error).toBe("Unauthorized");
+      });
+
+      it("returns 401 for unauthenticated DELETE /api/* that does not exist", async () => {
+        const response = await spaServer.inject({
+          method: "DELETE",
+          url: "/api/admin/does-not-exist",
+        });
+        expect(response.statusCode).toBe(401);
+        expect(response.json().error).toBe("Unauthorized");
+      });
+    });
   });
 });
