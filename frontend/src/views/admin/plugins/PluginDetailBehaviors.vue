@@ -10,10 +10,21 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
+interface BehaviorItem {
+    key: string;
+    name?: string;
+    description?: string;
+    supports_continuous?: boolean;
+    scope?: string;
+    integration_types?: string[];
+    contexts?: string[];
+}
+
 // v2 manifest 用 behaviors[]，v1 用 dm_behaviors[]
-const behaviors = computed(() => {
+const behaviors = computed((): BehaviorItem[] => {
     const m = props.plugin.manifest;
-    return m?.behaviors ?? m?.dm_behaviors ?? [];
+    const raw = m?.behaviors ?? m?.dm_behaviors ?? [];
+    return raw as BehaviorItem[];
 });
 </script>
 
@@ -49,21 +60,17 @@ const behaviors = computed(() => {
                         {{ t('admin.plugins.detail.behaviors.axesReadonly') }}
                     </span>
                 </div>
-                <p v-if="(beh as { name?: string }).name" class="beh-name">
-                    {{ (beh as { name?: string }).name }}
-                </p>
+                <p v-if="beh.name" class="beh-name">{{ beh.name }}</p>
                 <p v-if="beh.description" class="beh-desc">{{ beh.description }}</p>
 
                 <!-- 三軸 read-only badges (if provided by manifest) -->
                 <div class="axes-row">
-                    <span v-if="(beh as { scope?: string }).scope" class="axis-badge">
-                        Scope: {{ (beh as { scope?: string }).scope }}
+                    <span v-if="beh.scope" class="axis-badge">Scope: {{ beh.scope }}</span>
+                    <span v-if="beh.integration_types?.length" class="axis-badge">
+                        IntegType: {{ beh.integration_types!.join(', ') }}
                     </span>
-                    <span v-if="(beh as { integration_types?: string[] }).integration_types?.length" class="axis-badge">
-                        IntegType: {{ (beh as { integration_types?: string[] }).integration_types!.join(', ') }}
-                    </span>
-                    <span v-if="(beh as { contexts?: string[] }).contexts?.length" class="axis-badge">
-                        Ctx: {{ (beh as { contexts?: string[] }).contexts!.join(', ') }}
+                    <span v-if="beh.contexts?.length" class="axis-badge">
+                        Ctx: {{ beh.contexts!.join(', ') }}
                     </span>
                 </div>
             </article>
