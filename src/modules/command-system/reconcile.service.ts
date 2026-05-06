@@ -36,7 +36,10 @@ import {
   PluginCommand,
   type PluginCommandRow,
 } from "../plugin-system/models/plugin-command.model.js";
-import { findPluginById, type PluginRow } from "../plugin-system/models/plugin.model.js";
+import {
+  findPluginById,
+  type PluginRow,
+} from "../plugin-system/models/plugin.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { sequelize } from "../../db.js";
 import type {
@@ -62,7 +65,10 @@ const CONTEXT_MAP: Record<DiscordContext, InteractionContextType> = {
   PrivateChannel: InteractionContextType.PrivateChannel,
 };
 
-const INTEGRATION_MAP: Record<DiscordIntegrationType, ApplicationIntegrationType> = {
+const INTEGRATION_MAP: Record<
+  DiscordIntegrationType,
+  ApplicationIntegrationType
+> = {
   guild_install: ApplicationIntegrationType.GuildInstall,
   user_install: ApplicationIntegrationType.UserInstall,
 };
@@ -73,8 +79,9 @@ function parseContexts(raw: string): DiscordContext[] {
   return raw
     .split(",")
     .map((s) => s.trim())
-    .filter((s): s is DiscordContext =>
-      s === "Guild" || s === "BotDM" || s === "PrivateChannel",
+    .filter(
+      (s): s is DiscordContext =>
+        s === "Guild" || s === "BotDM" || s === "PrivateChannel",
     );
 }
 
@@ -82,8 +89,9 @@ function parseIntegrationTypes(raw: string): DiscordIntegrationType[] {
   return raw
     .split(",")
     .map((s) => s.trim())
-    .filter((s): s is DiscordIntegrationType =>
-      s === "guild_install" || s === "user_install",
+    .filter(
+      (s): s is DiscordIntegrationType =>
+        s === "guild_install" || s === "user_install",
     );
 }
 
@@ -96,18 +104,26 @@ function commandNeedsPatch(
   // 比對 description
   const existDesc = "description" in existing ? existing.description : "";
   const desiredDesc =
-    "description" in desired ? ((desired as { description?: string }).description ?? "") : "";
+    "description" in desired
+      ? ((desired as { description?: string }).description ?? "")
+      : "";
   if (existDesc !== desiredDesc) return true;
 
   // 比對 contexts
   const existCtxSorted = (existing.contexts ?? []).slice().sort().join(",");
-  const desiredCtx = (desired as { contexts?: InteractionContextType[] }).contexts ?? [];
+  const desiredCtx =
+    (desired as { contexts?: InteractionContextType[] }).contexts ?? [];
   const desiredCtxSorted = desiredCtx.slice().sort().join(",");
   if (existCtxSorted !== desiredCtxSorted) return true;
 
   // 比對 integrationTypes
-  const existItSorted = (existing.integrationTypes ?? []).slice().sort().join(",");
-  const desiredIt = (desired as { integrationTypes?: ApplicationIntegrationType[] }).integrationTypes ?? [];
+  const existItSorted = (existing.integrationTypes ?? [])
+    .slice()
+    .sort()
+    .join(",");
+  const desiredIt =
+    (desired as { integrationTypes?: ApplicationIntegrationType[] })
+      .integrationTypes ?? [];
   const desiredItSorted = desiredIt.slice().sort().join(",");
   if (existItSorted !== desiredItSorted) return true;
 
@@ -124,10 +140,13 @@ interface OwnedCommandKey {
 
 async function loadOwnedCommands(): Promise<Set<string>> {
   // key format: `${scope}:${name}:${guildId ?? ""}`
-  const rows = await sequelize.query<{ name: string; scope: string; guildId: string | null }>(
-    "SELECT name, scope, guildId FROM reconciler_owned_commands",
-    { type: QueryTypes.SELECT },
-  );
+  const rows = await sequelize.query<{
+    name: string;
+    scope: string;
+    guildId: string | null;
+  }>("SELECT name, scope, guildId FROM reconciler_owned_commands", {
+    type: QueryTypes.SELECT,
+  });
   const result = new Set<string>();
   for (const r of rows) {
     result.add(`${r.scope}:${r.name}:${r.guildId ?? ""}`);
@@ -206,8 +225,13 @@ export function deriveRegistrationCall(
     if (integrationTypes.includes("user_install")) {
       throw new RejectionError("scope=guild 不支援 user_install");
     }
-    if (integrationTypes.includes("guild_install") && integrationTypes.includes("user_install")) {
-      throw new RejectionError("scope=guild 不支援 guild_install+user_install 組合");
+    if (
+      integrationTypes.includes("guild_install") &&
+      integrationTypes.includes("user_install")
+    ) {
+      throw new RejectionError(
+        "scope=guild 不支援 guild_install+user_install 組合",
+      );
     }
     // M-8 修：scope=guild + 含 BotDM 為非法
     if (contexts.some((c) => c !== "Guild")) {
@@ -218,7 +242,9 @@ export function deriveRegistrationCall(
   }
 
   const discordContexts = contexts.map((c) => CONTEXT_MAP[c]);
-  const discordIntegrationTypes = integrationTypes.map((t) => INTEGRATION_MAP[t]);
+  const discordIntegrationTypes = integrationTypes.map(
+    (t) => INTEGRATION_MAP[t],
+  );
 
   const data: Record<string, unknown> = {
     type: ApplicationCommandType.ChatInput,
@@ -265,11 +291,20 @@ export class CommandReconciler {
   async reconcileAll(): Promise<ReconcileReport> {
     const bot = this.getBot();
     if (!bot?.application) {
-      botEventLog.record("warn", "bot", "command-reconciler: bot not ready, skipping reconcileAll");
+      botEventLog.record(
+        "warn",
+        "bot",
+        "command-reconciler: bot not ready, skipping reconcileAll",
+      );
       return { created: 0, patched: 0, deleted: 0, errors: [] };
     }
 
-    const report: ReconcileReport = { created: 0, patched: 0, deleted: 0, errors: [] };
+    const report: ReconcileReport = {
+      created: 0,
+      patched: 0,
+      deleted: 0,
+      errors: [],
+    };
 
     // 步驟 1：枚舉 desired set
     const desiredItems = await this.buildDesiredSet();
@@ -299,7 +334,9 @@ export class CommandReconciler {
     }
 
     // 步驟 4 續：stale 清除（名冊中有、但 desired set 沒有的指令）
-    const desiredNames = new Set(desiredItems.map((i) => `${i.spec.scope}:${i.name}`));
+    const desiredNames = new Set(
+      desiredItems.map((i) => `${i.spec.scope}:${i.name}`),
+    );
 
     for (const key of ownedSet) {
       // key format: `${scope}:${name}:${guildId ?? ""}`
@@ -308,7 +345,12 @@ export class CommandReconciler {
       const desiredKey = `${scope}:${name}`;
       if (!desiredNames.has(desiredKey)) {
         // stale：此指令已不在 desired set，從 Discord + 名冊刪除
-        await this.deleteStale(bot, name, scope as CommandScope, guildIdPart || null);
+        await this.deleteStale(
+          bot,
+          name,
+          scope as CommandScope,
+          guildIdPart || null,
+        );
         report.deleted++;
       }
     }
@@ -319,27 +361,31 @@ export class CommandReconciler {
     // 步驟末：upsert 名冊
     for (const item of desiredItems) {
       if (item.spec.scope === "global") {
-        await upsertOwnedCommand({ name: item.name, scope: "global", guildId: null }).catch(
-          (e: unknown) => {
-            botEventLog.record(
-              "warn",
-              "bot",
-              `command-reconciler: 名冊 upsert 失敗 ${item.name}: ${e instanceof Error ? e.message : String(e)}`,
-            );
-          },
-        );
+        await upsertOwnedCommand({
+          name: item.name,
+          scope: "global",
+          guildId: null,
+        }).catch((e: unknown) => {
+          botEventLog.record(
+            "warn",
+            "bot",
+            `command-reconciler: 名冊 upsert 失敗 ${item.name}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        });
       } else {
         // guild scope：為每個 bot 所在 guild 各登記一筆
         for (const guild of bot.guilds.cache.values()) {
-          await upsertOwnedCommand({ name: item.name, scope: "guild", guildId: guild.id }).catch(
-            (e: unknown) => {
-              botEventLog.record(
-                "warn",
-                "bot",
-                `command-reconciler: 名冊 upsert 失敗 ${item.name}/${guild.id}: ${e instanceof Error ? e.message : String(e)}`,
-              );
-            },
-          );
+          await upsertOwnedCommand({
+            name: item.name,
+            scope: "guild",
+            guildId: guild.id,
+          }).catch((e: unknown) => {
+            botEventLog.record(
+              "warn",
+              "bot",
+              `command-reconciler: 名冊 upsert 失敗 ${item.name}/${guild.id}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          });
         }
       }
     }
@@ -382,13 +428,23 @@ export class CommandReconciler {
 
     // message_pattern 不在 Discord 指令登記範疇
     if (behaviorRow.triggerType !== "slash_command") {
-      return { ok: true, source: "behavior", sourceId: behaviorId, action: "noop" };
+      return {
+        ok: true,
+        source: "behavior",
+        sourceId: behaviorId,
+        action: "noop",
+      };
     }
 
     if (!behaviorRow.enabled) {
       // disabled：從 Discord 刪除（若存在）
       await this.deleteIfExistsForBehavior(bot, behaviorRow);
-      return { ok: true, source: "behavior", sourceId: behaviorId, action: "delete" };
+      return {
+        ok: true,
+        source: "behavior",
+        sourceId: behaviorId,
+        action: "delete",
+      };
     }
 
     const item = await this.behaviorToDesiredItem(behaviorRow);
@@ -433,7 +489,12 @@ export class CommandReconciler {
     const cmdRow = rowOfPluginCommand(row);
     if (cmdRow.featureKey !== null) {
       // 軌一指令，不由本服務管
-      return { ok: true, source: "plugin_command", sourceId: rowId, action: "noop" };
+      return {
+        ok: true,
+        source: "plugin_command",
+        sourceId: rowId,
+        action: "noop",
+      };
     }
 
     const item = await this.pluginCommandToDesiredItem(cmdRow);
@@ -442,7 +503,8 @@ export class CommandReconciler {
         ok: false,
         source: "plugin_command",
         sourceId: rowId,
-        error: "無法計算 desired spec（schema_version 非 v2、三軸非法、或 plugin 不存在）",
+        error:
+          "無法計算 desired spec（schema_version 非 v2、三軸非法、或 plugin 不存在）",
       };
     }
 
@@ -555,10 +617,10 @@ export class CommandReconciler {
 
     // 確認 plugin + command 都在 enabled 狀態
     if (!plugin.enabled) return null;
-
-    // 確認 adminEnabled（plugin_commands 表無直接 adminEnabled 欄位，
-    // 暫以 plugin.enabled + status='active' 為條件；M1-C2 補 adminEnabled 欄位）
     if (plugin.status !== "active") return null;
+
+    // 確認 adminEnabled（M1-A2 加欄，M1-C2 接線）：admin 可停用個別指令
+    if (!row.adminEnabled) return null;
 
     const integrationTypes = cmdManifest.integration_types.filter(
       (t): t is DiscordIntegrationType =>
@@ -710,7 +772,13 @@ export class CommandReconciler {
         }
       }
       if (anyError) {
-        return { ok: false, source, sourceId, action: "patch", error: anyError };
+        return {
+          ok: false,
+          source,
+          sourceId,
+          action: "patch",
+          error: anyError,
+        };
       }
       return { ok: true, source, sourceId, action: "noop" };
     }
@@ -817,11 +885,17 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
     enabled: !!model.getDataValue("enabled"),
     sortOrder: model.getDataValue("sortOrder") as number,
     stopOnMatch: !!model.getDataValue("stopOnMatch"),
-    forwardType: model.getDataValue("forwardType") as BehaviorRow["forwardType"],
+    forwardType: model.getDataValue(
+      "forwardType",
+    ) as BehaviorRow["forwardType"],
     source: model.getDataValue("source") as BehaviorRow["source"],
-    triggerType: model.getDataValue("triggerType") as BehaviorRow["triggerType"],
+    triggerType: model.getDataValue(
+      "triggerType",
+    ) as BehaviorRow["triggerType"],
     messagePatternKind:
-      (model.getDataValue("messagePatternKind") as BehaviorRow["messagePatternKind"]) ?? null,
+      (model.getDataValue(
+        "messagePatternKind",
+      ) as BehaviorRow["messagePatternKind"]) ?? null,
     messagePatternValue:
       (model.getDataValue("messagePatternValue") as string | null) ?? null,
     slashCommandName:
@@ -835,7 +909,9 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
       (model.getDataValue("placementGuildId") as string | null) ?? null,
     placementChannelId:
       (model.getDataValue("placementChannelId") as string | null) ?? null,
-    audienceKind: model.getDataValue("audienceKind") as BehaviorRow["audienceKind"],
+    audienceKind: model.getDataValue(
+      "audienceKind",
+    ) as BehaviorRow["audienceKind"],
     audienceUserId:
       (model.getDataValue("audienceUserId") as string | null) ?? null,
     audienceGroupName:
@@ -844,7 +920,9 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
     webhookSecret:
       (model.getDataValue("webhookSecret") as string | null) ?? null,
     webhookAuthMode:
-      (model.getDataValue("webhookAuthMode") as BehaviorRow["webhookAuthMode"]) ?? null,
+      (model.getDataValue(
+        "webhookAuthMode",
+      ) as BehaviorRow["webhookAuthMode"]) ?? null,
     pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
     pluginBehaviorKey:
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
@@ -853,7 +931,9 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
   };
 }
 
-function rowOfPluginCommand(model: InstanceType<typeof PluginCommand>): PluginCommandRow {
+function rowOfPluginCommand(
+  model: InstanceType<typeof PluginCommand>,
+): PluginCommandRow {
   return {
     id: model.getDataValue("id") as number,
     pluginId: model.getDataValue("pluginId") as number,
@@ -863,5 +943,8 @@ function rowOfPluginCommand(model: InstanceType<typeof PluginCommand>): PluginCo
       (model.getDataValue("discordCommandId") as string | null) ?? null,
     featureKey: (model.getDataValue("featureKey") as string | null) ?? null,
     manifestJson: model.getDataValue("manifestJson") as string,
+    adminEnabled:
+      model.getDataValue("adminEnabled") !== 0 &&
+      model.getDataValue("adminEnabled") !== false,
   };
 }

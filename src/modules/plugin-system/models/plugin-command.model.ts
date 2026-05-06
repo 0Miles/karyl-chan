@@ -18,6 +18,12 @@ export const PluginCommand = sequelize.define(
      */
     featureKey: { type: DataTypes.STRING, allowNull: true },
     manifestJson: { type: DataTypes.TEXT, allowNull: false },
+    /**
+     * Admin on/off toggle for this command (M1-A2 欄位，M1-C2 接線）。
+     * true = admin 啟用（預設），false = admin 停用（CommandReconciler 不登記此指令）。
+     * DB column: adminEnabled INTEGER NOT NULL DEFAULT 1（added in 20260501020000-plugin-commands-tri-axis.ts）。
+     */
+    adminEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
   {
     tableName: "plugin_commands",
@@ -33,6 +39,11 @@ export interface PluginCommandRow {
   discordCommandId: string | null;
   featureKey: string | null;
   manifestJson: string;
+  /**
+   * Admin on/off toggle（M1-A2 欄位，M1-C2 接線）。
+   * false 時 CommandReconciler 不登記此指令到 Discord。
+   */
+  adminEnabled: boolean;
 }
 
 function rowOf(model: InstanceType<typeof PluginCommand>): PluginCommandRow {
@@ -45,6 +56,8 @@ function rowOf(model: InstanceType<typeof PluginCommand>): PluginCommandRow {
       (model.getDataValue("discordCommandId") as string | null) ?? null,
     featureKey: (model.getDataValue("featureKey") as string | null) ?? null,
     manifestJson: model.getDataValue("manifestJson") as string,
+    adminEnabled: model.getDataValue("adminEnabled") !== 0 &&
+      model.getDataValue("adminEnabled") !== false,
   };
 }
 

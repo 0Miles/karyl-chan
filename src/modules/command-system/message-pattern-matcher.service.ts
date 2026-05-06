@@ -38,9 +38,7 @@ import {
   startSession,
   endSession,
 } from "../behavior/models/behavior-session.model.js";
-import {
-  findAudienceMembers,
-} from "../behavior/models/behavior-audience-member.model.js";
+import { findAudienceMembers } from "../behavior/models/behavior-audience-member.model.js";
 import { matchesTrigger } from "../behavior/behavior-trigger.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import type { MessageMatchOutcome } from "./types.js";
@@ -54,23 +52,31 @@ export class MessagePatternMatcher {
 
   /**
    * 掛載到 bot client（替代 registerWebhookBehaviorEvents(client)）。
+   * M1-C2 接線：真實掛載 messageCreate listener。
    *
-   * M1-C1 dormant：此方法目前不真的 hookup（不呼叫 client.on()）。
-   * M1-C2 接線時取消以下 dormant 守衛，改為真實呼叫。
+   * 注意（C-runtime §5.1）：DM-only gate。guild channel 訊息一律丟棄。
+   *
+   * system behavior 的 DM 觸發路徑（/manual、/break text trigger）：
+   *   v2 設計決定 system behavior 只走 slash_command trigger（不走 message_pattern）。
+   *   理由：v1 的 /manual、/break 文字觸發是歷史殘留。v2 slash command 已足夠，
+   *   message_pattern 觸發 system behavior 增加複雜度但無明顯收益。
+   *   若未來需要，在此加一個 source='system' 的 behavior row 查找，
+   *   然後 dispatch 到 InteractionDispatcher 等效的 system handler。
    */
   register(client: Client): void {
-    // M1-C1 dormant：不掛任何 messageCreate listener。
-    // M1-C2 接線時替換為：
-    //   client.on("messageCreate", (msg) => {
-    //     void this.onMessage(msg).catch((err) => {
-    //       botEventLog.record("error", "bot", `messagePatternMatcher error: ${err instanceof Error ? err.message : String(err)}`);
-    //     });
-    //   });
-    void client; // 消除 unused parameter lint warning
+    client.on("messageCreate", (msg) => {
+      void this.onMessage(msg).catch((err: unknown) => {
+        botEventLog.record(
+          "error",
+          "bot",
+          `message-pattern-matcher: messageCreate handler 拋出例外：${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    });
     botEventLog.record(
       "info",
       "bot",
-      "message-pattern-matcher: dormant 模式，messageCreate listener 未掛載（M1-C2 接線）",
+      "message-pattern-matcher: messageCreate listener 已掛載（M1-C2）",
     );
   }
 
@@ -95,7 +101,13 @@ export class MessagePatternMatcher {
     // ─ 查 active session（C-runtime §5.2 session 優先）
     const activeSession = await findActiveSession(userId);
     if (activeSession) {
-      return this.handleWithSession(activeSession, djsMessage, userId, channelId, content);
+      return this.handleWithSession(
+        activeSession,
+        djsMessage,
+        userId,
+        channelId,
+        content,
+      );
     }
 
     // ─ 查 applicable behaviors（三層：user → group → all）
@@ -107,7 +119,8 @@ export class MessagePatternMatcher {
     // ─ 匹配 trigger
     for (const behavior of applicableBehaviors) {
       if (behavior.triggerType !== "message_pattern") continue;
-      if (!behavior.messagePatternKind || !behavior.messagePatternValue) continue;
+      if (!behavior.messagePatternKind || !behavior.messagePatternValue)
+        continue;
 
       const matched = matchesTrigger(
         behavior.messagePatternKind,
@@ -117,7 +130,13 @@ export class MessagePatternMatcher {
       if (!matched) continue;
 
       // ─ 呼叫 WebhookForwarder + session 管理
-      return this.handleMatchedBehavior(behavior, djsMessage, userId, channelId, content);
+      return this.handleMatchedBehavior(
+        behavior,
+        djsMessage,
+        userId,
+        channelId,
+        content,
+      );
     }
 
     return { handled: false };
@@ -144,7 +163,11 @@ export class MessagePatternMatcher {
         { userId, behaviorId: session.behaviorId },
       );
       await endSession(userId);
-      return { handled: false, sessionEnded: true, error: "orphan session cleared" };
+      return {
+        handled: false,
+        sessionEnded: true,
+        error: "orphan session cleared",
+      };
     }
 
     if (!behavior.enabled) {
@@ -238,7 +261,9 @@ export class MessagePatternMatcher {
    *
    * 對齊 C-runtime §5.2 與 M0-A 的 behavior_audience_members 表。
    */
-  private async collectApplicableBehaviors(userId: string): Promise<BehaviorRow[]> {
+  private async collectApplicableBehaviors(
+    userId: string,
+  ): Promise<BehaviorRow[]> {
     const allRows = await Behavior.findAll({
       where: {
         enabled: true,
@@ -299,17 +324,24 @@ export class MessagePatternMatcher {
       enabled: !!model.getDataValue("enabled"),
       sortOrder: model.getDataValue("sortOrder") as number,
       stopOnMatch: !!model.getDataValue("stopOnMatch"),
-      forwardType: model.getDataValue("forwardType") as BehaviorRow["forwardType"],
+      forwardType: model.getDataValue(
+        "forwardType",
+      ) as BehaviorRow["forwardType"],
       source: model.getDataValue("source") as BehaviorRow["source"],
-      triggerType: model.getDataValue("triggerType") as BehaviorRow["triggerType"],
+      triggerType: model.getDataValue(
+        "triggerType",
+      ) as BehaviorRow["triggerType"],
       messagePatternKind:
-        (model.getDataValue("messagePatternKind") as BehaviorRow["messagePatternKind"]) ?? null,
+        (model.getDataValue(
+          "messagePatternKind",
+        ) as BehaviorRow["messagePatternKind"]) ?? null,
       messagePatternValue:
         (model.getDataValue("messagePatternValue") as string | null) ?? null,
       slashCommandName:
         (model.getDataValue("slashCommandName") as string | null) ?? null,
       slashCommandDescription:
-        (model.getDataValue("slashCommandDescription") as string | null) ?? null,
+        (model.getDataValue("slashCommandDescription") as string | null) ??
+        null,
       scope: model.getDataValue("scope") as BehaviorRow["scope"],
       integrationTypes: model.getDataValue("integrationTypes") as string,
       contexts: model.getDataValue("contexts") as string,
@@ -317,7 +349,9 @@ export class MessagePatternMatcher {
         (model.getDataValue("placementGuildId") as string | null) ?? null,
       placementChannelId:
         (model.getDataValue("placementChannelId") as string | null) ?? null,
-      audienceKind: model.getDataValue("audienceKind") as BehaviorRow["audienceKind"],
+      audienceKind: model.getDataValue(
+        "audienceKind",
+      ) as BehaviorRow["audienceKind"],
       audienceUserId:
         (model.getDataValue("audienceUserId") as string | null) ?? null,
       audienceGroupName:
@@ -326,7 +360,9 @@ export class MessagePatternMatcher {
       webhookSecret:
         (model.getDataValue("webhookSecret") as string | null) ?? null,
       webhookAuthMode:
-        (model.getDataValue("webhookAuthMode") as BehaviorRow["webhookAuthMode"]) ?? null,
+        (model.getDataValue(
+          "webhookAuthMode",
+        ) as BehaviorRow["webhookAuthMode"]) ?? null,
       pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
       pluginBehaviorKey:
         (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,

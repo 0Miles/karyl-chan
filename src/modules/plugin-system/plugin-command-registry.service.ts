@@ -336,7 +336,12 @@ export class PluginCommandRegistry {
       );
       return;
     }
-    // v2：plugin_commands[]；v1 fallback：commands[]
+    // M1-C2（軌三移交）：global commands（manifest.plugin_commands[] / commands[]）
+    // 不再由此服務直接向 Discord 登記。軌三 global 指令由 CommandReconciler.reconcileAll()
+    // 接管（C-runtime §6.3，§3.2 步驟 1b）。
+    // 此處只維護 DB 中的 plugin_commands rows（featureKey=null），讓 CommandReconciler
+    // 能查詢到完整 desired set。
+    // DB upsert（不呼叫 Discord API）：
     const globalCommands: Array<ManifestCommand | ManifestPluginCommandV2> = [
       ...(manifest.plugin_commands ?? []),
       ...(manifest.commands ?? []),
@@ -349,28 +354,20 @@ export class PluginCommandRegistry {
     // stale and gets cleaned at the end.
     const stale = new Map(existing.map((r) => [r.id, r]));
 
-    // ── Top-level (truly global) commands ────────────────────────
+    // ── Top-level (truly global) commands：DB only（Discord 由 CommandReconciler 管）
+    // M1-C2：軌三 global 指令 Discord 登記改由 CommandReconciler.reconcileAll() 接管。
+    // 此處只維護 DB rows（featureKey=null），discordCommandId 暫設 null。
+    // CommandReconciler 呼叫 Discord API 後不回寫 discordCommandId（已知限制）。
+    // 後果：unregisterAll() 的 deleteOne() 無法用 discordCommandId 刪 Discord 端指令，
+    // 需依賴 CommandReconciler 的 stale 清除機制（reconciler_owned_commands 名冊）補位。
+    // TODO M1-D/F：CommandReconciler.applyOne() 在 create 後回寫 plugin_commands.discordCommandId。
     for (const cmd of globalCommands) {
-      let data: ApplicationCommandData;
       try {
-        data = manifestToApplicationCommand(cmd);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        botEventLog.record(
-          "warn",
-          "bot",
-          `plugin-commands: '${plugin.pluginKey}' command '${cmd.name}' invalid: ${msg}`,
-          { pluginId: plugin.id, cmd: cmd.name },
-        );
-        continue;
-      }
-      try {
-        const created = await bot.application.commands.create(data);
         const upserted = await upsertPluginCommand({
           pluginId: plugin.id,
           guildId: null,
           name: cmd.name,
-          discordCommandId: created.id,
+          discordCommandId: null,
           featureKey: null,
           manifestJson: JSON.stringify(cmd),
         });
@@ -380,7 +377,7 @@ export class PluginCommandRegistry {
         botEventLog.record(
           "warn",
           "bot",
-          `plugin-commands: Discord create failed for '${plugin.pluginKey}/${cmd.name}': ${msg}`,
+          `plugin-commands: DB upsert failed for '${plugin.pluginKey}/${cmd.name}': ${msg}`,
           { pluginId: plugin.id, cmd: cmd.name },
         );
       }

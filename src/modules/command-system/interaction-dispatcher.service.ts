@@ -20,10 +20,7 @@
  *   3. system behavior（source='system'）中的 stub 替換為真實實作（見下方 TODO）
  */
 
-import {
-  type Interaction,
-  type ChatInputCommandInteraction,
-} from "discord.js";
+import { type Interaction, type ChatInputCommandInteraction } from "discord.js";
 import {
   Behavior,
   type BehaviorRow,
@@ -31,33 +28,31 @@ import {
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { dispatchInteractionToPlugin } from "../plugin-system/plugin-interaction-dispatch.service.js";
 import { dispatchInProcessInteraction } from "../builtin-features/in-process-command-registry.service.js";
+import { issueLoginLinkForInteraction } from "../admin/admin-login.service.js";
+import { endSession } from "../behavior/models/behavior-session.model.js";
 import type { DispatchOutcome } from "./types.js";
 import type { WebhookForwarder } from "./webhook-forwarder.service.js";
-
-// ── NotImplementedError（system behavior stub 用）────────────────────────────
-
-export class NotImplementedError extends Error {
-  constructor(feature: string) {
-    super(`M1-C1 dormant: ${feature} 尚未實作，M1-C2 接線時補上`);
-    this.name = "NotImplementedError";
-  }
-}
 
 // ── Discord webhook payload 建構（slash command → webhook body）─────────────
 
 /**
  * 從 ChatInputCommandInteraction 建構 behavior webhook POST body。
  * 對齊 RESTPostAPIWebhookWithTokenJSONBody 形狀（C-runtime §7.1）。
+ *
+ * Discord webhook 原生欄位（content / username / avatar_url）帶 interaction 資訊，
+ * plugin 可直接用標準 Discord webhook 消費邏輯處理。
+ * _meta 欄位帶完整 interaction 元資訊供需要的 plugin 使用（behavior webhook 可忽略）。
  */
 function buildWebhookPayload(
   interaction: ChatInputCommandInteraction,
 ): Record<string, unknown> {
   return {
-    // 將 interaction 資訊對映到 webhook-compatible content
-    content: interaction.commandName,
-    // 附加 interaction 元資訊供 plugin 使用
-    username: interaction.user.username,
-    // 自訂欄位（behavior webhook 可忽略）
+    // Discord webhook 原生欄位：content 帶指令名稱（供 plugin 識別觸發入口）
+    content: `/${interaction.commandName}`,
+    // username / avatar_url 帶發送者資訊（相容 Discord 原生 webhook 形狀）
+    username: interaction.user.globalName ?? interaction.user.username,
+    avatar_url: interaction.user.displayAvatarURL(),
+    // _meta：完整 interaction 元資訊，供 plugin 取用 interaction_id / token 等
     _meta: {
       interaction_id: interaction.id,
       interaction_token: interaction.token,
@@ -68,9 +63,17 @@ function buildWebhookPayload(
       user: {
         id: interaction.user.id,
         username: interaction.user.username,
-        global_name: interaction.user.globalName,
+        global_name: interaction.user.globalName ?? null,
+        discriminator: interaction.user.discriminator,
+        avatar: interaction.user.avatar ?? null,
       },
       locale: interaction.locale ?? null,
+      // slash command options（若有）供 plugin 讀取
+      options: interaction.options.data.map((opt) => ({
+        name: opt.name,
+        type: opt.type,
+        value: opt.value ?? null,
+      })),
     },
   };
 }
@@ -102,7 +105,11 @@ export class InteractionDispatcher {
         "error",
         "bot",
         `interaction-dispatcher: plugin_command layer 拋出例外：${err instanceof Error ? err.message : String(err)}`,
-        { commandName: interaction.isChatInputCommand() ? interaction.commandName : undefined },
+        {
+          commandName: interaction.isChatInputCommand()
+            ? interaction.commandName
+            : undefined,
+        },
       );
       // layer 2 失敗不短路，繼續嘗試 layer 3
     }
@@ -118,7 +125,11 @@ export class InteractionDispatcher {
         "error",
         "bot",
         `interaction-dispatcher: in-process layer 拋出例外：${err instanceof Error ? err.message : String(err)}`,
-        { commandName: interaction.isChatInputCommand() ? interaction.commandName : undefined },
+        {
+          commandName: interaction.isChatInputCommand()
+            ? interaction.commandName
+            : undefined,
+        },
       );
     }
 
@@ -153,17 +164,24 @@ export class InteractionDispatcher {
         enabled: !!row.getDataValue("enabled"),
         sortOrder: row.getDataValue("sortOrder") as number,
         stopOnMatch: !!row.getDataValue("stopOnMatch"),
-        forwardType: row.getDataValue("forwardType") as BehaviorRow["forwardType"],
+        forwardType: row.getDataValue(
+          "forwardType",
+        ) as BehaviorRow["forwardType"],
         source: row.getDataValue("source") as BehaviorRow["source"],
-        triggerType: row.getDataValue("triggerType") as BehaviorRow["triggerType"],
+        triggerType: row.getDataValue(
+          "triggerType",
+        ) as BehaviorRow["triggerType"],
         messagePatternKind:
-          (row.getDataValue("messagePatternKind") as BehaviorRow["messagePatternKind"]) ?? null,
+          (row.getDataValue(
+            "messagePatternKind",
+          ) as BehaviorRow["messagePatternKind"]) ?? null,
         messagePatternValue:
           (row.getDataValue("messagePatternValue") as string | null) ?? null,
         slashCommandName:
           (row.getDataValue("slashCommandName") as string | null) ?? null,
         slashCommandDescription:
-          (row.getDataValue("slashCommandDescription") as string | null) ?? null,
+          (row.getDataValue("slashCommandDescription") as string | null) ??
+          null,
         scope: row.getDataValue("scope") as BehaviorRow["scope"],
         integrationTypes: row.getDataValue("integrationTypes") as string,
         contexts: row.getDataValue("contexts") as string,
@@ -171,7 +189,9 @@ export class InteractionDispatcher {
           (row.getDataValue("placementGuildId") as string | null) ?? null,
         placementChannelId:
           (row.getDataValue("placementChannelId") as string | null) ?? null,
-        audienceKind: row.getDataValue("audienceKind") as BehaviorRow["audienceKind"],
+        audienceKind: row.getDataValue(
+          "audienceKind",
+        ) as BehaviorRow["audienceKind"],
         audienceUserId:
           (row.getDataValue("audienceUserId") as string | null) ?? null,
         audienceGroupName:
@@ -180,7 +200,9 @@ export class InteractionDispatcher {
         webhookSecret:
           (row.getDataValue("webhookSecret") as string | null) ?? null,
         webhookAuthMode:
-          (row.getDataValue("webhookAuthMode") as BehaviorRow["webhookAuthMode"]) ?? null,
+          (row.getDataValue(
+            "webhookAuthMode",
+          ) as BehaviorRow["webhookAuthMode"]) ?? null,
         pluginId: (row.getDataValue("pluginId") as number | null) ?? null,
         pluginBehaviorKey:
           (row.getDataValue("pluginBehaviorKey") as string | null) ?? null,
@@ -218,30 +240,72 @@ export class InteractionDispatcher {
   /**
    * system behavior（admin-login/manual/break）dispatch。
    *
-   * M0-FROZEN 註明 system seed 由 M1-C 重新設計。
-   * M1-C1：預留 stub，拋出 NotImplementedError 以明確標示「需要 M1-C2 補」。
-   * M1-C2 接線時：根據 behaviorRow.systemKey 呼叫對應的 system handler。
+   * 對齊 C-runtime §4.1：source=system 分支由此處理，不流到 WebhookForwarder。
+   * v2 system seed 已暫關（M1-C2 前，behaviors 表通常沒有 source='system' 的 row）。
+   * 若 admin 透過 M1-D 後的 admin/behaviors 建立 source='system' row，此路徑啟動。
    *
-   * 注意：此方法仍回傳 claimed=true（已宣告擁有），避免漏到後面的 layer。
+   * systemKey 對應：
+   *   admin-login → issueLoginLinkForInteraction（admin-login.service.ts）
+   *   manual      → 目前 v2 system seed 暫關，無 manual behavior row；若有，
+   *                 v2 manual 語意為「開始 continuous forward session 到特定 behavior」，
+   *                 但需要 behaviorRow 提供目標 behavior id（v2 設計 M1-D 後補），
+   *                 此版本回 ephemeral 說明暫不支援。
+   *   break       → endSession(userId)（清除 active session）
    */
   private async dispatchSystemBehavior(
     interaction: ChatInputCommandInteraction,
     behaviorRow: BehaviorRow,
   ): Promise<DispatchOutcome> {
-    // M1-C1 stub：system behavior 接線等 M1-C2
-    // 回覆 ephemeral 讓使用者知道功能暫時不可用
-    const systemKey = behaviorRow.systemKey ?? "(unknown)";
+    const systemKey = behaviorRow.systemKey;
+
+    if (systemKey === "admin-login") {
+      await issueLoginLinkForInteraction(interaction);
+      return { claimed: true, claimedBy: "behavior_system" };
+    }
+
+    if (systemKey === "break") {
+      const ended = await endSession(interaction.user.id);
+      if (ended) {
+        await interaction
+          .reply({ content: "Session 已結束。", ephemeral: true })
+          .catch(() => {});
+      } else {
+        await interaction
+          .reply({ content: "目前沒有活躍的 session。", ephemeral: true })
+          .catch(() => {});
+      }
+      return { claimed: true, claimedBy: "behavior_system" };
+    }
+
+    if (systemKey === "manual") {
+      // v2 manual behavior：v2 system seed 暫關，manual slash trigger 的 v2 實作
+      // 需要 M1-D admin UI 提供目標 behavior 設定後再補。
+      // 目前回覆說明狀態。
+      botEventLog.record(
+        "info",
+        "bot",
+        `interaction-dispatcher: system behavior 'manual' slash trigger（v2 system seed 暫關）`,
+        { commandName: interaction.commandName, userId: interaction.user.id },
+      );
+      await interaction
+        .reply({
+          content: "⚙ /manual 指令的 v2 行為設定尚待 M1-D admin UI 完成後啟用。",
+          ephemeral: true,
+        })
+        .catch(() => {});
+      return { claimed: true, claimedBy: "behavior_system" };
+    }
+
+    // 未知 systemKey（不應發生，behaviorsS 表 CHECK 約束攔截）
+    const unknownKey = systemKey ?? "(null)";
     botEventLog.record(
       "warn",
       "bot",
-      `interaction-dispatcher: system behavior '${systemKey}' 尚未在 M1-C1 實作（等 M1-C2 接線）`,
-      { commandName: interaction.commandName, systemKey },
+      `interaction-dispatcher: 未知 systemKey='${unknownKey}'，claimed=true 阻止漏到下一層`,
+      { commandName: interaction.commandName, systemKey: unknownKey },
     );
     await interaction
-      .reply({
-        content: "⚙ 此系統指令正在 v2 重構中（M1-C1），暫時不可用。",
-        ephemeral: true,
-      })
+      .reply({ content: "⚙ 未知的系統指令。", ephemeral: true })
       .catch(() => {});
     return { claimed: true, claimedBy: "behavior_system" };
   }
@@ -261,7 +325,13 @@ export class InteractionDispatcher {
     try {
       await interaction.deferReply({ ephemeral: true });
     } catch {
-      return { claimed: true, claimedBy: behaviorRow.source === "custom" ? "behavior_custom" : "behavior_plugin" };
+      return {
+        claimed: true,
+        claimedBy:
+          behaviorRow.source === "custom"
+            ? "behavior_custom"
+            : "behavior_plugin",
+      };
     }
 
     try {
@@ -272,16 +342,23 @@ export class InteractionDispatcher {
 
       if (!result.ok) {
         await interaction
-          .editReply({ content: `⚠ Behavior 轉發失敗：${result.error ?? "未知錯誤"}` })
+          .editReply({
+            content: `⚠ Behavior 轉發失敗：${result.error ?? "未知錯誤"}`,
+          })
           .catch(() => {});
         return {
           claimed: true,
-          claimedBy: behaviorRow.source === "custom" ? "behavior_custom" : "behavior_plugin",
+          claimedBy:
+            behaviorRow.source === "custom"
+              ? "behavior_custom"
+              : "behavior_plugin",
         };
       }
 
       if (result.relayContent) {
-        await interaction.editReply({ content: result.relayContent }).catch(() => {});
+        await interaction
+          .editReply({ content: result.relayContent })
+          .catch(() => {});
       } else {
         // 無回覆內容則刪除 deferred reply
         await interaction.deleteReply().catch(() => {});
@@ -301,7 +378,8 @@ export class InteractionDispatcher {
 
     return {
       claimed: true,
-      claimedBy: behaviorRow.source === "custom" ? "behavior_custom" : "behavior_plugin",
+      claimedBy:
+        behaviorRow.source === "custom" ? "behavior_custom" : "behavior_plugin",
     };
   }
 }

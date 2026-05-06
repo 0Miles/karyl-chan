@@ -13,11 +13,9 @@ import type {
   User,
 } from "discord.js";
 import {
-  ApplicationCommandType,
   ChannelType,
   Events,
   IntentsBitField,
-  InteractionContextType,
   Partials,
 } from "discord.js";
 import { Client } from "discord.js";
@@ -43,9 +41,9 @@ import {
 import { botEventLog } from "./modules/bot-events/bot-event-log.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
-// M1-A1: v1 behavior dispatch / system seed / dm-slash-rebind imports 已清除。
+// M1-C2: CommandReconciler / InteractionDispatcher / MessagePatternMatcher 接線。
 // system slash command（admin-login / manual / break）+ user-defined slash trigger
-// + DM message_pattern 由 M1-C CommandReconciler / InteractionDispatcher 接管。
+// + DM message_pattern 由這三個模組接管（取代 v1 stub 路徑）。
 import { pluginRegistry } from "./modules/plugin-system/plugin-registry.service.js";
 import {
   dispatchEventToPlugins,
@@ -55,17 +53,19 @@ import {
   pluginCommandRegistry,
   setPluginCommandBotClient,
 } from "./modules/plugin-system/plugin-command-registry.service.js";
-import { dispatchInteractionToPlugin } from "./modules/plugin-system/plugin-interaction-dispatch.service.js";
 import {
-  dispatchInProcessInteraction,
   syncInProcessCommandsForGuild,
   syncInProcessCommandsToDiscord,
 } from "./modules/builtin-features/in-process-command-registry.service.js";
 import { bootstrapInProcessFeatures } from "./bootstrap-in-process.js";
 import { bootstrapEventHandlers } from "./bootstrap-events.js";
-import { issueLoginLinkForInteraction } from "./modules/admin/admin-login.service.js";
 import { shutdownAllRconConnections } from "./modules/builtin-features/rcon-forward/rcon-forward-channel.events.js";
 import { validateMetadataCoverage } from "./config-metadata.js";
+// M1-C2 新增：command-system 三模組
+import { CommandReconciler } from "./modules/command-system/reconcile.service.js";
+import { InteractionDispatcher } from "./modules/command-system/interaction-dispatcher.service.js";
+import { WebhookForwarder } from "./modules/command-system/webhook-forwarder.service.js";
+import { MessagePatternMatcher } from "./modules/command-system/message-pattern-matcher.service.js";
 
 const log = moduleLogger("main");
 
@@ -141,6 +141,13 @@ export const bot = new Client({
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
+
+// M1-C2：command-system 三模組 singleton 初始化。
+// bot 已宣告，使用閉包安全存取（CommandReconciler.getBot 在 ready 後才被呼叫）。
+const webhookForwarder = new WebhookForwarder();
+const interactionDispatcher = new InteractionDispatcher(webhookForwarder);
+const commandReconciler = new CommandReconciler(() => bot.isReady() ? bot : null);
+const messageMatcher = new MessagePatternMatcher(webhookForwarder);
 
 let shuttingDown = false;
 const SHUTDOWN_TIMEOUT_MS = 30_000;
@@ -280,10 +287,18 @@ bot.once("ready", async () => {
   // discordx initApplicationCommands above so we don't fight over
   // the global command registry. Failures are logged inside the
   // registry, so we just await and move on.
+  // M1-C2 注：pluginCommandRegistry.reconcileAll() 已改為 DB-only（不呼叫 Discord API）
+  // 軌三 global 指令改由下方 commandReconciler.reconcileAll() 接管。
   await pluginCommandRegistry.reconcileAll();
 
-  // M1-A1: dm-slash-rebind 退場。系統 DM-only slash command 註冊
-  // 由 M1-C CommandReconciler 接管。
+  // M1-C2：CommandReconciler 接管軌二（behaviors）+ 軌三 global 指令。
+  // 繼 syncInProcessCommandsToDiscord + pluginCommandRegistry.reconcileAll 之後執行。
+  await commandReconciler.reconcileAll().catch((err: unknown) => {
+    log.error({ err }, "commandReconciler.reconcileAll failed");
+  });
+
+  // M1-C2：MessagePatternMatcher 掛載 messageCreate listener（DM behaviors）。
+  messageMatcher.register(bot);
 
   log.info({ stage: "boot" }, "bot started");
 });
@@ -305,45 +320,26 @@ bot.on("guildDelete", (guild) => {
 });
 
 bot.on("interactionCreate", async (interaction: Interaction) => {
-  // M1-A1: v1 system slash dispatch（findAllSystemBehaviors → systemKey switch）
-  // 與 user-defined slash dispatch（dispatchUserSlashBehavior）路徑已退場。
-  // M1-C 由統一的 InteractionDispatcher 接管軌二 behaviors（含 source=system/custom/plugin）。
-
-  // In-process slash commands + modal-submit handlers (the bot's
-  // own features: picture-only-channel / role-emoji / todo-channel /
-  // rcon-forward-channel and any future ones). The registry dispatches
-  // by name; returns false when nothing matched, so we fall through
-  // to plugin / discordx.
+  // M1-C2：統一的 InteractionDispatcher 接管所有 interaction dispatch。
+  // 派發順序（C-runtime §4.1）：
+  //   [1] behaviors 表 slash_command trigger（source: system / custom / plugin）
+  //   [2] plugin_commands（軌三）── plugin-interaction-dispatch.service.ts
+  //   [3] in-process registry（builtin-features）
+  //   fallback：claimed=false，log warn
   try {
-    const claimed = await dispatchInProcessInteraction(interaction);
-    if (claimed) return;
+    const outcome = await interactionDispatcher.dispatch(interaction);
+    if (!outcome.claimed && interaction.isChatInputCommand()) {
+      log.warn(
+        { commandName: interaction.commandName, reason: outcome.reason },
+        "interactionCreate: unhandled slash command",
+      );
+    }
   } catch (error) {
-    log.error({ err: error }, "in-process interaction dispatch failed");
-  }
-
-  // Plugin commands take a fast path: we look the command up in our
-  // own table first. If it's a plugin command, we defer the reply
-  // (Discord's 3-second clock starts ticking the moment the
-  // interaction arrives) and POST the interaction details to the
-  // owning plugin. The plugin calls back through
-  // /api/plugin/interactions.respond to complete the deferred reply.
-  // dispatchInteractionToPlugin returns true when it claimed it.
-  try {
-    const claimed = await dispatchInteractionToPlugin(interaction);
-    if (claimed) return;
-  } catch (error) {
-    log.error({ err: error }, "plugin interaction dispatch failed");
-  }
-  // No further fallback — system / user-slash / in-process / plugin
-  // dispatchers covered every command surface above. Anything that
-  // reaches here is an unknown command (probably a stale registration
-  // from a previous bot version still cached on Discord's side); log
-  // so we notice, but don't crash.
-  if (interaction.isChatInputCommand()) {
-    log.warn(
-      { commandName: interaction.commandName },
-      "interactionCreate: unhandled slash command",
-    );
+    log.error({ err: error }, "interactionDispatcher.dispatch failed");
+    // 硬 error 時嘗試回覆讓 Discord 不顯示「指令失敗」轉圈
+    if (interaction.isChatInputCommand() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: "⚠ 內部錯誤，請稍後再試。", ephemeral: true }).catch(() => {});
+    }
   }
 });
 

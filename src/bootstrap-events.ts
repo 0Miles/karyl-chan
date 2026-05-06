@@ -8,7 +8,9 @@ import { registerRoleEmojiEvents } from "./modules/builtin-features/role-emoji/r
 import { registerTodoChannelEvents } from "./modules/builtin-features/todo-channel/todo-channel.events.js";
 import { registerTypingStartEvents } from "./modules/dm-inbox/events/typing-start.events.js";
 import { registerVoiceStateEvents } from "./modules/bot-events/events/voice-state.events.js";
-import { registerWebhookBehaviorEvents } from "./modules/behavior/events/webhook-behavior.events.js";
+// M1-C2：webhook-behavior.events.ts 已退場。
+// DM message_pattern dispatch 改由 MessagePatternMatcher（command-system）接管，
+// 在 main.ts 的 ready handler 內呼叫 messageMatcher.register(bot)。
 
 /**
  * Single explicit registration point for every Discord event handler
@@ -32,5 +34,5 @@ export function bootstrapEventHandlers(client: Client): void {
     registerTypingStartEvents(client);
   }
   registerVoiceStateEvents(client);
-  registerWebhookBehaviorEvents(client);
+  // webhook-behavior.events.ts 已由 MessagePatternMatcher 取代（M1-C2）。
 }
