@@ -5,30 +5,36 @@ import { Icon } from '@iconify/vue';
 import Sortable from 'sortablejs';
 import BehaviorCard from './BehaviorCard.vue';
 import {
-    addGroupMember,
-    createBehavior,
-    deleteTarget,
     listBehaviors,
-    listGroupMembers,
-    removeGroupMember,
-    renameGroupTarget,
     reorderBehaviors,
-    type BehaviorGroupMember,
+    deleteTarget,
+    addGroupMember,
+    removeGroupMember,
+    listGroupMembers,
+    renameGroupTarget,
     type BehaviorRow,
-    type BehaviorTargetSummary
+    type BehaviorAudienceKind,
+    type BehaviorTargetSummary,
+    type BehaviorGroupMember,
 } from '../../../api/behavior';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
+
+/**
+ * BehaviorWorkspace v2 — M1-D1
+ *
+ * 依 D-ui §1.3/§1.4 實作：
+ * - 列出當前 audience target 下的所有 behaviors（依 sortOrder ASC）
+ * - system behaviors 固定釘頂（不在 sortable container）
+ * - custom behaviors 可拖曳排序
+ * - 各卡片依 source 顯示不同 form
+ * - 不內建 AddBehavior 邏輯（由 BehaviorsPage 透過 AddBehaviorModal 處理）
+ */
 
 const { t } = useI18n();
 
 const props = defineProps<{
     target: BehaviorTargetSummary;
     targets: BehaviorTargetSummary[];
-    /**
-     * Catalog-mutating actions (delete target, rename group, add /
-     * remove member) require `admin` or `behavior.manage`. Scoped
-     * users still see / edit behaviors but the catalog buttons hide.
-     */
     canManageCatalog?: boolean;
 }>();
 
@@ -36,7 +42,10 @@ const emit = defineEmits<{
     (e: 'target-deleted', id: number): void;
     (e: 'group-member-changed', id: number, count: number): void;
     (e: 'group-renamed', id: number, name: string): void;
+    (e: 'add-behavior'): void;
 }>();
+
+// ── behaviors 資料 ────────────────────────────────────────────────────────────
 
 const behaviors = ref<BehaviorRow[]>([]);
 const loading = ref(false);
@@ -45,67 +54,59 @@ const newlyCreatedId = ref<number | null>(null);
 const listRef = useTemplateRef<HTMLElement>('listRef');
 let sortable: Sortable | null = null;
 
-async function load(targetId: number) {
+// 依 audienceKind 對應到 API filter
+function audienceKindFromTarget(target: BehaviorTargetSummary): BehaviorAudienceKind {
+    if (target.kind === 'all_dms') return 'all';
+    if (target.kind === 'user') return 'user';
+    return 'group';
+}
+
+async function load(target: BehaviorTargetSummary) {
     loading.value = true;
     error.value = null;
     try {
-        behaviors.value = await listBehaviors(targetId);
+        // 先篩 audienceKind，再在前端依 audienceUserId/audienceGroupName 進一步過濾
+        const audienceKind = audienceKindFromTarget(target);
+        const all = await listBehaviors({ audienceKind });
+
+        if (audienceKind === 'user' && target.userId) {
+            behaviors.value = all.filter(b => b.audienceUserId === target.userId);
+        } else if (audienceKind === 'group' && target.groupName) {
+            behaviors.value = all.filter(b => b.audienceGroupName === target.groupName);
+        } else {
+            behaviors.value = all;
+        }
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
         loading.value = false;
     }
-    if (props.target.kind === 'group') void loadMembers(targetId);
+    if (target.kind === 'group') void loadMembers(target.id);
 }
 
-watch(() => props.target.id, (id) => {
+watch(() => props.target.id, () => {
     teardownSortable();
-    void load(id);
+    void load(props.target);
 }, { immediate: true });
 
-// Plugin list pre-loaded once for every BehaviorCard to use in its
-// type=plugin form (plugin select + dm_behavior key select). One
-// fetch instead of N+1 from each card. Declared up here (before the
-// kick-off call below) because function-hoisting moves the declaration
-// of `loadPlugins` to the top of the script-setup scope but does NOT
-// hoist `plugins` (it's a const) — calling loadPlugins before its
-// body's reference to `plugins` is in scope hits a TDZ at runtime.
+// ── plugin list ───────────────────────────────────────────────────────────────
+
 const plugins = ref<PluginRecord[]>([]);
-
 async function loadPlugins() {
-    try {
-        plugins.value = await listPlugins();
-    } catch {
-        // Non-fatal: cards just won't be able to switch to type=plugin
-        // until plugins is populated. Errors here aren't shown to the
-        // user — they'll see the empty plugin select.
-        plugins.value = [];
-    }
+    try { plugins.value = await listPlugins(); }
+    catch { plugins.value = []; }
 }
-
-// Load once on mount; refreshed implicitly when the workspace
-// remounts (target switch, page reload). For a long-lived session
-// newly registered plugins won't show up until reload — acceptable
-// for Phase 1.
 void loadPlugins();
 
-function teardownSortable() {
-    if (sortable) {
-        sortable.destroy();
-        sortable = null;
-    }
-}
+// ── sortable ──────────────────────────────────────────────────────────────────
 
-// Wire SortableJS once we've rendered a list. The drag-handle inside
-// each card is the only handle so a click on the title-button or form
-// fields doesn't initiate a drag. onEnd POSTs the new order to the
-// backend; on failure we revert to the server's last-known order.
-// System rows are pinned above the user list and not part of the
-// sortable container; user rows alone go through SortableJS. Reorder
-// PATCH only carries user-row ids — system rows hold their fixed
-// sortOrder server-side regardless of the patch.
-const systemBehaviors = computed(() => behaviors.value.filter(b => b.type === 'system'));
-const userBehaviors = computed(() => behaviors.value.filter(b => b.type !== 'system'));
+const systemBehaviors = computed(() => behaviors.value.filter(b => b.source === 'system'));
+const customBehaviors = computed(() => behaviors.value.filter(b => b.source === 'custom'));
+const pluginBehaviors = computed(() => behaviors.value.filter(b => b.source === 'plugin'));
+
+function teardownSortable() {
+    if (sortable) { sortable.destroy(); sortable = null; }
+}
 
 async function ensureSortable() {
     teardownSortable();
@@ -117,16 +118,17 @@ async function ensureSortable() {
         onEnd: async (evt) => {
             const { oldIndex, newIndex } = evt;
             if (oldIndex == null || newIndex == null || oldIndex === newIndex) return;
-            // Reorder operates on the user-only list; the sortable
-            // container only contains user rows so oldIndex / newIndex
-            // are already user-list indices.
-            const userList = userBehaviors.value.slice();
-            const [moved] = userList.splice(oldIndex, 1);
-            userList.splice(newIndex, 0, moved);
+            const list = customBehaviors.value.slice();
+            const [moved] = list.splice(oldIndex, 1);
+            list.splice(newIndex, 0, moved);
             const previous = behaviors.value;
-            behaviors.value = [...systemBehaviors.value, ...userList];
+            behaviors.value = [
+                ...systemBehaviors.value,
+                ...pluginBehaviors.value,
+                ...list,
+            ];
             try {
-                await reorderBehaviors(props.target.id, userList.map(b => b.id));
+                await reorderBehaviors(list.map(b => b.id));
             } catch (err) {
                 error.value = err instanceof Error ? err.message : String(err);
                 behaviors.value = previous;
@@ -142,42 +144,13 @@ watch(behaviors, async () => {
 
 onBeforeUnmount(teardownSortable);
 
-async function onAddBehavior() {
-    if (loading.value) return;
-    error.value = null;
-    try {
-        // Always create as type='webhook' with placeholder URL. The
-        // user picks webhook vs plugin inside the new card; switching
-        // to plugin is a PATCH that swaps the URL placeholder + sets
-        // pluginId/pluginBehaviorKey atomically.
-        const created = await createBehavior(props.target.id, {
-            title: t('behaviors.workspace.newBehaviorDefaultTitle'),
-            description: '',
-            triggerType: 'startswith',
-            triggerValue: '!',
-            forwardType: 'one_time',
-            webhookUrl: 'https://discord.com/api/webhooks/REPLACE-ME',
-            type: 'webhook',
-        });
-        behaviors.value = [...behaviors.value, created];
-        newlyCreatedId.value = created.id;
-    } catch (err) {
-        error.value = err instanceof Error ? err.message : String(err);
-    }
-}
+// ── event handlers ────────────────────────────────────────────────────────────
 
 function onUpdated(row: BehaviorRow) {
     behaviors.value = behaviors.value.map(b => b.id === row.id ? row : b);
 }
 
 function onDeleted(id: number) {
-    behaviors.value = behaviors.value.filter(b => b.id !== id);
-}
-
-function onMoved(id: number, _newTargetId: number) {
-    // The behavior left this target — drop it from the local list. The
-    // sidebar selection stays where it is; the user explicitly chose to
-    // move the rule, so refreshing the new target's list isn't needed.
     behaviors.value = behaviors.value.filter(b => b.id !== id);
 }
 
@@ -195,7 +168,7 @@ async function onDeleteTarget() {
     }
 }
 
-// ───────────────────── group-member section ─────────────────────
+// ── group member section ──────────────────────────────────────────────────────
 
 const members = ref<BehaviorGroupMember[]>([]);
 const memberInput = ref('');
@@ -204,17 +177,12 @@ const renameDraft = ref('');
 const renaming = ref(false);
 
 async function loadMembers(targetId: number) {
-    try {
-        members.value = await listGroupMembers(targetId);
-    } catch (err) {
-        memberError.value = err instanceof Error ? err.message : String(err);
-    }
+    try { members.value = await listGroupMembers(targetId); }
+    catch (err) { memberError.value = err instanceof Error ? err.message : String(err); }
 }
 
 watch(() => props.target, (next) => {
-    if (next.kind === 'group') {
-        renameDraft.value = next.groupName ?? '';
-    }
+    if (next.kind === 'group') renameDraft.value = next.groupName ?? '';
 }, { immediate: true });
 
 async function onAddMember() {
@@ -278,7 +246,7 @@ const headerTitle = computed(() => {
                 <template v-else>{{ t('behaviors.workspace.kindGroup') }}</template>
             </span>
             <span class="spacer" />
-            <button type="button" class="primary" :disabled="loading" @click="onAddBehavior">
+            <button type="button" class="primary" :disabled="loading" @click="emit('add-behavior')">
                 <Icon icon="material-symbols:add-rounded" width="16" height="16" />
                 {{ t('behaviors.workspace.addBehavior') }}
             </button>
@@ -293,6 +261,7 @@ const headerTitle = computed(() => {
             </button>
         </header>
 
+        <!-- group rename + members -->
         <section v-if="target.kind === 'group' && canManageCatalog" class="group-section">
             <div class="rename-row">
                 <label class="field">
@@ -308,7 +277,6 @@ const headerTitle = computed(() => {
                     </div>
                 </label>
             </div>
-
             <details class="members-details">
                 <summary>{{ t('behaviors.workspace.membersToggle', { count: members.length }) }}</summary>
                 <form class="add-member-row" @submit.prevent="onAddMember">
@@ -326,9 +294,7 @@ const headerTitle = computed(() => {
                     <li v-for="m in members" :key="m.userId">
                         <img v-if="m.profile?.avatarUrl" :src="m.profile.avatarUrl" alt="" class="m-avatar" />
                         <div v-else class="m-avatar fallback">?</div>
-                        <span class="m-name">
-                            {{ m.profile?.globalName ?? m.profile?.username ?? m.userId }}
-                        </span>
+                        <span class="m-name">{{ m.profile?.globalName ?? m.profile?.username ?? m.userId }}</span>
                         <span class="m-id">{{ m.userId }}</span>
                         <button type="button" class="icon-btn danger" :title="t('common.remove')" @click="onRemoveMember(m.userId)">
                             <Icon icon="material-symbols:close-rounded" width="16" height="16" />
@@ -347,32 +313,38 @@ const headerTitle = computed(() => {
         </p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-        <!-- System rows sit above the sortable container — pinned, not
-             draggable, no delete. Render them in a separate v-for so
-             SortableJS (attached to listRef below) only sees user rows
-             and indices stay aligned with the reorder PATCH payload. -->
-        <div v-if="systemBehaviors.length > 0" class="system-list card-list">
+        <!-- system behaviors（固定釘頂，不可拖曳）-->
+        <div v-if="systemBehaviors.length > 0" class="card-list">
             <BehaviorCard
                 v-for="b in systemBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :targets="targets"
                 :plugins="plugins"
                 @updated="onUpdated"
             />
         </div>
 
-        <div ref="listRef" class="card-list">
+        <!-- plugin behaviors（固定，不可拖曳）-->
+        <div v-if="pluginBehaviors.length > 0" class="card-list">
             <BehaviorCard
-                v-for="b in userBehaviors"
+                v-for="b in pluginBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :targets="targets"
+                :plugins="plugins"
+                @updated="onUpdated"
+            />
+        </div>
+
+        <!-- custom behaviors（可拖曳排序）-->
+        <div ref="listRef" class="card-list">
+            <BehaviorCard
+                v-for="b in customBehaviors"
+                :key="b.id"
+                :behavior="b"
                 :plugins="plugins"
                 :initially-open="newlyCreatedId === b.id"
                 @updated="onUpdated"
                 @deleted="onDeleted"
-                @moved="onMoved"
             />
         </div>
     </section>
@@ -440,20 +412,9 @@ button.danger.ghost {
     border: 1px solid var(--border);
     border-radius: var(--radius-base);
 }
-.rename-row .field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-.label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-weight: 600;
-}
-.rename-controls {
-    display: flex;
-    gap: 0.4rem;
-}
+.rename-row .field { display: flex; flex-direction: column; gap: 0.25rem; }
+.label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+.rename-controls { display: flex; gap: 0.4rem; }
 .rename-controls input {
     flex: 1;
     padding: 0.45rem 0.6rem;
@@ -469,11 +430,7 @@ button.danger.ghost {
     color: var(--text-muted);
     padding: 0.25rem 0;
 }
-.add-member-row {
-    display: flex;
-    gap: 0.4rem;
-    margin-top: 0.4rem;
-}
+.add-member-row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
 .add-member-row input {
     flex: 1;
     padding: 0.45rem 0.6rem;
@@ -501,49 +458,25 @@ button.danger.ghost {
     border: 1px solid var(--border);
 }
 .m-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    object-fit: cover;
-    flex-shrink: 0;
+    width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
 }
 .m-avatar.fallback {
     background: var(--accent);
     color: var(--text-on-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 600;
 }
 .m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .m-id { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; }
 .icon-btn {
-    background: none;
-    border: 1px solid transparent;
-    color: var(--text-muted);
-    padding: 0.2rem;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    background: none; border: 1px solid transparent; color: var(--text-muted);
+    padding: 0.2rem; border-radius: var(--radius-sm); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-btn.danger:hover {
-    color: var(--danger);
-    border-color: rgba(239, 68, 68, 0.35);
-}
-
-.card-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
+.icon-btn.danger:hover { color: var(--danger); border-color: rgba(239,68,68,0.35); }
+.card-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .muted { color: var(--text-muted); }
 .loading, .empty { padding: 1rem; text-align: center; }
 .error { color: var(--danger); margin: 0; font-size: 0.9rem; }
-
-:deep(.sortable-ghost) {
-    opacity: 0.4;
-}
+:deep(.sortable-ghost) { opacity: 0.4; }
 </style>

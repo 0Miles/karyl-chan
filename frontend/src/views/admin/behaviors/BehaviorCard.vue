@@ -5,27 +5,39 @@ import { Icon } from '@iconify/vue';
 import AppMenu from '../../../components/AppMenu.vue';
 import AppMenuItem from '../../../components/AppMenuItem.vue';
 import AppSelectField from '../../../components/AppSelectField.vue';
+import BehaviorSourceNotice from './BehaviorSourceNotice.vue';
 import {
-    type BehaviorForwardType,
-    type BehaviorPatch,
     type BehaviorRow,
-    type BehaviorTargetSummary,
+    type BehaviorSource,
     type BehaviorTriggerType,
-    type BehaviorType,
+    type BehaviorForwardType,
+    type BehaviorScope,
+    type BehaviorWebhookAuthMode,
+    type BehaviorPatchPayload,
+    updateBehavior,
     deleteBehavior,
-    updateBehavior
 } from '../../../api/behavior';
 import type { PluginRecord } from '../../../api/plugins';
+
+/**
+ * BehaviorCard v2 — M1-D1
+ *
+ * 三種 source 的條件分支（custom / plugin / system）：
+ * - 左側 3px source-bar 色條（custom=accent / plugin=紫 / system=muted）
+ * - trigger-badge pill（slash / pattern）
+ * - source-badge（custom 不顯示 / plugin 顯示 plugin name / system 顯示鎖）
+ * - drag-handle 只 custom 可用
+ * - custom：完全可編輯
+ * - plugin：只可編輯三軸 / audience / enabled / webhookSecret + mode
+ * - system：只可編輯 trigger value + enabled
+ * - webhookAuthMode UI（CR-2）：source=custom + webhookSecret 有值時顯示 mode select
+ */
 
 const { t } = useI18n();
 
 const props = defineProps<{
     behavior: BehaviorRow;
-    targets: BehaviorTargetSummary[];
-    /** Pre-loaded plugin list from the parent so the type=plugin form
-     *  has a select to populate without each card N+1-fetching. */
     plugins?: PluginRecord[];
-    /** Initial expanded state — true for newly added cards. */
     initiallyOpen?: boolean;
 }>();
 
@@ -33,26 +45,50 @@ const emit = defineEmits<{
     (e: 'updated', row: BehaviorRow): void;
     (e: 'deleted', id: number): void;
     (e: 'toggle', open: boolean): void;
-    (e: 'moved', behaviorId: number, newTargetId: number): void;
 }>();
 
 const open = ref(!!props.initiallyOpen);
 
-// Local editable copy. We never mutate `props.behavior` directly so the
-// parent stays in control of the canonical list — `updated` emit hands
-// the saved row back up.
+// ── source 計算屬性 ───────────────────────────────────────────────────────────
+
+const isCustom = computed(() => props.behavior.source === 'custom');
+const isPlugin = computed(() => props.behavior.source === 'plugin');
+const isSystem = computed(() => props.behavior.source === 'system');
+
+// ── 找出 plugin 資訊 ──────────────────────────────────────────────────────────
+
+const linkedPlugin = computed(() =>
+    (props.plugins ?? []).find(p => p.id === props.behavior.pluginId) ?? null
+);
+
+// ── draft（可編輯欄位）────────────────────────────────────────────────────────
+
 interface Draft {
+    // 共同
     title: string;
     description: string;
-    triggerType: BehaviorTriggerType;
-    triggerValue: string;
+    enabled: boolean;
     forwardType: BehaviorForwardType;
     stopOnMatch: boolean;
-    targetId: number;
+    // trigger（custom 全可改；system 只能改 value；plugin 唯讀）
+    triggerType: BehaviorTriggerType;
+    messagePatternKind: string;
+    messagePatternValue: string;
+    slashCommandName: string;
+    slashCommandDescription: string;
+    // 三軸（custom + plugin 可改；system 唯讀）
+    scope: BehaviorScope;
+    integrationTypes: string;
+    contexts: string;
+    // audience（custom + plugin 可改）
+    audienceKind: string;
+    audienceUserId: string;
+    audienceGroupName: string;
+    // webhook（custom 全可改；plugin 只能改 secret/mode）
     webhookUrl: string;
-    /** Empty = no signing (clear). Server stores AES-encrypted; UI shows plaintext. */
     webhookSecret: string;
-    type: BehaviorType;
+    webhookAuthMode: BehaviorWebhookAuthMode | '';
+    // plugin routing（custom 可改）
     pluginId: number | null;
     pluginBehaviorKey: string;
 }
@@ -61,17 +97,23 @@ function draftFrom(row: BehaviorRow): Draft {
     return {
         title: row.title,
         description: row.description,
-        triggerType: row.triggerType,
-        triggerValue: row.triggerValue,
+        enabled: row.enabled,
         forwardType: row.forwardType,
         stopOnMatch: row.stopOnMatch,
-        targetId: row.targetId,
-        // For type='plugin' rows the URL field holds a "plugin://…"
-        // placeholder. Hide it from the user when the form switches
-        // back to 'webhook' by zeroing here so they can type a real URL.
-        webhookUrl: row.type === 'plugin' ? '' : row.webhookUrl,
+        triggerType: row.triggerType,
+        messagePatternKind: row.messagePatternKind ?? 'startswith',
+        messagePatternValue: row.messagePatternValue ?? '',
+        slashCommandName: row.slashCommandName ?? '',
+        slashCommandDescription: row.slashCommandDescription ?? '',
+        scope: row.scope,
+        integrationTypes: row.integrationTypes,
+        contexts: row.contexts,
+        audienceKind: row.audienceKind,
+        audienceUserId: row.audienceUserId ?? '',
+        audienceGroupName: row.audienceGroupName ?? '',
+        webhookUrl: row.webhookUrl ?? '',
         webhookSecret: row.webhookSecret ?? '',
-        type: row.type,
+        webhookAuthMode: row.webhookAuthMode ?? '',
         pluginId: row.pluginId,
         pluginBehaviorKey: row.pluginBehaviorKey ?? '',
     };
@@ -81,224 +123,129 @@ const draft = reactive<Draft>(draftFrom(props.behavior));
 const saving = ref(false);
 const error = ref<string | null>(null);
 
-// `enabled` is intentionally NOT part of `draft`. The toggle has its
-// own immediate PATCH path and must not be coupled to the Save button's
-// patch payload — otherwise flipping the toggle and pressing Save before
-// the toggle's PATCH lands pushes a stale value back to the server.
-// `enabledLocal` is the single source of truth for the toggle UI;
-// `props.behavior.enabled` is reconciled into it via the watch below.
 const enabledLocal = ref(props.behavior.enabled);
 
 watch(() => props.behavior, (next) => {
     Object.assign(draft, draftFrom(next));
 });
-
-// Keep the toggle reconciled to server truth whenever the prop's
-// `enabled` actually changes. This watches the primitive directly
-// (not the prop reference) so it fires even if the parent mutates the
-// row in place — and stays quiet during in-flight optimistic flips
-// (the parent only re-emits AFTER the PATCH lands, by which point
-// `next` matches what we already wrote).
 watch(() => props.behavior.enabled, (next) => {
     enabledLocal.value = next;
 });
 
-// System behaviors are bot-built-in fixtures (admin-login etc.).
-// Most fields are locked from edit; only triggerType / triggerValue
-// / enabled are user-controllable. Drag handle, delete menu, and
-// move-target select are hidden in the template.
-const isSystem = computed(() => props.behavior.type === 'system');
+// ── select options ────────────────────────────────────────────────────────────
 
-// Plugins offering at least one dm_behavior (eligible for selection
-// in this card). Inactive / disabled / no-dm-behavior plugins are
-// omitted so the user can't pick a routing target that won't fire.
+const triggerTypeOptions = computed(() => [
+    { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
+    { value: 'message_pattern' as BehaviorTriggerType, label: t('behaviors.card.triggerPattern') },
+]);
+
+const messagePatternKindOptions = [
+    { value: 'startswith', label: t('behaviors.card.triggerStartsWith') },
+    { value: 'endswith', label: t('behaviors.card.triggerEndsWith') },
+    { value: 'regex', label: t('behaviors.card.triggerRegex') },
+];
+
+const forwardTypeOptions = computed(() => [
+    { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },
+    { value: 'continuous' as BehaviorForwardType, label: t('behaviors.card.forwardContinuous') },
+]);
+
+const scopeOptions = [
+    { value: 'global' as BehaviorScope, label: 'global' },
+    { value: 'guild' as BehaviorScope, label: 'guild' },
+];
+
+const webhookAuthModeOptions = computed(() => [
+    { value: 'token' as BehaviorWebhookAuthMode, label: 'Token' },
+    { value: 'hmac' as BehaviorWebhookAuthMode, label: 'HMAC' },
+]);
+
+// plugin options（custom 路徑的 plugin routing）
 const eligiblePlugins = computed(() =>
     (props.plugins ?? []).filter(p =>
         p.enabled && p.status === 'active' && (p.manifest?.dm_behaviors?.length ?? 0) > 0
     )
 );
-
+const pluginOptions = computed(() =>
+    eligiblePlugins.value.map(p => ({ value: p.id, label: `${p.name} (v${p.version})` }))
+);
 const selectedPlugin = computed(() =>
     eligiblePlugins.value.find(p => p.id === draft.pluginId) ?? null
 );
-
-const dmBehaviorChoices = computed(() => selectedPlugin.value?.manifest?.dm_behaviors ?? []);
-
-// Whether the currently-picked plugin dm_behavior advertises support
-// for continuous sessions in its manifest. Drives forwardType field
-// visibility — if the plugin can't run a continuous session,
-// forwardType is fixed to one_time and hidden from the form.
-const selectedDmBehaviorSupportsContinuous = computed(() => {
-    if (draft.type !== 'plugin') return true;
-    if (!draft.pluginBehaviorKey) return false;
-    const b = dmBehaviorChoices.value.find(x => x.key === draft.pluginBehaviorKey);
-    return !!b?.supports_continuous;
-});
-
-const dirty = computed(() => {
-    const b = props.behavior;
-    // System rows are field-locked except for trigger and enabled.
-    // enabled has its own toggle path; only trigger* gets the Save
-    // button.
-    if (b.type === 'system') {
-        return draft.triggerType !== b.triggerType
-            || draft.triggerValue !== b.triggerValue;
-    }
-    // Type / plugin fields are part of dirtiness so a freshly added
-    // webhook card switched to plugin (without other changes) still
-    // lights up the Save button.
-    if (draft.type !== b.type) return true;
-    if (draft.type === 'plugin') {
-        if ((draft.pluginId ?? null) !== (b.pluginId ?? null)) return true;
-        if ((draft.pluginBehaviorKey || '') !== (b.pluginBehaviorKey ?? '')) return true;
-    }
-    if (draft.type === 'webhook') {
-        // Compare against the encrypted-then-decrypted prop value
-        // exactly the same way pre-plugin code did.
-        if (draft.webhookUrl !== b.webhookUrl) return true;
-        if (draft.webhookSecret !== (b.webhookSecret ?? '')) return true;
-    }
-    return draft.title !== b.title
-        || draft.description !== b.description
-        || draft.triggerType !== b.triggerType
-        || draft.triggerValue !== b.triggerValue
-        || draft.forwardType !== b.forwardType
-        || draft.stopOnMatch !== b.stopOnMatch
-        || draft.targetId !== b.targetId;
-});
-
-// Auto-pick the first eligible plugin / first dm_behavior so the form
-// lands ready-to-save when the user switches to Plugin type. Watching
-// `eligiblePlugins` (not just `draft.type`) means the auto-pick also
-// fires when the parent's plugin fetch resolves AFTER the type
-// switch — without this, switching to Plugin while the list is still
-// loading leaves both selects empty forever.
-function autoPickPlugin() {
-    if (draft.type !== 'plugin') return;
-    if (draft.pluginId != null) return;
-    const first = eligiblePlugins.value[0];
-    if (!first) return;
-    draft.pluginId = first.id;
-    const behavior = first.manifest?.dm_behaviors?.[0];
-    draft.pluginBehaviorKey = behavior?.key ?? '';
-}
-watch(() => draft.type, autoPickPlugin);
-watch(eligiblePlugins, autoPickPlugin, { deep: true });
-
-watch(() => draft.pluginId, () => {
-    // After picking a different plugin, default to its first
-    // dm_behavior. User can then narrow if multiple.
-    const first = dmBehaviorChoices.value[0];
-    if (first && !dmBehaviorChoices.value.some(b => b.key === draft.pluginBehaviorKey)) {
-        draft.pluginBehaviorKey = first.key;
-    }
-});
-
-// If the picked plugin behavior doesn't support continuous, force
-// the persisted forwardType back to one_time. Without this, a row
-// previously configured continuous on a webhook then switched to a
-// no-continuous plugin would dispatch trying to start sessions.
-watch(selectedDmBehaviorSupportsContinuous, (supports) => {
-    if (!supports && draft.forwardType === 'continuous') {
-        draft.forwardType = 'one_time';
-    }
-});
-
-// (Previously this watcher coerced slash_command → startswith when
-// the user switched type=webhook → plugin, because the dispatcher
-// didn't route the plugin case. The user-slash-behavior service now
-// handles type=plugin + slash_command on the all_dms target — both
-// types are valid there, so the auto-coerce is no longer needed.)
-
-// Option lists for AppSelectField (it wants {value,label}[]).
-const typeOptions = computed(() => {
-    if (isSystem.value) {
-        // System rows display a single read-only "system" option so the
-        // selector visibly reflects the locked state without crashing
-        // AppSelectField (it requires the model value to be present).
-        return [{ value: 'system' as BehaviorType, label: t('behaviors.card.behaviorTypeSystem') }];
-    }
-    return [
-        { value: 'webhook' as BehaviorType, label: t('behaviors.card.behaviorTypeWebhook') },
-        { value: 'plugin' as BehaviorType, label: t('behaviors.card.behaviorTypePlugin') },
-    ];
-});
-const isAllDmsTarget = computed(() => {
-    const target = props.targets.find(t2 => t2.id === draft.targetId);
-    return target?.kind === 'all_dms';
-});
-const triggerTypeOptions = computed(() => {
-    const all = [
-        { value: 'startswith' as BehaviorTriggerType, label: t('behaviors.card.triggerStartsWith') },
-        { value: 'endswith' as BehaviorTriggerType, label: t('behaviors.card.triggerEndsWith') },
-        { value: 'regex' as BehaviorTriggerType, label: t('behaviors.card.triggerRegex') },
-        { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.card.triggerSlashCommand') },
-    ];
-    // System rows always show the option — their target is locked to
-    // all_dms anyway and the option label is what the admin edits.
-    if (isSystem.value) return all;
-    // slash_command only valid on the all_dms target. Discord DM
-    // commands are inherently global on Discord's side (no per-user
-    // visibility scope), so a user / group target row would expose
-    // the command to people outside the intended audience. Backend
-    // POST/PATCH rejects this combination too. Both type=webhook and
-    // type=plugin are allowed on all_dms — the user-slash-behavior
-    // dispatcher routes both through the same primitives the
-    // messageCreate path uses.
-    if (!isAllDmsTarget.value) {
-        return all.filter(o => o.value !== 'slash_command');
-    }
-    return all;
-});
-// Auto-coerce the trigger type if the user moves a slash_command
-// behavior to a non-all_dms target — the backend would reject the
-// save, this avoids an obviously-broken intermediate form state.
-watch(() => draft.targetId, () => {
-    if (
-        draft.triggerType === 'slash_command' &&
-        !isAllDmsTarget.value &&
-        !isSystem.value
-    ) {
-        draft.triggerType = 'startswith';
-    }
-});
-const forwardTypeOptions = computed(() => [
-    { value: 'one_time' as BehaviorForwardType, label: t('behaviors.card.forwardOneTime') },
-    { value: 'continuous' as BehaviorForwardType, label: t('behaviors.card.forwardContinuous') },
-]);
-const targetOptions = computed(() => props.targets.map(t2 => ({
-    value: t2.id,
-    label: t2.kind === 'all_dms'
-        ? t('behaviors.sidebar.allDms')
-        : t2.kind === 'user'
-            ? (t2.profile?.globalName ?? t2.profile?.username ?? t2.userId ?? '?')
-            : (t2.groupName ?? '?'),
-})));
-const pluginOptions = computed(() =>
-    eligiblePlugins.value.map(p => ({
-        value: p.id,
-        label: `${p.name} (v${p.version})`,
-    }))
-);
 const dmBehaviorOptions = computed(() =>
-    dmBehaviorChoices.value.map(b => ({
+    (selectedPlugin.value?.manifest?.dm_behaviors ?? []).map(b => ({
         value: b.key,
         label: b.description ? `${b.name} — ${b.description}` : b.name,
     }))
 );
 
+// webhookAuthMode 顯示條件（CR-2）：source=custom + webhookSecret 有值
+const showAuthModeSelect = computed(() =>
+    isCustom.value && draft.webhookSecret.length > 0
+);
+
+// ── trigger summary（卡片頭部）───────────────────────────────────────────────
+
 const triggerSummary = computed(() => {
-    const v = props.behavior.triggerValue;
+    const b = props.behavior;
+    if (b.triggerType === 'slash_command') {
+        return t('behaviors.card.previewSlashCommand', { value: b.slashCommandName ?? '' });
+    }
+    const v = b.messagePatternValue ?? '';
     const truncated = v.length > 40 ? `${v.slice(0, 37)}…` : v;
-    // Per-trigger preview line — explicit cases for every triggerType
-    // because the fallthrough below will mislabel anything new (the
-    // previous default was 'regex', which made slash_command rows
-    // display as "regex: foo" in the list view).
-    if (props.behavior.triggerType === 'startswith') return t('behaviors.card.previewStartsWith', { value: truncated });
-    if (props.behavior.triggerType === 'endswith') return t('behaviors.card.previewEndsWith', { value: truncated });
-    if (props.behavior.triggerType === 'slash_command') return t('behaviors.card.previewSlashCommand', { value: truncated });
+    if (b.messagePatternKind === 'startswith') return t('behaviors.card.previewStartsWith', { value: truncated });
+    if (b.messagePatternKind === 'endswith') return t('behaviors.card.previewEndsWith', { value: truncated });
     return t('behaviors.card.previewRegex', { value: truncated });
 });
+
+// ── dirty 計算 ────────────────────────────────────────────────────────────────
+
+const dirty = computed(() => {
+    const b = props.behavior;
+    if (isSystem.value) {
+        if (b.triggerType === 'slash_command') {
+            return draft.slashCommandName !== (b.slashCommandName ?? '');
+        }
+        return draft.messagePatternValue !== (b.messagePatternValue ?? '');
+    }
+    if (isPlugin.value) {
+        return (
+            draft.scope !== b.scope ||
+            draft.integrationTypes !== b.integrationTypes ||
+            draft.contexts !== b.contexts ||
+            draft.audienceKind !== b.audienceKind ||
+            draft.audienceUserId !== (b.audienceUserId ?? '') ||
+            draft.audienceGroupName !== (b.audienceGroupName ?? '') ||
+            draft.webhookSecret !== (b.webhookSecret ?? '') ||
+            draft.webhookAuthMode !== (b.webhookAuthMode ?? '')
+        );
+    }
+    // custom
+    return (
+        draft.title !== b.title ||
+        draft.description !== b.description ||
+        draft.triggerType !== b.triggerType ||
+        draft.messagePatternKind !== (b.messagePatternKind ?? 'startswith') ||
+        draft.messagePatternValue !== (b.messagePatternValue ?? '') ||
+        draft.slashCommandName !== (b.slashCommandName ?? '') ||
+        draft.slashCommandDescription !== (b.slashCommandDescription ?? '') ||
+        draft.scope !== b.scope ||
+        draft.integrationTypes !== b.integrationTypes ||
+        draft.contexts !== b.contexts ||
+        draft.audienceKind !== b.audienceKind ||
+        draft.audienceUserId !== (b.audienceUserId ?? '') ||
+        draft.audienceGroupName !== (b.audienceGroupName ?? '') ||
+        draft.webhookUrl !== (b.webhookUrl ?? '') ||
+        draft.webhookSecret !== (b.webhookSecret ?? '') ||
+        draft.webhookAuthMode !== (b.webhookAuthMode ?? '') ||
+        draft.forwardType !== b.forwardType ||
+        draft.stopOnMatch !== b.stopOnMatch ||
+        (draft.pluginId ?? null) !== (b.pluginId ?? null) ||
+        draft.pluginBehaviorKey !== (b.pluginBehaviorKey ?? '')
+    );
+});
+
+// ── toggle enabled ────────────────────────────────────────────────────────────
 
 function toggleOpen() {
     open.value = !open.value;
@@ -306,7 +253,7 @@ function toggleOpen() {
 }
 
 async function onToggleEnabled() {
-    if (saving.value) return;
+    if (saving.value || isSystem.value) return;
     const next = !enabledLocal.value;
     enabledLocal.value = next;
     saving.value = true;
@@ -322,115 +269,113 @@ async function onToggleEnabled() {
     }
 }
 
+// ── save ──────────────────────────────────────────────────────────────────────
+
 async function onSave() {
     if (saving.value) return;
     error.value = null;
-    if (!draft.title.trim()) {
-        error.value = t('behaviors.card.titleRequired');
-        return;
-    }
-    if (!draft.triggerValue.trim()) {
-        error.value = t('behaviors.card.triggerValueRequired');
-        return;
-    }
-    if (draft.triggerType === 'regex') {
-        try { new RegExp(draft.triggerValue); } catch {
-            error.value = t('behaviors.card.regexInvalid');
-            return;
-        }
-    }
-    // Type-specific validation. Webhook needs a real URL; plugin needs
-    // both pluginId and a behavior key declared by that plugin's
-    // manifest. Server re-validates so this is just for fast UX
-    // feedback — invalid form doesn't issue a doomed PATCH.
-    if (draft.type === 'webhook' && !draft.webhookUrl.trim()) {
-        error.value = t('behaviors.card.webhookUrlRequired');
-        return;
-    }
-    if (draft.type === 'plugin') {
-        if (draft.pluginId == null) {
-            error.value = t('behaviors.card.pluginRequired');
-            return;
-        }
-        if (!draft.pluginBehaviorKey) {
-            error.value = t('behaviors.card.pluginBehaviorKeyRequired');
-            return;
-        }
-    }
-    // System rows are locked to trigger* + enabled; build the
-    // narrowest possible patch and short-circuit the rest of the
-    // save path so we never accidentally send a forbidden field.
-    if (isSystem.value) {
-        const patch: BehaviorPatch = {};
-        if (draft.triggerType !== props.behavior.triggerType) patch.triggerType = draft.triggerType;
-        if (draft.triggerValue !== props.behavior.triggerValue) patch.triggerValue = draft.triggerValue;
-        if (Object.keys(patch).length === 0) return;
-        saving.value = true;
-        try {
-            const updated = await updateBehavior(props.behavior.id, patch);
-            emit('updated', updated);
-        } catch (err) {
-            error.value = err instanceof Error ? err.message : String(err);
-        } finally {
-            saving.value = false;
-        }
-        return;
-    }
     saving.value = true;
+
     try {
-        const movedTarget = draft.targetId !== props.behavior.targetId ? draft.targetId : null;
-        const patch: BehaviorPatch = {
-            title: draft.title.trim(),
-            description: draft.description,
-            triggerType: draft.triggerType,
-            triggerValue: draft.triggerValue,
-            forwardType: draft.forwardType,
-            stopOnMatch: draft.stopOnMatch,
-            targetId: draft.targetId,
-        };
-        // Send `type` only when it changed — saves an unnecessary
-        // type-switch round trip on routine edits.
-        const typeChanged = draft.type !== props.behavior.type;
-        if (typeChanged) {
-            patch.type = draft.type;
-        }
-        if (draft.type === 'webhook') {
-            // Always include URL on type-change to webhook (server
-            // demands it when leaving plugin); on same-type save send
-            // it only if changed (legacy behavior).
-            if (typeChanged || draft.webhookUrl !== props.behavior.webhookUrl) {
-                patch.webhookUrl = draft.webhookUrl.trim();
+        let patch: BehaviorPatchPayload = {};
+
+        if (isSystem.value) {
+            // system：只更新 trigger value
+            if (props.behavior.triggerType === 'slash_command') {
+                patch.slashCommandName = draft.slashCommandName.trim();
+            } else {
+                patch.messagePatternValue = draft.messagePatternValue.trim();
             }
-            // `enabled` is intentionally NOT touched by Save — the toggle
-            // owns it through its own PATCH path.
-            const currentSecret = props.behavior.webhookSecret ?? '';
-            if (draft.webhookSecret !== currentSecret) {
+        } else if (isPlugin.value) {
+            // plugin：三軸 + audience + webhookSecret/webhookAuthMode
+            patch = {
+                scope: draft.scope,
+                integrationTypes: draft.integrationTypes,
+                contexts: draft.contexts,
+                audienceKind: draft.audienceKind as BehaviorRow['audienceKind'],
+                audienceUserId: draft.audienceKind === 'user' ? (draft.audienceUserId.trim() || null) : null,
+                audienceGroupName: draft.audienceKind === 'group' ? (draft.audienceGroupName.trim() || null) : null,
+            };
+            if (draft.webhookSecret !== (props.behavior.webhookSecret ?? '')) {
                 patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+                if (draft.webhookSecret.length > 0) {
+                    patch.webhookAuthMode = (draft.webhookAuthMode as BehaviorWebhookAuthMode) || 'token';
+                }
             }
         } else {
-            // type === 'plugin'. Always include pluginId + key when
-            // type changed (mandatory on PATCH); on same-type save
-            // include only if changed.
-            const pluginChanged =
-                draft.pluginId !== props.behavior.pluginId ||
-                draft.pluginBehaviorKey !== (props.behavior.pluginBehaviorKey ?? '');
-            if (typeChanged || pluginChanged) {
+            // custom：全欄位
+            if (!draft.title.trim()) {
+                error.value = t('behaviors.card.titleRequired');
+                return;
+            }
+            patch = {
+                title: draft.title.trim(),
+                description: draft.description,
+                triggerType: draft.triggerType,
+                scope: draft.scope,
+                integrationTypes: draft.integrationTypes,
+                contexts: draft.contexts,
+                audienceKind: draft.audienceKind as BehaviorRow['audienceKind'],
+                audienceUserId: draft.audienceKind === 'user' ? (draft.audienceUserId.trim() || null) : null,
+                audienceGroupName: draft.audienceKind === 'group' ? (draft.audienceGroupName.trim() || null) : null,
+                forwardType: draft.forwardType,
+                stopOnMatch: draft.stopOnMatch,
+            };
+            if (draft.triggerType === 'slash_command') {
+                if (!draft.slashCommandName.trim()) {
+                    error.value = t('behaviors.card.triggerValueRequired');
+                    return;
+                }
+                patch.slashCommandName = draft.slashCommandName.trim();
+                patch.slashCommandDescription = draft.slashCommandDescription;
+                patch.messagePatternKind = null;
+                patch.messagePatternValue = null;
+            } else {
+                if (!draft.messagePatternValue.trim()) {
+                    error.value = t('behaviors.card.triggerValueRequired');
+                    return;
+                }
+                if (draft.messagePatternKind === 'regex') {
+                    try { new RegExp(draft.messagePatternValue); } catch {
+                        error.value = t('behaviors.card.regexInvalid');
+                        return;
+                    }
+                }
+                patch.messagePatternKind = draft.messagePatternKind as BehaviorRow['messagePatternKind'];
+                patch.messagePatternValue = draft.messagePatternValue.trim();
+                patch.slashCommandName = null;
+                patch.slashCommandDescription = null;
+            }
+            // webhookUrl / secret（custom 路徑用 webhookUrl 直接設定）
+            if (draft.webhookUrl !== (props.behavior.webhookUrl ?? '')) {
+                patch.webhookUrl = draft.webhookUrl.trim() || null;
+            }
+            if (draft.webhookSecret !== (props.behavior.webhookSecret ?? '')) {
+                patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
+                if (draft.webhookSecret.length > 0) {
+                    patch.webhookAuthMode = (draft.webhookAuthMode as BehaviorWebhookAuthMode) || 'token';
+                }
+            } else if (draft.webhookAuthMode !== (props.behavior.webhookAuthMode ?? '')) {
+                patch.webhookAuthMode = (draft.webhookAuthMode as BehaviorWebhookAuthMode) || null;
+            }
+            // plugin routing
+            if ((draft.pluginId ?? null) !== (props.behavior.pluginId ?? null) ||
+                draft.pluginBehaviorKey !== (props.behavior.pluginBehaviorKey ?? '')) {
                 patch.pluginId = draft.pluginId;
-                patch.pluginBehaviorKey = draft.pluginBehaviorKey;
+                patch.pluginBehaviorKey = draft.pluginBehaviorKey || null;
             }
         }
+
         const updated = await updateBehavior(props.behavior.id, patch);
-        if (movedTarget !== null) {
-            emit('moved', updated.id, movedTarget);
-        } else {
-            emit('updated', updated);
-        }
+        emit('updated', updated);
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
         saving.value = false;
     }
 }
+
+// ── delete ────────────────────────────────────────────────────────────────────
 
 async function onDelete() {
     if (!window.confirm(t('behaviors.card.deleteConfirm', { title: props.behavior.title }))) return;
@@ -443,214 +388,398 @@ async function onDelete() {
         saving.value = false;
     }
 }
+
+// ── save 按鈕文字（依 source 變化）──────────────────────────────────────────
+
+const saveLabel = computed(() => {
+    if (isSystem.value) return t('behaviors.card.saveTrigger');
+    if (isPlugin.value) return t('behaviors.card.saveAxes');
+    return t('common.save');
+});
 </script>
 
 <template>
-    <article :class="['card', { 'is-disabled': !enabledLocal, 'is-system': isSystem }]">
-        <header class="card-head">
-            <button
-                v-if="!isSystem"
-                type="button"
-                class="drag-handle"
-                :title="t('behaviors.card.dragHint')"
-                :aria-label="t('behaviors.card.dragHint')"
-            >
-                <Icon icon="material-symbols:drag-indicator" width="18" height="18" />
-            </button>
-            <span v-else class="drag-handle drag-handle--locked" :title="t('behaviors.card.systemRowLocked')" aria-hidden="true">
-                <Icon icon="material-symbols:lock-outline" width="16" height="16" />
-            </span>
-            <button
-                type="button"
-                class="title-btn"
-                @click="toggleOpen"
-                :aria-expanded="open"
-            >
-                <Icon
-                    :icon="open ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'"
-                    width="18"
-                    height="18"
+    <article :class="['card', `card--${behavior.source}`, { 'is-disabled': !enabledLocal }]">
+        <!-- source-bar 色條（左側 3px，D-ui §1.3） -->
+        <div :class="['source-bar', `source-bar--${behavior.source}`]" aria-hidden="true"></div>
+
+        <div class="card-inner">
+            <!-- ─ card head ─────────────────────────────────────────────────── -->
+            <header class="card-head">
+                <!-- drag-handle：custom 可拖曳，其他 locked -->
+                <button
+                    v-if="isCustom"
+                    type="button"
+                    class="drag-handle"
+                    :title="t('behaviors.card.dragHint')"
+                    :aria-label="t('behaviors.card.dragHint')"
+                >
+                    <Icon icon="material-symbols:drag-indicator" width="18" height="18" />
+                </button>
+                <span
+                    v-else
+                    class="drag-handle drag-handle--locked"
+                    :title="isSystem ? t('behaviors.card.systemRowLocked') : t('behaviors.card.pluginRowLocked')"
+                    aria-hidden="true"
+                >
+                    <Icon icon="material-symbols:lock-outline" width="16" height="16" />
+                </span>
+
+                <!-- expand toggle + title -->
+                <button
+                    type="button"
+                    class="title-btn"
+                    @click="toggleOpen"
+                    :aria-expanded="open"
+                >
+                    <Icon
+                        :icon="open ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'"
+                        width="18" height="18"
+                    />
+                    <span class="title">{{ behavior.title }}</span>
+                    <span class="trigger-summary">{{ triggerSummary }}</span>
+                </button>
+
+                <!-- trigger-badge pill -->
+                <span
+                    :class="['tag', behavior.triggerType === 'slash_command' ? 'tag-slash' : 'tag-pattern']"
+                    :title="behavior.triggerType === 'slash_command' ? 'Slash 指令' : 'Message Pattern'"
+                >
+                    <Icon
+                        :icon="behavior.triggerType === 'slash_command' ? 'material-symbols:bolt-outline-rounded' : 'material-symbols:article-outline'"
+                        width="13" height="13"
+                    />
+                    {{ behavior.triggerType === 'slash_command' ? 'slash' : 'pattern' }}
+                </span>
+
+                <!-- source-badge（custom 不顯示，plugin 顯示 name，system 顯示鎖） -->
+                <span
+                    v-if="isPlugin"
+                    class="tag tag-plugin"
+                    :title="t('behaviors.card.tagPlugin')"
+                >
+                    <Icon icon="material-symbols:extension-outline" width="13" height="13" />
+                    {{ linkedPlugin?.name ?? t('behaviors.card.tagPluginShort') }}
+                </span>
+                <span
+                    v-else-if="isSystem"
+                    class="tag tag-system"
+                    :title="t('behaviors.card.tagSystem')"
+                >
+                    <Icon icon="material-symbols:settings-outline" width="13" height="13" />
+                    {{ t('behaviors.card.tagSystemShort') }}
+                </span>
+
+                <!-- 連續對話 tag -->
+                <span
+                    v-if="behavior.forwardType === 'continuous'"
+                    class="tag tag-continuous"
+                    :title="t('behaviors.card.tagContinuous')"
+                >
+                    <Icon icon="material-symbols:loop-rounded" width="13" height="13" />
+                    {{ t('behaviors.card.tagContinuousShort') }}
+                </span>
+
+                <!-- stop-on-match tag -->
+                <span
+                    v-if="behavior.stopOnMatch"
+                    class="tag tag-stop"
+                    :title="t('behaviors.card.tagStop')"
+                >
+                    <Icon icon="material-symbols:stop-circle-outline-rounded" width="13" height="13" />
+                    {{ t('behaviors.card.tagStopShort') }}
+                </span>
+
+                <!-- toggle（system 無 toggle） -->
+                <button
+                    v-if="!isSystem"
+                    type="button"
+                    role="switch"
+                    :class="['toggle', { on: enabledLocal }]"
+                    :title="enabledLocal ? t('behaviors.card.toggleEnabled') : t('behaviors.card.toggleDisabled')"
+                    :aria-checked="enabledLocal ? 'true' : 'false'"
+                    :disabled="saving"
+                    @click.stop="onToggleEnabled"
+                >
+                    <span class="slider" aria-hidden="true"></span>
+                </button>
+
+                <!-- 三點 menu（只 custom 有刪除） -->
+                <AppMenu v-if="isCustom" placement="bottom-end" :offset="[0, 6]">
+                    <template #trigger>
+                        <button
+                            type="button"
+                            class="menu-trigger"
+                            :title="t('behaviors.card.moreActions')"
+                            :aria-label="t('behaviors.card.moreActions')"
+                        >
+                            <Icon icon="material-symbols:more-vert" width="18" height="18" />
+                        </button>
+                    </template>
+                    <AppMenuItem :disabled="saving" danger @click="onDelete">
+                        <Icon icon="material-symbols:delete-outline-rounded" width="16" height="16" />
+                        {{ t('common.delete') }}
+                    </AppMenuItem>
+                </AppMenu>
+            </header>
+
+            <!-- ─ card body ─────────────────────────────────────────────────── -->
+            <div v-if="open" class="card-body">
+
+                <!-- source notice banner（plugin/system） -->
+                <BehaviorSourceNotice
+                    v-if="!isCustom"
+                    :source="behavior.source"
+                    :plugin-name="linkedPlugin?.name"
+                    :plugin-key="linkedPlugin?.pluginKey"
                 />
-                <span class="title">{{ behavior.title }}</span>
-                <span class="trigger-summary">{{ triggerSummary }}</span>
-            </button>
-            <span
-                v-if="behavior.forwardType === 'continuous'"
-                class="tag tag-continuous"
-                :title="t('behaviors.card.tagContinuous')"
-            >
-                <Icon icon="material-symbols:loop-rounded" width="13" height="13" />
-                {{ t('behaviors.card.tagContinuousShort') }}
-            </span>
-            <span
-                v-if="behavior.stopOnMatch"
-                class="tag tag-stop"
-                :title="t('behaviors.card.tagStop')"
-            >
-                <Icon icon="material-symbols:stop-circle-outline-rounded" width="13" height="13" />
-                {{ t('behaviors.card.tagStopShort') }}
-            </span>
-            <span
-                v-if="behavior.type === 'plugin'"
-                class="tag tag-plugin"
-                :title="t('behaviors.card.tagPlugin')"
-            >
-                <Icon icon="material-symbols:extension-outline" width="13" height="13" />
-                {{ t('behaviors.card.tagPluginShort') }}
-            </span>
-            <span
-                v-if="isSystem"
-                class="tag tag-system"
-                :title="t('behaviors.card.tagSystem')"
-            >
-                <Icon icon="material-symbols:settings-outline" width="13" height="13" />
-                {{ t('behaviors.card.tagSystemShort') }}
-            </span>
-            <button
-                v-if="!isSystem"
-                type="button"
-                role="switch"
-                :class="['toggle', { on: enabledLocal }]"
-                :title="enabledLocal ? t('behaviors.card.toggleEnabled') : t('behaviors.card.toggleDisabled')"
-                :aria-checked="enabledLocal ? 'true' : 'false'"
-                :disabled="saving"
-                @click.stop="onToggleEnabled"
-            >
-                <span class="slider" aria-hidden="true"></span>
-            </button>
-            <AppMenu v-if="!isSystem" placement="bottom-end" :offset="[0, 6]">
-                <template #trigger>
+
+                <!-- ═══ source=custom：完全可編輯 ════════════════════════════ -->
+                <template v-if="isCustom">
+                    <div class="grid">
+                        <label class="field full">
+                            <span class="label">{{ t('behaviors.card.title') }}</span>
+                            <input v-model="draft.title" type="text" maxlength="200" />
+                        </label>
+                        <label class="field full">
+                            <span class="label">{{ t('behaviors.card.description') }}</span>
+                            <textarea v-model="draft.description" rows="2" maxlength="2000" />
+                        </label>
+
+                        <!-- trigger section -->
+                        <div class="field">
+                            <span class="label">{{ t('behaviors.card.triggerType') }}</span>
+                            <AppSelectField v-model="draft.triggerType" :options="triggerTypeOptions" />
+                        </div>
+
+                        <template v-if="draft.triggerType === 'slash_command'">
+                            <label class="field">
+                                <span class="label">{{ t('behaviors.card.slashCommandName') }}</span>
+                                <input v-model="draft.slashCommandName" type="text" maxlength="100" placeholder="指令名稱" />
+                            </label>
+                            <label class="field full">
+                                <span class="label">{{ t('behaviors.card.slashCommandDescription') }}</span>
+                                <input v-model="draft.slashCommandDescription" type="text" maxlength="200" />
+                            </label>
+                        </template>
+
+                        <template v-else>
+                            <div class="field">
+                                <span class="label">{{ t('behaviors.card.messagePatternKind') }}</span>
+                                <AppSelectField v-model="draft.messagePatternKind" :options="messagePatternKindOptions" />
+                            </div>
+                            <label class="field">
+                                <span class="label">{{ t('behaviors.card.messagePatternValue') }}</span>
+                                <input v-model="draft.messagePatternValue" type="text" maxlength="2000" />
+                            </label>
+                        </template>
+
+                        <!-- 三軸 section -->
+                        <div class="field-group-title">Discord 三軸</div>
+
+                        <div class="field">
+                            <span class="label">Scope</span>
+                            <AppSelectField v-model="draft.scope" :options="scopeOptions" />
+                        </div>
+                        <label class="field">
+                            <span class="label">Integration Types</span>
+                            <input v-model="draft.integrationTypes" type="text" placeholder="guild_install,user_install" />
+                        </label>
+                        <label class="field">
+                            <span class="label">Contexts</span>
+                            <input v-model="draft.contexts" type="text" placeholder="Guild,BotDM,PrivateChannel" />
+                        </label>
+
+                        <!-- 轉發設定 -->
+                        <div class="field">
+                            <span class="label">{{ t('behaviors.card.forwardType') }}</span>
+                            <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
+                        </div>
+
+                        <!-- webhook 設定 -->
+                        <label class="field full">
+                            <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
+                            <input
+                                v-model="draft.webhookUrl"
+                                type="text"
+                                placeholder="https://…"
+                                maxlength="1000"
+                            />
+                        </label>
+                        <label class="field full">
+                            <span class="label">
+                                {{ t('behaviors.card.webhookSecret') }}
+                                <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
+                            </span>
+                            <input
+                                v-model="draft.webhookSecret"
+                                type="text"
+                                :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
+                                maxlength="200"
+                                autocomplete="off"
+                                spellcheck="false"
+                            />
+                        </label>
+
+                        <!-- webhookAuthMode（CR-2）：有 secret 時才顯示 -->
+                        <div v-if="showAuthModeSelect" class="field">
+                            <span class="label">{{ t('behaviors.card.webhookAuthMode') }}</span>
+                            <AppSelectField v-model="draft.webhookAuthMode" :options="webhookAuthModeOptions" />
+                        </div>
+
+                        <label class="field full inline">
+                            <input type="checkbox" v-model="draft.stopOnMatch" />
+                            <span>{{ t('behaviors.card.stopOnMatch') }}</span>
+                        </label>
+                    </div>
+                </template>
+
+                <!-- ═══ source=plugin：三軸 + audience 可編輯，其餘唯讀 ══════ -->
+                <template v-else-if="isPlugin">
+                    <!-- 唯讀區 -->
+                    <div class="grid readonly-grid">
+                        <label class="field full">
+                            <span class="label readonly-label">
+                                {{ t('behaviors.card.title') }}
+                                <Icon icon="material-symbols:lock-outline" width="12" height="12" aria-hidden="true" />
+                            </span>
+                            <input :value="behavior.title" type="text" readonly class="readonly-input" />
+                        </label>
+                        <label class="field full">
+                            <span class="label readonly-label">
+                                {{ t('behaviors.card.triggerValue') }}
+                                <Icon icon="material-symbols:lock-outline" width="12" height="12" aria-hidden="true" />
+                            </span>
+                            <input
+                                :value="behavior.triggerType === 'slash_command'
+                                    ? `/${behavior.slashCommandName ?? ''}`
+                                    : `${behavior.messagePatternKind}: ${behavior.messagePatternValue ?? ''}`"
+                                type="text"
+                                readonly
+                                class="readonly-input"
+                            />
+                        </label>
+                    </div>
+
+                    <!-- 可編輯區：三軸 + audience -->
+                    <div class="section-divider">{{ t('behaviors.card.axesSection') }}</div>
+                    <div class="grid">
+                        <div class="field">
+                            <span class="label">Scope</span>
+                            <AppSelectField v-model="draft.scope" :options="scopeOptions" />
+                        </div>
+                        <label class="field">
+                            <span class="label">Integration Types</span>
+                            <input v-model="draft.integrationTypes" type="text" placeholder="guild_install,user_install" />
+                        </label>
+                        <label class="field">
+                            <span class="label">Contexts</span>
+                            <input v-model="draft.contexts" type="text" placeholder="Guild,BotDM,PrivateChannel" />
+                        </label>
+
+                        <!-- webhookSecret（plugin 可選設定） -->
+                        <label class="field full">
+                            <span class="label">
+                                {{ t('behaviors.card.webhookSecret') }}
+                                <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
+                            </span>
+                            <input
+                                v-model="draft.webhookSecret"
+                                type="text"
+                                :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
+                                maxlength="200"
+                                autocomplete="off"
+                                spellcheck="false"
+                            />
+                        </label>
+                        <div v-if="draft.webhookSecret.length > 0" class="field">
+                            <span class="label">{{ t('behaviors.card.webhookAuthMode') }}</span>
+                            <AppSelectField v-model="draft.webhookAuthMode" :options="webhookAuthModeOptions" />
+                        </div>
+                    </div>
+                </template>
+
+                <!-- ═══ source=system：只能改 trigger value ════════════════════ -->
+                <template v-else-if="isSystem">
+                    <!-- 唯讀區 -->
+                    <div class="grid readonly-grid">
+                        <label class="field full">
+                            <span class="label readonly-label">
+                                {{ t('behaviors.card.title') }}
+                                <Icon icon="material-symbols:lock-outline" width="12" height="12" aria-hidden="true" />
+                            </span>
+                            <input :value="behavior.title" type="text" readonly class="readonly-input" />
+                        </label>
+                    </div>
+
+                    <!-- 可編輯：trigger value -->
+                    <div class="section-divider">{{ t('behaviors.card.triggerSection') }}</div>
+                    <div class="grid">
+                        <template v-if="behavior.triggerType === 'slash_command'">
+                            <label class="field full">
+                                <span class="label">{{ t('behaviors.card.slashCommandName') }}</span>
+                                <input v-model="draft.slashCommandName" type="text" maxlength="100" />
+                            </label>
+                        </template>
+                        <template v-else>
+                            <label class="field full">
+                                <span class="label">{{ t('behaviors.card.messagePatternValue') }}</span>
+                                <input v-model="draft.messagePatternValue" type="text" maxlength="2000" />
+                            </label>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- error 訊息 -->
+                <p v-if="error" class="error" role="alert">{{ error }}</p>
+
+                <!-- actions footer -->
+                <footer class="actions">
+                    <span class="spacer" />
                     <button
                         type="button"
-                        class="menu-trigger"
-                        :title="t('behaviors.card.moreActions')"
-                        :aria-label="t('behaviors.card.moreActions')"
+                        class="primary"
+                        :disabled="!dirty || saving"
+                        @click="onSave"
                     >
-                        <Icon icon="material-symbols:more-vert" width="18" height="18" />
+                        {{ saving ? t('common.saving') : saveLabel }}
                     </button>
-                </template>
-                <AppMenuItem :disabled="saving" danger @click="onDelete">
-                    <Icon icon="material-symbols:delete-outline-rounded" width="16" height="16" />
-                    {{ t('common.delete') }}
-                </AppMenuItem>
-            </AppMenu>
-        </header>
-
-        <div v-if="open" class="card-body">
-            <div class="grid">
-                <label class="field full">
-                    <span class="label">{{ t('behaviors.card.title') }}</span>
-                    <input v-model="draft.title" type="text" maxlength="200" :readonly="isSystem" />
-                </label>
-
-                <label class="field full">
-                    <span class="label">{{ t('behaviors.card.description') }}</span>
-                    <textarea v-model="draft.description" rows="2" maxlength="2000" :readonly="isSystem" />
-                </label>
-
-                <div class="field">
-                    <span class="label">{{ t('behaviors.card.triggerType') }}</span>
-                    <AppSelectField v-model="draft.triggerType" :options="triggerTypeOptions" />
-                </div>
-
-                <label class="field">
-                    <span class="label">{{ t('behaviors.card.triggerValue') }}</span>
-                    <input v-model="draft.triggerValue" type="text" maxlength="2000" />
-                </label>
-
-                <div class="field">
-                    <span class="label">{{ t('behaviors.card.targetId') }}</span>
-                    <AppSelectField v-model="draft.targetId" :options="targetOptions" :disabled="isSystem" />
-                </div>
-
-                <div class="field">
-                    <span class="label">{{ t('behaviors.card.behaviorType') }}</span>
-                    <AppSelectField v-model="draft.type" :options="typeOptions" :disabled="isSystem" />
-                </div>
-
-                <template v-if="draft.type === 'webhook'">
-                    <div class="field">
-                        <span class="label">{{ t('behaviors.card.forwardType') }}</span>
-                        <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
-                    </div>
-                    <label class="field full">
-                        <span class="label">{{ t('behaviors.card.webhookUrl') }}</span>
-                        <input
-                            v-model="draft.webhookUrl"
-                            type="text"
-                            placeholder="https://discord.com/api/webhooks/…"
-                            maxlength="1000"
-                        />
-                    </label>
-                    <label class="field full">
-                        <span class="label">
-                            {{ t('behaviors.card.webhookSecret') }}
-                            <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
-                        </span>
-                        <input
-                            v-model="draft.webhookSecret"
-                            type="text"
-                            :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
-                            maxlength="200"
-                            autocomplete="off"
-                            spellcheck="false"
-                        />
-                    </label>
-                </template>
-
-                <template v-else-if="draft.type === 'plugin'">
-                    <div class="field full">
-                        <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
-                        <AppSelectField
-                            v-model="draft.pluginId"
-                            :options="pluginOptions"
-                            :placeholder="t('behaviors.card.pluginNoneAvailable')"
-                            :disabled="pluginOptions.length === 0"
-                        />
-                    </div>
-                    <div v-if="dmBehaviorOptions.length > 0" class="field full">
-                        <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
-                        <AppSelectField v-model="draft.pluginBehaviorKey" :options="dmBehaviorOptions" />
-                    </div>
-                    <!-- Plugin's manifest declares whether this dm_behavior
-                         supports a continuous session. Hide the picker
-                         when the plugin doesn't support it (force one_time);
-                         show it otherwise so the admin can opt in. -->
-                    <div v-if="selectedDmBehaviorSupportsContinuous" class="field">
-                        <span class="label">{{ t('behaviors.card.forwardType') }}</span>
-                        <AppSelectField v-model="draft.forwardType" :options="forwardTypeOptions" />
-                    </div>
-                </template>
-                <!-- type === 'system': no extra plugin/webhook fields; the
-                     row is bot-internal and only triggerType /
-                     triggerValue are editable (gated above). -->
-
-                <label class="field full inline">
-                    <input type="checkbox" v-model="draft.stopOnMatch" :disabled="isSystem" />
-                    <span>{{ t('behaviors.card.stopOnMatch') }}</span>
-                </label>
+                </footer>
             </div>
-
-            <p v-if="error" class="error" role="alert">{{ error }}</p>
-
-            <footer class="actions">
-                <span class="spacer" />
-                <button type="button" class="primary" :disabled="!dirty || saving" @click="onSave">
-                    {{ saving ? t('common.saving') : t('common.save') }}
-                </button>
-            </footer>
         </div>
     </article>
 </template>
 
 <style scoped>
+/* ── 卡片外層（含色條）────────────────────────────────────────── */
 .card {
+    display: flex;
+    flex-direction: row;
     border: 1px solid var(--border);
     border-radius: var(--radius-base);
     background: var(--bg-surface);
     overflow: hidden;
 }
 .card.is-disabled .title { color: var(--text-muted); text-decoration: line-through; }
+
+/* 左側 3px source-bar（D-ui §1.3） */
+.source-bar {
+    width: 3px;
+    flex-shrink: 0;
+    border-radius: var(--radius-base) 0 0 var(--radius-base);
+}
+.source-bar--custom { background: var(--accent); }
+.source-bar--plugin { background: var(--source-plugin, #7c3aed); }
+.source-bar--system { background: var(--text-muted); }
+
+.card-inner {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── card-head ───────────────────────────────────────────────── */
 .card-head {
     display: flex;
     align-items: center;
@@ -660,6 +789,7 @@ async function onDelete() {
     border-bottom: 1px solid transparent;
 }
 .card-head:has(+ .card-body) { border-bottom-color: var(--border); }
+
 .drag-handle {
     background: none;
     border: none;
@@ -668,8 +798,18 @@ async function onDelete() {
     padding: 0.25rem;
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
 }
 .drag-handle:active { cursor: grabbing; }
+.drag-handle--locked {
+    cursor: default;
+    color: var(--text-faint, var(--text-muted));
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem;
+    flex-shrink: 0;
+}
+
 .title-btn {
     flex: 1;
     min-width: 0;
@@ -702,6 +842,8 @@ async function onDelete() {
     white-space: nowrap;
     min-width: 0;
 }
+
+/* ── tags ────────────────────────────────────────────────────── */
 .tag {
     display: inline-flex;
     align-items: center;
@@ -711,11 +853,16 @@ async function onDelete() {
     border-radius: 999px;
     border: 1px solid transparent;
     flex-shrink: 0;
+    white-space: nowrap;
 }
+.tag-slash { background: var(--accent-bg); color: var(--accent-text-strong); border-color: var(--accent-border, var(--accent)); }
+.tag-pattern { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
+.tag-plugin { background: var(--source-plugin-bg, rgba(124,58,237,0.08)); color: var(--source-plugin, #7c3aed); border-color: var(--source-plugin-border, rgba(124,58,237,0.2)); }
+.tag-system { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
 .tag-continuous { background: var(--accent-bg); color: var(--accent-text-strong); }
 .tag-stop { background: var(--warn-bg); color: var(--warn-text); }
-.tag-plugin { background: var(--bg-page); color: var(--text-muted); border-color: var(--border); }
 
+/* ── toggle ──────────────────────────────────────────────────── */
 .toggle {
     position: relative;
     width: 32px;
@@ -748,6 +895,7 @@ async function onDelete() {
 .toggle.on .slider { background: var(--accent); }
 .toggle.on .slider::before { transform: translateX(14px); }
 
+/* ── menu ────────────────────────────────────────────────────── */
 .menu-trigger {
     flex-shrink: 0;
     background: none;
@@ -763,12 +911,15 @@ async function onDelete() {
 }
 .menu-trigger:hover { background: var(--bg-surface-hover); color: var(--text); }
 
+/* ── card-body ───────────────────────────────────────────────── */
 .card-body {
     padding: 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
 }
+
+/* ── grid ────────────────────────────────────────────────────── */
 .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -777,9 +928,6 @@ async function onDelete() {
 .field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .field.full { grid-column: 1 / -1; }
 .field.inline { flex-direction: row; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.2rem 0; }
-/* Checkbox inputs in inline fields must NOT inherit the .field input
-   width:100% / padding rules — those are for text inputs and would
-   stretch the checkbox to fill the row. */
 .field.inline input[type="checkbox"] {
     width: auto;
     min-width: 0;
@@ -794,13 +942,13 @@ async function onDelete() {
     color: var(--text-muted);
     font-weight: 600;
     display: flex;
-    gap: 0.4rem;
-    align-items: baseline;
+    gap: 0.35rem;
+    align-items: center;
 }
 .hint {
     font-size: 0.7rem;
     font-weight: 400;
-    color: var(--text-faint);
+    color: var(--text-faint, var(--text-muted));
 }
 .field input,
 .field textarea,
@@ -818,6 +966,46 @@ async function onDelete() {
 .field input:focus,
 .field textarea:focus,
 .field select:focus { outline: none; border-color: var(--accent); }
+
+/* ── 唯讀區 ──────────────────────────────────────────────────── */
+.readonly-grid {
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem;
+}
+.readonly-label { color: var(--text-faint, var(--text-muted)); }
+.readonly-input {
+    background: var(--bg-page) !important;
+    color: var(--text-muted) !important;
+    cursor: default;
+}
+
+/* ── section divider ─────────────────────────────────────────── */
+.section-divider {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+/* field-group-title */
+.field-group-title {
+    grid-column: 1 / -1;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-top: 0.25rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.15rem;
+}
+
+/* ── actions ─────────────────────────────────────────────────── */
 .error { color: var(--danger); margin: 0; font-size: 0.85rem; }
 .actions {
     display: flex;

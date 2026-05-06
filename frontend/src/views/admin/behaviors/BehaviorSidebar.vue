@@ -6,11 +6,20 @@ import type { BehaviorTargetSummary } from '../../../api/behavior';
 
 const { t } = useI18n();
 
+/**
+ * BehaviorSidebar v2 — M1-D1
+ *
+ * 設計依據 D-ui §1.2（CR-9 移除 source filter；H-2 標題改「對象 (Audience)」）：
+ * - 標題從「Target (scope)」改為「對象 (Audience)」
+ * - 移除 source filter-chip row（CR-9 用戶覆寫）
+ * - all_dms 釘頂，其餘 user/group 保持 API 回傳順序
+ * - 「+ 新增」按鈕觸發 AddBehaviorModal（emit 'add'）
+ */
+
 const props = defineProps<{
     targets: BehaviorTargetSummary[];
     selectedId: number | null;
     loading?: boolean;
-    /** When false, the `+` add-target button is suppressed (scoped users). */
     canAddTarget?: boolean;
 }>();
 
@@ -19,9 +28,6 @@ const emit = defineEmits<{
     (e: 'add'): void;
 }>();
 
-// "All DMs" is the singleton id=1 row, pinned at the top regardless of
-// what else came back from the server. Other targets are shown in the
-// order the API returned (createdAt ASC).
 const allDmsTarget = computed(() => props.targets.find(t => t.kind === 'all_dms') ?? null);
 const otherTargets = computed(() => props.targets.filter(t => t.kind !== 'all_dms'));
 
@@ -49,11 +55,15 @@ function labelFor(target: BehaviorTargetSummary): string {
         </button>
     </header>
 
+    <!-- 對象 (Audience) 分類標題 -->
+    <div class="section-label">{{ t('behaviors.sidebar.audienceLabel') }}</div>
+
     <div v-if="loading && targets.length === 0" class="loading muted">
         {{ t('common.loading') }}
     </div>
 
     <ul v-else class="target-list">
+        <!-- all_dms 釘頂 -->
         <li
             v-if="allDmsTarget"
             :class="['target-row', 'pinned', { active: selectedId === allDmsTarget.id }]"
@@ -68,6 +78,7 @@ function labelFor(target: BehaviorTargetSummary): string {
             </div>
         </li>
 
+        <!-- user / group targets -->
         <li
             v-for="target in otherTargets"
             :key="target.id"
@@ -136,6 +147,16 @@ function labelFor(target: BehaviorTargetSummary): string {
     justify-content: center;
 }
 .ghost:hover { background: var(--bg-surface-hover); }
+
+.section-label {
+    padding: 0.45rem 0.75rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
 .target-list {
     list-style: none;
     margin: 0;
