@@ -357,15 +357,18 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
   // constant + an ensure* seed + a case below.
   if (interaction.isChatInputCommand()) {
     try {
+      // M1-A1: findAllSystemBehaviors() 回 v2 BehaviorRow（無 targetId / triggerValue / pluginBehaviorKey for system）。
+      // v2 system rows 使用 slashCommandName + systemKey 欄位。
+      // M1-C 前 system seed 為 no-op → systems 永遠為空陣列 → matched 永遠 undefined。
       const systems = await findAllSystemBehaviors();
       const matched = systems.find(
         (s) =>
           s.enabled &&
           s.triggerType === "slash_command" &&
-          s.triggerValue === interaction.commandName,
+          s.slashCommandName === interaction.commandName,
       );
       if (matched) {
-        switch (matched.pluginBehaviorKey) {
+        switch (matched.systemKey) {
           case SYSTEM_BEHAVIOR_KEY_LOGIN:
             await issueLoginLinkForInteraction(interaction);
             return;

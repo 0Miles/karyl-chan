@@ -9,7 +9,6 @@ import {
 } from "../admin/admin-capabilities.js";
 import { avatarUrlFor } from "../web-core/message-mapper.js";
 import { decryptSecret } from "../../utils/crypto.js";
-import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./dm-slash-rebind.service.js";
 import type { BehaviorRow } from "./models/behavior.model.js";
 import {
   assertExternalTarget,
@@ -157,17 +156,11 @@ export function isValidRegex(value: string): boolean {
 }
 
 /**
- * Re-sync DM-only globals after any CRUD that could change the
- * desired set. Cheap: the service walks system + all_dms behaviors
- * (small set) and calls Discord's application.commands API only
- * when a diff exists. Fire-and-forget — if it fails, the next
- * change or restart heals it.
+ * @deprecated M1-A1 stub。M1-C 接管後重寫（基於 v2 CommandReconciler）。
+ * 暫時 no-op，不呼叫 Discord API。
  */
-export function createResyncSlash(bot: Client | undefined): () => void {
+export function createResyncSlash(_bot: Client | undefined): () => void {
   return (): void => {
-    if (!bot) return;
-    void rebindDmSlashService(bot).catch(() => {
-      /* logged inside the service */
-    });
+    // M1-A1: dm-slash-rebind 暫時停用。M1-C 接管後重寫。
   };
 }

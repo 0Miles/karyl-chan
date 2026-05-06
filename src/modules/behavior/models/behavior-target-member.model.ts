@@ -1,76 +1,45 @@
-import { DataTypes } from "sequelize";
-import { sequelize } from "../../../db.js";
-import { BehaviorTarget } from "./behavior-target.model.js";
-
 /**
- * Membership join for kind='group' BehaviorTarget rows. (targetId, userId)
- * is the primary key — one user can belong to many groups, and a group
- * can have many users. CASCADE on the FK so deleting a group target
- * cleans the membership in lockstep.
+ * @deprecated M1-A1：v2 破壞性遷移後，behavior_target_members 表已 DROP。
+ * 此檔僅保留 stub 讓現有 import 能 compile；M1-C 接管後整檔刪除。
+ *
+ * v2 改用 behavior_audience_members 表（BehaviorAudienceMember model）。
  */
-export const BehaviorTargetMember = sequelize.define(
-  "BehaviorTargetMember",
-  {
-    targetId: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      references: { model: BehaviorTarget, key: "id" },
-      onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-    },
-    userId: {
-      type: DataTypes.STRING,
-      primaryKey: true,
-    },
-  },
-  {
-    tableName: "behavior_target_members",
-    timestamps: true,
-  },
-);
 
-export const findGroupMembers = async (targetId: number): Promise<string[]> => {
-  const rows = await BehaviorTargetMember.findAll({
-    where: { targetId },
-    order: [["userId", "ASC"]],
-  });
-  return rows.map((r) => r.getDataValue("userId") as string);
-};
+/** @deprecated v1 stub。M1-C 接管後移除。 */
+export const findGroupMembers = async (_targetId: number): Promise<string[]> =>
+  [];
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const findGroupTargetIdsForUser = async (
-  userId: string,
-): Promise<number[]> => {
-  const rows = await BehaviorTargetMember.findAll({ where: { userId } });
-  return rows.map((r) => r.getDataValue("targetId") as number);
-};
+  _userId: string,
+): Promise<number[]> => [];
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const addGroupMember = async (
-  targetId: number,
-  userId: string,
+  _targetId: number,
+  _userId: string,
 ): Promise<void> => {
-  await BehaviorTargetMember.upsert({ targetId, userId });
+  throw new Error(
+    "M1-A1: addGroupMember deprecated (v1 API). Table behavior_target_members does not exist in v2.",
+  );
 };
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const removeGroupMember = async (
-  targetId: number,
-  userId: string,
+  _targetId: number,
+  _userId: string,
 ): Promise<void> => {
-  await BehaviorTargetMember.destroy({ where: { targetId, userId } });
+  throw new Error(
+    "M1-A1: removeGroupMember deprecated (v1 API). Table behavior_target_members does not exist in v2.",
+  );
 };
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const replaceGroupMembers = async (
-  targetId: number,
-  userIds: string[],
+  _targetId: number,
+  _userIds: string[],
 ): Promise<void> => {
-  await sequelize.transaction(async (t) => {
-    await BehaviorTargetMember.destroy({ where: { targetId }, transaction: t });
-    if (userIds.length === 0) return;
-    // De-dupe defensively — UI should prevent it but a stray double-paste
-    // shouldn't tank the whole replace.
-    const unique = Array.from(new Set(userIds));
-    await BehaviorTargetMember.bulkCreate(
-      unique.map((userId) => ({ targetId, userId })),
-      { transaction: t },
-    );
-  });
+  throw new Error(
+    "M1-A1: replaceGroupMembers deprecated (v1 API). Table behavior_target_members does not exist in v2.",
+  );
 };

@@ -2,6 +2,9 @@ import { DataTypes } from "sequelize";
 import { sequelize } from "../../../db.js";
 import { Behavior } from "./behavior.model.js";
 
+// behavior-session.model.ts：v2 schema 不變（PK=userId，FK=behaviorId→behaviors.id）
+// v2 behaviors 表名稱相同，FK 仍正確對齊。
+
 /**
  * Active continuous-forward state for a user. Persisted in DB so a bot
  * restart resumes forwarding on the next DM from that user — the

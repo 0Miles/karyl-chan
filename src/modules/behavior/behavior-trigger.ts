@@ -1,41 +1,34 @@
-import type { BehaviorTriggerType } from "./models/behavior.model.js";
+import type { BehaviorMessagePatternKind } from "./models/behavior.model.js";
 
 /**
- * Evaluate whether a DM message body matches a behavior trigger.
+ * Evaluate whether a DM message body matches a message_pattern trigger.
  * Pure / synchronous; safe to call inside hot path of messageCreate.
  *
- * Matching rules:
- *   - 'startswith' / 'endswith': literal, case-sensitive substring at
- *     the head/tail of `content`.
- *   - 'regex': compiled per-call against `triggerValue`. Unanchored —
- *     callers wanting full-line match should write `^…$` themselves.
- *     Invalid patterns are guarded: we return false (no match) and
- *     leave it to upstream validation (route layer rejects invalid
- *     regex on save) to surface a fix.
- *   - 'slash_command': always returns false in the messageCreate
- *     path. Slash-command triggers fire from interactionCreate
- *     instead, where the dispatcher matches command name to
- *     triggerValue directly.
+ * v2 schema 拆解：triggerType='message_pattern' + messagePatternKind（startswith/endswith/regex）
+ *   - triggerType='slash_command' 從 interactionCreate 路徑處理，不走此函式。
+ *   - 此函式只處理 messagePatternKind 的三種情況。
+ *
+ * M1-C 接管前，此函式暫時未被主路徑呼叫（webhook-behavior.events.ts 已 stub）。
+ * 保留型別正確版本供 M1-C 重寫 dispatcher 使用。
  */
 export function matchesTrigger(
-  triggerType: BehaviorTriggerType,
-  triggerValue: string,
+  patternKind: BehaviorMessagePatternKind,
+  patternValue: string,
   content: string,
 ): boolean {
-  if (triggerType === "startswith") {
-    return content.startsWith(triggerValue);
+  if (patternKind === "startswith") {
+    return content.startsWith(patternValue);
   }
-  if (triggerType === "endswith") {
-    return content.endsWith(triggerValue);
+  if (patternKind === "endswith") {
+    return content.endsWith(patternValue);
   }
-  if (triggerType === "regex") {
+  if (patternKind === "regex") {
     try {
-      return new RegExp(triggerValue).test(content);
+      return new RegExp(patternValue).test(content);
     } catch {
       return false;
     }
   }
-  // slash_command: handled outside the messageCreate path.
   return false;
 }
 
@@ -43,15 +36,19 @@ export function matchesTrigger(
  * Human-readable preview of a trigger for /manual output and admin UI
  * sidebar summaries. Truncates the value at 60 chars so a long regex
  * doesn't blow up an embed field.
+ *
+ * v2：接受 messagePatternKind（message pattern 子型）或 'slash_command'（literal）。
  */
 export function describeTrigger(
-  triggerType: BehaviorTriggerType,
-  triggerValue: string,
+  patternKind: BehaviorMessagePatternKind | "slash_command",
+  patternValue: string,
 ): string {
   const truncated =
-    triggerValue.length > 60 ? `${triggerValue.slice(0, 57)}…` : triggerValue;
-  if (triggerType === "startswith") return `開頭：${truncated}`;
-  if (triggerType === "endswith") return `結尾：${truncated}`;
-  if (triggerType === "slash_command") return `指令：/${truncated}`;
+    patternValue.length > 60
+      ? `${patternValue.slice(0, 57)}…`
+      : patternValue;
+  if (patternKind === "startswith") return `開頭：${truncated}`;
+  if (patternKind === "endswith") return `結尾：${truncated}`;
+  if (patternKind === "slash_command") return `指令：/${truncated}`;
   return `regex：${truncated}`;
 }

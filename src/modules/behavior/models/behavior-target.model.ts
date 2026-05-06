@@ -1,53 +1,20 @@
-import { DataTypes, Op } from "sequelize";
-import { sequelize } from "../../../db.js";
-
 /**
- * A target that a DM message can be matched against. Three kinds:
+ * @deprecated M1-A1：v2 破壞性遷移後，behavior_targets 表已 DROP。
+ * 此檔僅保留 stub 讓現有 import 能 compile；M1-C 接管後整檔刪除。
  *
- *   - 'all_dms'  — singleton (id=1); matches every DM sender. Seeded by
- *                  the webhook-behavior migration; never deleted.
- *   - 'user'     — matches a single Discord user; userId is the snowflake.
- *   - 'group'    — matches any user listed in behavior_target_members for
- *                  this row; groupName is the human-readable label.
- *
- * Uniqueness for 'user' and 'group' is enforced by partial unique indexes
- * created in the migration (allow many all_dms-key rows in principle, but
- * the all_dms partial index pins it to one).
+ * v2 schema 改用 behaviors.audienceKind / audienceUserId / audienceGroupName 欄位，
+ * 以及 behavior_audience_members 表（BehaviorAudienceMember model）取代此表。
  */
-export const BehaviorTarget = sequelize.define(
-  "BehaviorTarget",
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    kind: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isIn: [["all_dms", "user", "group"]],
-      },
-    },
-    userId: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    groupName: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-  },
-  {
-    tableName: "behavior_targets",
-    timestamps: true,
-  },
-);
 
+// ALL_DMS_TARGET_ID 沿用作為 stub 常數，讓 behavior-routes.ts 的 compile 通過。
+// v2 無 targetId 概念；M1-C 接管後此常數應移除。
+/** @deprecated v1 常數。M1-C 接管後移除。 */
 export const ALL_DMS_TARGET_ID = 1;
 
+/** @deprecated v1 型別。M1-C 接管後移除。 */
 export type BehaviorTargetKind = "all_dms" | "user" | "group";
 
+/** @deprecated v1 型別。M1-C 接管後移除。 */
 export interface BehaviorTargetRow {
   id: number;
   kind: BehaviorTargetKind;
@@ -55,120 +22,64 @@ export interface BehaviorTargetRow {
   groupName: string | null;
 }
 
-export const findAllBehaviorTargets = async (): Promise<
-  BehaviorTargetRow[]
-> => {
-  const rows = await BehaviorTarget.findAll({ order: [["id", "ASC"]] });
-  return rows.map((r) => ({
-    id: r.getDataValue("id") as number,
-    kind: r.getDataValue("kind") as BehaviorTargetKind,
-    userId: (r.getDataValue("userId") as string | null) ?? null,
-    groupName: (r.getDataValue("groupName") as string | null) ?? null,
-  }));
-};
+/** @deprecated v1 stub。M1-C 接管後移除。 */
+export const findAllBehaviorTargets = async (): Promise<BehaviorTargetRow[]> =>
+  [];
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const findBehaviorTargetById = async (
-  id: number,
-): Promise<BehaviorTargetRow | null> => {
-  const row = await BehaviorTarget.findByPk(id);
-  if (!row) return null;
-  return {
-    id: row.getDataValue("id") as number,
-    kind: row.getDataValue("kind") as BehaviorTargetKind,
-    userId: (row.getDataValue("userId") as string | null) ?? null,
-    groupName: (row.getDataValue("groupName") as string | null) ?? null,
-  };
-};
+  _id: number,
+): Promise<BehaviorTargetRow | null> => null;
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const findUserTarget = async (
-  userId: string,
-): Promise<BehaviorTargetRow | null> => {
-  const row = await BehaviorTarget.findOne({ where: { kind: "user", userId } });
-  if (!row) return null;
-  return {
-    id: row.getDataValue("id") as number,
-    kind: "user",
-    userId,
-    groupName: null,
-  };
-};
+  _userId: string,
+): Promise<BehaviorTargetRow | null> => null;
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const findGroupTargetByName = async (
-  groupName: string,
-): Promise<BehaviorTargetRow | null> => {
-  const row = await BehaviorTarget.findOne({
-    where: { kind: "group", groupName },
-  });
-  if (!row) return null;
-  return {
-    id: row.getDataValue("id") as number,
-    kind: "group",
-    userId: null,
-    groupName,
-  };
-};
+  _groupName: string,
+): Promise<BehaviorTargetRow | null> => null;
 
+/** @deprecated v1 stub。M1-C 接管後移除。 */
 export const createUserTarget = async (
-  userId: string,
+  _userId: string,
 ): Promise<BehaviorTargetRow> => {
-  const row = await BehaviorTarget.create({
-    kind: "user",
-    userId,
-    groupName: null,
-  });
-  return {
-    id: row.getDataValue("id") as number,
-    kind: "user",
-    userId,
-    groupName: null,
-  };
-};
-
-export const createGroupTarget = async (
-  groupName: string,
-): Promise<BehaviorTargetRow> => {
-  const row = await BehaviorTarget.create({
-    kind: "group",
-    userId: null,
-    groupName,
-  });
-  return {
-    id: row.getDataValue("id") as number,
-    kind: "group",
-    userId: null,
-    groupName,
-  };
-};
-
-export const renameGroupTarget = async (
-  id: number,
-  newName: string,
-): Promise<void> => {
-  await BehaviorTarget.update(
-    { groupName: newName },
-    { where: { id, kind: "group" } },
+  throw new Error(
+    "M1-A1: createUserTarget deprecated (v1 API). Table behavior_targets does not exist in v2.",
   );
 };
 
-export const deleteBehaviorTarget = async (id: number): Promise<void> => {
-  if (id === ALL_DMS_TARGET_ID) {
-    throw new Error("all_dms target is not deletable");
-  }
-  await BehaviorTarget.destroy({ where: { id, kind: { [Op.ne]: "all_dms" } } });
+/** @deprecated v1 stub。M1-C 接管後移除。 */
+export const createGroupTarget = async (
+  _groupName: string,
+): Promise<BehaviorTargetRow> => {
+  throw new Error(
+    "M1-A1: createGroupTarget deprecated (v1 API). Table behavior_targets does not exist in v2.",
+  );
+};
+
+/** @deprecated v1 stub。M1-C 接管後移除。 */
+export const renameGroupTarget = async (
+  _id: number,
+  _newName: string,
+): Promise<void> => {
+  throw new Error(
+    "M1-A1: renameGroupTarget deprecated (v1 API). Table behavior_targets does not exist in v2.",
+  );
+};
+
+/** @deprecated v1 stub。M1-C 接管後移除。 */
+export const deleteBehaviorTarget = async (_id: number): Promise<void> => {
+  throw new Error(
+    "M1-A1: deleteBehaviorTarget deprecated (v1 API). Table behavior_targets does not exist in v2.",
+  );
 };
 
 /**
- * Ensure the all_dms singleton exists. The migration seeds it, but a
- * fresh sync()'d DB (no migration history) won't have it — call this
- * once on startup as a safety net.
+ * @deprecated v1 stub。v2 無 all_dms target；ensureAllDmsTarget 為 no-op。
+ * main.ts 呼叫此函式會安全跳過。M1-C 接管後移除。
  */
 export const ensureAllDmsTarget = async (): Promise<void> => {
-  const existing = await BehaviorTarget.findByPk(ALL_DMS_TARGET_ID);
-  if (existing) return;
-  await BehaviorTarget.create({
-    id: ALL_DMS_TARGET_ID,
-    kind: "all_dms",
-    userId: null,
-    groupName: null,
-  });
+  // M1-A1: no-op。v2 schema 無 behavior_targets 表，all_dms 概念已廢棄。
 };

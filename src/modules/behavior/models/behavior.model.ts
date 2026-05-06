@@ -1,24 +1,42 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../../../db.js";
-import { BehaviorTarget } from "./behavior-target.model.js";
-import { encryptSecret } from "../../../utils/crypto.js";
 
-export type BehaviorTriggerType =
-  | "startswith"
-  | "endswith"
-  | "regex"
-  | "slash_command";
+// ── v2 列舉型別 ──────────────────────────────────────────────────────────────
+
+export type BehaviorSource = "custom" | "plugin" | "system";
+export type BehaviorTriggerType = "slash_command" | "message_pattern";
+export type BehaviorMessagePatternKind = "startswith" | "endswith" | "regex";
 export type BehaviorForwardType = "one_time" | "continuous";
+export type BehaviorScope = "global" | "guild";
+export type BehaviorAudienceKind = "all" | "user" | "group";
+export type BehaviorWebhookAuthMode = "token" | "hmac";
+export type BehaviorSystemKey = "admin-login" | "manual" | "break";
+
+// ── system behavior 常數（供 main.ts + dispatcher 用，M1-C 接管後移除）────────
+
+export const SYSTEM_BEHAVIOR_KEY_LOGIN = "admin-login" as const;
+export const SYSTEM_BEHAVIOR_KEY_MANUAL = "manual" as const;
+export const SYSTEM_BEHAVIOR_KEY_BREAK = "break" as const;
+
+export const SYSTEM_BEHAVIOR_KEYS = [
+  SYSTEM_BEHAVIOR_KEY_LOGIN,
+  SYSTEM_BEHAVIOR_KEY_MANUAL,
+  SYSTEM_BEHAVIOR_KEY_BREAK,
+] as const;
+
+// ── Sequelize model 定義 ──────────────────────────────────────────────────────
 
 /**
- * One trigger → webhook forward rule, owned by a BehaviorTarget. Rules
- * within a target are evaluated in sortOrder ASC; if `stopOnMatch` is set
- * on a rule that fires, evaluation halts entirely (across all subsequent
- * targets and rules).
+ * v2 behaviors 表。軌二 webhook 接口層的核心表，source ∈ {custom, plugin, system}。
  *
- * `webhookUrl` is stored AES-encrypted by the route layer (see
- * web/behavior-routes.ts) — the model itself does not encrypt/decrypt so
- * helper queries can opt into raw access for the dispatcher.
+ * 欄位對應 A-schema §1.2 DDL（破壞性遷移版，無 legacyId）。
+ * 所有 CHECK invariant（I-1~I-7）由 migration DDL 在 SQLite 層強制，
+ * model 層只宣告欄位型別，不重複 validate（避免重複邏輯發散）。
+ *
+ * 注意：integrationTypes / contexts 為 lexicographically-sorted comma-joined string，
+ * 應用層在 INSERT/UPDATE 前必須強制 sort+dedup 後才寫入。
+ *
+ * M1-C 接管前，dispatcher / routes 全部 stub（回 503 或 throw）。
  */
 export const Behavior = sequelize.define(
   "Behavior",
@@ -28,15 +46,9 @@ export const Behavior = sequelize.define(
       autoIncrement: true,
       primaryKey: true,
     },
-    targetId: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: { model: BehaviorTarget, key: "id" },
-      onDelete: "CASCADE",
-      onUpdate: "CASCADE",
-    },
+    // 基本元資料
     title: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: false,
     },
     description: {
@@ -44,31 +56,10 @@ export const Behavior = sequelize.define(
       allowNull: false,
       defaultValue: "",
     },
-    triggerType: {
-      type: DataTypes.STRING,
+    enabled: {
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      validate: {
-        isIn: [["startswith", "endswith", "regex", "slash_command"]],
-      },
-    },
-    triggerValue: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-    },
-    forwardType: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isIn: [["one_time", "continuous"]],
-      },
-    },
-    webhookUrl: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-    },
-    webhookSecret: {
-      type: DataTypes.TEXT,
-      allowNull: true,
+      defaultValue: true,
     },
     sortOrder: {
       type: DataTypes.INTEGER,
@@ -80,22 +71,98 @@ export const Behavior = sequelize.define(
       allowNull: false,
       defaultValue: false,
     },
-    enabled: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: true,
-    },
-    // Plugin-mode discriminator and references. Added in migration
-    // 20260429010000-behavior-plugin-type. Existing rows backfill to
-    // type='webhook' and the dispatcher keeps its old direct-POST path.
-    // Type='plugin' rows resolve the live plugin URL via plugins.url
-    // and ignore webhookUrl (which holds a placeholder for NOT NULL).
-    type: {
+    forwardType: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "webhook",
-      validate: { isIn: [["webhook", "plugin", "system"]] },
+      defaultValue: "one_time",
+      validate: { isIn: [["one_time", "continuous"]] },
     },
+    // 三維分類
+    source: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { isIn: [["custom", "plugin", "system"]] },
+    },
+    triggerType: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: { isIn: [["slash_command", "message_pattern"]] },
+    },
+    // message_pattern 子型
+    messagePatternKind: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: { isIn: [[null, "startswith", "endswith", "regex"]] },
+    },
+    messagePatternValue: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // slash_command 子欄位
+    slashCommandName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    slashCommandDescription: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // 三軸
+    scope: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "global",
+      validate: { isIn: [["global", "guild"]] },
+    },
+    integrationTypes: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      defaultValue: "guild_install",
+    },
+    contexts: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      defaultValue: "Guild",
+    },
+    // placement
+    placementGuildId: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    placementChannelId: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // audience
+    audienceKind: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "all",
+      validate: { isIn: [["all", "user", "group"]] },
+    },
+    audienceUserId: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    audienceGroupName: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // source-specific：custom
+    webhookUrl: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    webhookSecret: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    webhookAuthMode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: { isIn: [[null, "token", "hmac"]] },
+    },
+    // source-specific：plugin
     pluginId: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -104,6 +171,12 @@ export const Behavior = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    // source-specific：system
+    systemKey: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: { isIn: [[null, "admin-login", "manual", "break"]] },
+    },
   },
   {
     tableName: "behaviors",
@@ -111,129 +184,85 @@ export const Behavior = sequelize.define(
   },
 );
 
-export type BehaviorType = "webhook" | "plugin" | "system";
-
-/**
- * Stable subkey used to identify which built-in system behavior a
- * type='system' row implements. Stored in pluginBehaviorKey so we
- * don't add a fresh column. Only one value is supported today —
- * the admin-login DM/slash flow — but the discriminator leaves room
- * for future system flows (e.g. /manual, /break) to migrate in.
- */
-export const SYSTEM_BEHAVIOR_KEY_LOGIN = "admin-login";
-export const SYSTEM_BEHAVIOR_KEY_MANUAL = "manual";
-export const SYSTEM_BEHAVIOR_KEY_BREAK = "break";
-
-/**
- * Frozen list of every system-behavior key the bot ships. Driven by
- * the rebind sweep at startup (every entry registers as a global
- * DM-only Discord command from its triggerValue) and by
- * interactionCreate's system-behavior dispatcher.
- *
- * Adding a new system behavior:
- *   1) export a new SYSTEM_BEHAVIOR_KEY_X constant
- *   2) add it to this array
- *   3) write its ensure*Behavior() seed function
- *   4) wire its dispatcher in main.ts interactionCreate
- */
-export const SYSTEM_BEHAVIOR_KEYS = [
-  SYSTEM_BEHAVIOR_KEY_LOGIN,
-  SYSTEM_BEHAVIOR_KEY_MANUAL,
-  SYSTEM_BEHAVIOR_KEY_BREAK,
-] as const;
+// ── Row 型別 ──────────────────────────────────────────────────────────────────
 
 export interface BehaviorRow {
   id: number;
-  targetId: number;
   title: string;
   description: string;
-  triggerType: BehaviorTriggerType;
-  triggerValue: string;
-  forwardType: BehaviorForwardType;
-  /**
-   * For type='webhook': plaintext URL after decrypt; the actual
-   * destination POST'd to.
-   * For type='plugin':  placeholder string ("plugin://<key>/<behaviorKey>"),
-   * not used at dispatch time — the live plugin URL is read from the
-   * plugins table.
-   */
-  webhookUrl: string;
-  /**
-   * For type='webhook': optional HMAC secret (encrypted at rest);
-   * decrypted before signing.
-   * For type='plugin':  always null — plugin dispatch uses the
-   * plugin-level shared secret, not a per-behavior secret.
-   */
-  webhookSecret: string | null;
+  enabled: boolean;
   sortOrder: number;
   stopOnMatch: boolean;
-  enabled: boolean;
-  type: BehaviorType;
-  /** Set when type='plugin'; references plugins.id. Null for webhook rows. */
+  forwardType: BehaviorForwardType;
+  source: BehaviorSource;
+  triggerType: BehaviorTriggerType;
+  messagePatternKind: BehaviorMessagePatternKind | null;
+  messagePatternValue: string | null;
+  slashCommandName: string | null;
+  slashCommandDescription: string | null;
+  scope: BehaviorScope;
+  integrationTypes: string;
+  contexts: string;
+  placementGuildId: string | null;
+  placementChannelId: string | null;
+  audienceKind: BehaviorAudienceKind;
+  audienceUserId: string | null;
+  audienceGroupName: string | null;
+  webhookUrl: string | null;
+  webhookSecret: string | null;
+  webhookAuthMode: BehaviorWebhookAuthMode | null;
   pluginId: number | null;
-  /**
-   * The dm_behaviors[].key from the plugin's manifest, identifying
-   * which DM-flavor of the plugin this behavior routes to. Null for
-   * webhook rows.
-   */
   pluginBehaviorKey: string | null;
+  systemKey: BehaviorSystemKey | null;
 }
 
 function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
   return {
     id: model.getDataValue("id") as number,
-    targetId: model.getDataValue("targetId") as number,
     title: model.getDataValue("title") as string,
     description: (model.getDataValue("description") as string) ?? "",
-    triggerType: model.getDataValue("triggerType") as BehaviorTriggerType,
-    triggerValue: model.getDataValue("triggerValue") as string,
-    forwardType: model.getDataValue("forwardType") as BehaviorForwardType,
-    webhookUrl: model.getDataValue("webhookUrl") as string,
-    webhookSecret:
-      (model.getDataValue("webhookSecret") as string | null) ?? null,
+    enabled: !!model.getDataValue("enabled"),
     sortOrder: model.getDataValue("sortOrder") as number,
     stopOnMatch: !!model.getDataValue("stopOnMatch"),
-    enabled: !!model.getDataValue("enabled"),
-    type: ((model.getDataValue("type") as BehaviorType | null) ??
-      "webhook") as BehaviorType,
+    forwardType: model.getDataValue("forwardType") as BehaviorForwardType,
+    source: model.getDataValue("source") as BehaviorSource,
+    triggerType: model.getDataValue("triggerType") as BehaviorTriggerType,
+    messagePatternKind:
+      (model.getDataValue("messagePatternKind") as BehaviorMessagePatternKind | null) ??
+      null,
+    messagePatternValue:
+      (model.getDataValue("messagePatternValue") as string | null) ?? null,
+    slashCommandName:
+      (model.getDataValue("slashCommandName") as string | null) ?? null,
+    slashCommandDescription:
+      (model.getDataValue("slashCommandDescription") as string | null) ?? null,
+    scope: model.getDataValue("scope") as BehaviorScope,
+    integrationTypes: model.getDataValue("integrationTypes") as string,
+    contexts: model.getDataValue("contexts") as string,
+    placementGuildId:
+      (model.getDataValue("placementGuildId") as string | null) ?? null,
+    placementChannelId:
+      (model.getDataValue("placementChannelId") as string | null) ?? null,
+    audienceKind: model.getDataValue("audienceKind") as BehaviorAudienceKind,
+    audienceUserId:
+      (model.getDataValue("audienceUserId") as string | null) ?? null,
+    audienceGroupName:
+      (model.getDataValue("audienceGroupName") as string | null) ?? null,
+    webhookUrl: (model.getDataValue("webhookUrl") as string | null) ?? null,
+    webhookSecret:
+      (model.getDataValue("webhookSecret") as string | null) ?? null,
+    webhookAuthMode:
+      (model.getDataValue("webhookAuthMode") as BehaviorWebhookAuthMode | null) ??
+      null,
     pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
     pluginBehaviorKey:
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
+    systemKey:
+      (model.getDataValue("systemKey") as BehaviorSystemKey | null) ?? null,
   };
 }
 
-export const findBehaviorsByTarget = async (
-  targetId: number,
-  options?: { enabledOnly?: boolean },
-): Promise<BehaviorRow[]> => {
-  const where: Record<string, unknown> = { targetId };
-  if (options?.enabledOnly) where.enabled = true;
-  const rows = await Behavior.findAll({
-    where,
-    order: [
-      ["sortOrder", "ASC"],
-      ["id", "ASC"],
-    ],
-  });
-  return rows.map(rowOf);
-};
-
-export const findBehaviorsByTargets = async (
-  targetIds: number[],
-  options?: { enabledOnly?: boolean },
-): Promise<BehaviorRow[]> => {
-  if (targetIds.length === 0) return [];
-  const where: Record<string, unknown> = { targetId: targetIds };
-  if (options?.enabledOnly) where.enabled = true;
-  const rows = await Behavior.findAll({
-    where,
-    order: [
-      ["sortOrder", "ASC"],
-      ["id", "ASC"],
-    ],
-  });
-  return rows.map(rowOf);
-};
+// ── Query helpers ─────────────────────────────────────────────────────────────
 
 export const findBehaviorById = async (
   id: number,
@@ -242,246 +271,168 @@ export const findBehaviorById = async (
   return row ? rowOf(row) : null;
 };
 
+/**
+ * 查詢所有 source='system' 的 behavior rows。
+ * M1-C 接管前供 main.ts interactionCreate dispatcher 使用。
+ */
+export const findAllSystemBehaviors = async (): Promise<BehaviorRow[]> => {
+  const rows = await Behavior.findAll({ where: { source: "system" } });
+  return rows.map(rowOf);
+};
+
+// ── Deprecated v1 stubs（M1-C 接管後移除）────────────────────────────────────
+
+/**
+ * @deprecated v1 API。v2 schema 無 targetId；M1-C 接管後移除。
+ * 暫回空陣列，不爆炸，讓 bot 能 boot。
+ */
+export const findBehaviorsByTargets = async (
+  _targetIds: number[],
+  _options?: { enabledOnly?: boolean },
+): Promise<BehaviorRow[]> => {
+  return [];
+};
+
+/**
+ * @deprecated v1 API。v2 schema 無 targetId；M1-C 接管後移除。
+ */
+export const findBehaviorsByTarget = async (
+  _targetId: number,
+  _options?: { enabledOnly?: boolean },
+): Promise<BehaviorRow[]> => {
+  return [];
+};
+
+/**
+ * @deprecated v1 API（type='system' + pluginBehaviorKey）。
+ * v2 改用 systemKey 欄位；M1-C 接管後移除。
+ * 暫回 null，讓舊呼叫方不爆炸。
+ */
+export const findSystemBehaviorByKey = async (
+  _key: string,
+): Promise<BehaviorRow | null> => {
+  return null;
+};
+
+/**
+ * @deprecated v1 seed function（需要 targetId + v1 schema）。
+ * v2 schema 中 system seed 由 M1-C 接管。
+ * 暫 no-op（不插入），讓 main.ts 的呼叫不爆炸。
+ * TODO M1-C：改寫為 v2 seed（systemKey 欄位，無 targetId）。
+ */
+export const ensureSystemLoginBehavior = async (
+  _allDmsTargetId: number,
+): Promise<void> => {
+  // M1-A1: v2 schema 破壞性遷移後，system seed 暫時 no-op。
+  // M1-C 將重寫為 v2 schema 的 system seed（systemKey='admin-login'）。
+};
+
+/**
+ * @deprecated v1 seed function。同上。
+ * TODO M1-C：改寫。
+ */
+export const ensureSystemManualBehavior = async (
+  _allDmsTargetId: number,
+): Promise<void> => {
+  // M1-A1: no-op。M1-C 接管。
+};
+
+/**
+ * @deprecated v1 seed function。同上。
+ * TODO M1-C：改寫。
+ */
+export const ensureSystemBreakBehavior = async (
+  _allDmsTargetId: number,
+): Promise<void> => {
+  // M1-A1: no-op。M1-C 接管。
+};
+
+/**
+ * @deprecated v1 API。v2 schema 無 targetId；M1-C 接管後移除。
+ */
+export const reorderBehaviors = async (
+  _targetId: number,
+  _orderedIds: number[],
+): Promise<void> => {
+  throw new Error(
+    "M1-A1: reorderBehaviors is deprecated (v1 API). Will be replaced in M1-C.",
+  );
+};
+
+/**
+ * @deprecated v1 API。M1-C 接管後移除。
+ */
+export const createBehavior = async (
+  _input: unknown,
+): Promise<BehaviorRow> => {
+  throw new Error(
+    "M1-A1: createBehavior is deprecated (v1 API). Will be replaced in M1-C.",
+  );
+};
+
+/**
+ * @deprecated v1 API。M1-C 接管後移除。
+ */
+export const updateBehavior = async (
+  _id: number,
+  _patch: unknown,
+): Promise<BehaviorRow | null> => {
+  throw new Error(
+    "M1-A1: updateBehavior is deprecated (v1 API). Will be replaced in M1-C.",
+  );
+};
+
+/**
+ * @deprecated v1 API。M1-C 接管後移除。
+ */
+export const deleteBehavior = async (_id: number): Promise<void> => {
+  throw new Error(
+    "M1-A1: deleteBehavior is deprecated (v1 API). Will be replaced in M1-C.",
+  );
+};
+
+// ── v1 型別 alias（供仍在 import 的地方 compile 通過）─────────────────────────
+
+/**
+ * @deprecated v1 型別。使用 BehaviorTriggerType（v2）。
+ */
+export type BehaviorType = "webhook" | "plugin" | "system";
+
+/**
+ * @deprecated v1 input 型別（有 targetId / triggerValue 等 v1 欄位）。
+ * 只供 compile 通過，不應在 M1-C 後繼續使用。
+ */
 export interface NewBehaviorInput {
   targetId: number;
   title: string;
   description?: string;
-  triggerType: BehaviorTriggerType;
+  triggerType: string;
   triggerValue: string;
   forwardType: BehaviorForwardType;
   webhookUrl: string;
-  /** Pass an encrypted value to enable HMAC signing; omit / null to skip. */
   webhookSecret?: string | null;
   stopOnMatch?: boolean;
   enabled?: boolean;
-  /** Defaults to 'webhook' to keep legacy callers working unchanged. */
   type?: BehaviorType;
-  /** Required when type='plugin'. */
   pluginId?: number | null;
-  /** Required when type='plugin'. */
   pluginBehaviorKey?: string | null;
 }
 
-export const createBehavior = async (
-  input: NewBehaviorInput,
-): Promise<BehaviorRow> => {
-  // New behaviors land at the bottom of the target's list; UI can
-  // reorder afterwards.
-  const maxRow = await Behavior.findOne({
-    where: { targetId: input.targetId },
-    order: [["sortOrder", "DESC"]],
-  });
-  const nextSort =
-    ((maxRow?.getDataValue("sortOrder") as number | undefined) ?? -1) + 1;
-  const created = await Behavior.create({
-    targetId: input.targetId,
-    title: input.title,
-    description: input.description ?? "",
-    triggerType: input.triggerType,
-    triggerValue: input.triggerValue,
-    forwardType: input.forwardType,
-    webhookUrl: input.webhookUrl,
-    webhookSecret: input.webhookSecret ?? null,
-    sortOrder: nextSort,
-    stopOnMatch: input.stopOnMatch ?? false,
-    enabled: input.enabled ?? true,
-    type: input.type ?? "webhook",
-    pluginId: input.pluginId ?? null,
-    pluginBehaviorKey: input.pluginBehaviorKey ?? null,
-  });
-  return rowOf(created);
-};
-
+/**
+ * @deprecated v1 update 型別。
+ */
 export interface BehaviorUpdate {
   title?: string;
   description?: string;
-  triggerType?: BehaviorTriggerType;
+  triggerType?: string;
   triggerValue?: string;
   forwardType?: BehaviorForwardType;
-  /** Pass an encrypted value to overwrite; omit / undefined to keep current. */
   webhookUrl?: string;
-  /**
-   * Pass an encrypted value to set, `null` to clear (disable signing),
-   * `undefined` to keep current.
-   */
   webhookSecret?: string | null;
   stopOnMatch?: boolean;
   enabled?: boolean;
   targetId?: number;
-  /**
-   * Plugin-mode discriminator and refs. Generally set ONLY at create
-   * time; updating type/pluginId on an existing row is rare (it would
-   * change the dispatch path entirely) but the schema permits it.
-   */
   type?: BehaviorType;
   pluginId?: number | null;
   pluginBehaviorKey?: string | null;
 }
-
-export const updateBehavior = async (
-  id: number,
-  patch: BehaviorUpdate,
-): Promise<BehaviorRow | null> => {
-  const updates: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(patch)) {
-    if (value !== undefined) updates[key] = value;
-  }
-  if (Object.keys(updates).length === 0) {
-    return findBehaviorById(id);
-  }
-  await Behavior.update(updates, { where: { id } });
-  return findBehaviorById(id);
-};
-
-export const deleteBehavior = async (id: number): Promise<void> => {
-  await Behavior.destroy({ where: { id } });
-};
-
-/**
- * Bulk reorder behaviors inside a single target. The UI sends the full
- * ordered id list; we reassign sortOrder = 0..N-1 inside a transaction
- * so the table never observes a half-applied permutation.
- */
-export const reorderBehaviors = async (
-  targetId: number,
-  orderedIds: number[],
-): Promise<void> => {
-  await sequelize.transaction(async (t) => {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await Behavior.update(
-        { sortOrder: i },
-        { where: { id: orderedIds[i], targetId }, transaction: t },
-      );
-    }
-  });
-};
-
-/**
- * Look up a singleton system behavior by its `pluginBehaviorKey`
- * subkey. Returns null if the row hasn't been seeded yet.
- */
-export const findSystemBehaviorByKey = async (
-  key: string,
-): Promise<BehaviorRow | null> => {
-  const row = await Behavior.findOne({
-    where: { type: "system", pluginBehaviorKey: key },
-  });
-  return row ? rowOf(row) : null;
-};
-
-/**
- * Idempotent seed of the admin-login system behavior. Called from
- * main.ts at startup, after migrations and the all_dms target seed.
- *
- * The row is treated as a permanent system fixture by behavior-routes
- * (DELETE refused, most fields locked from PATCH). Defaults:
- *   - target = ALL_DMS_TARGET_ID (1)
- *   - type = 'system', pluginBehaviorKey = SYSTEM_BEHAVIOR_KEY_LOGIN
- *   - triggerType = 'slash_command', triggerValue = 'login'
- *     (admin can switch to startswith / regex etc. later if they
- *     want a chat-text alternative; the dispatcher still routes any
- *     match to the admin-login service)
- *   - stopOnMatch = true (system rows always halt evaluation)
- *   - sortOrder = -1000 so the row sorts above any user-created row
- *   - webhookUrl = placeholder ("system://admin-login") to satisfy
- *     the NOT NULL column; never read at dispatch time
- */
-export const ensureSystemLoginBehavior = async (
-  allDmsTargetId: number,
-): Promise<BehaviorRow> => {
-  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_LOGIN);
-  if (existing) return existing;
-  const created = await Behavior.create({
-    targetId: allDmsTargetId,
-    title: "發送登入連結",
-    description:
-      "私訊 bot `/login`(或符合觸發條件)時,發送一次性 admin 登入連結給授權使用者。系統行為,不可刪除或更換目標對象。",
-    triggerType: "slash_command",
-    triggerValue: "login",
-    forwardType: "one_time",
-    // Encrypted at rest like every other webhookUrl. The placeholder is
-    // never decrypted at dispatch (system rows route to a service, not
-    // an external URL) — keeping the same envelope avoids confusing
-    // decryptedView callers that expect ciphertext on every row.
-    webhookUrl: encryptSecret("system://admin-login"),
-    webhookSecret: null,
-    sortOrder: -1000,
-    stopOnMatch: true,
-    enabled: true,
-    type: "system",
-    pluginId: null,
-    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_LOGIN,
-  });
-  return rowOf(created);
-};
-
-/**
- * Idempotent seed of the `/manual` listing system behavior. Replaces
- * the old in-process discordx ManualCommands class — same surface
- * (DM-only `/manual`), now flowing through the same system-behavior
- * trigger + dispatch pipeline as login. Admin can rename the trigger
- * value via the BehaviorsPage if /manual collides with something.
- */
-export const ensureSystemManualBehavior = async (
-  allDmsTargetId: number,
-): Promise<BehaviorRow> => {
-  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_MANUAL);
-  if (existing) return existing;
-  const created = await Behavior.create({
-    targetId: allDmsTargetId,
-    title: "查看可用行為列表",
-    description:
-      "私訊 bot `/manual`(或符合觸發條件)時,列出此使用者在私訊可用的所有 behaviors。系統行為,不可刪除或更換目標對象。",
-    triggerType: "slash_command",
-    triggerValue: "manual",
-    forwardType: "one_time",
-    webhookUrl: encryptSecret("system://manual"),
-    webhookSecret: null,
-    sortOrder: -999,
-    stopOnMatch: true,
-    enabled: true,
-    type: "system",
-    pluginId: null,
-    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_MANUAL,
-  });
-  return rowOf(created);
-};
-
-/**
- * Idempotent seed of the `/break` end-session system behavior.
- * Replaces the old in-process discordx BreakCommands class.
- */
-export const ensureSystemBreakBehavior = async (
-  allDmsTargetId: number,
-): Promise<BehaviorRow> => {
-  const existing = await findSystemBehaviorByKey(SYSTEM_BEHAVIOR_KEY_BREAK);
-  if (existing) return existing;
-  const created = await Behavior.create({
-    targetId: allDmsTargetId,
-    title: "結束持續轉發",
-    description:
-      "私訊 bot `/break`(或符合觸發條件)時,結束此使用者目前的持續轉發 session。系統行為,不可刪除或更換目標對象。",
-    triggerType: "slash_command",
-    triggerValue: "break",
-    forwardType: "one_time",
-    webhookUrl: encryptSecret("system://break"),
-    webhookSecret: null,
-    sortOrder: -998,
-    stopOnMatch: true,
-    enabled: true,
-    type: "system",
-    pluginId: null,
-    pluginBehaviorKey: SYSTEM_BEHAVIOR_KEY_BREAK,
-  });
-  return rowOf(created);
-};
-
-/**
- * Convenience: every system behavior currently seeded in the DB.
- * Used by the rebind sweep + interactionCreate dispatcher so adding
- * a new key doesn't require touching either of those call sites.
- */
-export const findAllSystemBehaviors = async (): Promise<BehaviorRow[]> => {
-  const rows = await Behavior.findAll({ where: { type: "system" } });
-  return rows.map(rowOf);
-};
