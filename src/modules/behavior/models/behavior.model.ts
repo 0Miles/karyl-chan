@@ -228,8 +228,9 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
     source: model.getDataValue("source") as BehaviorSource,
     triggerType: model.getDataValue("triggerType") as BehaviorTriggerType,
     messagePatternKind:
-      (model.getDataValue("messagePatternKind") as BehaviorMessagePatternKind | null) ??
-      null,
+      (model.getDataValue(
+        "messagePatternKind",
+      ) as BehaviorMessagePatternKind | null) ?? null,
     messagePatternValue:
       (model.getDataValue("messagePatternValue") as string | null) ?? null,
     slashCommandName:
@@ -252,8 +253,9 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
     webhookSecret:
       (model.getDataValue("webhookSecret") as string | null) ?? null,
     webhookAuthMode:
-      (model.getDataValue("webhookAuthMode") as BehaviorWebhookAuthMode | null) ??
-      null,
+      (model.getDataValue(
+        "webhookAuthMode",
+      ) as BehaviorWebhookAuthMode | null) ?? null,
     pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
     pluginBehaviorKey:
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
@@ -278,6 +280,24 @@ export const findBehaviorById = async (
 export const findAllSystemBehaviors = async (): Promise<BehaviorRow[]> => {
   const rows = await Behavior.findAll({ where: { source: "system" } });
   return rows.map(rowOf);
+};
+
+/**
+ * 查詢所有 enabled=1 且 triggerType='slash_command' 的 slashCommandName。
+ * 用於 CR-4：assertNoCollisions 防止 plugin command 與 behavior slash trigger 名稱碰撞。
+ * NULL slashCommandName 的 row 自動過濾，回傳的全為非空字串。
+ */
+export const findEnabledSlashCommandNames = async (): Promise<string[]> => {
+  const rows = await Behavior.findAll({
+    where: {
+      triggerType: "slash_command",
+      enabled: true,
+    },
+    attributes: ["slashCommandName"],
+  });
+  return rows
+    .map((r) => r.getDataValue("slashCommandName") as string | null)
+    .filter((n): n is string => typeof n === "string" && n.length > 0);
 };
 
 // ── Deprecated v1 stubs（M1-C 接管後移除）────────────────────────────────────
@@ -362,9 +382,7 @@ export const reorderBehaviors = async (
 /**
  * @deprecated v1 API。M1-C 接管後移除。
  */
-export const createBehavior = async (
-  _input: unknown,
-): Promise<BehaviorRow> => {
+export const createBehavior = async (_input: unknown): Promise<BehaviorRow> => {
   throw new Error(
     "M1-A1: createBehavior is deprecated (v1 API). Will be replaced in M1-C.",
   );

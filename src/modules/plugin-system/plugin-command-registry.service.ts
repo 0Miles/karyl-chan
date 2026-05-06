@@ -21,9 +21,11 @@ import {
 import { findFeatureRowsByPlugin } from "../feature-toggle/models/plugin-guild-feature.model.js";
 import { findAllPlugins, type PluginRow } from "./models/plugin.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
+import { findEnabledSlashCommandNames } from "../behavior/models/behavior.model.js";
 import type {
   ManifestCommand,
   ManifestCommandOption,
+  ManifestPluginCommandV2,
   PluginManifest,
 } from "./plugin-registry.service.js";
 
@@ -220,6 +222,10 @@ export class PluginCommandRegistry {
    * same plugin (otherwise a plugin couldn't re-register its own
    * /account because the live cache already shows /account).
    *
+   * CR-4（v2）：額外查詢 behaviors 表中 triggerType='slash_command' 且
+   * enabled=1 的 slashCommandName，避免 plugin command 與 behavior slash
+   * trigger 名稱碰撞。
+   *
    * Returns a fresh Set each call so concurrent registers don't share
    * mutation, and the cost (~few dozen string lookups) is trivial.
    */
@@ -238,6 +244,15 @@ export class PluginCommandRegistry {
       // collision check below would also fail — let downstream surface
       // the real error instead of crashing here.
     }
+
+    // CR-4：從 behaviors 表動態載入 slash trigger names
+    try {
+      const behaviorSlashNames = await findEnabledSlashCommandNames();
+      for (const n of behaviorSlashNames) reserved.add(n);
+    } catch {
+      // DB outage fallback：跳過 behavior 防撞，讓下游顯示真實錯誤
+    }
+
     const bot = this.getBot();
     if (!bot || !bot.application) {
       for (const n of ownNames) reserved.delete(n);
@@ -261,45 +276,42 @@ export class PluginCommandRegistry {
    * Called from PluginRegistry.register BEFORE the plugin row is
    * upserted, so on rejection nothing is persisted and the plugin
    * retries with a corrected manifest.
+   *
+   * v2：讀取 manifest.plugin_commands[]（v1 manifest.commands[] 已廢棄）。
    */
   async assertNoCollisions(
     incomingPluginKey: string,
     incomingPluginId: number,
     manifest: PluginManifest,
   ): Promise<void> {
+    // v2：plugin_commands[]；v1 fallback：commands[]（已廢棄，v1 manifest 不應到此）
+    const incomingCommands: Array<{ name: string }> = [
+      ...(manifest.plugin_commands ?? []),
+      ...(manifest.commands ?? []),
+    ];
+
     const reserved = await this.buildReservedCommandNames(incomingPluginId);
-    for (const cmd of manifest.commands ?? []) {
+    for (const cmd of incomingCommands) {
       if (reserved.has(cmd.name)) {
         throw new ManifestCommandError(
-          `command '${cmd.name}' is reserved for bot internals; ` +
+          `command '${cmd.name}' is reserved for bot internals or conflicts with an existing behavior slash trigger; ` +
             `'${incomingPluginKey}' must rename it`,
         );
       }
     }
-    for (const cmd of manifest.commands ?? []) {
-      const guildIds: Array<string | null> = [];
-      // Phase 1.5: 'guild' scope means "every guild the bot is in"
-      // — but we can't fan out per-guild rows at register time
-      // because we don't know the guild list (bot may not be ready).
-      // Treat both scopes as global at the persistence layer; later
-      // reconcileAll re-applies them per-guild.
-      if (cmd.scope === "guild") {
-        guildIds.push(null);
-      } else {
-        guildIds.push(null);
-      }
-      for (const gid of guildIds) {
-        const collisions = await findCommandCollisions(incomingPluginId, {
-          name: cmd.name,
-          guildId: gid,
-        });
-        if (collisions.length > 0) {
-          const owner = collisions[0];
-          throw new ManifestCommandError(
-            `command '${cmd.name}' already registered by another plugin (id=${owner.pluginId}); ` +
-              `'${incomingPluginKey}' must rename or remove it`,
-          );
-        }
+    for (const cmd of incomingCommands) {
+      const collisions = await findCommandCollisions(incomingPluginId, {
+        name: cmd.name,
+        // Treat both scopes as global at the persistence layer;
+        // reconcileAll re-applies them per-guild.
+        guildId: null,
+      });
+      if (collisions.length > 0) {
+        const owner = collisions[0];
+        throw new ManifestCommandError(
+          `command '${cmd.name}' already registered by another plugin (id=${owner.pluginId}); ` +
+            `'${incomingPluginKey}' must rename or remove it`,
+        );
       }
     }
   }
@@ -324,7 +336,11 @@ export class PluginCommandRegistry {
       );
       return;
     }
-    const globalCommands = manifest.commands ?? [];
+    // v2：plugin_commands[]；v1 fallback：commands[]
+    const globalCommands: Array<ManifestCommand | ManifestPluginCommandV2> = [
+      ...(manifest.plugin_commands ?? []),
+      ...(manifest.commands ?? []),
+    ];
     const existing = await findPluginCommandsByPlugin(plugin.id);
     // Two halves of `existing` to reconcile separately:
     //   - global rows (featureKey null, guildId null)

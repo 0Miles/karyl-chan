@@ -126,12 +126,59 @@ export interface ManifestGuildFeature {
   commands?: ManifestCommand[];
 }
 
+/**
+ * @deprecated v1 dm_behaviors[]. v2 請改用 behaviors[]（ManifestBehaviorV2）。
+ * 保留以不破壞舊 manifest 的 JSON.parse 型別轉換；v1 manifest 在 validateManifest 已被拒絕。
+ */
 export interface ManifestDmBehavior {
   key: string;
   name: string;
   description?: string;
   supports_continuous?: boolean;
   config_schema?: ManifestConfigField[];
+}
+
+/**
+ * v2 軌二：behaviors[]（webhook 接口層）。
+ * 三軸（scope/integration_types/contexts）不在 manifest 寫，由 admin 設定。
+ */
+export interface ManifestBehaviorV2 {
+  /** 唯一識別鍵，在 plugin 內不重複。 */
+  key: string;
+  name: string;
+  description?: string;
+  /**
+   * Webhook 接收路徑（相對於 plugin.url）。
+   * 必須以 `/` 開頭，同 plugin 內必須唯一（V-09）。
+   */
+  webhook_path: string;
+  slashHints?: {
+    suggested_name?: string;
+    suggested_description?: string;
+    options?: ManifestCommandOption[];
+  };
+  config_schema?: ManifestConfigField[];
+  supports_continuous?: boolean;
+}
+
+/**
+ * v2 軌三：plugin_commands[]（plugin 鎖死三軸，admin 只能 on/off）。
+ */
+export interface ManifestPluginCommandV2 {
+  /** Discord slash command name，格式 [a-z0-9][a-z0-9-]{0,31}。 */
+  name: string;
+  /** 必填，非空字串（V-05）。 */
+  description: string;
+  /** V-06：必須是 "guild" 或 "global"。 */
+  scope: "guild" | "global";
+  /** V-07：必須是合法子集。 */
+  integration_types: Array<"guild_install" | "user_install">;
+  /** V-08：必須是合法子集。 */
+  contexts: Array<"Guild" | "BotDM" | "PrivateChannel">;
+  options?: ManifestCommandOption[];
+  default_member_permissions?: string;
+  default_ephemeral?: boolean;
+  required_capability?: string;
 }
 
 export interface PluginManifest {
@@ -154,22 +201,34 @@ export interface PluginManifest {
   };
   /**
    * Plugin-level config that the operator can edit from the admin UI.
-   * Distinct from guild_features[].config_schema (per-guild) and
-   * dm_behaviors[].config_schema (per-behavior). Values persist in the
-   * `plugin_configs` table and are exposed back to the plugin via the
-   * `config.get` RPC (secrets returned decrypted to the plugin process,
-   * masked when surfaced to admin reads).
+   * Values persist in the `plugin_configs` table.
    */
   config_schema?: ManifestConfigField[];
   guild_features?: ManifestGuildFeature[];
+  /** v2 軌二：behaviors（webhook 接口層）。 */
+  behaviors?: ManifestBehaviorV2[];
+  /** v2 軌三：plugin 自訂指令（三軸寫死）。 */
+  plugin_commands?: ManifestPluginCommandV2[];
+  /**
+   * @deprecated v1 欄位，v2 改用 behaviors[]。
+   * 保留型別以不破壞 manifestJson 的 JSON.parse；validateManifest 不再接受含此欄位的 manifest。
+   */
   dm_behaviors?: ManifestDmBehavior[];
+  /**
+   * @deprecated v1 欄位，v2 改用 plugin_commands[]。
+   * 同上。
+   */
   commands?: ManifestCommand[];
   events_subscribed_global?: string[];
   endpoints?: {
     events?: string;
-    command?: string;
+    /** v2：取代 v1 的 command。 */
+    plugin_command?: string;
     guild_feature_action?: string;
+    /** @deprecated v1 欄位；v2 各 behavior 自帶 webhook_path。 */
     dm_behavior_dispatch?: string;
+    /** @deprecated v1 欄位。 */
+    command?: string;
   };
 }
 
@@ -211,6 +270,12 @@ export type ManifestValidation =
   | { ok: true; manifest: PluginManifest }
   | { ok: false; error: string };
 
+/**
+ * Validate a plugin manifest. v2 only: schema_version must be "2".
+ * v1 manifests are rejected immediately with a clear error message.
+ *
+ * Implements V-01 ~ V-10 + V-C1 / V-C2 / V-C3 from B-sdk §4.
+ */
 export async function validateManifest(
   input: unknown,
 ): Promise<ManifestValidation> {
@@ -218,12 +283,18 @@ export async function validateManifest(
     return { ok: false, error: "manifest must be an object" };
   }
   const m = input as Record<string, unknown>;
-  if (m.schema_version !== "1") {
+
+  // V-01：schema_version 必須是字串 "2"（不接受整數 2、不接受 "1"）
+  if (m.schema_version !== "2") {
     return {
       ok: false,
-      error: `unsupported schema_version (got ${String(m.schema_version)}, expected '1')`,
+      error:
+        `unsupported schema_version (got ${JSON.stringify(m.schema_version)}, expected "2"). ` +
+        `v1 manifests are no longer accepted. See migration guide.`,
     };
   }
+
+  // V-02：plugin.id 格式
   const plugin = m.plugin as Record<string, unknown> | undefined;
   if (!plugin || typeof plugin !== "object") {
     return { ok: false, error: "manifest.plugin missing" };
@@ -239,8 +310,8 @@ export async function validateManifest(
       error: "manifest.plugin.id must match [a-z0-9][a-z0-9-]*",
     };
   }
-  // URL must be parseable; reject non-http(s) up front so we don't
-  // try to fetch over a weird scheme later.
+
+  // V-03：plugin.url 必須是 http/https，通過 SSRF guard
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(plugin.url as string);
@@ -250,8 +321,6 @@ export async function validateManifest(
   } catch {
     return { ok: false, error: "manifest.plugin.url is not a valid URL" };
   }
-  // SSRF guard: validate plugin URL against host policy (metadata blocked;
-  // RFC1918 allowed for docker-internal services).
   const pluginPort = parsedUrl.port
     ? Number(parsedUrl.port)
     : parsedUrl.protocol === "https:"
@@ -264,28 +333,200 @@ export async function validateManifest(
       err instanceof HostPolicyError ? err.message : "Plugin 目標不被允許";
     return { ok: false, error: `manifest.plugin.url: ${msg}` };
   }
-  // The arrays are optional but if present must be arrays.
+
+  // V-04：behaviors / plugin_commands / guild_features 若存在必須是 array
   for (const k of [
     "rpc_methods_used",
+    "behaviors",
+    "plugin_commands",
     "guild_features",
-    "dm_behaviors",
-    "commands",
     "events_subscribed_global",
   ] as const) {
     if (m[k] !== undefined && !Array.isArray(m[k])) {
       return { ok: false, error: `manifest.${k} must be an array` };
     }
   }
-  // Light per-feature / per-behavior validation; we trust well-formed
-  // shape beyond this. Stricter checks (e.g. valid Discord option
-  // types) live in the command-registration layer where they're
-  // actionable.
-  // Track every command name across the whole manifest (top-level +
-  // every feature) — Discord-side a feature command and a global
-  // command sharing a name in the same guild would collide visually,
-  // and our reverse-lookup index is a flat (name, guildId) pair.
-  const seenNames = new Set<string>();
-  const validateCommand = (
+
+  // ── behaviors[] 驗證（V-09、V-10）────────────────────────────────────────
+  const behaviors = (m.behaviors as ManifestBehaviorV2[] | undefined) ?? [];
+  const seenWebhookPaths = new Set<string>();
+  for (let i = 0; i < behaviors.length; i++) {
+    const b = behaviors[i];
+    if (!b || typeof b !== "object") {
+      return { ok: false, error: `behaviors[${i}] must be an object` };
+    }
+    if (!b.key || typeof b.key !== "string") {
+      return { ok: false, error: `behaviors[${i}].key required` };
+    }
+    // V-09：webhook_path 必須以 / 開頭，不能為空；同 plugin 內必須唯一
+    if (
+      !b.webhook_path ||
+      typeof b.webhook_path !== "string" ||
+      !b.webhook_path.startsWith("/")
+    ) {
+      return {
+        ok: false,
+        error: `behaviors[${b.key}].webhook_path must be a non-empty string starting with "/"`,
+      };
+    }
+    if (seenWebhookPaths.has(b.webhook_path)) {
+      return {
+        ok: false,
+        error: `behaviors[${b.key}].webhook_path "${b.webhook_path}" is duplicated within the manifest (V-09)`,
+      };
+    }
+    seenWebhookPaths.add(b.webhook_path);
+    // V-10：slashHints.contexts 若存在，必須是合法子集
+    if (b.slashHints !== undefined && b.slashHints !== null) {
+      const sh = b.slashHints as Record<string, unknown>;
+      if (sh.contexts !== undefined) {
+        if (!Array.isArray(sh.contexts)) {
+          return {
+            ok: false,
+            error: `behaviors[${b.key}].slashHints.contexts must be an array`,
+          };
+        }
+        const VALID_CONTEXTS = new Set(["Guild", "BotDM", "PrivateChannel"]);
+        for (const ctx of sh.contexts as unknown[]) {
+          if (typeof ctx !== "string" || !VALID_CONTEXTS.has(ctx)) {
+            return {
+              ok: false,
+              error: `behaviors[${b.key}].slashHints.contexts contains invalid value "${String(ctx)}"`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // ── plugin_commands[] 驗證（V-05 ~ V-08、V-C1 / V-C2 / V-C3）────────────
+  const pluginCommands =
+    (m.plugin_commands as ManifestPluginCommandV2[] | undefined) ?? [];
+  const seenCommandNames = new Set<string>();
+  for (let i = 0; i < pluginCommands.length; i++) {
+    const cmd = pluginCommands[i];
+    if (!cmd || typeof cmd !== "object") {
+      return { ok: false, error: `plugin_commands[${i}] must be an object` };
+    }
+
+    // V-05：description 必須是非空字串
+    if (
+      !cmd.description ||
+      typeof cmd.description !== "string" ||
+      cmd.description.trim().length === 0
+    ) {
+      return {
+        ok: false,
+        error: `plugin_commands[${i}].description must be a non-empty string (V-05)`,
+      };
+    }
+
+    // name 格式（Discord constraint）
+    if (!cmd.name || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(cmd.name)) {
+      return {
+        ok: false,
+        error:
+          `plugin_commands[${i}].name "${String(cmd.name)}" invalid ` +
+          `(Discord constraint: ^[a-z0-9][a-z0-9-]{0,31}$)`,
+      };
+    }
+    if (seenCommandNames.has(cmd.name)) {
+      return {
+        ok: false,
+        error: `plugin_commands[${i}].name "${cmd.name}" is declared more than once`,
+      };
+    }
+    seenCommandNames.add(cmd.name);
+
+    // V-06：scope
+    if (cmd.scope !== "guild" && cmd.scope !== "global") {
+      return {
+        ok: false,
+        error: `plugin_commands[${cmd.name}].scope must be "guild" or "global" (V-06)`,
+      };
+    }
+
+    // V-07：integration_types 必須是合法子集且非空
+    if (!Array.isArray(cmd.integration_types) || cmd.integration_types.length === 0) {
+      return {
+        ok: false,
+        error: `plugin_commands[${cmd.name}].integration_types must be a non-empty array (V-07)`,
+      };
+    }
+    const VALID_INTEGRATION_TYPES = new Set(["guild_install", "user_install"]);
+    for (const it of cmd.integration_types) {
+      if (typeof it !== "string" || !VALID_INTEGRATION_TYPES.has(it)) {
+        return {
+          ok: false,
+          error:
+            `plugin_commands[${cmd.name}].integration_types contains invalid value "${String(it)}" (V-07)`,
+        };
+      }
+    }
+
+    // V-08：contexts 必須是非空子集
+    if (!Array.isArray(cmd.contexts) || cmd.contexts.length === 0) {
+      return {
+        ok: false,
+        error: `plugin_commands[${cmd.name}].contexts must be a non-empty array (V-08)`,
+      };
+    }
+    const VALID_CONTEXTS_SET = new Set(["Guild", "BotDM", "PrivateChannel"]);
+    for (const ctx of cmd.contexts) {
+      if (typeof ctx !== "string" || !VALID_CONTEXTS_SET.has(ctx)) {
+        return {
+          ok: false,
+          error:
+            `plugin_commands[${cmd.name}].contexts contains invalid value "${String(ctx)}" (V-08)`,
+        };
+      }
+    }
+
+    const integrationTypesSet = new Set(cmd.integration_types);
+    const contextsSet = new Set(cmd.contexts);
+
+    // V-C1：scope="guild" 時，contexts 不能包含 BotDM 或 PrivateChannel
+    if (cmd.scope === "guild") {
+      if (contextsSet.has("BotDM") || contextsSet.has("PrivateChannel")) {
+        return {
+          ok: false,
+          error:
+            `plugin_commands[${cmd.name}]: scope="guild" is incompatible with BotDM/PrivateChannel contexts (V-C1)`,
+        };
+      }
+    }
+
+    // V-C2：scope="guild" 時，integration_types 不能包含 user_install
+    if (cmd.scope === "guild") {
+      if (integrationTypesSet.has("user_install")) {
+        return {
+          ok: false,
+          error:
+            `plugin_commands[${cmd.name}]: scope="guild" is incompatible with user_install (V-C2)`,
+        };
+      }
+    }
+
+    // V-C3：scope="global" 且 integration_types 不含 user_install 時，
+    //       contexts 不能包含 BotDM 或 PrivateChannel
+    if (
+      cmd.scope === "global" &&
+      !integrationTypesSet.has("user_install")
+    ) {
+      if (contextsSet.has("BotDM") || contextsSet.has("PrivateChannel")) {
+        return {
+          ok: false,
+          error:
+            `plugin_commands[${cmd.name}]: scope="global" with guild_install-only cannot have BotDM/PrivateChannel contexts (V-C3)`,
+        };
+      }
+    }
+  }
+
+  // ── guild_features[] 驗證（沿用 v1 邏輯）────────────────────────────────
+  // guild_features 的 commands[] 格式沿用 ManifestCommand（v1 相容）
+  const seenFeatureCommandNames = new Set<string>();
+  const validateFeatureCommand = (
     c: ManifestCommand,
     origin: string,
   ): { ok: false; error: string } | null => {
@@ -298,18 +539,18 @@ export async function validateManifest(
         error: `${origin}: command.name '${c.name}' invalid (Discord constraint: ^[a-z0-9][a-z0-9-]{0,31}$)`,
       };
     }
-    if (seenNames.has(c.name)) {
+    if (seenFeatureCommandNames.has(c.name)) {
       return {
         ok: false,
         error: `${origin}: command.name '${c.name}' is declared more than once in the manifest`,
       };
     }
-    seenNames.add(c.name);
+    seenFeatureCommandNames.add(c.name);
     return null;
   };
 
-  for (const f of (m.guild_features as ManifestGuildFeature[] | undefined) ??
-    []) {
+  for (const f of
+    (m.guild_features as ManifestGuildFeature[] | undefined) ?? []) {
     if (!f.key || !f.name) {
       return {
         ok: false,
@@ -317,19 +558,14 @@ export async function validateManifest(
       };
     }
     for (const c of f.commands ?? []) {
-      const fail = validateCommand(c, `guild_features[${f.key}].commands`);
+      const fail = validateFeatureCommand(
+        c,
+        `guild_features[${f.key}].commands`,
+      );
       if (fail) return fail;
     }
   }
-  for (const b of (m.dm_behaviors as ManifestDmBehavior[] | undefined) ?? []) {
-    if (!b.key || !b.name) {
-      return { ok: false, error: "every dm_behavior requires key + name" };
-    }
-  }
-  for (const c of (m.commands as ManifestCommand[] | undefined) ?? []) {
-    const fail = validateCommand(c, "commands");
-    if (fail) return fail;
-  }
+
   return { ok: true, manifest: input as PluginManifest };
 }
 
