@@ -43,26 +43,9 @@ import {
 import { botEventLog } from "./modules/bot-events/bot-event-log.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
-import {
-  ALL_DMS_TARGET_ID,
-  ensureAllDmsTarget,
-} from "./modules/behavior/models/behavior-target.model.js";
-import {
-  ensureSystemBreakBehavior,
-  ensureSystemLoginBehavior,
-  ensureSystemManualBehavior,
-  findAllSystemBehaviors,
-  findBehaviorsByTargets,
-  SYSTEM_BEHAVIOR_KEY_BREAK,
-  SYSTEM_BEHAVIOR_KEY_LOGIN,
-  SYSTEM_BEHAVIOR_KEY_MANUAL,
-} from "./modules/behavior/models/behavior.model.js";
-import {
-  runBreakForInteraction,
-  runManualForInteraction,
-} from "./modules/behavior/system-behavior.service.js";
-import { dispatchUserSlashBehavior } from "./modules/behavior/user-slash-behavior.service.js";
-import { rebindDmOnlyCommandsAsGlobal as rebindDmSlashService } from "./modules/behavior/dm-slash-rebind.service.js";
+// M1-A1: v1 behavior dispatch / system seed / dm-slash-rebind imports 已清除。
+// system slash command（admin-login / manual / break）+ user-defined slash trigger
+// + DM message_pattern 由 M1-C CommandReconciler / InteractionDispatcher 接管。
 import { pluginRegistry } from "./modules/plugin-system/plugin-registry.service.js";
 import {
   dispatchEventToPlugins,
@@ -299,36 +282,11 @@ bot.once("ready", async () => {
   // registry, so we just await and move on.
   await pluginCommandRegistry.reconcileAll();
 
-  // /manual and /break must be DM-only (they read user-private state
-  // — DM session, applicable behaviors). discordx's Client.botGuilds
-  // is set to "every guild the bot is in", so initApplicationCommands
-  // unconditionally registers EVERY @Slash as a guild command — and
-  // guild commands ignore the manifest's `contexts: [BotDM]` field
-  // (only global commands honor it). That left both commands visible
-  // in every guild's command picker but unusable inside DMs.
-  //
-  // Fix: after discordx finishes its sync, walk every guild and
-  // delete /manual /break, then re-register them as GLOBAL commands
-  // with `contexts: [BotDM, PrivateChannel]` so Discord shows them
-  // ONLY in DMs. discordx keeps routing the interaction handler via
-  // its decorators — we only changed how Discord lists the command.
-  await rebindDmOnlyCommandsAsGlobal().catch((err) => {
-    log.error({ err }, "rebindDmOnlyCommandsAsGlobal failed");
-    botEventLog.record("warn", "bot", "rebindDmOnlyCommandsAsGlobal failed");
-  });
+  // M1-A1: dm-slash-rebind 退場。系統 DM-only slash command 註冊
+  // 由 M1-C CommandReconciler 接管。
 
   log.info({ stage: "boot" }, "bot started");
 });
-
-/**
- * Bot-bound shim around the dm-slash-rebind service. main.ts uses
- * this from the ready handler; behavior-routes.ts gets its own
- * direct call to the service after admin CRUD so a freshly-created
- * `/foo` slash behavior shows up in Discord without a restart.
- */
-async function rebindDmOnlyCommandsAsGlobal(): Promise<void> {
-  await rebindDmSlashService(bot);
-}
 
 bot.on("guildCreate", async (guild) => {
   botEventLog.record("info", "bot", `Joined guild: ${guild.name}`, {
@@ -347,59 +305,9 @@ bot.on("guildDelete", (guild) => {
 });
 
 bot.on("interactionCreate", async (interaction: Interaction) => {
-  // System slash-command behaviors take the highest-priority path.
-  // An admin can edit a system behavior's triggerValue (e.g. rename
-  // /login to /auth) and the registered slash command updates
-  // accordingly — match by behavior.triggerValue rather than a hard-
-  // coded command name so BehaviorsPage stays the source of truth.
-  // All three current system behaviors (login / manual / break) flow
-  // through this same loop; adding a new one means adding a key
-  // constant + an ensure* seed + a case below.
-  if (interaction.isChatInputCommand()) {
-    try {
-      // M1-A1: findAllSystemBehaviors() 回 v2 BehaviorRow（無 targetId / triggerValue / pluginBehaviorKey for system）。
-      // v2 system rows 使用 slashCommandName + systemKey 欄位。
-      // M1-C 前 system seed 為 no-op → systems 永遠為空陣列 → matched 永遠 undefined。
-      const systems = await findAllSystemBehaviors();
-      const matched = systems.find(
-        (s) =>
-          s.enabled &&
-          s.triggerType === "slash_command" &&
-          s.slashCommandName === interaction.commandName,
-      );
-      if (matched) {
-        switch (matched.systemKey) {
-          case SYSTEM_BEHAVIOR_KEY_LOGIN:
-            await issueLoginLinkForInteraction(interaction);
-            return;
-          case SYSTEM_BEHAVIOR_KEY_MANUAL:
-            await runManualForInteraction(interaction);
-            return;
-          case SYSTEM_BEHAVIOR_KEY_BREAK:
-            await runBreakForInteraction(interaction);
-            return;
-          default:
-            // Unknown subkey on a system row — log + fall through so
-            // discordx / plugin paths still get a chance.
-            break;
-        }
-      }
-    } catch (error) {
-      log.error({ err: error }, "system slash-command dispatch failed");
-    }
-  }
-  // User-created slash-command behaviors (target=all_dms,
-  // triggerType='slash_command') after the system check. Looking
-  // up by triggerValue lets admins rename a behavior's slash
-  // command from BehaviorsPage and have it follow.
-  if (interaction.isChatInputCommand()) {
-    try {
-      const claimed = await dispatchUserSlashBehavior(interaction);
-      if (claimed) return;
-    } catch (error) {
-      log.error({ err: error }, "user slash-command dispatch failed");
-    }
-  }
+  // M1-A1: v1 system slash dispatch（findAllSystemBehaviors → systemKey switch）
+  // 與 user-defined slash dispatch（dispatchUserSlashBehavior）路徑已退場。
+  // M1-C 由統一的 InteractionDispatcher 接管軌二 behaviors（含 source=system/custom/plugin）。
 
   // In-process slash commands + modal-submit handlers (the bot's
   // own features: picture-only-channel / role-emoji / todo-channel /
@@ -588,20 +496,8 @@ async function run() {
     const migrations = await runPendingMigrations();
     setReady("migrations", true);
     migrationsApplied = true;
-    // The webhook-behavior migration seeds the all_dms singleton row,
-    // but a fresh install where sequelize.sync() created the table
-    // first leaves the migration's CREATE-guarded INSERT a no-op for
-    // that branch. Belt-and-suspenders: ensure id=1 exists so the
-    // sidebar's "all DMs" pinned tab always has a stable id to point at.
-    await ensureAllDmsTarget();
-    // Seed the system behaviors. Idempotent — only insert if missing,
-    // so admin edits to trigger type / value across restarts persist.
-    // /login, /manual, /break all live as system behaviors so the
-    // operator can rename their slash commands (or switch to a chat-
-    // text trigger) from BehaviorsPage with no code change.
-    await ensureSystemLoginBehavior(ALL_DMS_TARGET_ID);
-    await ensureSystemManualBehavior(ALL_DMS_TARGET_ID);
-    await ensureSystemBreakBehavior(ALL_DMS_TARGET_ID);
+    // M1-A1: v1 system seed（admin-login / manual / break）與 all_dms target
+    // singleton 已退場。系統 behavior 由 M1-C 重新設計後注入。
     if (migrations.length > 0) {
       botEventLog.record(
         "info",

@@ -393,46 +393,5 @@ export const deleteBehavior = async (_id: number): Promise<void> => {
 
 // ── v1 型別 alias（供仍在 import 的地方 compile 通過）─────────────────────────
 
-/**
- * @deprecated v1 型別。使用 BehaviorTriggerType（v2）。
- */
-export type BehaviorType = "webhook" | "plugin" | "system";
-
-/**
- * @deprecated v1 input 型別（有 targetId / triggerValue 等 v1 欄位）。
- * 只供 compile 通過，不應在 M1-C 後繼續使用。
- */
-export interface NewBehaviorInput {
-  targetId: number;
-  title: string;
-  description?: string;
-  triggerType: string;
-  triggerValue: string;
-  forwardType: BehaviorForwardType;
-  webhookUrl: string;
-  webhookSecret?: string | null;
-  stopOnMatch?: boolean;
-  enabled?: boolean;
-  type?: BehaviorType;
-  pluginId?: number | null;
-  pluginBehaviorKey?: string | null;
-}
-
-/**
- * @deprecated v1 update 型別。
- */
-export interface BehaviorUpdate {
-  title?: string;
-  description?: string;
-  triggerType?: string;
-  triggerValue?: string;
-  forwardType?: BehaviorForwardType;
-  webhookUrl?: string;
-  webhookSecret?: string | null;
-  stopOnMatch?: boolean;
-  enabled?: boolean;
-  targetId?: number;
-  type?: BehaviorType;
-  pluginId?: number | null;
-  pluginBehaviorKey?: string | null;
-}
+// M1-A1: v1 deprecated types（BehaviorType / NewBehaviorInput / BehaviorUpdate）已移除。
+// M1-C 設計新的 v2 input/update 型別。
