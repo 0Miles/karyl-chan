@@ -133,7 +133,10 @@ export class WebhookForwarder {
     if (behavior.source === "plugin") {
       // source=plugin：URL = {plugins.url}{webhook_path}（從 manifest behaviors[] 找）
       if (!behavior.pluginId || !behavior.pluginBehaviorKey) {
-        return { ok: false, error: "plugin behavior 缺少 pluginId 或 pluginBehaviorKey" };
+        return {
+          ok: false,
+          error: "plugin behavior 缺少 pluginId 或 pluginBehaviorKey",
+        };
       }
       const plugin = await findPluginById(behavior.pluginId);
       if (!plugin) {
@@ -151,14 +154,23 @@ export class WebhookForwarder {
       try {
         const parsed = JSON.parse(plugin.manifestJson) as PluginManifest;
         if (parsed.schema_version !== "2") {
-          return { ok: false, error: `plugin ${plugin.pluginKey} manifest 非 v2，跳過` };
+          return {
+            ok: false,
+            error: `plugin ${plugin.pluginKey} manifest 非 v2，跳過`,
+          };
         }
         manifest = parsed;
       } catch {
-        return { ok: false, error: `plugin ${plugin.pluginKey} manifest 解析失敗` };
+        return {
+          ok: false,
+          error: `plugin ${plugin.pluginKey} manifest 解析失敗`,
+        };
       }
 
-      const behaviorDef = this.findBehaviorDef(manifest, behavior.pluginBehaviorKey);
+      const behaviorDef = this.findBehaviorDef(
+        manifest,
+        behavior.pluginBehaviorKey,
+      );
       if (!behaviorDef) {
         return {
           ok: false,
@@ -180,7 +192,11 @@ export class WebhookForwarder {
     manifest: PluginManifest,
     behaviorKey: string,
   ): ManifestBehaviorV2 | null {
-    return manifest.behaviors?.find((b: ManifestBehaviorV2) => b.key === behaviorKey) ?? null;
+    return (
+      manifest.behaviors?.find(
+        (b: ManifestBehaviorV2) => b.key === behaviorKey,
+      ) ?? null
+    );
   }
 
   // ── 私有：HTTP POST ───────────────────────────────────────────────────────
@@ -195,7 +211,12 @@ export class WebhookForwarder {
     try {
       url = new URL(webhookUrl);
     } catch {
-      return { ok: false, ended: false, relayContent: "", error: "無效的 webhook URL" };
+      return {
+        ok: false,
+        ended: false,
+        relayContent: "",
+        error: "無效的 webhook URL",
+      };
     }
 
     url.searchParams.set("wait", "true");

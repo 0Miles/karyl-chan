@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+import { RouterLink } from 'vue-router';
 import AppModal from '../../../components/AppModal.vue';
 import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 import {
@@ -321,6 +322,14 @@ async function confirmDelete() {
                 <Icon icon="material-symbols:security-rounded" width="13" height="13" />
                 {{ t('admin.plugins.scopes.pendingCount', { n: pendingScopes.length }) }}
             </button>
+            <RouterLink
+                :to="{ name: 'plugin-detail', params: { pluginKey: plugin.pluginKey } }"
+                class="detail-link"
+                :title="t('admin.plugins.viewDetail')"
+                @click.stop
+            >
+                <Icon icon="material-symbols:open-in-new-rounded" width="15" height="15" />
+            </RouterLink>
             <button
                 type="button"
                 role="switch"
@@ -1017,6 +1026,24 @@ async function confirmDelete() {
 .secret-result-actions .primary:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+/* ── View detail link ────────────────────────────────────────────── */
+.detail-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    text-decoration: none;
+    flex-shrink: 0;
+    transition: color 0.12s, background 0.12s;
+}
+.detail-link:hover {
+    background: var(--bg-surface-hover, var(--bg-page));
+    color: var(--accent);
 }
 
 /* ── Three-dot more menu ─────────────────────────────────────────── */

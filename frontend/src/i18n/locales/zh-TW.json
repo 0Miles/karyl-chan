@@ -1027,7 +1027,54 @@
             "deleteAllOffline": "全部刪除",
             "deleteAllConfirmTitle": "刪除全部離線 Plugin",
             "deleteAllConfirm": "確定刪除全部 {n} 個離線 plugin？每個 plugin 的 KV / config / feature 設定都會一併刪除，無法恢復。",
-            "deleteAllProgress": "進度：{done} / {total}"
+            "deleteAllProgress": "進度：{done} / {total}",
+            "viewDetail": "查看詳情",
+            "detail": {
+                "backLink": "← 返回外掛列表",
+                "tabOverview": "總覽",
+                "tabBehaviors": "Behaviors",
+                "tabCommands": "指令",
+                "tabFeatures": "Guild Features",
+                "tabScopes": "Scopes",
+                "tabSecurity": "安全設定",
+                "overviewMeta": {
+                    "pluginKey": "Plugin Key",
+                    "author": "作者",
+                    "homepage": "首頁"
+                },
+                "behaviors": {
+                    "intro": "以下是此 Plugin 在 DM 中提供的 behaviors。啟用後，需在「Behaviors」頁建立對應的 behavior 條目才會生效。",
+                    "empty": "此 Plugin 未宣告任何 Behavior",
+                    "toggleOn": "啟用此 behavior",
+                    "toggleOff": "停用此 behavior",
+                    "supportsContinuous": "支援連續對話",
+                    "axesReadonly": "三軸由 manifest 鎖定",
+                    "oq11Notice": "Behavior 的 on/off 開關（plugin_behavior_overrides）尚未實作，將於 M2 加入。此頁目前為唯讀展示。"
+                },
+                "commands": {
+                    "intro": "以下為此 Plugin 宣告的自訂 slash 指令。三軸由 Plugin manifest 寫死，admin 只能啟用或停用。",
+                    "empty": "此 Plugin 未宣告任何自訂指令",
+                    "toggleOn": "啟用此指令",
+                    "toggleOff": "停用此指令",
+                    "globalGroup": "全域指令",
+                    "featureGroup": "Feature 指令",
+                    "scopeGuild": "伺服器",
+                    "scopeGlobal": "全域"
+                },
+                "features": {
+                    "intro": "以下功能可在各伺服器的「Bot 功能」tab 中個別開關，此頁為唯讀展示。",
+                    "empty": "此 Plugin 未提供 Guild Feature"
+                },
+                "scopes": {
+                    "approved": "已授權 Scopes",
+                    "pending": "待審核 Scopes",
+                    "pendingHint": "有 {n} 個待審核 Scope",
+                    "pendingCount": "{n} 個待審核",
+                    "approveButton": "授權",
+                    "approveModalTitle": "授權 RPC Scopes",
+                    "approveConfirm": "確定授權「{name}」申請的以下 RPC Scopes？"
+                }
+            }
         }
     },
     "picker": {

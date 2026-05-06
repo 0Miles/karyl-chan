@@ -62,11 +62,46 @@ export interface PluginManifest {
     description?: string;
     supports_continuous?: boolean;
   }>;
+  /** v2 manifest behaviors（軌二），取代 dm_behaviors */
+  behaviors?: Array<{
+    key: string;
+    name: string;
+    description?: string;
+    supports_continuous?: boolean;
+    scope?: string;
+    integration_types?: string[];
+    contexts?: string[];
+    webhook_path?: string;
+  }>;
+  /** v2 manifest plugin_commands（軌三），admin 只能 on/off */
+  plugin_commands?: Array<{
+    name: string;
+    description?: string;
+    scope?: string;
+    integration_types?: string[];
+    contexts?: string[];
+    default_member_permissions?: string;
+    default_ephemeral?: boolean;
+  }>;
   commands?: Array<{
     name: string;
     description: string;
     scope?: "guild" | "global";
   }>;
+}
+
+/** 軌三 plugin_command DB 行（詳情頁專用） */
+export interface PluginCommandRecord {
+  id: number;
+  name: string;
+  featureKey: string | null;
+  adminEnabled: boolean;
+  manifestJson: string;
+}
+
+/** Plugin 詳情頁回傳（含 pluginCommands） */
+export interface PluginDetailRecord extends PluginRecord {
+  pluginCommands: PluginCommandRecord[];
 }
 
 export interface PluginRecord {
@@ -222,4 +257,34 @@ export async function generatePluginSetupSecret(
     ),
   });
   return jsonOrThrow<GenerateSetupSecretResult>(r);
+}
+
+// ─── Plugin detail (by pluginKey) ─────────────────────────────────
+
+/** GET /api/plugins/by-key/:pluginKey — 詳情頁（含 pluginCommands） */
+export async function getPluginByKey(
+  pluginKey: string,
+): Promise<PluginDetailRecord> {
+  const r = await authedFetch(`/api/plugins/by-key/${encodeURIComponent(pluginKey)}`);
+  const body = await jsonOrThrow<{ plugin: PluginDetailRecord }>(r);
+  return body.plugin;
+}
+
+// ─── Plugin command admin-enabled toggle ───────────────────────────
+
+export interface SetPluginCommandEnabledResult {
+  command: { id: number; adminEnabled: boolean };
+}
+
+/** PATCH /api/plugin-commands/:id/admin-enabled */
+export async function setPluginCommandEnabled(
+  id: number,
+  enabled: boolean,
+): Promise<SetPluginCommandEnabledResult> {
+  const r = await authedFetch(`/api/plugin-commands/${id}/admin-enabled`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled }),
+  });
+  return jsonOrThrow<SetPluginCommandEnabledResult>(r);
 }

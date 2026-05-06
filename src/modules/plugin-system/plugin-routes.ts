@@ -29,6 +29,11 @@ import {
   setPluginSetupSecretHash,
   upsertPluginRegistration,
 } from "./models/plugin.model.js";
+import {
+  findPluginCommandsByPlugin,
+  PluginCommand,
+} from "./models/plugin-command.model.js";
+import { CommandReconciler } from "../command-system/reconcile.service.js";
 import { createHash, randomBytes } from "crypto";
 
 /**
@@ -83,6 +88,16 @@ export async function registerPluginRoutes(
   options: PluginRoutesOptions = {},
 ): Promise<void> {
   const bot = options.bot;
+
+  // Lazy getter for CommandReconciler（與 behavior-routes 同模式）
+  let reconcilerInstance: CommandReconciler | null = null;
+  function getReconciler(): CommandReconciler {
+    if (!reconcilerInstance) {
+      reconcilerInstance = new CommandReconciler(() => options.bot ?? null);
+    }
+    return reconcilerInstance;
+  }
+
   // ─── Plugin-facing ───────────────────────────────────────────────
 
   /**
@@ -284,6 +299,126 @@ export async function registerPluginRoutes(
           enabled: p.enabled,
           lastHeartbeatAt: p.lastHeartbeatAt,
           manifest: safeParse(p.manifestJson),
+        },
+      };
+    },
+  );
+
+  /**
+   * GET /api/plugins/by-key/:pluginKey
+   *
+   * Plugin 詳情頁（M1-D2）。依 pluginKey 查詢單一 plugin，額外回傳：
+   *   - pluginCommands[]：DB 中的 plugin_commands 行（featureKey=null 的軌三指令）
+   *   - 其他欄位與 GET /api/plugins/:id 相同，加上 approvedScopes / pendingScopes
+   *
+   * 注意：路由 `/api/plugins/by-key/:pluginKey` 必須放在 `/api/plugins/:id` 之前，
+   * 否則 `by-key` 會被 Fastify 當成數字 id 參數解析（雖然驗證會失敗，但為求清晰）。
+   * 實際此路由放在 `:id` 之後無衝突，因 by-key 字串不是數字。
+   */
+  server.get<{ Params: { pluginKey: string } }>(
+    "/api/plugins/by-key/:pluginKey",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const { pluginKey } = request.params;
+      if (!pluginKey || pluginKey.length === 0) {
+        reply.code(400).send({ error: "pluginKey required" });
+        return;
+      }
+      const all = await pluginRegistry.list();
+      const p = all.find((x) => x.pluginKey === pluginKey);
+      if (!p) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+      const pluginCommands = await findPluginCommandsByPlugin(p.id);
+      // 軌三：featureKey=null；軌一：featureKey!=null（不在此 tab 顯示）
+      const thirdTrackCommands = pluginCommands.filter(
+        (c) => c.featureKey === null,
+      );
+      return {
+        plugin: {
+          id: p.id,
+          pluginKey: p.pluginKey,
+          name: p.name,
+          version: p.version,
+          url: p.url,
+          status: p.status,
+          enabled: p.enabled,
+          lastHeartbeatAt: p.lastHeartbeatAt,
+          manifest: safeParse(p.manifestJson),
+          approvedScopes: safeParseArray(p.approvedScopesJson),
+          pendingScopes: safeParseArray(p.pendingScopesJson ?? "[]"),
+          pluginCommands: thirdTrackCommands.map((c) => ({
+            id: c.id,
+            name: c.name,
+            featureKey: c.featureKey,
+            adminEnabled: c.adminEnabled,
+            manifestJson: c.manifestJson,
+          })),
+        },
+      };
+    },
+  );
+
+  /**
+   * PATCH /api/plugin-commands/:id/admin-enabled
+   *
+   * 軌三指令 on/off toggle（M1-D2）。
+   * Body: { enabled: boolean }
+   * 成功後觸發 CommandReconciler.reconcileForPluginCommand(id)（非同步，不 await）。
+   *
+   * 只能操作 featureKey=null 的軌三指令。featureKey!=null 的軌一指令由 guild feature toggle 管。
+   */
+  server.patch<{
+    Params: { id: string };
+    Body: { enabled?: unknown };
+  }>(
+    "/api/plugin-commands/:id/admin-enabled",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const rowId = Number(request.params.id);
+      if (!Number.isInteger(rowId) || rowId <= 0) {
+        reply.code(400).send({ error: "invalid id" });
+        return;
+      }
+      if (typeof request.body?.enabled !== "boolean") {
+        reply.code(400).send({ error: "enabled boolean required" });
+        return;
+      }
+      const row = await PluginCommand.findByPk(rowId);
+      if (!row) {
+        reply.code(404).send({ error: "plugin command not found" });
+        return;
+      }
+      const featureKey = row.getDataValue("featureKey") as string | null;
+      if (featureKey !== null) {
+        reply
+          .code(400)
+          .send({ error: "cannot toggle feature commands via this endpoint; use guild feature toggle" });
+        return;
+      }
+      await row.update({ adminEnabled: request.body.enabled });
+      botEventLog.record(
+        "info",
+        "bot",
+        `plugin command adminEnabled=${request.body.enabled}: id=${rowId} name=${row.getDataValue("name")}`,
+        { rowId, enabled: request.body.enabled, actor: request.authUserId },
+      );
+      // 非同步觸發 reconcile，不阻塞回應
+      getReconciler()
+        .reconcileForPluginCommand(rowId)
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          botEventLog.record(
+            "warn",
+            "bot",
+            `reconcileForPluginCommand(${rowId}) failed after adminEnabled toggle: ${msg}`,
+          );
+        });
+      return {
+        command: {
+          id: rowId,
+          adminEnabled: request.body.enabled,
         },
       };
     },

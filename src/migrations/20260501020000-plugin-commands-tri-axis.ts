@@ -111,14 +111,38 @@ const migration: Migration = {
       const table = await queryInterface.describeTable("plugin_commands");
 
       const columnsToAdd: Array<{ name: string; ddl: string }> = [
-        { name: "description",              ddl: "ALTER TABLE plugin_commands ADD COLUMN description              TEXT    NULL;" },
-        { name: "adminEnabled",             ddl: "ALTER TABLE plugin_commands ADD COLUMN adminEnabled             INTEGER NOT NULL DEFAULT 1;" },
-        { name: "scope",                    ddl: "ALTER TABLE plugin_commands ADD COLUMN scope                    TEXT    NULL;" },
-        { name: "integrationTypes",         ddl: "ALTER TABLE plugin_commands ADD COLUMN integrationTypes         TEXT    NULL;" },
-        { name: "contexts",                 ddl: "ALTER TABLE plugin_commands ADD COLUMN contexts                 TEXT    NULL;" },
-        { name: "defaultMemberPermissions", ddl: "ALTER TABLE plugin_commands ADD COLUMN defaultMemberPermissions TEXT    NULL;" },
-        { name: "defaultEphemeral",         ddl: "ALTER TABLE plugin_commands ADD COLUMN defaultEphemeral         INTEGER NULL;" },
-        { name: "requiredCapability",       ddl: "ALTER TABLE plugin_commands ADD COLUMN requiredCapability       TEXT    NULL;" },
+        {
+          name: "description",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN description              TEXT    NULL;",
+        },
+        {
+          name: "adminEnabled",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN adminEnabled             INTEGER NOT NULL DEFAULT 1;",
+        },
+        {
+          name: "scope",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN scope                    TEXT    NULL;",
+        },
+        {
+          name: "integrationTypes",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN integrationTypes         TEXT    NULL;",
+        },
+        {
+          name: "contexts",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN contexts                 TEXT    NULL;",
+        },
+        {
+          name: "defaultMemberPermissions",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN defaultMemberPermissions TEXT    NULL;",
+        },
+        {
+          name: "defaultEphemeral",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN defaultEphemeral         INTEGER NULL;",
+        },
+        {
+          name: "requiredCapability",
+          ddl: "ALTER TABLE plugin_commands ADD COLUMN requiredCapability       TEXT    NULL;",
+        },
       ];
 
       for (const col of columnsToAdd) {
@@ -150,7 +174,9 @@ const migration: Migration = {
         const parseFailedPlugins: Array<{ id: number; message: string }> = [];
         for (const pluginRow of pluginRows) {
           try {
-            const manifest = JSON.parse(pluginRow.manifestJson) as PluginManifest;
+            const manifest = JSON.parse(
+              pluginRow.manifestJson,
+            ) as PluginManifest;
             manifestByPluginId.set(pluginRow.id, manifest);
           } catch (e) {
             parseFailedPlugins.push({
@@ -249,7 +275,8 @@ const migration: Migration = {
           const contexts = sortJoin(cmd.contexts ?? ["Guild"]);
           const defaultMemberPermissions =
             cmd.default_member_permissions ?? null;
-          const defaultEphemeral: number = cmd.default_ephemeral === true ? 1 : 0;
+          const defaultEphemeral: number =
+            cmd.default_ephemeral === true ? 1 : 0;
           const requiredCapability = cmd.required_capability ?? null;
 
           updates.push({
@@ -271,17 +298,23 @@ const migration: Migration = {
           missingIds.length > 0 ||
           inconsistentIds.length > 0
         ) {
-          const lines: string[] = ["[M1-A2] backfill 預檢失敗，請清理後重跑 migration："];
+          const lines: string[] = [
+            "[M1-A2] backfill 預檢失敗，請清理後重跑 migration：",
+          ];
           if (orphanIds.length > 0) {
             lines.push(
               `  orphan rows（pluginId 在 plugins 表找不到）：` +
-              orphanIds.map((r) => `id=${r.id} pluginId=${r.pluginId}`).join(", "),
+                orphanIds
+                  .map((r) => `id=${r.id} pluginId=${r.pluginId}`)
+                  .join(", "),
             );
           }
           if (parseFailedPlugins.length > 0) {
             lines.push(
               `  manifest JSON 解析失敗的 plugin：` +
-              parseFailedPlugins.map((p) => `id=${p.id} (${p.message})`).join("; "),
+                parseFailedPlugins
+                  .map((p) => `id=${p.id} (${p.message})`)
+                  .join("; "),
             );
           }
           if (missingIds.length > 0) {
@@ -377,10 +410,9 @@ const migration: Migration = {
         );
 
         // 刪舊表、改名
-        await queryInterface.sequelize.query(
-          `DROP TABLE plugin_commands;`,
-          { transaction: t },
-        );
+        await queryInterface.sequelize.query(`DROP TABLE plugin_commands;`, {
+          transaction: t,
+        });
         await queryInterface.sequelize.query(
           `ALTER TABLE plugin_commands_rollback RENAME TO plugin_commands;`,
           { transaction: t },

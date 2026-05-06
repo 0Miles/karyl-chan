@@ -1027,7 +1027,54 @@
             "deleteAllOffline": "Delete all",
             "deleteAllConfirmTitle": "Delete all offline plugins",
             "deleteAllConfirm": "Delete all {n} offline plugins? Each plugin's KV, config, and feature settings will be removed and cannot be recovered.",
-            "deleteAllProgress": "Progress: {done} / {total}"
+            "deleteAllProgress": "Progress: {done} / {total}",
+            "viewDetail": "View details",
+            "detail": {
+                "backLink": "← Back to plugins",
+                "tabOverview": "Overview",
+                "tabBehaviors": "Behaviors",
+                "tabCommands": "Commands",
+                "tabFeatures": "Guild Features",
+                "tabScopes": "Scopes",
+                "tabSecurity": "Security",
+                "overviewMeta": {
+                    "pluginKey": "Plugin Key",
+                    "author": "Author",
+                    "homepage": "Homepage"
+                },
+                "behaviors": {
+                    "intro": "The behaviors below are provided by this plugin. Once enabled, create a corresponding behavior entry on the Behaviors page to activate it.",
+                    "empty": "This plugin declares no behaviors",
+                    "toggleOn": "Enable this behavior",
+                    "toggleOff": "Disable this behavior",
+                    "supportsContinuous": "Supports continuous conversation",
+                    "axesReadonly": "Axes locked by manifest",
+                    "oq11Notice": "Behavior on/off toggle (plugin_behavior_overrides) is not yet implemented and will be added in M2. This tab is currently read-only."
+                },
+                "commands": {
+                    "intro": "The slash commands below are declared by this plugin. Axes are locked by the plugin manifest — admin can only enable or disable individual commands.",
+                    "empty": "This plugin declares no custom commands",
+                    "toggleOn": "Enable this command",
+                    "toggleOff": "Disable this command",
+                    "globalGroup": "Global commands",
+                    "featureGroup": "Feature commands",
+                    "scopeGuild": "Guild",
+                    "scopeGlobal": "Global"
+                },
+                "features": {
+                    "intro": "The features below can be toggled per-server on the Bot Functions tab of each guild page. This tab is read-only.",
+                    "empty": "This plugin provides no guild features"
+                },
+                "scopes": {
+                    "approved": "Approved scopes",
+                    "pending": "Pending scopes",
+                    "pendingHint": "{n} scope(s) pending",
+                    "pendingCount": "{n} pending",
+                    "approveButton": "Approve",
+                    "approveModalTitle": "Approve RPC scopes",
+                    "approveConfirm": "Approve the following RPC scopes requested by \"{name}\"?"
+                }
+            }
         }
     },
     "picker": {

@@ -12,12 +12,7 @@ import type {
   PartialUser,
   User,
 } from "discord.js";
-import {
-  ChannelType,
-  Events,
-  IntentsBitField,
-  Partials,
-} from "discord.js";
+import { ChannelType, Events, IntentsBitField, Partials } from "discord.js";
 import { Client } from "discord.js";
 import { sequelize } from "./db.js";
 import { config } from "./config.js";
@@ -146,7 +141,9 @@ export const bot = new Client({
 // bot 已宣告，使用閉包安全存取（CommandReconciler.getBot 在 ready 後才被呼叫）。
 const webhookForwarder = new WebhookForwarder();
 const interactionDispatcher = new InteractionDispatcher(webhookForwarder);
-const commandReconciler = new CommandReconciler(() => bot.isReady() ? bot : null);
+const commandReconciler = new CommandReconciler(() =>
+  bot.isReady() ? bot : null,
+);
 const messageMatcher = new MessagePatternMatcher(webhookForwarder);
 
 let shuttingDown = false;
@@ -337,8 +334,14 @@ bot.on("interactionCreate", async (interaction: Interaction) => {
   } catch (error) {
     log.error({ err: error }, "interactionDispatcher.dispatch failed");
     // 硬 error 時嘗試回覆讓 Discord 不顯示「指令失敗」轉圈
-    if (interaction.isChatInputCommand() && !interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: "⚠ 內部錯誤，請稍後再試。", ephemeral: true }).catch(() => {});
+    if (
+      interaction.isChatInputCommand() &&
+      !interaction.replied &&
+      !interaction.deferred
+    ) {
+      await interaction
+        .reply({ content: "⚠ 內部錯誤，請稍後再試。", ephemeral: true })
+        .catch(() => {});
     }
   }
 });

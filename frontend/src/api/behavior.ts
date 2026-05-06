@@ -194,9 +194,7 @@ export async function deleteBehavior(id: number): Promise<void> {
   await jsonOrThrow<unknown>(r);
 }
 
-export async function resyncBehavior(
-  id: number,
-): Promise<{ result: unknown }> {
+export async function resyncBehavior(id: number): Promise<{ result: unknown }> {
   const r = await authedFetch(`/api/behaviors/${id}/resync`, {
     method: "POST",
   });

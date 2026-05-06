@@ -178,4 +178,3 @@ export interface PluginCommandRowV2 {
  * 完整對齊 RESTPostAPIWebhookWithTokenJSONBody（C-runtime §7.1）。
  */
 export type BehaviorWebhookPayload = RESTPostAPIWebhookWithTokenJSONBody;
-

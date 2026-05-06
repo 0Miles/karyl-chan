@@ -289,7 +289,8 @@ export class InteractionDispatcher {
       );
       await interaction
         .reply({
-          content: "⚙ /manual 指令的 v2 行為設定尚待 M1-D admin UI 完成後啟用。",
+          content:
+            "⚙ /manual 指令的 v2 行為設定尚待 M1-D admin UI 完成後啟用。",
           ephemeral: true,
         })
         .catch(() => {});
