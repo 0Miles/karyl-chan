@@ -10,10 +10,6 @@ export type BehaviorScope = "global" | "guild";
 export type BehaviorAudienceKind = "all" | "user" | "group";
 export type BehaviorWebhookAuthMode = "token" | "hmac";
 
-// ── 保留舊型別供 v1 UI backward compat（BehaviorCard 暫時還需要）──────────────
-/** @deprecated v1 型別。v2 用 BehaviorSource。 */
-export type BehaviorType = "webhook" | "plugin" | "system";
-
 // ── v2 BehaviorRow ──────────────────────────────────────────────────────────
 
 export interface BehaviorRow {
@@ -57,35 +53,6 @@ export interface AudienceEntry {
   groupName?: string;
   /** 此 audience 下的 behavior 數量 */
   behaviorCount: number;
-}
-
-// ── v1 target 型別（@deprecated — M2 重構後刪除）────────────────────────────
-// 已不被任何元件使用，僅保留型別宣告避免其他已 @deprecated 的引用報錯。
-
-/** @deprecated v1 型別。M2 重構後移除。 */
-export type BehaviorTargetKind = "all_dms" | "user" | "group";
-
-export interface BehaviorUserProfile {
-  id: string;
-  username: string;
-  globalName: string | null;
-  avatarUrl: string;
-}
-
-/** @deprecated v1 型別。M2 重構後移除。 */
-export interface BehaviorTargetSummary {
-  id: number;
-  kind: BehaviorTargetKind;
-  userId: string | null;
-  groupName: string | null;
-  profile: BehaviorUserProfile | null;
-  memberCount: number | null;
-}
-
-/** @deprecated v1 型別。M2 重構後移除。 */
-export interface BehaviorGroupMember {
-  userId: string;
-  profile: BehaviorUserProfile | null;
 }
 
 // ── v2 Create / Patch payload ────────────────────────────────────────────────
@@ -138,10 +105,6 @@ export interface BehaviorPatchPayload {
   pluginId?: number | null;
   pluginBehaviorKey?: string | null;
 }
-
-// ── 舊版 BehaviorPatch（供 BehaviorCard v1 兼容）────────────────────────────
-/** @deprecated 使用 BehaviorPatchPayload */
-export type BehaviorPatch = BehaviorPatchPayload;
 
 // ── 輔助 ──────────────────────────────────────────────────────────────────────
 
@@ -304,96 +267,3 @@ export async function deleteBehaviorsByAudience(
   await Promise.all(behaviorIds.map((id) => deleteBehavior(id)));
 }
 
-// ── v1 Target API（@deprecated — 已無元件使用，保留型別宣告）────────────────
-// 以下 API 呼叫已不存在的 /api/behaviors/targets 路徑（v2 schema 已廢棄）。
-// BehaviorsPage / BehaviorWorkspace / BehaviorSidebar / AddTargetModal 已全數移除 v1 依賴。
-// 保留函數宣告，避免未來誤引用時 tsc 報錯不夠明確。待確認無其他引用後可整批移除。
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function listTargets(): Promise<BehaviorTargetSummary[]> {
-  const r = await authedFetch("/api/behaviors/targets");
-  const body = await jsonOrThrow<{ targets: BehaviorTargetSummary[] }>(r);
-  return body.targets;
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function createUserTarget(
-  userId: string,
-): Promise<BehaviorTargetSummary> {
-  const r = await authedFetch("/api/behaviors/targets", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "user", userId }),
-  });
-  const body = await jsonOrThrow<{ target: BehaviorTargetSummary }>(r);
-  return body.target;
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function createGroupTarget(
-  groupName: string,
-): Promise<BehaviorTargetSummary> {
-  const r = await authedFetch("/api/behaviors/targets", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "group", groupName }),
-  });
-  const body = await jsonOrThrow<{ target: BehaviorTargetSummary }>(r);
-  return body.target;
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function renameGroupTarget(
-  id: number,
-  groupName: string,
-): Promise<void> {
-  const r = await authedFetch(`/api/behaviors/targets/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ groupName }),
-  });
-  await jsonOrThrow<unknown>(r);
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function deleteTarget(id: number): Promise<void> {
-  const r = await authedFetch(`/api/behaviors/targets/${id}`, {
-    method: "DELETE",
-  });
-  await jsonOrThrow<unknown>(r);
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function listGroupMembers(
-  id: number,
-): Promise<BehaviorGroupMember[]> {
-  const r = await authedFetch(`/api/behaviors/targets/${id}/members`);
-  const body = await jsonOrThrow<{ members: BehaviorGroupMember[] }>(r);
-  return body.members;
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function addGroupMember(
-  id: number,
-  userId: string,
-): Promise<BehaviorGroupMember> {
-  const r = await authedFetch(`/api/behaviors/targets/${id}/members`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId }),
-  });
-  const body = await jsonOrThrow<{ member: BehaviorGroupMember }>(r);
-  return body.member;
-}
-
-/** @deprecated v1 API。M2 重構後移除。 */
-export async function removeGroupMember(
-  id: number,
-  userId: string,
-): Promise<void> {
-  const r = await authedFetch(
-    `/api/behaviors/targets/${id}/members/${userId}`,
-    { method: "DELETE" },
-  );
-  await jsonOrThrow<unknown>(r);
-}
