@@ -1050,7 +1050,8 @@
                     "toggleSuccess": "已更新 behavior 状态",
                     "toggleError": "更新失败，请重试",
                     "supportsContinuous": "支持连续对话",
-                    "axesReadonly": "三轴由 manifest 锁定"
+                    "axesReadonly": "三轴由 manifest 锁定",
+                    "slashOptions": "{count} 个选项"
                 },
                 "commands": {
                     "intro": "以下为此 Plugin 声明的自定义 slash 指令。三轴由 Plugin manifest 写死，admin 只能启用或停用。",

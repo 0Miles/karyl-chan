@@ -11,6 +11,14 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
+interface ManifestOption {
+    type: string;
+    name: string;
+    description?: string;
+    required?: boolean;
+    options?: ManifestOption[];
+}
+
 interface BehaviorItem {
     key: string;
     name?: string;
@@ -20,6 +28,11 @@ interface BehaviorItem {
     integration_types?: string[];
     contexts?: string[];
     enabled?: boolean;
+    slashHints?: {
+        suggested_name?: string;
+        suggested_description?: string;
+        options?: ManifestOption[];
+    };
 }
 
 // v2 manifest 用 behaviors[]，v1 用 dm_behaviors[]
@@ -133,6 +146,31 @@ async function handleToggle(beh: BehaviorItem) {
                         Ctx: {{ beh.contexts!.join(', ') }}
                     </span>
                 </div>
+
+                <!-- slashHints.options 嵌套展示（read-only） -->
+                <details v-if="beh.slashHints?.options?.length" class="opts-details">
+                    <summary class="opts-summary">
+                        <Icon icon="material-symbols:code-blocks-outline-rounded" width="12" height="12" />
+                        {{ t('admin.plugins.detail.behaviors.slashOptions', { count: beh.slashHints!.options!.length }) }}
+                    </summary>
+                    <ul class="opts-list">
+                        <li v-for="opt in beh.slashHints!.options" :key="opt.name" class="opt-item">
+                            <code class="opt-type">{{ opt.type }}</code>
+                            <span class="opt-name">{{ opt.name }}</span>
+                            <span v-if="opt.required" class="opt-required">*</span>
+                            <span v-if="opt.description" class="opt-desc">— {{ opt.description }}</span>
+                            <!-- 嵌套 sub_command options -->
+                            <ul v-if="opt.options?.length" class="opts-list opts-list--nested">
+                                <li v-for="sub in opt.options" :key="sub.name" class="opt-item">
+                                    <code class="opt-type">{{ sub.type }}</code>
+                                    <span class="opt-name">{{ sub.name }}</span>
+                                    <span v-if="sub.required" class="opt-required">*</span>
+                                    <span v-if="sub.description" class="opt-desc">— {{ sub.description }}</span>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </details>
             </article>
         </div>
     </div>
@@ -266,6 +304,63 @@ async function handleToggle(beh: BehaviorItem) {
     border-radius: var(--radius-sm);
     padding: 0.1rem 0.35rem;
     color: var(--text-muted);
+}
+
+/* slashHints options tree */
+.opts-details {
+    margin-top: 0.3rem;
+}
+.opts-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+.opts-summary::-webkit-details-marker { display: none; }
+.opts-list {
+    list-style: none;
+    margin: 0.3rem 0 0 0.6rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.opts-list--nested {
+    margin-left: 1rem;
+}
+.opt-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.76rem;
+    flex-wrap: wrap;
+}
+.opt-type {
+    font-size: 0.7rem;
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.05rem 0.3rem;
+    color: var(--accent);
+    font-weight: 600;
+}
+.opt-name {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.76rem;
+    color: var(--text-strong);
+}
+.opt-required {
+    color: var(--danger, #dc2626);
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+.opt-desc {
+    color: var(--text-muted);
+    font-size: 0.72rem;
 }
 
 /* Toggle switch */

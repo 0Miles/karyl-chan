@@ -87,7 +87,7 @@ const CHANNEL_TYPE_MAP: Record<string, ChannelType> = {
   GUILD_FORUM: 15 as ChannelType,
 };
 
-function manifestOptionToData(
+export function manifestOptionToData(
   o: ManifestCommandOption,
 ): ApplicationCommandOptionData {
   const type = OPTION_TYPE_MAP[o.type];

@@ -1050,7 +1050,8 @@
                     "toggleSuccess": "已更新 behavior 狀態",
                     "toggleError": "更新失敗，請重試",
                     "supportsContinuous": "支援連續對話",
-                    "axesReadonly": "三軸由 manifest 鎖定"
+                    "axesReadonly": "三軸由 manifest 鎖定",
+                    "slashOptions": "{count} 個選項"
                 },
                 "commands": {
                     "intro": "以下為此 Plugin 宣告的自訂 slash 指令。三軸由 Plugin manifest 寫死，admin 只能啟用或停用。",

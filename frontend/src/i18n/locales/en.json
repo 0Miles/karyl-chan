@@ -1050,7 +1050,8 @@
                     "toggleSuccess": "Behavior status updated",
                     "toggleError": "Update failed, please try again",
                     "supportsContinuous": "Supports continuous conversation",
-                    "axesReadonly": "Axes locked by manifest"
+                    "axesReadonly": "Axes locked by manifest",
+                    "slashOptions": "{count} option(s)"
                 },
                 "commands": {
                     "intro": "The slash commands below are declared by this plugin. Axes are locked by the plugin manifest — admin can only enable or disable individual commands.",

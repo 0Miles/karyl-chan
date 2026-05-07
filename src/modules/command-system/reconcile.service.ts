@@ -57,7 +57,9 @@ import type {
   PluginManifest,
   ManifestPluginCommandV2,
   ManifestBehaviorV2,
+  ManifestCommandOption,
 } from "../plugin-system/plugin-registry.service.js";
+import { manifestOptionToData } from "../plugin-system/plugin-command-registry.service.js";
 
 // ── Discord 三軸對照表 ────────────────────────────────────────────────────────
 
@@ -215,6 +217,7 @@ export function deriveRegistrationCall(
   scope: CommandScope,
   integrationTypes: DiscordIntegrationType[],
   contexts: DiscordContext[],
+  options?: ManifestCommandOption[],
 ): DiscordRegistrationSpec {
   // 非法組合檢查（C-runtime §3.3 底部非法清單）
   if (integrationTypes.length === 0) {
@@ -259,6 +262,9 @@ export function deriveRegistrationCall(
   }
   if (discordIntegrationTypes.length > 0) {
     data["integrationTypes"] = discordIntegrationTypes;
+  }
+  if (options && options.length > 0) {
+    data["options"] = options.map(manifestOptionToData);
   }
 
   return {
@@ -682,6 +688,29 @@ export class CommandReconciler {
     const integrationTypes = parseIntegrationTypes(row.integrationTypes);
     const contexts = parseContexts(row.contexts);
 
+    // plugin source behaviors may carry slashHints.options from the manifest
+    let slashOptions: ManifestCommandOption[] | undefined;
+    if (
+      row.source === "plugin" &&
+      row.pluginId !== null &&
+      row.pluginBehaviorKey !== null
+    ) {
+      const plugin = await findPluginById(row.pluginId);
+      if (plugin) {
+        try {
+          const manifest = JSON.parse(plugin.manifestJson) as PluginManifest;
+          const behavior = manifest.behaviors?.find(
+            (b: ManifestBehaviorV2) => b.key === row.pluginBehaviorKey,
+          );
+          if (behavior?.slashHints?.options?.length) {
+            slashOptions = behavior.slashHints.options;
+          }
+        } catch {
+          // malformed manifest JSON — proceed without options
+        }
+      }
+    }
+
     let spec: DiscordRegistrationSpec;
     try {
       spec = deriveRegistrationCall(
@@ -690,6 +719,7 @@ export class CommandReconciler {
         row.scope,
         integrationTypes,
         contexts,
+        slashOptions,
       );
     } catch (err) {
       if (err instanceof RejectionError) {
@@ -768,6 +798,7 @@ export class CommandReconciler {
         scope,
         integrationTypes,
         contexts,
+        cmdManifest.options,
       );
     } catch (err) {
       if (err instanceof RejectionError) {
