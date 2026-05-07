@@ -20,7 +20,11 @@
  *   3. system behavior（source='system'）中的 stub 替換為真實實作（見下方 TODO）
  */
 
-import { type Interaction, type ChatInputCommandInteraction } from "discord.js";
+import {
+  type Interaction,
+  type ChatInputCommandInteraction,
+  EmbedBuilder,
+} from "discord.js";
 import {
   Behavior,
   type BehaviorRow,
@@ -32,6 +36,7 @@ import { issueLoginLinkForInteraction } from "../admin/admin-login.service.js";
 import { endSession } from "../behavior/models/behavior-session.model.js";
 import type { DispatchOutcome } from "./types.js";
 import type { WebhookForwarder } from "./webhook-forwarder.service.js";
+import { collectApplicableBehaviorsForUser } from "./message-pattern-matcher.service.js";
 
 // ── Discord webhook payload 建構（slash command → webhook body）─────────────
 
@@ -278,23 +283,7 @@ export class InteractionDispatcher {
     }
 
     if (systemKey === "manual") {
-      // v2 manual behavior：v2 system seed 暫關，manual slash trigger 的 v2 實作
-      // 需要 M1-D admin UI 提供目標 behavior 設定後再補。
-      // 目前回覆說明狀態。
-      botEventLog.record(
-        "info",
-        "bot",
-        `interaction-dispatcher: system behavior 'manual' slash trigger（v2 system seed 暫關）`,
-        { commandName: interaction.commandName, userId: interaction.user.id },
-      );
-      await interaction
-        .reply({
-          content:
-            "⚙ /manual 指令的 v2 行為設定尚待 M1-D admin UI 完成後啟用。",
-          ephemeral: true,
-        })
-        .catch(() => {});
-      return { claimed: true, claimedBy: "behavior_system" };
+      return this.dispatchManualBehavior(interaction);
     }
 
     // 未知 systemKey（不應發生，behaviorsS 表 CHECK 約束攔截）
@@ -308,6 +297,91 @@ export class InteractionDispatcher {
     await interaction
       .reply({ content: "⚙ 未知的系統指令。", ephemeral: true })
       .catch(() => {});
+    return { claimed: true, claimedBy: "behavior_system" };
+  }
+
+  // ── /manual：列出此 user 在 DM 觸發可用的 behaviors ─────────────────────
+
+  /**
+   * /manual slash command 真實實作。
+   *
+   * 列出此 user 在 DM 觸發時 match 的所有 behaviors（依 audienceKind 過濾）。
+   * 回 ephemeral embed，顯示 title / triggerType / trigger preview。
+   * 若 0 條 → 「目前在私訊沒有可用行為」。
+   *
+   * 對齊 M1-COMPLETION.md §5 與任務 Batch 1 #2 補強。
+   */
+  private async dispatchManualBehavior(
+    interaction: ChatInputCommandInteraction,
+  ): Promise<DispatchOutcome> {
+    const userId = interaction.user.id;
+
+    let behaviors: BehaviorRow[] = [];
+    try {
+      behaviors = await collectApplicableBehaviorsForUser(userId);
+    } catch (err) {
+      botEventLog.record(
+        "error",
+        "bot",
+        `interaction-dispatcher: /manual 查詢 behaviors 失敗：${err instanceof Error ? err.message : String(err)}`,
+        { userId },
+      );
+      await interaction
+        .reply({
+          content: "⚠ 無法取得行為清單，請稍後再試。",
+          ephemeral: true,
+        })
+        .catch(() => {});
+      return { claimed: true, claimedBy: "behavior_system" };
+    }
+
+    if (behaviors.length === 0) {
+      await interaction
+        .reply({
+          content: "目前在私訊沒有可用行為。",
+          ephemeral: true,
+        })
+        .catch(() => {});
+      return { claimed: true, claimedBy: "behavior_system" };
+    }
+
+    // 建構 embed，每條 behavior 一個 field
+    const embed = new EmbedBuilder()
+      .setTitle("私訊可用行為清單")
+      .setDescription(`目前對你適用的行為共 ${behaviors.length} 條：`)
+      .setColor(0x5865f2);
+
+    for (const b of behaviors.slice(0, 25)) {
+      // Discord embed 最多 25 fields
+      const triggerLabel =
+        b.triggerType === "slash_command"
+          ? `/${b.slashCommandName ?? "(未設定)"}`
+          : `訊息觸發（${b.messagePatternKind ?? "?"}）：${b.messagePatternValue ?? ""}`;
+      embed.addFields({
+        name: b.title,
+        value:
+          `**類型**：${b.triggerType === "slash_command" ? "Slash 指令" : "訊息模式"}\n` +
+          `**觸發**：\`${triggerLabel}\`\n` +
+          (b.description ? `**說明**：${b.description}` : ""),
+        inline: false,
+      });
+    }
+
+    if (behaviors.length > 25) {
+      embed.setFooter({ text: `（僅顯示前 25 條，共 ${behaviors.length} 條）` });
+    }
+
+    await interaction
+      .reply({ embeds: [embed], ephemeral: true })
+      .catch(() => {});
+
+    botEventLog.record(
+      "info",
+      "bot",
+      `/manual: userId=${userId} 查詢到 ${behaviors.length} 條可用行為`,
+      { userId, count: behaviors.length },
+    );
+
     return { claimed: true, claimedBy: "behavior_system" };
   }
 

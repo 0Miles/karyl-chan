@@ -256,45 +256,12 @@ export class MessagePatternMatcher {
 
   /**
    * 查詢對此 userId 適用的 message_pattern behaviors。
-   * 依優先順序：user → group → all（依 audienceKind）。
-   * 結果依 sortOrder 排序。
-   *
-   * 對齊 C-runtime §5.2 與 M0-A 的 behavior_audience_members 表。
+   * 代理 module-level helper，固定只查 message_pattern 觸發。
    */
   private async collectApplicableBehaviors(
     userId: string,
   ): Promise<BehaviorRow[]> {
-    const allRows = await Behavior.findAll({
-      where: {
-        enabled: true,
-        triggerType: "message_pattern",
-      },
-      order: [["sortOrder", "ASC"]],
-    });
-
-    const result: BehaviorRow[] = [];
-
-    for (const row of allRows) {
-      const behavior = this.rowOfBehavior(row);
-
-      if (behavior.audienceKind === "user") {
-        // user：直接比對 audienceUserId
-        if (behavior.audienceUserId === userId) {
-          result.push(behavior);
-        }
-      } else if (behavior.audienceKind === "group") {
-        // group：查 behavior_audience_members 表
-        const members = await findAudienceMembers(behavior.id);
-        if (members.includes(userId)) {
-          result.push(behavior);
-        }
-      } else if (behavior.audienceKind === "all") {
-        // all：對所有 DM 用戶適用
-        result.push(behavior);
-      }
-    }
-
-    return result;
+    return collectApplicableBehaviorsForUser(userId, "message_pattern");
   }
 
   // ── 私有：buildPayload ───────────────────────────────────────────────────
@@ -370,4 +337,113 @@ export class MessagePatternMatcher {
         (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
     };
   }
+}
+
+// ── module-level helper（共用）────────────────────────────────────────────────
+
+/**
+ * 查詢對此 userId 在 DM 觸發時適用的 behaviors。
+ *
+ * 篩選條件：
+ *   - enabled=true
+ *   - source 非 'system'（system behaviors 不在 /manual 列表中）
+ *   - triggerType：若指定，只回該 triggerType；不指定則返回全部
+ *   - audienceKind 符合（user / group / all 三層）
+ *
+ * 結果依 sortOrder 排序。
+ * 可被 MessagePatternMatcher 與 InteractionDispatcher(/manual) 共用。
+ *
+ * @param userId  Discord user id
+ * @param triggerType  若為 'message_pattern' 則只查訊息觸發；未指定則查全部
+ */
+export async function collectApplicableBehaviorsForUser(
+  userId: string,
+  triggerType?: "message_pattern" | "slash_command",
+): Promise<BehaviorRow[]> {
+  const where: Record<string, unknown> = {
+    enabled: true,
+    source: { [Op.ne]: "system" },
+  };
+  if (triggerType !== undefined) {
+    where["triggerType"] = triggerType;
+  }
+  const allRows = await Behavior.findAll({
+    where,
+    order: [["sortOrder", "ASC"]],
+  });
+
+  const result: BehaviorRow[] = [];
+
+  for (const row of allRows) {
+    const behavior = rowOfBehavior(row);
+
+    if (behavior.audienceKind === "user") {
+      if (behavior.audienceUserId === userId) {
+        result.push(behavior);
+      }
+    } else if (behavior.audienceKind === "group") {
+      const members = await findAudienceMembers(behavior.id);
+      if (members.includes(userId)) {
+        result.push(behavior);
+      }
+    } else if (behavior.audienceKind === "all") {
+      result.push(behavior);
+    }
+  }
+
+  return result;
+}
+
+// ── module-level rowOfBehavior（供 collectApplicableBehaviorsForUser 使用）──────
+
+function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
+  return {
+    id: model.getDataValue("id") as number,
+    title: model.getDataValue("title") as string,
+    description: (model.getDataValue("description") as string) ?? "",
+    enabled: !!model.getDataValue("enabled"),
+    sortOrder: model.getDataValue("sortOrder") as number,
+    stopOnMatch: !!model.getDataValue("stopOnMatch"),
+    forwardType: model.getDataValue("forwardType") as BehaviorRow["forwardType"],
+    source: model.getDataValue("source") as BehaviorRow["source"],
+    triggerType: model.getDataValue(
+      "triggerType",
+    ) as BehaviorRow["triggerType"],
+    messagePatternKind:
+      (model.getDataValue(
+        "messagePatternKind",
+      ) as BehaviorRow["messagePatternKind"]) ?? null,
+    messagePatternValue:
+      (model.getDataValue("messagePatternValue") as string | null) ?? null,
+    slashCommandName:
+      (model.getDataValue("slashCommandName") as string | null) ?? null,
+    slashCommandDescription:
+      (model.getDataValue("slashCommandDescription") as string | null) ?? null,
+    scope: model.getDataValue("scope") as BehaviorRow["scope"],
+    integrationTypes: model.getDataValue("integrationTypes") as string,
+    contexts: model.getDataValue("contexts") as string,
+    placementGuildId:
+      (model.getDataValue("placementGuildId") as string | null) ?? null,
+    placementChannelId:
+      (model.getDataValue("placementChannelId") as string | null) ?? null,
+    audienceKind: model.getDataValue(
+      "audienceKind",
+    ) as BehaviorRow["audienceKind"],
+    audienceUserId:
+      (model.getDataValue("audienceUserId") as string | null) ?? null,
+    audienceGroupName:
+      (model.getDataValue("audienceGroupName") as string | null) ?? null,
+    webhookUrl: (model.getDataValue("webhookUrl") as string | null) ?? null,
+    webhookSecret:
+      (model.getDataValue("webhookSecret") as string | null) ?? null,
+    webhookAuthMode:
+      (model.getDataValue(
+        "webhookAuthMode",
+      ) as BehaviorRow["webhookAuthMode"]) ?? null,
+    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
+    pluginBehaviorKey:
+      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
+    systemKey:
+      (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
+  };
 }
