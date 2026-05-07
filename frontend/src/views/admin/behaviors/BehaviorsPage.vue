@@ -34,19 +34,23 @@ const canManageCatalog = computed(() => {
 });
 
 const audiences = ref<AudienceEntry[]>([]);
-const selectedKey = ref<string | null>(null);
+// 預設選 'all'，讓 BehaviorWorkspace 可與 listAudiences 並行 mount 載入
+const selectedKey = ref<string>('all');
 const loading = ref(false);
 const error = ref<string | null>(null);
 
 // AddBehaviorModal 開關
 const addBehaviorModalOpen = ref(false);
 
-const selectedAudience = computed(() =>
-    audiences.value.find(a => a.key === selectedKey.value) ?? null
+// 當 audiences 尚未載入時，提供 synthetic 'all' entry 讓 workspace 可並行 mount
+const SYNTHETIC_ALL_AUDIENCE: AudienceEntry = { kind: 'all', key: 'all', behaviorCount: 0 };
+
+const selectedAudience = computed((): AudienceEntry =>
+    audiences.value.find(a => a.key === selectedKey.value) ?? SYNTHETIC_ALL_AUDIENCE
 );
 
 const selectedAudienceKind = computed<BehaviorAudienceKind>(() =>
-    selectedAudience.value?.kind ?? 'all'
+    selectedAudience.value.kind
 );
 
 async function load() {
@@ -54,10 +58,10 @@ async function load() {
     error.value = null;
     try {
         audiences.value = await listAudiences();
-        // 預設選中 all，或保持既有選擇
-        if (selectedKey.value == null || !audiences.value.some(a => a.key === selectedKey.value)) {
+        // 確認選中的 key 仍然存在；若不在清單裡（audience 剛被刪）則改選 all
+        if (!audiences.value.some(a => a.key === selectedKey.value)) {
             const fallback = audiences.value.find(a => a.kind === 'all') ?? audiences.value[0];
-            selectedKey.value = fallback?.key ?? null;
+            selectedKey.value = fallback?.key ?? 'all';
         }
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
@@ -104,7 +108,6 @@ async function onBehaviorDeleted() {
         </template>
 
         <BehaviorWorkspace
-            v-if="selectedAudience"
             :key="selectedAudience.key"
             :audience="selectedAudience"
             :can-manage-catalog="canManageCatalog"
@@ -112,15 +115,13 @@ async function onBehaviorDeleted() {
             @add-behavior="addBehaviorModalOpen = true"
             @behavior-deleted="onBehaviorDeleted"
         />
-        <div v-else-if="loading" class="placeholder muted">{{ t('common.loading') }}</div>
-        <div v-else class="placeholder muted">{{ t('behaviors.page.pickTarget') }}</div>
 
         <!-- 新增 Behavior modal（v2 wizard，同時負責新增 audience）-->
         <AddBehaviorModal
             :visible="addBehaviorModalOpen"
             :default-audience-kind="selectedAudienceKind"
-            :default-audience-user-id="selectedAudience?.userId"
-            :default-audience-group-name="selectedAudience?.groupName"
+            :default-audience-user-id="selectedAudience.userId"
+            :default-audience-group-name="selectedAudience.groupName"
             @close="addBehaviorModalOpen = false"
             @created="onBehaviorCreated"
         />
