@@ -33,7 +33,7 @@ import {
   type BehaviorAudienceKind,
   type BehaviorWebhookAuthMode,
 } from "./models/behavior.model.js";
-import { Op } from "sequelize";
+import { Op, fn, col } from "sequelize";
 import { encryptSecret } from "../../utils/crypto.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { CommandReconciler } from "../command-system/reconcile.service.js";
@@ -118,6 +118,8 @@ export async function registerBehaviorRoutes(
 
     const query = request.query as {
       audienceKind?: string;
+      audienceUserId?: string;
+      audienceGroupName?: string;
       source?: string;
       triggerType?: string;
     };
@@ -128,6 +130,12 @@ export async function registerBehaviorRoutes(
       ["all", "user", "group"].includes(query.audienceKind)
     ) {
       where["audienceKind"] = query.audienceKind;
+    }
+    if (query.audienceUserId) {
+      where["audienceUserId"] = query.audienceUserId;
+    }
+    if (query.audienceGroupName) {
+      where["audienceGroupName"] = query.audienceGroupName;
     }
     if (query.source && ["custom", "plugin", "system"].includes(query.source)) {
       where["source"] = query.source;
@@ -613,35 +621,80 @@ export async function registerBehaviorRoutes(
   server.get("/api/behaviors/audience-summary", async (request, reply) => {
     if (!requireBehaviorAdmin(request, reply)) return;
 
-    // 取所有 behavior，前端自行分組
+    // Use GROUP BY so the backend returns one row per distinct audience
+    // instead of one row per behavior — avoids transferring large tables
+    // when there are many behaviors per audience.
     const rows = await Behavior.findAll({
+      attributes: [
+        "audienceKind",
+        "audienceUserId",
+        "audienceGroupName",
+        [fn("COUNT", col("id")), "behaviorCount"],
+      ],
+      group: ["audienceKind", "audienceUserId", "audienceGroupName"],
       order: [
         ["audienceKind", "ASC"],
         ["audienceUserId", "ASC"],
         ["audienceGroupName", "ASC"],
       ],
-      attributes: [
-        "id",
-        "audienceKind",
-        "audienceUserId",
-        "audienceGroupName",
-        "source",
-        "enabled",
-      ],
+      raw: true,
     });
 
-    const summary = rows.map((r) => ({
-      id: r.getDataValue("id") as number,
-      audienceKind: r.getDataValue("audienceKind") as string,
-      audienceUserId:
-        (r.getDataValue("audienceUserId") as string | null) ?? null,
-      audienceGroupName:
-        (r.getDataValue("audienceGroupName") as string | null) ?? null,
-      source: r.getDataValue("source") as string,
-      enabled: !!r.getDataValue("enabled"),
+    const summary = (rows as unknown as Array<{
+      audienceKind: string;
+      audienceUserId: string | null;
+      audienceGroupName: string | null;
+      behaviorCount: string | number;
+    }>).map((r) => ({
+      audienceKind: r.audienceKind,
+      audienceUserId: r.audienceUserId ?? null,
+      audienceGroupName: r.audienceGroupName ?? null,
+      behaviorCount: Number(r.behaviorCount),
     }));
 
     return reply.send({ summary });
+  });
+
+  // ── DELETE /api/behaviors/bulk-by-audience ──────────────────────────────────
+  // Atomically delete all behaviors for a given audience in one transaction.
+  // Query params: audienceKind (required) + audienceUserId | audienceGroupName.
+
+  server.delete("/api/behaviors/bulk-by-audience", async (request, reply) => {
+    if (!requireBehaviorAdmin(request, reply)) return;
+
+    const query = request.query as {
+      audienceKind?: string;
+      audienceUserId?: string;
+      audienceGroupName?: string;
+    };
+
+    if (!query.audienceKind || !["all", "user", "group"].includes(query.audienceKind)) {
+      return reply.code(400).send({ error: "audienceKind 為必填 (all | user | group)" });
+    }
+    if (query.audienceKind === "user" && !query.audienceUserId) {
+      return reply.code(400).send({ error: "audienceKind=user 需要 audienceUserId" });
+    }
+    if (query.audienceKind === "group" && !query.audienceGroupName) {
+      return reply.code(400).send({ error: "audienceKind=group 需要 audienceGroupName" });
+    }
+
+    const where: Record<string, unknown> = { audienceKind: query.audienceKind };
+    if (query.audienceKind === "user") where["audienceUserId"] = query.audienceUserId;
+    if (query.audienceKind === "group") where["audienceGroupName"] = query.audienceGroupName;
+
+    // system behaviors cannot be deleted — exclude them from the bulk delete.
+    where["source"] = { [Op.ne]: "system" };
+
+    const deleted = await Behavior.destroy({ where });
+
+    botEventLog.record(
+      "info",
+      "web",
+      `bulk delete audience behaviors: kind=${query.audienceKind} count=${deleted}`,
+      {},
+    );
+
+    return reply.send({ deleted });
   });
 
   // ── PATCH /api/behaviors/reorder ────────────────────────────────────────────

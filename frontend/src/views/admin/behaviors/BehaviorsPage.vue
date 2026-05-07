@@ -11,8 +11,6 @@ import BehaviorWorkspace from './BehaviorWorkspace.vue';
 import AddBehaviorModal from './AddBehaviorModal.vue';
 import {
     listAudiences,
-    listBehaviors,
-    deleteBehaviorsByAudience,
     type AudienceEntry,
     type BehaviorRow,
     type BehaviorAudienceKind,
@@ -75,10 +73,8 @@ function onSelect(key: string) {
     if (isMobile.value) closeOverlay();
 }
 
-// audience-deleted：刪除該 audience 下所有 behaviors 後重新 load sidebar
-async function onAudienceDeleted(deletedIds: number[]) {
-    await deleteBehaviorsByAudience(deletedIds);
-    // 刪除後重新載入 audience 清單
+// audience-deleted：workspace 已完成刪除，重新 load sidebar
+async function onAudienceDeleted() {
     await load();
 }
 

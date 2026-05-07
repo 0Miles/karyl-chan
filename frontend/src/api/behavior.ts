@@ -124,11 +124,15 @@ async function jsonOrThrow<T>(response: Response): Promise<T> {
 
 export async function listBehaviors(params?: {
   audienceKind?: BehaviorAudienceKind;
+  audienceUserId?: string;
+  audienceGroupName?: string;
   source?: BehaviorSource;
   triggerType?: BehaviorTriggerType;
 }): Promise<BehaviorRow[]> {
   const qs = new URLSearchParams();
   if (params?.audienceKind) qs.set("audienceKind", params.audienceKind);
+  if (params?.audienceUserId) qs.set("audienceUserId", params.audienceUserId);
+  if (params?.audienceGroupName) qs.set("audienceGroupName", params.audienceGroupName);
   if (params?.source) qs.set("source", params.source);
   if (params?.triggerType) qs.set("triggerType", params.triggerType);
   const url = `/api/behaviors${qs.toString() ? "?" + qs.toString() : ""}`;
@@ -194,76 +198,71 @@ export async function reorderBehaviors(orderedIds: number[]): Promise<void> {
 
 /**
  * 從 behaviors 表聚合出 sidebar 用的 audience 清單。
- * 呼叫 GET /api/behaviors/audience-summary，前端依 audienceKind + userId/groupName DISTINCT。
+ * 呼叫 GET /api/behaviors/audience-summary（後端 GROUP BY，每 audience 一列）。
  */
 export async function listAudiences(): Promise<AudienceEntry[]> {
   const r = await authedFetch("/api/behaviors/audience-summary");
   const body = await jsonOrThrow<{
     summary: Array<{
-      id: number;
       audienceKind: string;
       audienceUserId: string | null;
       audienceGroupName: string | null;
-      source: string;
-      enabled: boolean;
+      behaviorCount: number;
     }>;
   }>(r);
 
-  const map = new Map<string, AudienceEntry>();
-
   // 確保 all 永遠在清單中（即使沒有任何 behavior）
-  map.set("all", {
-    key: "all",
-    kind: "all",
-    behaviorCount: 0,
-  });
+  const entries: AudienceEntry[] = [];
+  let allEntry: AudienceEntry | null = null;
 
   for (const row of body.summary) {
     if (row.audienceKind === "all") {
-      const entry = map.get("all")!;
-      entry.behaviorCount++;
+      allEntry = {
+        key: "all",
+        kind: "all",
+        behaviorCount: row.behaviorCount,
+      };
     } else if (row.audienceKind === "user" && row.audienceUserId) {
-      const key = `user:${row.audienceUserId}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.behaviorCount++;
-      } else {
-        map.set(key, {
-          key,
-          kind: "user",
-          userId: row.audienceUserId,
-          behaviorCount: 1,
-        });
-      }
+      entries.push({
+        key: `user:${row.audienceUserId}`,
+        kind: "user",
+        userId: row.audienceUserId,
+        behaviorCount: row.behaviorCount,
+      });
     } else if (row.audienceKind === "group" && row.audienceGroupName) {
-      const key = `group:${row.audienceGroupName}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.behaviorCount++;
-      } else {
-        map.set(key, {
-          key,
-          kind: "group",
-          groupName: row.audienceGroupName,
-          behaviorCount: 1,
-        });
-      }
+      entries.push({
+        key: `group:${row.audienceGroupName}`,
+        kind: "group",
+        groupName: row.audienceGroupName,
+        behaviorCount: row.behaviorCount,
+      });
     }
   }
 
-  // all 排第一，其餘依序
-  const all = map.get("all")!;
-  const rest = Array.from(map.values()).filter((e) => e.kind !== "all");
-  return [all, ...rest];
+  // all 釘頂，其餘依後端回傳順序
+  const ensuredAll: AudienceEntry = allEntry ?? { key: "all", kind: "all", behaviorCount: 0 };
+  return [ensuredAll, ...entries];
 }
 
 /**
- * 刪除某 audience 下的所有 behaviors（等同 v1 deleteTarget）。
- * 依序呼叫 DELETE /api/behaviors/:id。
+ * 刪除某 audience 下的所有 behaviors（原子性，後端單一 transaction）。
+ * 呼叫 DELETE /api/behaviors/bulk-by-audience。
  */
 export async function deleteBehaviorsByAudience(
-  behaviorIds: number[],
-): Promise<void> {
-  await Promise.all(behaviorIds.map((id) => deleteBehavior(id)));
+  audience: AudienceEntry,
+): Promise<{ deleted: number }> {
+  const qs = new URLSearchParams();
+  qs.set("audienceKind", audience.kind);
+  if (audience.kind === "user" && audience.userId) {
+    qs.set("audienceUserId", audience.userId);
+  }
+  if (audience.kind === "group" && audience.groupName) {
+    qs.set("audienceGroupName", audience.groupName);
+  }
+  const r = await authedFetch(
+    `/api/behaviors/bulk-by-audience?${qs.toString()}`,
+    { method: "DELETE" },
+  );
+  return jsonOrThrow<{ deleted: number }>(r);
 }
 
