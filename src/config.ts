@@ -63,6 +63,9 @@ export interface AppConfig {
   };
   behavior: {
     profileCacheTtlMs: number;
+    /** Continuous session expiry in hours. Sessions older than this are treated
+     *  as if they don't exist. Default: 24. */
+    sessionExpireHours: number;
   };
   admin: {
     profileCacheTtlMs: number;
@@ -217,6 +220,7 @@ function loadConfig(): AppConfig {
         "BEHAVIOR_PROFILE_CACHE_TTL_MS",
         5 * 60 * 1000,
       ),
+      sessionExpireHours: parseIntEnv("BEHAVIOR_SESSION_EXPIRE_HOURS", 24),
     },
     admin: {
       profileCacheTtlMs: parseIntEnv(

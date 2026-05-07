@@ -1,5 +1,6 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Op } from "sequelize";
 import { sequelize } from "../../../db.js";
+import { config } from "../../../config.js";
 import { Behavior } from "./behavior.model.js";
 
 // behavior-session.model.ts：v2 schema 不變（PK=userId，FK=behaviorId→behaviors.id）
@@ -41,6 +42,10 @@ export const BehaviorSession = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    expiresAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   },
   {
     tableName: "behavior_sessions",
@@ -53,23 +58,50 @@ export interface BehaviorSessionRow {
   behaviorId: number;
   channelId: string;
   startedAt: string;
+  /** ISO string when the session expires. null = never expires (legacy rows). */
+  expiresAt: string | null;
 }
 
 function rowOf(
   model: InstanceType<typeof BehaviorSession>,
 ): BehaviorSessionRow {
+  const expiresAtRaw = model.getDataValue("expiresAt");
   return {
     userId: model.getDataValue("userId") as string,
     behaviorId: model.getDataValue("behaviorId") as number,
     channelId: model.getDataValue("channelId") as string,
     startedAt: model.getDataValue("startedAt") as string,
+    expiresAt:
+      expiresAtRaw instanceof Date
+        ? expiresAtRaw.toISOString()
+        : (expiresAtRaw as string | null) ?? null,
   };
 }
 
 export const findActiveSession = async (
   userId: string,
 ): Promise<BehaviorSessionRow | null> => {
-  const row = await BehaviorSession.findByPk(userId);
+  const now = new Date();
+
+  // 先順手清掉已過期的 session（避免殭屍 row 無限累積）
+  await BehaviorSession.destroy({
+    where: {
+      userId,
+      expiresAt: { [Op.lt]: now },
+    },
+  });
+
+  // 讀取 session：只回傳尚未過期（expiresAt IS NULL OR expiresAt > now）
+  const row = await BehaviorSession.findOne({
+    where: {
+      userId,
+      [Op.or]: [
+        { expiresAt: null },
+        { expiresAt: { [Op.gt]: now } },
+      ],
+    },
+  });
+
   return row ? rowOf(row) : null;
 };
 
@@ -79,8 +111,16 @@ export const startSession = async (
   channelId: string,
 ): Promise<BehaviorSessionRow> => {
   const startedAt = new Date().toISOString();
-  await BehaviorSession.upsert({ userId, behaviorId, channelId, startedAt });
-  return { userId, behaviorId, channelId, startedAt };
+  const expireMs = config.behavior.sessionExpireHours * 60 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + expireMs).toISOString();
+  await BehaviorSession.upsert({
+    userId,
+    behaviorId,
+    channelId,
+    startedAt,
+    expiresAt,
+  });
+  return { userId, behaviorId, channelId, startedAt, expiresAt };
 };
 
 export const endSession = async (userId: string): Promise<boolean> => {
