@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import Sortable from 'sortablejs';
 import BehaviorCard from './BehaviorCard.vue';
+import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 import {
     listBehaviors,
     reorderBehaviors,
@@ -136,18 +137,36 @@ function onDeleted(id: number) {
     emit('behavior-deleted');
 }
 
-async function onDeleteAudience() {
-    if (props.audience.kind === 'all') return;
-    const label = props.audience.kind === 'user'
+const deleteAudienceDialogOpen = ref(false);
+const deleteAudienceDeleting = ref(false);
+const deleteAudienceError = ref<string | null>(null);
+
+const deleteAudienceLabel = computed(() => {
+    if (props.audience.kind !== 'user' && props.audience.kind !== 'group') return '';
+    return props.audience.kind === 'user'
         ? (getWorkspaceDisplayName(props.audience.userId ?? '') ?? props.audience.userId ?? '?')
         : (props.audience.groupName ?? '?');
-    if (!window.confirm(t('behaviors.workspace.deleteTargetConfirm', { label }))) return;
+});
+
+function onDeleteAudience() {
+    if (props.audience.kind === 'all') return;
     if (loading.value || behaviors.value.length === 0) return;
+    deleteAudienceError.value = null;
+    deleteAudienceDialogOpen.value = true;
+}
+
+async function doDeleteAudience() {
+    if (deleteAudienceDeleting.value) return;
+    deleteAudienceDeleting.value = true;
+    deleteAudienceError.value = null;
     try {
         await deleteBehaviorsByAudience(props.audience);
+        deleteAudienceDialogOpen.value = false;
         emit('audience-deleted');
     } catch (err) {
-        error.value = err instanceof Error ? err.message : String(err);
+        deleteAudienceError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        deleteAudienceDeleting.value = false;
     }
 }
 
@@ -234,6 +253,19 @@ const headerTitle = computed(() => {
             />
         </div>
     </section>
+
+    <!-- 刪除 audience 確認 dialog -->
+    <AppConfirmDialog
+        :visible="deleteAudienceDialogOpen"
+        :title="t('behaviors.workspace.deleteTargetTitle')"
+        :message="t('behaviors.workspace.deleteTargetConfirm', { label: deleteAudienceLabel })"
+        :confirm-label="t('common.delete')"
+        confirm-variant="danger"
+        :loading="deleteAudienceDeleting"
+        :error="deleteAudienceError ?? undefined"
+        @close="deleteAudienceDialogOpen = false"
+        @confirm="doDeleteAudience"
+    />
 </template>
 
 <style scoped>

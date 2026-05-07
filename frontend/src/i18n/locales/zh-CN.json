@@ -1127,6 +1127,7 @@
             "addWebhookBehavior": "新增 Webhook 行为",
             "addPluginBehavior": "新增 Plugin 行为",
             "deleteTargetTooltip": "删除此对象",
+            "deleteTargetTitle": "删除对象",
             "deleteTargetConfirm": "确定要删除对象「{label}」？其下所有行为将一并移除。",
             "newBehaviorDefaultTitle": "新行为",
             "empty": "目前没有设定行为。"
