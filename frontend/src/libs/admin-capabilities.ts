@@ -28,15 +28,56 @@ export type BehaviorScopedCapability = `behavior:${string}.manage`;
 /** Anything that can be persisted in the role→capability mapping. */
 export type AdminCapability = GlobalCapability | GuildScopedCapability | BehaviorScopedCapability;
 
+/**
+ * Typed audience key — matches the three formats used by v2 behavior audience:
+ *   'all' | 'user:<userId>' | 'group:<groupName>'
+ * group names may contain Unicode / punctuation, so the behavior scoped token
+ * regex must not exclude colons or dots from the audience segment.
+ */
+export type AudienceKey =
+    | { kind: 'all' }
+    | { kind: 'user'; userId: string }
+    | { kind: 'group'; groupName: string };
+
 const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
-const SCOPED_BEHAVIOR_RE = /^behavior:([^.:]+)\.manage$/;
+/** Allow any character in the audience segment (user IDs, group names with Unicode/punctuation). */
+const SCOPED_BEHAVIOR_RE = /^behavior:(.+)\.manage$/;
 
 export function makeGuildScopedCapability(guildId: string, scope: GuildScope): GuildScopedCapability {
     return `guild:${guildId}.${scope}`;
 }
 
-export function makeBehaviorScopedCapability(targetId: number | string): BehaviorScopedCapability {
-    return `behavior:${targetId}.manage`;
+/**
+ * Encode an audience key into a behavior-scoped capability token.
+ * Accepts either the legacy `number | string` form (plain targetId) OR
+ * a typed AudienceKey object.
+ *
+ * v2 canonical form: `behavior:all.manage` / `behavior:user:123.manage` / `behavior:group:VIP.manage`
+ */
+export function makeBehaviorScopedCapability(
+    target: number | string | AudienceKey
+): BehaviorScopedCapability {
+    if (typeof target === 'object') {
+        if (target.kind === 'all') return 'behavior:all.manage';
+        if (target.kind === 'user') return `behavior:user:${target.userId}.manage`;
+        return `behavior:group:${target.groupName}.manage`;
+    }
+    return `behavior:${target}.manage`;
+}
+
+/**
+ * Decode a behavior-scoped capability token back to a typed AudienceKey,
+ * or return null if the token does not match the expected format.
+ */
+export function parseBehaviorCapabilityToken(token: string): AudienceKey | null {
+    const m = SCOPED_BEHAVIOR_RE.exec(token);
+    if (!m) return null;
+    const segment = m[1];
+    if (segment === 'all') return { kind: 'all' };
+    if (segment.startsWith('user:')) return { kind: 'user', userId: segment.slice(5) };
+    if (segment.startsWith('group:')) return { kind: 'group', groupName: segment.slice(6) };
+    // Legacy numeric / plain-string target id — treat as opaque user id
+    return { kind: 'user', userId: segment };
 }
 
 function parseScopedGuild(value: string): { guildId: string; scope: GuildScope } | null {
@@ -45,10 +86,10 @@ function parseScopedGuild(value: string): { guildId: string; scope: GuildScope }
     return { guildId: m[1], scope: m[2] as GuildScope };
 }
 
-function parseScopedBehavior(value: string): { targetId: string } | null {
+function parseScopedBehavior(value: string): { audienceKey: string } | null {
     const m = SCOPED_BEHAVIOR_RE.exec(value);
     if (!m) return null;
-    return { targetId: m[1] };
+    return { audienceKey: m[1] };
 }
 
 /**
@@ -135,7 +176,7 @@ export function accessibleBehaviorTargetIds(granted: Iterable<string>): 'all' | 
         if (cap === 'admin') return 'all';
         if (cap === 'behavior.manage') return 'all';
         const parsed = parseScopedBehavior(cap);
-        if (parsed) ids.add(parsed.targetId);
+        if (parsed) ids.add(parsed.audienceKey);
     }
     return ids;
 }

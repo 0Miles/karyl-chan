@@ -10,8 +10,10 @@ import {
     GLOBAL_CAPABILITY_KEYS,
     makeBehaviorScopedCapability,
     makeGuildScopedCapability,
+    type AudienceKey,
     type GuildScope
 } from '../../../libs/admin-capabilities';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 interface RoleLite {
     name: string;
@@ -64,6 +66,12 @@ const search = ref('');
 // grants on their own account.
 const behaviorTargets = ref<AudienceEntry[]>([]);
 const behaviorTargetsLoading = ref(false);
+
+// Resolve display names for user-kind behavior audiences.
+const behaviorUserIds = computed(() =>
+    behaviorTargets.value.filter(e => e.kind === 'user' && e.userId).map(e => e.userId!)
+);
+const { getDisplayName: getBehaviorDisplayName } = useUserSummaries(behaviorUserIds);
 
 // ── Pending edits — committed only on Confirm ────────────────────────
 //
@@ -174,12 +182,29 @@ function scopedToken(guildId: string, scope: GuildScope): string {
 }
 
 function behaviorScopedToken(audienceKey: string): string {
-    return makeBehaviorScopedCapability(audienceKey);
+    // Parse the audience key string into a typed AudienceKey so the token
+    // uses the v2 canonical encoding (behavior:user:<id>.manage etc.)
+    // which the backend SCOPED_BEHAVIOR_RE can match.
+    let typed: AudienceKey;
+    if (audienceKey === 'all') {
+        typed = { kind: 'all' };
+    } else if (audienceKey.startsWith('user:')) {
+        typed = { kind: 'user', userId: audienceKey.slice(5) };
+    } else if (audienceKey.startsWith('group:')) {
+        typed = { kind: 'group', groupName: audienceKey.slice(6) };
+    } else {
+        // Fallback for legacy plain numeric targetId
+        typed = { kind: 'user', userId: audienceKey };
+    }
+    return makeBehaviorScopedCapability(typed);
 }
 
 function behaviorTargetLabel(entry: AudienceEntry): string {
     if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
-    if (entry.kind === 'user') return entry.userId ?? '?';
+    if (entry.kind === 'user') {
+        const name = entry.userId ? getBehaviorDisplayName(entry.userId) : null;
+        return name ?? entry.userId ?? '?';
+    }
     return entry.groupName ?? '?';
 }
 
