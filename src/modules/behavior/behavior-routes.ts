@@ -24,6 +24,7 @@ import {
   isValidWebhookUrl,
   isValidRegex,
 } from "./behavior-helpers.js";
+import { sortJoin } from "../../utils/sort-join.js";
 import {
   Behavior,
   type BehaviorRow,
@@ -93,19 +94,6 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
     systemKey:
       (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
   };
-}
-
-// ── 輔助：三軸 sort+dedup（M0-FROZEN §1.4）────────────────────────────────────
-
-function sortedComma(raw: string | undefined | null): string {
-  if (!raw) return "";
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .sort()
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .join(",");
 }
 
 // ── 主函式 ────────────────────────────────────────────────────────────────────
@@ -288,10 +276,10 @@ export async function registerBehaviorRoutes(
     }
 
     // 三軸排序
-    const integrationTypes = sortedComma(
+    const integrationTypes = sortJoin(
       body.integrationTypes || "guild_install",
     );
-    const contexts = sortedComma(body.contexts || "Guild");
+    const contexts = sortJoin(body.contexts || "Guild");
 
     // 最大 sortOrder
     const maxSortRow = await Behavior.findOne({
@@ -418,12 +406,12 @@ export async function registerBehaviorRoutes(
       // plugin：三軸 + audience + enabled + webhookSecret/webhookAuthMode
       if ("scope" in body) patch["scope"] = body["scope"];
       if ("integrationTypes" in body) {
-        patch["integrationTypes"] = sortedComma(
+        patch["integrationTypes"] = sortJoin(
           body["integrationTypes"] as string,
         );
       }
       if ("contexts" in body) {
-        patch["contexts"] = sortedComma(body["contexts"] as string);
+        patch["contexts"] = sortJoin(body["contexts"] as string);
       }
       if ("audienceKind" in body) patch["audienceKind"] = body["audienceKind"];
       if ("audienceUserId" in body)
@@ -486,12 +474,12 @@ export async function registerBehaviorRoutes(
           body["slashCommandDescription"] ?? null;
       if ("scope" in body) patch["scope"] = body["scope"];
       if ("integrationTypes" in body) {
-        patch["integrationTypes"] = sortedComma(
+        patch["integrationTypes"] = sortJoin(
           body["integrationTypes"] as string,
         );
       }
       if ("contexts" in body) {
-        patch["contexts"] = sortedComma(body["contexts"] as string);
+        patch["contexts"] = sortJoin(body["contexts"] as string);
       }
       if ("audienceKind" in body) patch["audienceKind"] = body["audienceKind"];
       if ("audienceUserId" in body)
