@@ -901,13 +901,13 @@
                 "globalHint": "Apply to every server and surface the bot reaches.",
                 "perGuild": "Per-server",
                 "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them.",
-                "perBehaviorTarget": "Per-behavior-target",
-                "perBehaviorTargetHint": "Grant the role CRUD over behaviors under specific targets only. Adding/removing targets themselves still requires behavior.manage."
+                "perBehaviorAudience": "Per-behavior-audience",
+                "perBehaviorAudienceHint": "Grant the role CRUD over behaviors under specific audiences only. Adding/removing audiences themselves still requires behavior.manage."
             },
             "searchGuilds": "Search servers…",
             "noGuilds": "No servers match this filter.",
-            "searchBehaviorTargets": "Search targets…",
-            "noBehaviorTargets": "No behavior targets match this filter.",
+            "searchBehaviorAudiences": "Search audiences…",
+            "noBehaviorAudiences": "No behavior audiences match this filter.",
             "noGlobalCaps": "No global capabilities granted.",
             "perGuildSummary": "{count} per-server grant(s)",
             "pendingChanges": "{count} change(s) pending",
@@ -1106,7 +1106,6 @@
             "allDms": "All DMs",
             "allDmsHint": "Applies to every DM sender",
             "userKindHint": "Individual user DM",
-            "groupMemberCount": "{count} members",
             "behaviorCount": "{count} behaviors"
         },
         "addPlugin": {

@@ -901,13 +901,13 @@
                 "globalHint": "应用于 bot 所有服务器与所有功能界面。",
                 "perGuild": "单个服务器",
                 "perGuildHint": "将相同范围限定到单个服务器,与全局权限为相加关系,不会覆盖。",
-                "perBehaviorTarget": "单个行为目标",
-                "perBehaviorTargetHint": "授权该角色管理特定行为目标下的行为(不可增删目标本身,需 behavior.manage 才能调整目标列表)。"
+                "perBehaviorAudience": "单个行为对象",
+                "perBehaviorAudienceHint": "授权该角色管理特定行为对象下的行为(不可增删对象本身,需 behavior.manage 才能调整对象列表)。"
             },
             "searchGuilds": "搜索服务器…",
             "noGuilds": "没有符合条件的服务器。",
-            "searchBehaviorTargets": "搜索目标对象…",
-            "noBehaviorTargets": "没有符合条件的行为目标。",
+            "searchBehaviorAudiences": "搜索行为对象…",
+            "noBehaviorAudiences": "没有符合条件的行为对象。",
             "noGlobalCaps": "尚未授予任何全局权限。",
             "perGuildSummary": "已授予 {count} 个单服务器权限",
             "pendingChanges": "已修改 {count} 项",
@@ -1106,7 +1106,6 @@
             "allDms": "所有私信",
             "allDmsHint": "所有私信用户皆适用",
             "userKindHint": "个别用户私信",
-            "groupMemberCount": "{count} 名成员",
             "behaviorCount": "{count} 个行为"
         },
         "addPlugin": {

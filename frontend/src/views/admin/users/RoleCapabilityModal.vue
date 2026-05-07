@@ -44,11 +44,11 @@ const { t } = useI18n();
 
 const visible = computed(() => props.role !== null);
 
-const tab = ref<'global' | 'per-guild' | 'per-behavior-target'>('global');
+const tab = ref<'global' | 'per-guild' | 'per-behavior-audience'>('global');
 const tabs = computed(() => [
     { key: 'global', label: t('admin.roles.capabilityTabs.global'), icon: 'material-symbols:tune-rounded' },
     { key: 'per-guild', label: t('admin.roles.capabilityTabs.perGuild'), icon: 'material-symbols:groups-outline-rounded' },
-    { key: 'per-behavior-target', label: t('admin.roles.capabilityTabs.perBehaviorTarget'), icon: 'material-symbols:forum-outline-rounded' }
+    { key: 'per-behavior-audience', label: t('admin.roles.capabilityTabs.perBehaviorAudience'), icon: 'material-symbols:forum-outline-rounded' }
 ]);
 
 // Guild list is shared across opens — fetched once on first show. The
@@ -64,12 +64,12 @@ const search = ref('');
 // from the user-management page, itself admin-gated), so listAudiences
 // returns the full catalog regardless of the editor's per-audience
 // grants on their own account.
-const behaviorTargets = ref<AudienceEntry[]>([]);
-const behaviorTargetsLoading = ref(false);
+const behaviorAudiences = ref<AudienceEntry[]>([]);
+const behaviorAudiencesLoading = ref(false);
 
 // Resolve display names for user-kind behavior audiences.
 const behaviorUserIds = computed(() =>
-    behaviorTargets.value.filter(e => e.kind === 'user' && e.userId).map(e => e.userId!)
+    behaviorAudiences.value.filter(e => e.kind === 'user' && e.userId).map(e => e.userId!)
 );
 const { getDisplayName: getBehaviorDisplayName } = useUserSummaries(behaviorUserIds);
 
@@ -107,14 +107,14 @@ watch(visible, async (open) => {
             guildsLoading.value = false;
         }
     }
-    if (behaviorTargets.value.length === 0) {
-        behaviorTargetsLoading.value = true;
+    if (behaviorAudiences.value.length === 0) {
+        behaviorAudiencesLoading.value = true;
         try {
-            behaviorTargets.value = await listAudiences();
+            behaviorAudiences.value = await listAudiences();
         } catch {
             // Same: silent — empty list is OK as a fallback.
         } finally {
-            behaviorTargetsLoading.value = false;
+            behaviorAudiencesLoading.value = false;
         }
     }
 });
@@ -199,7 +199,7 @@ function behaviorScopedToken(audienceKey: string): string {
     return makeBehaviorScopedCapability(typed);
 }
 
-function behaviorTargetLabel(entry: AudienceEntry): string {
+function audienceLabel(entry: AudienceEntry): string {
     if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
     if (entry.kind === 'user') {
         const name = entry.userId ? getBehaviorDisplayName(entry.userId) : null;
@@ -208,11 +208,11 @@ function behaviorTargetLabel(entry: AudienceEntry): string {
     return entry.groupName ?? '?';
 }
 
-const filteredBehaviorTargets = computed(() => {
+const filteredBehaviorAudiences = computed(() => {
     const needle = search.value.trim().toLowerCase();
-    if (!needle) return behaviorTargets.value;
-    return behaviorTargets.value.filter(entry => {
-        const label = behaviorTargetLabel(entry).toLowerCase();
+    if (!needle) return behaviorAudiences.value;
+    return behaviorAudiences.value.filter(entry => {
+        const label = audienceLabel(entry).toLowerCase();
         const keyMatch = entry.key.toLowerCase().includes(needle);
         return label.includes(needle) || keyMatch;
     });
@@ -332,26 +332,26 @@ function onConfirm() {
                     </div>
                 </section>
 
-                <!-- Per-target behavior capabilities. Granting one of
+                <!-- Per-audience behavior capabilities. Granting one of
                      these lets the holder CRUD behaviors UNDER that
-                     specific target without giving them the full
-                     `behavior.manage` token; adding/removing targets
+                     specific audience without giving them the full
+                     `behavior.manage` token; adding/removing audiences
                      stays admin-only. -->
                 <section v-else class="pane">
-                    <p class="hint">{{ t('admin.roles.capabilityTabs.perBehaviorTargetHint') }}</p>
+                    <p class="hint">{{ t('admin.roles.capabilityTabs.perBehaviorAudienceHint') }}</p>
                     <input
                         v-model="search"
                         type="search"
                         class="search"
-                        :placeholder="t('admin.roles.searchBehaviorTargets')"
+                        :placeholder="t('admin.roles.searchBehaviorAudiences')"
                     />
-                    <p v-if="behaviorTargetsLoading" class="muted">{{ t('common.loading') }}</p>
-                    <p v-else-if="filteredBehaviorTargets.length === 0" class="muted">
-                        {{ t('admin.roles.noBehaviorTargets') }}
+                    <p v-if="behaviorAudiencesLoading" class="muted">{{ t('common.loading') }}</p>
+                    <p v-else-if="filteredBehaviorAudiences.length === 0" class="muted">
+                        {{ t('admin.roles.noBehaviorAudiences') }}
                     </p>
                     <ul v-else class="cap-list">
                         <li
-                            v-for="entry in filteredBehaviorTargets"
+                            v-for="entry in filteredBehaviorAudiences"
                             :key="entry.key"
                             :class="[
                                 'cap',
@@ -373,7 +373,7 @@ function onConfirm() {
                             <div class="cap-text">
                                 <code class="cap-key">{{ behaviorScopedToken(entry.key) }}</code>
                                 <span class="cap-desc">
-                                    {{ behaviorTargetLabel(entry) }}
+                                    {{ audienceLabel(entry) }}
                                     <span class="cap-kind">· {{ t(`behaviors.workspace.kind${entry.kind === 'all' ? 'AllDms' : entry.kind === 'user' ? 'User' : 'Group'}`) }}</span>
                                 </span>
                             </div>
