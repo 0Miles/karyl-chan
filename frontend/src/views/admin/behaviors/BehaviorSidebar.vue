@@ -2,41 +2,38 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
-import type { BehaviorTargetSummary } from '../../../api/behavior';
+import type { AudienceEntry } from '../../../api/behavior';
 
 const { t } = useI18n();
 
 /**
- * BehaviorSidebar v2 — M1-D1
+ * BehaviorSidebar v2 — 使用 AudienceEntry（audience-summary 推導）
  *
- * 設計依據 D-ui §1.2（CR-9 移除 source filter；H-2 標題改「對象 (Audience)」）：
- * - 標題從「Target (scope)」改為「對象 (Audience)」
- * - 移除 source filter-chip row（CR-9 用戶覆寫）
- * - all_dms 釘頂，其餘 user/group 保持 API 回傳順序
- * - 「+ 新增」按鈕觸發 AddBehaviorModal（emit 'add'）
+ * 移除 v1 BehaviorTargetSummary 依賴。
+ * - all 釘頂
+ * - user / group 依後端回傳順序
+ * - 「+ 新增」= 開 AddBehaviorModal（emit 'add'）
  */
 
 const props = defineProps<{
-    targets: BehaviorTargetSummary[];
-    selectedId: number | null;
+    audiences: AudienceEntry[];
+    selectedKey: string | null;
     loading?: boolean;
-    canAddTarget?: boolean;
+    canAdd?: boolean;
 }>();
 
 const emit = defineEmits<{
-    (e: 'select', targetId: number): void;
+    (e: 'select', key: string): void;
     (e: 'add'): void;
 }>();
 
-const allDmsTarget = computed(() => props.targets.find(t => t.kind === 'all_dms') ?? null);
-const otherTargets = computed(() => props.targets.filter(t => t.kind !== 'all_dms'));
+const allEntry = computed(() => props.audiences.find(a => a.kind === 'all') ?? null);
+const otherEntries = computed(() => props.audiences.filter(a => a.kind !== 'all'));
 
-function labelFor(target: BehaviorTargetSummary): string {
-    if (target.kind === 'all_dms') return t('behaviors.sidebar.allDms');
-    if (target.kind === 'user') {
-        return target.profile?.globalName ?? target.profile?.username ?? target.userId ?? '?';
-    }
-    return target.groupName ?? '?';
+function labelFor(entry: AudienceEntry): string {
+    if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
+    if (entry.kind === 'user') return entry.userId ?? '?';
+    return entry.groupName ?? '?';
 }
 </script>
 
@@ -44,7 +41,7 @@ function labelFor(target: BehaviorTargetSummary): string {
     <header class="sidebar-header">
         <span class="title">{{ t('behaviors.sidebar.title') }}</span>
         <button
-            v-if="canAddTarget"
+            v-if="canAdd"
             type="button"
             class="ghost"
             :title="t('behaviors.sidebar.addTooltip')"
@@ -58,45 +55,39 @@ function labelFor(target: BehaviorTargetSummary): string {
     <!-- 對象 (Audience) 分類標題 -->
     <div class="section-label">{{ t('behaviors.sidebar.audienceLabel') }}</div>
 
-    <div v-if="loading && targets.length === 0" class="loading muted">
+    <div v-if="loading && audiences.length === 0" class="loading muted">
         {{ t('common.loading') }}
     </div>
 
     <ul v-else class="target-list">
-        <!-- all_dms 釘頂 -->
+        <!-- all 釘頂 -->
         <li
-            v-if="allDmsTarget"
-            :class="['target-row', 'pinned', { active: selectedId === allDmsTarget.id }]"
-            @click="emit('select', allDmsTarget.id)"
+            v-if="allEntry"
+            :class="['target-row', 'pinned', { active: selectedKey === allEntry.key }]"
+            @click="emit('select', allEntry.key)"
         >
             <div class="avatar avatar-fallback all-dms" aria-hidden="true">
                 <Icon icon="material-symbols:forum-outline-rounded" width="18" height="18" />
             </div>
             <div class="meta">
-                <div class="name">{{ labelFor(allDmsTarget) }}</div>
+                <div class="name">{{ labelFor(allEntry) }}</div>
                 <div class="sub">{{ t('behaviors.sidebar.allDmsHint') }}</div>
             </div>
         </li>
 
-        <!-- user / group targets -->
+        <!-- user / group audiences -->
         <li
-            v-for="target in otherTargets"
-            :key="target.id"
-            :class="['target-row', { active: selectedId === target.id }]"
-            @click="emit('select', target.id)"
+            v-for="entry in otherEntries"
+            :key="entry.key"
+            :class="['target-row', { active: selectedKey === entry.key }]"
+            @click="emit('select', entry.key)"
         >
-            <template v-if="target.kind === 'user'">
-                <img
-                    v-if="target.profile?.avatarUrl"
-                    :src="target.profile.avatarUrl"
-                    alt=""
-                    class="avatar"
-                />
-                <div v-else class="avatar avatar-fallback">
-                    {{ labelFor(target).charAt(0).toUpperCase() }}
+            <template v-if="entry.kind === 'user'">
+                <div class="avatar avatar-fallback">
+                    {{ labelFor(entry).charAt(0).toUpperCase() }}
                 </div>
                 <div class="meta">
-                    <div class="name">{{ labelFor(target) }}</div>
+                    <div class="name">{{ labelFor(entry) }}</div>
                     <div class="sub">{{ t('behaviors.sidebar.userKindHint') }}</div>
                 </div>
             </template>
@@ -105,9 +96,9 @@ function labelFor(target: BehaviorTargetSummary): string {
                     <Icon icon="material-symbols:groups-outline-rounded" width="18" height="18" />
                 </div>
                 <div class="meta">
-                    <div class="name">{{ labelFor(target) }}</div>
+                    <div class="name">{{ labelFor(entry) }}</div>
                     <div class="sub">
-                        {{ t('behaviors.sidebar.groupMemberCount', { count: target.memberCount ?? 0 }) }}
+                        {{ t('behaviors.sidebar.behaviorCount', { count: entry.behaviorCount }) }}
                     </div>
                 </div>
             </template>

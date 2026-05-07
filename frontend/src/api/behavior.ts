@@ -46,9 +46,21 @@ export interface BehaviorRow {
   systemKey: string | null;
 }
 
+// ── v2 Audience（sidebar 用）────────────────────────────────────────────────
+// 從 /api/behaviors/audience-summary 推導，不依賴 v1 target 表。
+
+export interface AudienceEntry {
+  /** 唯一 key（格式：'all' | 'user:{userId}' | 'group:{groupName}'） */
+  key: string;
+  kind: BehaviorAudienceKind;
+  userId?: string;
+  groupName?: string;
+  /** 此 audience 下的 behavior 數量 */
+  behaviorCount: number;
+}
+
 // ── v1 target 型別（@deprecated — M2 重構後刪除）────────────────────────────
-// BehaviorsPage / BehaviorWorkspace / BehaviorSidebar / AddTargetModal /
-// RoleCapabilityModal 仍使用下列型別與 API，待 M2 sidebar v2 重構完成後整批移除。
+// 已不被任何元件使用，僅保留型別宣告避免其他已 @deprecated 的引用報錯。
 
 /** @deprecated v1 型別。M2 重構後移除。 */
 export type BehaviorTargetKind = "all_dms" | "user" | "group";
@@ -215,10 +227,87 @@ export async function reorderBehaviors(orderedIds: number[]): Promise<void> {
   await jsonOrThrow<unknown>(r);
 }
 
-// ── v1 Target API（@deprecated — M2 重構後刪除）────────────────────────────
+// ── v2 Audience API ───────────────────────────────────────────────────────────
+
+/**
+ * 從 behaviors 表聚合出 sidebar 用的 audience 清單。
+ * 呼叫 GET /api/behaviors/audience-summary，前端依 audienceKind + userId/groupName DISTINCT。
+ */
+export async function listAudiences(): Promise<AudienceEntry[]> {
+  const r = await authedFetch("/api/behaviors/audience-summary");
+  const body = await jsonOrThrow<{
+    summary: Array<{
+      id: number;
+      audienceKind: string;
+      audienceUserId: string | null;
+      audienceGroupName: string | null;
+      source: string;
+      enabled: boolean;
+    }>;
+  }>(r);
+
+  const map = new Map<string, AudienceEntry>();
+
+  // 確保 all 永遠在清單中（即使沒有任何 behavior）
+  map.set("all", {
+    key: "all",
+    kind: "all",
+    behaviorCount: 0,
+  });
+
+  for (const row of body.summary) {
+    if (row.audienceKind === "all") {
+      const entry = map.get("all")!;
+      entry.behaviorCount++;
+    } else if (row.audienceKind === "user" && row.audienceUserId) {
+      const key = `user:${row.audienceUserId}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.behaviorCount++;
+      } else {
+        map.set(key, {
+          key,
+          kind: "user",
+          userId: row.audienceUserId,
+          behaviorCount: 1,
+        });
+      }
+    } else if (row.audienceKind === "group" && row.audienceGroupName) {
+      const key = `group:${row.audienceGroupName}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.behaviorCount++;
+      } else {
+        map.set(key, {
+          key,
+          kind: "group",
+          groupName: row.audienceGroupName,
+          behaviorCount: 1,
+        });
+      }
+    }
+  }
+
+  // all 排第一，其餘依序
+  const all = map.get("all")!;
+  const rest = Array.from(map.values()).filter((e) => e.kind !== "all");
+  return [all, ...rest];
+}
+
+/**
+ * 刪除某 audience 下的所有 behaviors（等同 v1 deleteTarget）。
+ * 依序呼叫 DELETE /api/behaviors/:id。
+ */
+export async function deleteBehaviorsByAudience(
+  behaviorIds: number[],
+): Promise<void> {
+  await Promise.all(behaviorIds.map((id) => deleteBehavior(id)));
+}
+
+// ── v1 Target API（@deprecated — 已無元件使用，保留型別宣告）────────────────
 // 以下 API 呼叫已不存在的 /api/behaviors/targets 路徑（v2 schema 已廢棄）。
-// 仍在 BehaviorsPage / BehaviorWorkspace / AddTargetModal / RoleCapabilityModal 使用中。
-// TODO(M2): 用 /api/behaviors?audienceKind=... 取代，整批移除。
+// BehaviorsPage / BehaviorWorkspace / BehaviorSidebar / AddTargetModal 已全數移除 v1 依賴。
+// 保留函數宣告，避免未來誤引用時 tsc 報錯不夠明確。待確認無其他引用後可整批移除。
 
 /** @deprecated v1 API。M2 重構後移除。 */
 export async function listTargets(): Promise<BehaviorTargetSummary[]> {

@@ -7,42 +7,33 @@ import BehaviorCard from './BehaviorCard.vue';
 import {
     listBehaviors,
     reorderBehaviors,
-    deleteTarget,
-    addGroupMember,
-    removeGroupMember,
-    listGroupMembers,
-    renameGroupTarget,
+    deleteBehavior,
     type BehaviorRow,
-    type BehaviorAudienceKind,
-    type BehaviorTargetSummary,
-    type BehaviorGroupMember,
+    type AudienceEntry,
 } from '../../../api/behavior';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
 /**
- * BehaviorWorkspace v2 — M1-D1
+ * BehaviorWorkspace v2 — 改用 AudienceEntry，移除 v1 target API 依賴
  *
- * 依 D-ui §1.3/§1.4 實作：
- * - 列出當前 audience target 下的所有 behaviors（依 sortOrder ASC）
- * - system behaviors 固定釘頂（不在 sortable container）
- * - custom behaviors 可拖曳排序
- * - 各卡片依 source 顯示不同 form
- * - 不內建 AddBehavior 邏輯（由 BehaviorsPage 透過 AddBehaviorModal 處理）
+ * 主要變更：
+ * - props.target (BehaviorTargetSummary) → props.audience (AudienceEntry)
+ * - deleteTarget → 收集該 audience 下所有 behavior ID，emit 'audience-deleted' 讓 Page 負責刪除
+ * - group member section（v1 addGroupMember/removeGroupMember）已移除
+ *   （v2 中 group members 是 per-behavior 管理，不在 workspace 層面）
  */
 
 const { t } = useI18n();
 
 const props = defineProps<{
-    target: BehaviorTargetSummary;
-    targets: BehaviorTargetSummary[];
+    audience: AudienceEntry;
     canManageCatalog?: boolean;
 }>();
 
 const emit = defineEmits<{
-    (e: 'target-deleted', id: number): void;
-    (e: 'group-member-changed', id: number, count: number): void;
-    (e: 'group-renamed', id: number, name: string): void;
+    (e: 'audience-deleted', behaviorIds: number[]): void;
     (e: 'add-behavior'): void;
+    (e: 'behavior-deleted'): void;
 }>();
 
 // ── behaviors 資料 ────────────────────────────────────────────────────────────
@@ -54,25 +45,16 @@ const newlyCreatedId = ref<number | null>(null);
 const listRef = useTemplateRef<HTMLElement>('listRef');
 let sortable: Sortable | null = null;
 
-// 依 audienceKind 對應到 API filter
-function audienceKindFromTarget(target: BehaviorTargetSummary): BehaviorAudienceKind {
-    if (target.kind === 'all_dms') return 'all';
-    if (target.kind === 'user') return 'user';
-    return 'group';
-}
-
-async function load(target: BehaviorTargetSummary) {
+async function load(audience: AudienceEntry) {
     loading.value = true;
     error.value = null;
     try {
-        // 先篩 audienceKind，再在前端依 audienceUserId/audienceGroupName 進一步過濾
-        const audienceKind = audienceKindFromTarget(target);
-        const all = await listBehaviors({ audienceKind });
+        const all = await listBehaviors({ audienceKind: audience.kind });
 
-        if (audienceKind === 'user' && target.userId) {
-            behaviors.value = all.filter(b => b.audienceUserId === target.userId);
-        } else if (audienceKind === 'group' && target.groupName) {
-            behaviors.value = all.filter(b => b.audienceGroupName === target.groupName);
+        if (audience.kind === 'user' && audience.userId) {
+            behaviors.value = all.filter(b => b.audienceUserId === audience.userId);
+        } else if (audience.kind === 'group' && audience.groupName) {
+            behaviors.value = all.filter(b => b.audienceGroupName === audience.groupName);
         } else {
             behaviors.value = all;
         }
@@ -81,12 +63,11 @@ async function load(target: BehaviorTargetSummary) {
     } finally {
         loading.value = false;
     }
-    if (target.kind === 'group') void loadMembers(target.id);
 }
 
-watch(() => props.target.id, () => {
+watch(() => props.audience.key, () => {
     teardownSortable();
-    void load(props.target);
+    void load(props.audience);
 }, { immediate: true });
 
 // ── plugin list ───────────────────────────────────────────────────────────────
@@ -152,87 +133,23 @@ function onUpdated(row: BehaviorRow) {
 
 function onDeleted(id: number) {
     behaviors.value = behaviors.value.filter(b => b.id !== id);
+    emit('behavior-deleted');
 }
 
-async function onDeleteTarget() {
-    if (props.target.kind === 'all_dms') return;
-    const label = props.target.kind === 'user'
-        ? props.target.profile?.globalName ?? props.target.profile?.username ?? props.target.userId ?? '?'
-        : props.target.groupName ?? '?';
+async function onDeleteAudience() {
+    if (props.audience.kind === 'all') return;
+    const label = props.audience.kind === 'user'
+        ? (props.audience.userId ?? '?')
+        : (props.audience.groupName ?? '?');
     if (!window.confirm(t('behaviors.workspace.deleteTargetConfirm', { label }))) return;
-    try {
-        await deleteTarget(props.target.id);
-        emit('target-deleted', props.target.id);
-    } catch (err) {
-        error.value = err instanceof Error ? err.message : String(err);
-    }
-}
-
-// ── group member section ──────────────────────────────────────────────────────
-
-const members = ref<BehaviorGroupMember[]>([]);
-const memberInput = ref('');
-const memberError = ref<string | null>(null);
-const renameDraft = ref('');
-const renaming = ref(false);
-
-async function loadMembers(targetId: number) {
-    try { members.value = await listGroupMembers(targetId); }
-    catch (err) { memberError.value = err instanceof Error ? err.message : String(err); }
-}
-
-watch(() => props.target, (next) => {
-    if (next.kind === 'group') renameDraft.value = next.groupName ?? '';
-}, { immediate: true });
-
-async function onAddMember() {
-    memberError.value = null;
-    const id = memberInput.value.trim();
-    if (!/^\d{17,20}$/.test(id)) {
-        memberError.value = t('behaviors.workspace.memberIdInvalid');
-        return;
-    }
-    try {
-        const m = await addGroupMember(props.target.id, id);
-        members.value = [...members.value.filter(x => x.userId !== m.userId), m]
-            .sort((a, b) => a.userId.localeCompare(b.userId));
-        memberInput.value = '';
-        emit('group-member-changed', props.target.id, members.value.length);
-    } catch (err) {
-        memberError.value = err instanceof Error ? err.message : String(err);
-    }
-}
-
-async function onRemoveMember(userId: string) {
-    try {
-        await removeGroupMember(props.target.id, userId);
-        members.value = members.value.filter(m => m.userId !== userId);
-        emit('group-member-changed', props.target.id, members.value.length);
-    } catch (err) {
-        memberError.value = err instanceof Error ? err.message : String(err);
-    }
-}
-
-async function onRename() {
-    const next = renameDraft.value.trim();
-    if (!next || next === props.target.groupName) return;
-    renaming.value = true;
-    try {
-        await renameGroupTarget(props.target.id, next);
-        emit('group-renamed', props.target.id, next);
-    } catch (err) {
-        memberError.value = err instanceof Error ? err.message : String(err);
-    } finally {
-        renaming.value = false;
-    }
+    const ids = behaviors.value.map(b => b.id);
+    emit('audience-deleted', ids);
 }
 
 const headerTitle = computed(() => {
-    if (props.target.kind === 'all_dms') return t('behaviors.sidebar.allDms');
-    if (props.target.kind === 'user') {
-        return props.target.profile?.globalName ?? props.target.profile?.username ?? props.target.userId ?? '?';
-    }
-    return props.target.groupName ?? '?';
+    if (props.audience.kind === 'all') return t('behaviors.sidebar.allDms');
+    if (props.audience.kind === 'user') return props.audience.userId ?? '?';
+    return props.audience.groupName ?? '?';
 });
 </script>
 
@@ -241,8 +158,8 @@ const headerTitle = computed(() => {
         <header class="ws-head">
             <h2 class="title">{{ headerTitle }}</h2>
             <span class="kind-badge">
-                <template v-if="target.kind === 'all_dms'">{{ t('behaviors.workspace.kindAllDms') }}</template>
-                <template v-else-if="target.kind === 'user'">{{ t('behaviors.workspace.kindUser') }}</template>
+                <template v-if="audience.kind === 'all'">{{ t('behaviors.workspace.kindAllDms') }}</template>
+                <template v-else-if="audience.kind === 'user'">{{ t('behaviors.workspace.kindUser') }}</template>
                 <template v-else>{{ t('behaviors.workspace.kindGroup') }}</template>
             </span>
             <span class="spacer" />
@@ -251,61 +168,15 @@ const headerTitle = computed(() => {
                 {{ t('behaviors.workspace.addBehavior') }}
             </button>
             <button
-                v-if="target.kind !== 'all_dms' && canManageCatalog"
+                v-if="audience.kind !== 'all' && canManageCatalog"
                 type="button"
                 class="danger ghost"
                 :title="t('behaviors.workspace.deleteTargetTooltip')"
-                @click="onDeleteTarget"
+                @click="onDeleteAudience"
             >
                 <Icon icon="material-symbols:delete-outline-rounded" width="18" height="18" />
             </button>
         </header>
-
-        <!-- group rename + members -->
-        <section v-if="target.kind === 'group' && canManageCatalog" class="group-section">
-            <div class="rename-row">
-                <label class="field">
-                    <span class="label">{{ t('behaviors.workspace.groupNameLabel') }}</span>
-                    <div class="rename-controls">
-                        <input v-model="renameDraft" type="text" maxlength="80" />
-                        <button
-                            type="button"
-                            class="primary small"
-                            :disabled="renaming || !renameDraft.trim() || renameDraft.trim() === target.groupName"
-                            @click="onRename"
-                        >{{ t('common.save') }}</button>
-                    </div>
-                </label>
-            </div>
-            <details class="members-details">
-                <summary>{{ t('behaviors.workspace.membersToggle', { count: members.length }) }}</summary>
-                <form class="add-member-row" @submit.prevent="onAddMember">
-                    <input
-                        v-model="memberInput"
-                        type="text"
-                        :placeholder="t('behaviors.workspace.memberIdPlaceholder')"
-                        inputmode="numeric"
-                        pattern="\d*"
-                    />
-                    <button type="submit" class="primary small">{{ t('common.add') }}</button>
-                </form>
-                <p v-if="memberError" class="error">{{ memberError }}</p>
-                <ul class="member-list">
-                    <li v-for="m in members" :key="m.userId">
-                        <img v-if="m.profile?.avatarUrl" :src="m.profile.avatarUrl" alt="" class="m-avatar" />
-                        <div v-else class="m-avatar fallback">?</div>
-                        <span class="m-name">{{ m.profile?.globalName ?? m.profile?.username ?? m.userId }}</span>
-                        <span class="m-id">{{ m.userId }}</span>
-                        <button type="button" class="icon-btn danger" :title="t('common.remove')" @click="onRemoveMember(m.userId)">
-                            <Icon icon="material-symbols:close-rounded" width="16" height="16" />
-                        </button>
-                    </li>
-                    <li v-if="members.length === 0" class="muted empty">
-                        {{ t('behaviors.workspace.membersEmpty') }}
-                    </li>
-                </ul>
-            </details>
-        </section>
 
         <p v-if="loading && behaviors.length === 0" class="muted loading">{{ t('common.loading') }}</p>
         <p v-else-if="!loading && behaviors.length === 0" class="muted empty">
@@ -403,77 +274,6 @@ button.danger.ghost {
     border-radius: var(--radius-sm);
     cursor: pointer;
 }
-.group-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    background: var(--bg-page);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-base);
-}
-.rename-row .field { display: flex; flex-direction: column; gap: 0.25rem; }
-.label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
-.rename-controls { display: flex; gap: 0.4rem; }
-.rename-controls input {
-    flex: 1;
-    padding: 0.45rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-}
-.members-details summary {
-    cursor: pointer;
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    padding: 0.25rem 0;
-}
-.add-member-row { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
-.add-member-row input {
-    flex: 1;
-    padding: 0.45rem 0.6rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    color: var(--text);
-    font: inherit;
-}
-.member-list {
-    list-style: none;
-    margin: 0.5rem 0 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-.member-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.3rem 0.4rem;
-    border-radius: var(--radius-sm);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-}
-.m-avatar {
-    width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
-}
-.m-avatar.fallback {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.7rem; font-weight: 600;
-}
-.m-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
-.m-id { font-size: 0.72rem; color: var(--text-muted); font-family: monospace; }
-.icon-btn {
-    background: none; border: 1px solid transparent; color: var(--text-muted);
-    padding: 0.2rem; border-radius: var(--radius-sm); cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center;
-}
-.icon-btn.danger:hover { color: var(--danger); border-color: rgba(239,68,68,0.35); }
 .card-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .muted { color: var(--text-muted); }
 .loading, .empty { padding: 1rem; text-align: center; }

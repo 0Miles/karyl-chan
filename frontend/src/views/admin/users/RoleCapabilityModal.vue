@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import AppTabs from '../../../components/AppTabs.vue';
 import { listGuilds, type GuildSummary } from '../../../api/guilds';
-import { listTargets, type BehaviorTargetSummary } from '../../../api/behavior';
+import { listAudiences, type AudienceEntry } from '../../../api/behavior';
 import {
     GLOBAL_CAPABILITY_KEYS,
     makeBehaviorScopedCapability,
@@ -57,12 +57,12 @@ const guilds = ref<GuildSummary[]>([]);
 const guildsLoading = ref(false);
 const search = ref('');
 
-// Behavior targets — same lazy-fetch pattern as guilds. The opening
+// Behavior audiences — same lazy-fetch pattern as guilds. The opening
 // admin user always carries `admin` (this modal is reachable only
-// from the user-management page, itself admin-gated), so listTargets
-// returns the full catalog regardless of the editor's per-target
+// from the user-management page, itself admin-gated), so listAudiences
+// returns the full catalog regardless of the editor's per-audience
 // grants on their own account.
-const behaviorTargets = ref<BehaviorTargetSummary[]>([]);
+const behaviorTargets = ref<AudienceEntry[]>([]);
 const behaviorTargetsLoading = ref(false);
 
 // ── Pending edits — committed only on Confirm ────────────────────────
@@ -102,7 +102,7 @@ watch(visible, async (open) => {
     if (behaviorTargets.value.length === 0) {
         behaviorTargetsLoading.value = true;
         try {
-            behaviorTargets.value = await listTargets();
+            behaviorTargets.value = await listAudiences();
         } catch {
             // Same: silent — empty list is OK as a fallback.
         } finally {
@@ -173,26 +173,23 @@ function scopedToken(guildId: string, scope: GuildScope): string {
     return makeGuildScopedCapability(guildId, scope);
 }
 
-function behaviorScopedToken(targetId: number): string {
-    return makeBehaviorScopedCapability(targetId);
+function behaviorScopedToken(audienceKey: string): string {
+    return makeBehaviorScopedCapability(audienceKey);
 }
 
-function behaviorTargetLabel(t2: BehaviorTargetSummary): string {
-    if (t2.kind === 'all_dms') return t('behaviors.sidebar.allDms');
-    if (t2.kind === 'user') {
-        return t2.profile?.globalName ?? t2.profile?.username ?? t2.userId ?? '?';
-    }
-    return t2.groupName ?? '?';
+function behaviorTargetLabel(entry: AudienceEntry): string {
+    if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
+    if (entry.kind === 'user') return entry.userId ?? '?';
+    return entry.groupName ?? '?';
 }
 
 const filteredBehaviorTargets = computed(() => {
     const needle = search.value.trim().toLowerCase();
     if (!needle) return behaviorTargets.value;
-    return behaviorTargets.value.filter(t2 => {
-        const label = behaviorTargetLabel(t2).toLowerCase();
-        const idMatch = String(t2.id).includes(needle);
-        const userIdMatch = (t2.userId ?? '').includes(needle);
-        return label.includes(needle) || idMatch || userIdMatch;
+    return behaviorTargets.value.filter(entry => {
+        const label = behaviorTargetLabel(entry).toLowerCase();
+        const keyMatch = entry.key.toLowerCase().includes(needle);
+        return label.includes(needle) || keyMatch;
     });
 });
 
@@ -329,30 +326,30 @@ function onConfirm() {
                     </p>
                     <ul v-else class="cap-list">
                         <li
-                            v-for="t2 in filteredBehaviorTargets"
-                            :key="t2.id"
+                            v-for="entry in filteredBehaviorTargets"
+                            :key="entry.key"
                             :class="[
                                 'cap',
                                 {
-                                    granted: isGranted(behaviorScopedToken(t2.id)),
-                                    pending: pendingGrants.has(behaviorScopedToken(t2.id)) || pendingRevokes.has(behaviorScopedToken(t2.id))
+                                    granted: isGranted(behaviorScopedToken(entry.key)),
+                                    pending: pendingGrants.has(behaviorScopedToken(entry.key)) || pendingRevokes.has(behaviorScopedToken(entry.key))
                                 }
                             ]"
-                            @click="toggle(behaviorScopedToken(t2.id))"
+                            @click="toggle(behaviorScopedToken(entry.key))"
                         >
                             <input
                                 type="checkbox"
                                 tabindex="-1"
-                                :checked="isGranted(behaviorScopedToken(t2.id))"
+                                :checked="isGranted(behaviorScopedToken(entry.key))"
                                 :disabled="pending"
                                 @click.stop
-                                @change="toggle(behaviorScopedToken(t2.id))"
+                                @change="toggle(behaviorScopedToken(entry.key))"
                             />
                             <div class="cap-text">
-                                <code class="cap-key">{{ behaviorScopedToken(t2.id) }}</code>
+                                <code class="cap-key">{{ behaviorScopedToken(entry.key) }}</code>
                                 <span class="cap-desc">
-                                    {{ behaviorTargetLabel(t2) }}
-                                    <span class="cap-kind">· {{ t(`behaviors.workspace.kind${t2.kind === 'all_dms' ? 'AllDms' : t2.kind === 'user' ? 'User' : 'Group'}`) }}</span>
+                                    {{ behaviorTargetLabel(entry) }}
+                                    <span class="cap-kind">· {{ t(`behaviors.workspace.kind${entry.kind === 'all' ? 'AllDms' : entry.kind === 'user' ? 'User' : 'Group'}`) }}</span>
                                 </span>
                             </div>
                         </li>

@@ -8,20 +8,21 @@ import { useCurrentUserStore } from '../../../stores/currentUserStore';
 import { hasAdminCapability } from '../../../libs/admin-capabilities';
 import BehaviorSidebar from './BehaviorSidebar.vue';
 import BehaviorWorkspace from './BehaviorWorkspace.vue';
-import AddTargetModal from './AddTargetModal.vue';
 import AddBehaviorModal from './AddBehaviorModal.vue';
 import {
-    listTargets,
-    type BehaviorTargetSummary,
+    listAudiences,
+    listBehaviors,
+    deleteBehaviorsByAudience,
+    type AudienceEntry,
     type BehaviorRow,
     type BehaviorAudienceKind,
 } from '../../../api/behavior';
 
 /**
- * BehaviorsPage v2 — M1-D1
+ * BehaviorsPage v2 — sidebar 切到 audience-summary endpoint
  *
- * 整合 BehaviorSidebar（audience 維度）+ BehaviorWorkspace（v2 BehaviorRow）
- * + AddTargetModal（新增 audience target）+ AddBehaviorModal（新增 behavior wizard）。
+ * 移除 v1 target 依賴（listTargets / createUserTarget / AddTargetModal）。
+ * sidebar 資料來自 GET /api/behaviors/audience-summary，前端聚合 DISTINCT。
  */
 
 const { t } = useI18n();
@@ -34,34 +35,31 @@ const canManageCatalog = computed(() => {
     return hasAdminCapability(caps, 'behavior.manage');
 });
 
-const targets = ref<BehaviorTargetSummary[]>([]);
-const selectedId = ref<number | null>(null);
+const audiences = ref<AudienceEntry[]>([]);
+const selectedKey = ref<string | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-// 兩個 modal 的開關
-const addTargetModalOpen = ref(false);
+// AddBehaviorModal 開關
 const addBehaviorModalOpen = ref(false);
 
-const selectedTarget = computed(() => targets.value.find(t => t.id === selectedId.value) ?? null);
+const selectedAudience = computed(() =>
+    audiences.value.find(a => a.key === selectedKey.value) ?? null
+);
 
-// 從 selectedTarget 推導 audienceKind / userId / groupName（傳給 AddBehaviorModal）
-const selectedAudienceKind = computed<BehaviorAudienceKind>(() => {
-    const t = selectedTarget.value;
-    if (!t) return 'all';
-    if (t.kind === 'all_dms') return 'all';
-    if (t.kind === 'user') return 'user';
-    return 'group';
-});
+const selectedAudienceKind = computed<BehaviorAudienceKind>(() =>
+    selectedAudience.value?.kind ?? 'all'
+);
 
 async function load() {
     loading.value = true;
     error.value = null;
     try {
-        targets.value = await listTargets();
-        if (selectedId.value == null || !targets.value.some(t => t.id === selectedId.value)) {
-            const fallback = targets.value.find(t => t.kind === 'all_dms') ?? targets.value[0];
-            selectedId.value = fallback?.id ?? null;
+        audiences.value = await listAudiences();
+        // 預設選中 all，或保持既有選擇
+        if (selectedKey.value == null || !audiences.value.some(a => a.key === selectedKey.value)) {
+            const fallback = audiences.value.find(a => a.kind === 'all') ?? audiences.value[0];
+            selectedKey.value = fallback?.key ?? null;
         }
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
@@ -72,41 +70,27 @@ async function load() {
 
 onMounted(() => { void load(); });
 
-function onSelect(id: number) {
-    selectedId.value = id;
+function onSelect(key: string) {
+    selectedKey.value = key;
     if (isMobile.value) closeOverlay();
 }
 
-function onTargetCreated(target: BehaviorTargetSummary) {
-    targets.value = [...targets.value, target];
-    selectedId.value = target.id;
+// audience-deleted：刪除該 audience 下所有 behaviors 後重新 load sidebar
+async function onAudienceDeleted(deletedIds: number[]) {
+    await deleteBehaviorsByAudience(deletedIds);
+    // 刪除後重新載入 audience 清單
+    await load();
 }
 
-function onTargetDeleted(id: number) {
-    targets.value = targets.value.filter(t => t.id !== id);
-    if (selectedId.value === id) {
-        const fallback = targets.value.find(t => t.kind === 'all_dms') ?? targets.value[0];
-        selectedId.value = fallback?.id ?? null;
-    }
-}
-
-function onMemberCountChanged(id: number, count: number) {
-    targets.value = targets.value.map(t => t.id === id ? { ...t, memberCount: count } : t);
-}
-
-function onGroupRenamed(id: number, name: string) {
-    targets.value = targets.value.map(t => t.id === id ? { ...t, groupName: name } : t);
-}
-
-// BehaviorWorkspace emit 的 add-behavior 事件
-function onAddBehavior() {
-    addBehaviorModalOpen.value = true;
-}
-
-// AddBehaviorModal 建立成功後（目前不需要 refetch，workspace 有 key 更新）
-function onBehaviorCreated(_row: BehaviorRow) {
-    // workspace 監聽自身 api 呼叫；此 handler 可在未來加 toast
+// behavior 建立後重新載入 audience-summary（count 可能改變）
+async function onBehaviorCreated(_row: BehaviorRow) {
     addBehaviorModalOpen.value = false;
+    await load();
+}
+
+// workspace 通知有 behavior 被刪（count 更新）
+async function onBehaviorDeleted() {
+    await load();
 }
 </script>
 
@@ -114,43 +98,33 @@ function onBehaviorCreated(_row: BehaviorRow) {
     <SidebarLayout>
         <template #sidebar>
             <BehaviorSidebar
-                :targets="targets"
-                :selected-id="selectedId"
+                :audiences="audiences"
+                :selected-key="selectedKey"
                 :loading="loading"
-                :can-add-target="canManageCatalog"
+                :can-add="canManageCatalog"
                 @select="onSelect"
-                @add="addTargetModalOpen = true"
+                @add="addBehaviorModalOpen = true"
             />
         </template>
 
         <BehaviorWorkspace
-            v-if="selectedTarget"
-            :key="selectedTarget.id"
-            :target="selectedTarget"
-            :targets="targets"
+            v-if="selectedAudience"
+            :key="selectedAudience.key"
+            :audience="selectedAudience"
             :can-manage-catalog="canManageCatalog"
-            @target-deleted="onTargetDeleted"
-            @group-member-changed="onMemberCountChanged"
-            @group-renamed="onGroupRenamed"
-            @add-behavior="onAddBehavior"
+            @audience-deleted="onAudienceDeleted"
+            @add-behavior="addBehaviorModalOpen = true"
+            @behavior-deleted="onBehaviorDeleted"
         />
         <div v-else-if="loading" class="placeholder muted">{{ t('common.loading') }}</div>
         <div v-else class="placeholder muted">{{ t('behaviors.page.pickTarget') }}</div>
 
-        <!-- 新增 Target modal -->
-        <AddTargetModal
-            v-if="canManageCatalog"
-            :visible="addTargetModalOpen"
-            @close="addTargetModalOpen = false"
-            @created="onTargetCreated"
-        />
-
-        <!-- 新增 Behavior modal（v2 wizard）-->
+        <!-- 新增 Behavior modal（v2 wizard，同時負責新增 audience）-->
         <AddBehaviorModal
             :visible="addBehaviorModalOpen"
             :default-audience-kind="selectedAudienceKind"
-            :default-audience-user-id="selectedTarget?.userId ?? undefined"
-            :default-audience-group-name="selectedTarget?.groupName ?? undefined"
+            :default-audience-user-id="selectedAudience?.userId"
+            :default-audience-group-name="selectedAudience?.groupName"
             @close="addBehaviorModalOpen = false"
             @created="onBehaviorCreated"
         />

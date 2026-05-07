@@ -1105,7 +1105,8 @@
             "allDms": "All DMs",
             "allDmsHint": "Applies to every DM sender",
             "userKindHint": "Individual user DM",
-            "groupMemberCount": "{count} members"
+            "groupMemberCount": "{count} members",
+            "behaviorCount": "{count} behaviors"
         },
         "modal": {
             "addTarget": "Add a target",

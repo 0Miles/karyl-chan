@@ -1105,7 +1105,8 @@
             "allDms": "所有私信",
             "allDmsHint": "所有私信用户皆适用",
             "userKindHint": "个别用户私信",
-            "groupMemberCount": "{count} 名成员"
+            "groupMemberCount": "{count} 名成员",
+            "behaviorCount": "{count} 个行为"
         },
         "modal": {
             "addTarget": "新增目标对象",
