@@ -86,10 +86,7 @@ export async function ensureSystemBehaviors(): Promise<{
   const rowByKey = new Map(
     rows.map(
       (row) =>
-        [
-          row.getDataValue("systemKey") as BehaviorSystemKey,
-          row,
-        ] as const,
+        [row.getDataValue("systemKey") as BehaviorSystemKey, row] as const,
     ),
   );
 

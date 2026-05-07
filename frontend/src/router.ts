@@ -115,9 +115,7 @@ const routes: RouteRecordRaw[] = [
     path: "/admin/system-settings",
     name: "system-settings",
     component: () =>
-      import(
-        "./views/admin/system-settings/SystemSettingsPage.vue"
-      ),
+      import("./views/admin/system-settings/SystemSettingsPage.vue"),
     meta: {
       requiresAuth: true,
       requiresCapability: ["admin"] satisfies RouteCapability[],

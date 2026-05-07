@@ -372,57 +372,57 @@ export async function registerPluginRoutes(
   server.patch<{
     Params: { id: string };
     Body: { enabled?: unknown };
-  }>(
-    "/api/plugin-commands/:id/admin-enabled",
-    async (request, reply) => {
-      if (!requireCapability(request, reply, "admin")) return;
-      const rowId = Number(request.params.id);
-      if (!Number.isInteger(rowId) || rowId <= 0) {
-        reply.code(400).send({ error: "invalid id" });
-        return;
-      }
-      if (typeof request.body?.enabled !== "boolean") {
-        reply.code(400).send({ error: "enabled boolean required" });
-        return;
-      }
-      const row = await PluginCommand.findByPk(rowId);
-      if (!row) {
-        reply.code(404).send({ error: "plugin command not found" });
-        return;
-      }
-      const featureKey = row.getDataValue("featureKey") as string | null;
-      if (featureKey !== null) {
-        reply
-          .code(400)
-          .send({ error: "cannot toggle feature commands via this endpoint; use guild feature toggle" });
-        return;
-      }
-      await row.update({ adminEnabled: request.body.enabled });
-      botEventLog.record(
-        "info",
-        "bot",
-        `plugin command adminEnabled=${request.body.enabled}: id=${rowId} name=${row.getDataValue("name")}`,
-        { rowId, enabled: request.body.enabled, actor: request.authUserId },
-      );
-      // 非同步觸發 reconcile，不阻塞回應
-      getReconciler()
-        .reconcileForPluginCommand(rowId)
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          botEventLog.record(
-            "warn",
-            "bot",
-            `reconcileForPluginCommand(${rowId}) failed after adminEnabled toggle: ${msg}`,
-          );
+  }>("/api/plugin-commands/:id/admin-enabled", async (request, reply) => {
+    if (!requireCapability(request, reply, "admin")) return;
+    const rowId = Number(request.params.id);
+    if (!Number.isInteger(rowId) || rowId <= 0) {
+      reply.code(400).send({ error: "invalid id" });
+      return;
+    }
+    if (typeof request.body?.enabled !== "boolean") {
+      reply.code(400).send({ error: "enabled boolean required" });
+      return;
+    }
+    const row = await PluginCommand.findByPk(rowId);
+    if (!row) {
+      reply.code(404).send({ error: "plugin command not found" });
+      return;
+    }
+    const featureKey = row.getDataValue("featureKey") as string | null;
+    if (featureKey !== null) {
+      reply
+        .code(400)
+        .send({
+          error:
+            "cannot toggle feature commands via this endpoint; use guild feature toggle",
         });
-      return {
-        command: {
-          id: rowId,
-          adminEnabled: request.body.enabled,
-        },
-      };
-    },
-  );
+      return;
+    }
+    await row.update({ adminEnabled: request.body.enabled });
+    botEventLog.record(
+      "info",
+      "bot",
+      `plugin command adminEnabled=${request.body.enabled}: id=${rowId} name=${row.getDataValue("name")}`,
+      { rowId, enabled: request.body.enabled, actor: request.authUserId },
+    );
+    // 非同步觸發 reconcile，不阻塞回應
+    getReconciler()
+      .reconcileForPluginCommand(rowId)
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        botEventLog.record(
+          "warn",
+          "bot",
+          `reconcileForPluginCommand(${rowId}) failed after adminEnabled toggle: ${msg}`,
+        );
+      });
+    return {
+      command: {
+        id: rowId,
+        adminEnabled: request.body.enabled,
+      },
+    };
+  });
 
   // ─── Per-guild feature config (admin) ────────────────────────────
 

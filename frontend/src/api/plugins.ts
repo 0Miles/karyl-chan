@@ -265,7 +265,9 @@ export async function generatePluginSetupSecret(
 export async function getPluginByKey(
   pluginKey: string,
 ): Promise<PluginDetailRecord> {
-  const r = await authedFetch(`/api/plugins/by-key/${encodeURIComponent(pluginKey)}`);
+  const r = await authedFetch(
+    `/api/plugins/by-key/${encodeURIComponent(pluginKey)}`,
+  );
   const body = await jsonOrThrow<{ plugin: PluginDetailRecord }>(r);
   return body.plugin;
 }
