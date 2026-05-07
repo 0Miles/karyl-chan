@@ -404,7 +404,9 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
     enabled: !!model.getDataValue("enabled"),
     sortOrder: model.getDataValue("sortOrder") as number,
     stopOnMatch: !!model.getDataValue("stopOnMatch"),
-    forwardType: model.getDataValue("forwardType") as BehaviorRow["forwardType"],
+    forwardType: model.getDataValue(
+      "forwardType",
+    ) as BehaviorRow["forwardType"],
     source: model.getDataValue("source") as BehaviorRow["source"],
     triggerType: model.getDataValue(
       "triggerType",

@@ -10,9 +10,7 @@
  *   - string    — 先以逗號切割，再 sort + dedup + join（routes 端）
  *   - null / undefined — 回傳 ""
  */
-export function sortJoin(
-  input: string | string[] | undefined | null,
-): string {
+export function sortJoin(input: string | string[] | undefined | null): string {
   if (!input) return "";
   const arr = Array.isArray(input)
     ? input

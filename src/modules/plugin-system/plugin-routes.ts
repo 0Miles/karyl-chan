@@ -343,7 +343,10 @@ export async function registerPluginRoutes(
       // OQ-11：behaviors[] 附加 enabled 狀態
       const manifest = safeParse(p.manifestJson) as PluginManifest | null;
       const behaviorKeys = (manifest?.behaviors ?? []).map((b) => b.key);
-      const behaviorEnabledMap = await getBehaviorEnabledMap(p.id, behaviorKeys);
+      const behaviorEnabledMap = await getBehaviorEnabledMap(
+        p.id,
+        behaviorKeys,
+      );
       const behaviorsWithEnabled = (manifest?.behaviors ?? []).map((b) => ({
         ...b,
         enabled: behaviorEnabledMap.get(b.key) ?? true,
@@ -480,7 +483,9 @@ export async function registerPluginRoutes(
       }
 
       const manifest = safeParse(p.manifestJson) as PluginManifest | null;
-      const behaviorDef = manifest?.behaviors?.find((b) => b.key === behaviorKey);
+      const behaviorDef = manifest?.behaviors?.find(
+        (b) => b.key === behaviorKey,
+      );
       if (!behaviorDef) {
         reply.code(404).send({
           error: `behaviorKey '${behaviorKey}' not declared in plugin manifest behaviors[]`,

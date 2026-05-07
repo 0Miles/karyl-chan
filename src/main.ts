@@ -313,7 +313,10 @@ bot.on("guildCreate", async (guild) => {
   // 確保 bot 加入新 guild 時，scope='guild' 的 behaviors / plugin_commands 自動 register，
   // 不需重啟。catch 避免單 guild 失敗阻擋其他邏輯。
   commandReconciler.reconcileForGuild(guild).catch((err: unknown) => {
-    log.error({ err, guildId: guild.id }, "commandReconciler.reconcileForGuild failed");
+    log.error(
+      { err, guildId: guild.id },
+      "commandReconciler.reconcileForGuild failed",
+    );
   });
 });
 

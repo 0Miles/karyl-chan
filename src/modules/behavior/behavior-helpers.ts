@@ -71,4 +71,3 @@ export function isValidRegex(value: string): boolean {
     return false;
   }
 }
-

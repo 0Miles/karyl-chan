@@ -74,7 +74,7 @@ function rowOf(
     expiresAt:
       expiresAtRaw instanceof Date
         ? expiresAtRaw.toISOString()
-        : (expiresAtRaw as string | null) ?? null,
+        : ((expiresAtRaw as string | null) ?? null),
   };
 }
 
@@ -95,10 +95,7 @@ export const findActiveSession = async (
   const row = await BehaviorSession.findOne({
     where: {
       userId,
-      [Op.or]: [
-        { expiresAt: null },
-        { expiresAt: { [Op.gt]: now } },
-      ],
+      [Op.or]: [{ expiresAt: null }, { expiresAt: { [Op.gt]: now } }],
     },
   });
 

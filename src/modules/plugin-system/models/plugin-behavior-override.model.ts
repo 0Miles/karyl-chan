@@ -96,9 +96,7 @@ export async function findDisabledBehaviorKeys(
     },
     attributes: ["behaviorKey"],
   });
-  return new Set(
-    rows.map((r) => r.getDataValue("behaviorKey") as string),
-  );
+  return new Set(rows.map((r) => r.getDataValue("behaviorKey") as string));
 }
 
 /**

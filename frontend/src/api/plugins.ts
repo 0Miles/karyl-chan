@@ -312,5 +312,7 @@ export async function setPluginBehaviorOverride(
       body: JSON.stringify({ enabled }),
     },
   );
-  await jsonOrThrow<{ behavior: { pluginKey: string; behaviorKey: string; enabled: boolean } }>(r);
+  await jsonOrThrow<{
+    behavior: { pluginKey: string; behaviorKey: string; enabled: boolean };
+  }>(r);
 }

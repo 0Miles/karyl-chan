@@ -276,9 +276,7 @@ export async function registerBehaviorRoutes(
     }
 
     // 三軸排序
-    const integrationTypes = sortJoin(
-      body.integrationTypes || "guild_install",
-    );
+    const integrationTypes = sortJoin(body.integrationTypes || "guild_install");
     const contexts = sortJoin(body.contexts || "Guild");
 
     // 最大 sortOrder

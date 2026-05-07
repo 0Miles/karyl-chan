@@ -368,7 +368,9 @@ export class InteractionDispatcher {
     }
 
     if (behaviors.length > 25) {
-      embed.setFooter({ text: `（僅顯示前 25 條，共 ${behaviors.length} 條）` });
+      embed.setFooter({
+        text: `（僅顯示前 25 條，共 ${behaviors.length} 條）`,
+      });
     }
 
     await interaction
