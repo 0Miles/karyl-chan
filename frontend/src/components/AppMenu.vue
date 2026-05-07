@@ -146,9 +146,10 @@ function onContentClick() {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     z-index: 1600;
 }
-.app-menu--hidden {
-    display: none;
-}
+/* .app-menu--hidden no longer sets display:none — visibility is managed
+   exclusively via inline style by use-popover to avoid specificity
+   conflicts (inline style wins over class; removing it would let the
+   class re-apply display:none and break the popover). */
 .app-menu-drawer-panel {
     max-height: 70vh;
     background: var(--bg-surface);

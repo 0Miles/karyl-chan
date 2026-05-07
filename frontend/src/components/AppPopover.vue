@@ -196,9 +196,9 @@ function onContentClick() {
        branch below already sits at 2000/2001 for the same reason. */
     z-index: 1600;
 }
-.app-popover-content--hidden {
-    display: none;
-}
+/* .app-popover-content--hidden no longer sets display:none — visibility is
+   managed exclusively via inline style by use-popover (see use-popover.ts).
+   Keeping the class for semantic HTML only. */
 .app-popover-drawer-panel {
     max-height: 70vh;
     background: var(--bg-surface);
