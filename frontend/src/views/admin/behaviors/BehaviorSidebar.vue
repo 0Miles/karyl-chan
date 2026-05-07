@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import type { AudienceEntry } from '../../../api/behavior';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 const { t } = useI18n();
 
@@ -30,9 +31,18 @@ const emit = defineEmits<{
 const allEntry = computed(() => props.audiences.find(a => a.kind === 'all') ?? null);
 const otherEntries = computed(() => props.audiences.filter(a => a.kind !== 'all'));
 
+// Batch-resolve user display names via the shared user-summary store.
+const userIds = computed(() =>
+    props.audiences.filter(a => a.kind === 'user' && a.userId).map(a => a.userId!)
+);
+const { getDisplayName } = useUserSummaries(userIds);
+
 function labelFor(entry: AudienceEntry): string {
     if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
-    if (entry.kind === 'user') return entry.userId ?? '?';
+    if (entry.kind === 'user') {
+        const name = entry.userId ? getDisplayName(entry.userId) : null;
+        return name ?? entry.userId ?? '?';
+    }
     return entry.groupName ?? '?';
 }
 </script>

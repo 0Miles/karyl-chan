@@ -8,10 +8,12 @@ import {
     listBehaviors,
     reorderBehaviors,
     deleteBehavior,
+    deleteBehaviorsByAudience,
     type BehaviorRow,
     type AudienceEntry,
 } from '../../../api/behavior';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
+import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 /**
  * BehaviorWorkspace v2 — 改用 AudienceEntry，移除 v1 target API 依賴
@@ -31,7 +33,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    (e: 'audience-deleted', behaviorIds: number[]): void;
+    (e: 'audience-deleted'): void;
     (e: 'add-behavior'): void;
     (e: 'behavior-deleted'): void;
 }>();
@@ -49,15 +51,11 @@ async function load(audience: AudienceEntry) {
     loading.value = true;
     error.value = null;
     try {
-        const all = await listBehaviors({ audienceKind: audience.kind });
-
-        if (audience.kind === 'user' && audience.userId) {
-            behaviors.value = all.filter(b => b.audienceUserId === audience.userId);
-        } else if (audience.kind === 'group' && audience.groupName) {
-            behaviors.value = all.filter(b => b.audienceGroupName === audience.groupName);
-        } else {
-            behaviors.value = all;
-        }
+        behaviors.value = await listBehaviors({
+            audienceKind: audience.kind,
+            audienceUserId: audience.kind === 'user' ? (audience.userId ?? undefined) : undefined,
+            audienceGroupName: audience.kind === 'group' ? (audience.groupName ?? undefined) : undefined,
+        });
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
@@ -118,7 +116,9 @@ async function ensureSortable() {
     });
 }
 
-watch(behaviors, async () => {
+// Only rebuild Sortable when the count of draggable items changes or the
+// audience switches — not on every behavior field update.
+watch(() => customBehaviors.value.length, async () => {
     await nextTick();
     void ensureSortable();
 });
@@ -139,16 +139,30 @@ function onDeleted(id: number) {
 async function onDeleteAudience() {
     if (props.audience.kind === 'all') return;
     const label = props.audience.kind === 'user'
-        ? (props.audience.userId ?? '?')
+        ? (getWorkspaceDisplayName(props.audience.userId ?? '') ?? props.audience.userId ?? '?')
         : (props.audience.groupName ?? '?');
     if (!window.confirm(t('behaviors.workspace.deleteTargetConfirm', { label }))) return;
-    const ids = behaviors.value.map(b => b.id);
-    emit('audience-deleted', ids);
+    if (loading.value || behaviors.value.length === 0) return;
+    try {
+        await deleteBehaviorsByAudience(props.audience);
+        emit('audience-deleted');
+    } catch (err) {
+        error.value = err instanceof Error ? err.message : String(err);
+    }
 }
+
+// Resolve display name for user audiences.
+const workspaceUserIds = computed(() =>
+    props.audience.kind === 'user' && props.audience.userId ? [props.audience.userId] : []
+);
+const { getDisplayName: getWorkspaceDisplayName } = useUserSummaries(workspaceUserIds);
 
 const headerTitle = computed(() => {
     if (props.audience.kind === 'all') return t('behaviors.sidebar.allDms');
-    if (props.audience.kind === 'user') return props.audience.userId ?? '?';
+    if (props.audience.kind === 'user') {
+        const name = props.audience.userId ? getWorkspaceDisplayName(props.audience.userId) : null;
+        return name ?? props.audience.userId ?? '?';
+    }
     return props.audience.groupName ?? '?';
 });
 </script>
@@ -171,6 +185,7 @@ const headerTitle = computed(() => {
                 v-if="audience.kind !== 'all' && canManageCatalog"
                 type="button"
                 class="danger ghost"
+                :disabled="loading || behaviors.length === 0"
                 :title="t('behaviors.workspace.deleteTargetTooltip')"
                 @click="onDeleteAudience"
             >
