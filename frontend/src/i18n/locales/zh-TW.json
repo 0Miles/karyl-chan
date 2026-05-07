@@ -1101,25 +1101,12 @@
         "sidebar": {
             "title": "Behaviors",
             "audienceLabel": "對象 (Audience)",
-            "addTooltip": "新增目標對象",
+            "addTooltip": "新增 behavior 對象",
             "allDms": "所有私訊",
             "allDmsHint": "所有私訊使用者皆適用",
             "userKindHint": "個別使用者私訊",
             "groupMemberCount": "{count} 名成員",
             "behaviorCount": "{count} 個行為"
-        },
-        "modal": {
-            "addTarget": "新增目標對象",
-            "kindLabel": "目標種類",
-            "kindUser": "個別使用者",
-            "kindGroup": "使用者組",
-            "userIdLabel": "Discord 使用者 ID",
-            "userIdPlaceholder": "請貼上使用者的 Discord ID,例如 123456789012345678",
-            "userIdInvalid": "請輸入合法的 Discord 使用者 ID。",
-            "groupNameLabel": "組名",
-            "groupNamePlaceholder": "例如:VIP、合作夥伴",
-            "groupNameRequired": "請輸入組名。",
-            "create": "建立"
         },
         "addPlugin": {
             "title": "新增 Plugin 行為",
@@ -1138,13 +1125,8 @@
             "addBehaviorMenu": "更多新增選項",
             "addWebhookBehavior": "新增 Webhook 行為",
             "addPluginBehavior": "新增 Plugin 行為",
-            "deleteTargetTooltip": "刪除此目標對象",
-            "deleteTargetConfirm": "確定要刪除「{label}」?其下所有行為與成員會一併移除。",
-            "groupNameLabel": "組名",
-            "membersToggle": "成員清單({count})",
-            "memberIdPlaceholder": "Discord 使用者 ID",
-            "memberIdInvalid": "請輸入合法的 Discord 使用者 ID。",
-            "membersEmpty": "目前沒有成員。",
+            "deleteTargetTooltip": "刪除此對象",
+            "deleteTargetConfirm": "確定要刪除對象「{label}」?其下所有行為將一併移除。",
             "newBehaviorDefaultTitle": "新行為",
             "empty": "目前沒有設定行為。"
         },

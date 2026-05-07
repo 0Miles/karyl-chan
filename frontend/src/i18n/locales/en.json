@@ -1101,25 +1101,12 @@
         "sidebar": {
             "title": "Behaviors",
             "audienceLabel": "Audience",
-            "addTooltip": "Add a target",
+            "addTooltip": "Add behavior audience",
             "allDms": "All DMs",
             "allDmsHint": "Applies to every DM sender",
             "userKindHint": "Individual user DM",
             "groupMemberCount": "{count} members",
             "behaviorCount": "{count} behaviors"
-        },
-        "modal": {
-            "addTarget": "Add a target",
-            "kindLabel": "Target kind",
-            "kindUser": "Individual user",
-            "kindGroup": "User group",
-            "userIdLabel": "Discord user ID",
-            "userIdPlaceholder": "Paste the user's Discord ID, e.g. 123456789012345678",
-            "userIdInvalid": "Please enter a valid Discord user ID.",
-            "groupNameLabel": "Group name",
-            "groupNamePlaceholder": "e.g. VIP, partners",
-            "groupNameRequired": "Please enter a group name.",
-            "create": "Create"
         },
         "addPlugin": {
             "title": "Add plugin behavior",
@@ -1138,13 +1125,8 @@
             "addBehaviorMenu": "More add options",
             "addWebhookBehavior": "Add webhook behavior",
             "addPluginBehavior": "Add plugin behavior",
-            "deleteTargetTooltip": "Delete this target",
-            "deleteTargetConfirm": "Delete \"{label}\"? All behaviors and members underneath will also be removed.",
-            "groupNameLabel": "Group name",
-            "membersToggle": "Members ({count})",
-            "memberIdPlaceholder": "Discord user ID",
-            "memberIdInvalid": "Please enter a valid Discord user ID.",
-            "membersEmpty": "No members yet.",
+            "deleteTargetTooltip": "Delete this audience",
+            "deleteTargetConfirm": "Delete audience \"{label}\"? All behaviors for this audience will also be removed.",
             "newBehaviorDefaultTitle": "New behavior",
             "empty": "No behaviors configured yet."
         },

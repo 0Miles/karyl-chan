@@ -1101,25 +1101,12 @@
         "sidebar": {
             "title": "Behaviors",
             "audienceLabel": "对象 (Audience)",
-            "addTooltip": "新增目标对象",
+            "addTooltip": "新增 behavior 对象",
             "allDms": "所有私信",
             "allDmsHint": "所有私信用户皆适用",
             "userKindHint": "个别用户私信",
             "groupMemberCount": "{count} 名成员",
             "behaviorCount": "{count} 个行为"
-        },
-        "modal": {
-            "addTarget": "新增目标对象",
-            "kindLabel": "目标类型",
-            "kindUser": "个别用户",
-            "kindGroup": "用户组",
-            "userIdLabel": "Discord 用户 ID",
-            "userIdPlaceholder": "请粘贴用户的 Discord ID，例如 123456789012345678",
-            "userIdInvalid": "请输入合法的 Discord 用户 ID。",
-            "groupNameLabel": "组名",
-            "groupNamePlaceholder": "例如：VIP、合作伙伴",
-            "groupNameRequired": "请输入组名。",
-            "create": "创建"
         },
         "addPlugin": {
             "title": "新增 Plugin 行为",
@@ -1138,13 +1125,8 @@
             "addBehaviorMenu": "更多新增选项",
             "addWebhookBehavior": "新增 Webhook 行为",
             "addPluginBehavior": "新增 Plugin 行为",
-            "deleteTargetTooltip": "删除此目标对象",
-            "deleteTargetConfirm": "确定要删除「{label}」？其下所有行为与成员会一并移除。",
-            "groupNameLabel": "组名",
-            "membersToggle": "成员列表（{count}）",
-            "memberIdPlaceholder": "Discord 用户 ID",
-            "memberIdInvalid": "请输入合法的 Discord 用户 ID。",
-            "membersEmpty": "目前没有成员。",
+            "deleteTargetTooltip": "删除此对象",
+            "deleteTargetConfirm": "确定要删除对象「{label}」？其下所有行为将一并移除。",
             "newBehaviorDefaultTitle": "新行为",
             "empty": "目前没有设定行为。"
         },
