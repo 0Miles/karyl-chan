@@ -32,7 +32,7 @@ const migration: Migration = {
     await queryInterface.sequelize.transaction(async (t) => {
       await queryInterface.sequelize.query(
         `
-        CREATE TABLE plugin_behavior_overrides (
+        CREATE TABLE IF NOT EXISTS plugin_behavior_overrides (
             pluginId    INTEGER  NOT NULL,
             behaviorKey TEXT     NOT NULL,
             enabled     INTEGER  NOT NULL DEFAULT 1,
@@ -46,7 +46,7 @@ const migration: Migration = {
       );
 
       await queryInterface.sequelize.query(
-        `CREATE INDEX plugin_behavior_overrides_lookup
+        `CREATE INDEX IF NOT EXISTS plugin_behavior_overrides_lookup
              ON plugin_behavior_overrides(pluginId, enabled);`,
         { transaction: t },
       );
