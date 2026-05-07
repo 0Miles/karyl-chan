@@ -46,8 +46,11 @@ export interface BehaviorRow {
   systemKey: string | null;
 }
 
-// ── 舊版 sidebar 仍需要的 BehaviorTargetSummary ────────────────────────────
+// ── v1 target 型別（@deprecated — M2 重構後刪除）────────────────────────────
+// BehaviorsPage / BehaviorWorkspace / BehaviorSidebar / AddTargetModal /
+// RoleCapabilityModal 仍使用下列型別與 API，待 M2 sidebar v2 重構完成後整批移除。
 
+/** @deprecated v1 型別。M2 重構後移除。 */
 export type BehaviorTargetKind = "all_dms" | "user" | "group";
 
 export interface BehaviorUserProfile {
@@ -57,6 +60,7 @@ export interface BehaviorUserProfile {
   avatarUrl: string;
 }
 
+/** @deprecated v1 型別。M2 重構後移除。 */
 export interface BehaviorTargetSummary {
   id: number;
   kind: BehaviorTargetKind;
@@ -66,6 +70,7 @@ export interface BehaviorTargetSummary {
   memberCount: number | null;
 }
 
+/** @deprecated v1 型別。M2 重構後移除。 */
 export interface BehaviorGroupMember {
   userId: string;
   profile: BehaviorUserProfile | null;
@@ -210,14 +215,19 @@ export async function reorderBehaviors(orderedIds: number[]): Promise<void> {
   await jsonOrThrow<unknown>(r);
 }
 
-// ── 舊版 v1 Target API（sidebar 仍在用，保留到 M1-D2）──────────────────────
+// ── v1 Target API（@deprecated — M2 重構後刪除）────────────────────────────
+// 以下 API 呼叫已不存在的 /api/behaviors/targets 路徑（v2 schema 已廢棄）。
+// 仍在 BehaviorsPage / BehaviorWorkspace / AddTargetModal / RoleCapabilityModal 使用中。
+// TODO(M2): 用 /api/behaviors?audienceKind=... 取代，整批移除。
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function listTargets(): Promise<BehaviorTargetSummary[]> {
   const r = await authedFetch("/api/behaviors/targets");
   const body = await jsonOrThrow<{ targets: BehaviorTargetSummary[] }>(r);
   return body.targets;
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function createUserTarget(
   userId: string,
 ): Promise<BehaviorTargetSummary> {
@@ -230,6 +240,7 @@ export async function createUserTarget(
   return body.target;
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function createGroupTarget(
   groupName: string,
 ): Promise<BehaviorTargetSummary> {
@@ -242,6 +253,7 @@ export async function createGroupTarget(
   return body.target;
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function renameGroupTarget(
   id: number,
   groupName: string,
@@ -254,6 +266,7 @@ export async function renameGroupTarget(
   await jsonOrThrow<unknown>(r);
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function deleteTarget(id: number): Promise<void> {
   const r = await authedFetch(`/api/behaviors/targets/${id}`, {
     method: "DELETE",
@@ -261,6 +274,7 @@ export async function deleteTarget(id: number): Promise<void> {
   await jsonOrThrow<unknown>(r);
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function listGroupMembers(
   id: number,
 ): Promise<BehaviorGroupMember[]> {
@@ -269,6 +283,7 @@ export async function listGroupMembers(
   return body.members;
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function addGroupMember(
   id: number,
   userId: string,
@@ -282,6 +297,7 @@ export async function addGroupMember(
   return body.member;
 }
 
+/** @deprecated v1 API。M2 重構後移除。 */
 export async function removeGroupMember(
   id: number,
   userId: string,
