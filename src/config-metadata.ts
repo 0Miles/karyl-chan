@@ -347,6 +347,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.behavior.profileCacheTtlMs",
   },
+  "behavior.sessionExpireHours": {
+    group: "behavior",
+    envVar: "BEHAVIOR_SESSION_EXPIRE_HOURS",
+    sensitivity: "public",
+    editability: "runtime-capable",
+    productionRequired: false,
+    descriptionKey: "config.behavior.sessionExpireHours",
+  },
 
   // ── admin ─────────────────────────────────────────────────────────────────
   "admin.profileCacheTtlMs": {
