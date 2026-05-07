@@ -32,23 +32,3 @@ export function matchesTrigger(
   return false;
 }
 
-/**
- * Human-readable preview of a trigger for /manual output and admin UI
- * sidebar summaries. Truncates the value at 60 chars so a long regex
- * doesn't blow up an embed field.
- *
- * v2：接受 messagePatternKind（message pattern 子型）或 'slash_command'（literal）。
- */
-export function describeTrigger(
-  patternKind: BehaviorMessagePatternKind | "slash_command",
-  patternValue: string,
-): string {
-  const truncated =
-    patternValue.length > 60
-      ? `${patternValue.slice(0, 57)}…`
-      : patternValue;
-  if (patternKind === "startswith") return `開頭：${truncated}`;
-  if (patternKind === "endswith") return `結尾：${truncated}`;
-  if (patternKind === "slash_command") return `指令：/${truncated}`;
-  return `regex：${truncated}`;
-}
