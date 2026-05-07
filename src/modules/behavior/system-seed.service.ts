@@ -94,12 +94,28 @@ export async function ensureSystemBehaviors(): Promise<{
   const created: BehaviorSystemKey[] = [];
   const existing: BehaviorSystemKey[] = [];
 
+  // 落後值清單（self-heal）：v2 重構初期 seed 寫死 'guild_install'，導致 user-install
+  // 安裝但無共處 guild 的使用者在 BotDM 看不到 system slash command。
+  // 對既存 system row，若 integrationTypes 還停留在純 'guild_install'，patch 為 dual-install。
+  // 不覆蓋 admin 已主動修改成其他值（e.g. 'user_install' 單獨）的場景。
+  const STALE_INTEGRATION_TYPES = new Set<string>(["guild_install"]);
+
   for (const seed of SEEDS) {
     const found = await Behavior.findOne({
       where: { source: "system", systemKey: seed.systemKey },
     });
     if (found) {
       existing.push(seed.systemKey);
+      const currentIntegration = (found.getDataValue("integrationTypes") as string | null) ?? "";
+      if (STALE_INTEGRATION_TYPES.has(currentIntegration)) {
+        await found.update({ integrationTypes: "guild_install,user_install" });
+        botEventLog.record(
+          "info",
+          "bot",
+          `system-seed: self-heal ${seed.systemKey} integrationTypes '${currentIntegration}' → 'guild_install,user_install'`,
+          { systemKey: seed.systemKey, before: currentIntegration },
+        );
+      }
       continue;
     }
 
@@ -117,8 +133,11 @@ export async function ensureSystemBehaviors(): Promise<{
       slashCommandName: seed.slashCommandName,
       slashCommandDescription: seed.slashCommandDescription,
       scope: "global",
-      // 三軸字串為 lexicographically-sorted comma-joined（A-schema D-1）
-      integrationTypes: "guild_install",
+      // 三軸字串為 lexicographically-sorted comma-joined（A-schema D-1）。
+      // dual-install：對應 v1 dm-slash-rebind register 不傳 integrationTypes 時
+      // Discord 自動繼承 app integration_types_config（GuildInstall+UserInstall）的行為。
+      // 純 'guild_install' 會讓 user-install bot 但無共處 guild 的使用者在 BotDM 看不到 /login。
+      integrationTypes: "guild_install,user_install",
       contexts: "BotDM,PrivateChannel",
       placementGuildId: null,
       placementChannelId: null,
