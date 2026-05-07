@@ -1043,13 +1043,14 @@
                     "homepage": "首页"
                 },
                 "behaviors": {
-                    "intro": "以下是此 Plugin 在 DM 中提供的 behaviors。启用后，需在「Behaviors」页创建对应的 behavior 条目才会生效。",
+                    "intro": "以下是此 Plugin 声明的 behaviors。可在此页启用或停用各个 behavior；停用后 reconciler 不会将其 slash 指令注册至 Discord。",
                     "empty": "此 Plugin 未声明任何 Behavior",
                     "toggleOn": "启用此 behavior",
                     "toggleOff": "停用此 behavior",
+                    "toggleSuccess": "已更新 behavior 状态",
+                    "toggleError": "更新失败，请重试",
                     "supportsContinuous": "支持连续对话",
-                    "axesReadonly": "三轴由 manifest 锁定",
-                    "oq11Notice": "Behavior 的 on/off 开关（plugin_behavior_overrides）尚未实现，将于 M2 加入。此页目前为只读展示。"
+                    "axesReadonly": "三轴由 manifest 锁定"
                 },
                 "commands": {
                     "intro": "以下为此 Plugin 声明的自定义 slash 指令。三轴由 Plugin manifest 写死，admin 只能启用或停用。",

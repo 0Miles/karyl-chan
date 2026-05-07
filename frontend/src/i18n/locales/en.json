@@ -1043,13 +1043,14 @@
                     "homepage": "Homepage"
                 },
                 "behaviors": {
-                    "intro": "The behaviors below are provided by this plugin. Once enabled, create a corresponding behavior entry on the Behaviors page to activate it.",
+                    "intro": "The behaviors below are declared by this plugin. You can enable or disable each behavior here; disabled behaviors will not be registered as Discord slash commands by the reconciler.",
                     "empty": "This plugin declares no behaviors",
                     "toggleOn": "Enable this behavior",
                     "toggleOff": "Disable this behavior",
+                    "toggleSuccess": "Behavior status updated",
+                    "toggleError": "Update failed, please try again",
                     "supportsContinuous": "Supports continuous conversation",
-                    "axesReadonly": "Axes locked by manifest",
-                    "oq11Notice": "Behavior on/off toggle (plugin_behavior_overrides) is not yet implemented and will be added in M2. This tab is currently read-only."
+                    "axesReadonly": "Axes locked by manifest"
                 },
                 "commands": {
                     "intro": "The slash commands below are declared by this plugin. Axes are locked by the plugin manifest — admin can only enable or disable individual commands.",

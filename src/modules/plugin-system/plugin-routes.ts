@@ -34,6 +34,10 @@ import {
   PluginCommand,
 } from "./models/plugin-command.model.js";
 import { CommandReconciler } from "../command-system/reconcile.service.js";
+import {
+  getBehaviorEnabledMap,
+  setPluginBehaviorEnabled,
+} from "./models/plugin-behavior-override.model.js";
 import { createHash, randomBytes } from "crypto";
 
 /**
@@ -335,6 +339,16 @@ export async function registerPluginRoutes(
       const thirdTrackCommands = pluginCommands.filter(
         (c) => c.featureKey === null,
       );
+
+      // OQ-11：behaviors[] 附加 enabled 狀態
+      const manifest = safeParse(p.manifestJson) as PluginManifest | null;
+      const behaviorKeys = (manifest?.behaviors ?? []).map((b) => b.key);
+      const behaviorEnabledMap = await getBehaviorEnabledMap(p.id, behaviorKeys);
+      const behaviorsWithEnabled = (manifest?.behaviors ?? []).map((b) => ({
+        ...b,
+        enabled: behaviorEnabledMap.get(b.key) ?? true,
+      }));
+
       return {
         plugin: {
           id: p.id,
@@ -345,7 +359,9 @@ export async function registerPluginRoutes(
           status: p.status,
           enabled: p.enabled,
           lastHeartbeatAt: p.lastHeartbeatAt,
-          manifest: safeParse(p.manifestJson),
+          manifest: manifest
+            ? { ...manifest, behaviors: behaviorsWithEnabled }
+            : safeParse(p.manifestJson),
           approvedScopes: safeParseArray(p.approvedScopesJson),
           pendingScopes: safeParseArray(p.pendingScopesJson ?? "[]"),
           pluginCommands: thirdTrackCommands.map((c) => ({
@@ -390,12 +406,10 @@ export async function registerPluginRoutes(
     }
     const featureKey = row.getDataValue("featureKey") as string | null;
     if (featureKey !== null) {
-      reply
-        .code(400)
-        .send({
-          error:
-            "cannot toggle feature commands via this endpoint; use guild feature toggle",
-        });
+      reply.code(400).send({
+        error:
+          "cannot toggle feature commands via this endpoint; use guild feature toggle",
+      });
       return;
     }
     await row.update({ adminEnabled: request.body.enabled });
@@ -423,6 +437,94 @@ export async function registerPluginRoutes(
       },
     };
   });
+
+  // ─── Plugin behavior override toggle (admin, OQ-11) ─────────────
+
+  /**
+   * PATCH /api/plugins/:pluginKey/behaviors/:behaviorKey/enabled
+   *
+   * Admin toggle plugin manifest behavior on/off。
+   * 對應 plugin_behavior_overrides 表（lazy upsert）。
+   *
+   * Body: { enabled: boolean }
+   *
+   * 動作：
+   *   1. 查 plugin by pluginKey
+   *   2. 驗證 behaviorKey 在 manifest behaviors[] 內
+   *   3. Upsert plugin_behavior_overrides
+   *   4. 非同步觸發 reconcileAll（更新 Discord 指令登記狀態）
+   *   5. 寫 botEventLog audit
+   */
+  server.patch<{
+    Params: { pluginKey: string; behaviorKey: string };
+    Body: { enabled?: unknown };
+  }>(
+    "/api/plugins/:pluginKey/behaviors/:behaviorKey/enabled",
+    async (request, reply) => {
+      if (!requireCapability(request, reply, "admin")) return;
+      const { pluginKey, behaviorKey } = request.params;
+      if (!pluginKey || !behaviorKey) {
+        reply.code(400).send({ error: "pluginKey and behaviorKey required" });
+        return;
+      }
+      if (typeof request.body?.enabled !== "boolean") {
+        reply.code(400).send({ error: "enabled boolean required" });
+        return;
+      }
+
+      const all = await pluginRegistry.list();
+      const p = all.find((x) => x.pluginKey === pluginKey);
+      if (!p) {
+        reply.code(404).send({ error: "plugin not found" });
+        return;
+      }
+
+      const manifest = safeParse(p.manifestJson) as PluginManifest | null;
+      const behaviorDef = manifest?.behaviors?.find((b) => b.key === behaviorKey);
+      if (!behaviorDef) {
+        reply.code(404).send({
+          error: `behaviorKey '${behaviorKey}' not declared in plugin manifest behaviors[]`,
+        });
+        return;
+      }
+
+      await setPluginBehaviorEnabled(p.id, behaviorKey, request.body.enabled);
+
+      botEventLog.record(
+        "info",
+        "bot",
+        `plugin behavior override ${request.body.enabled ? "enabled" : "disabled"}: ${pluginKey}/${behaviorKey}`,
+        {
+          pluginId: p.id,
+          pluginKey,
+          behaviorKey,
+          enabled: request.body.enabled,
+          actor: request.authUserId,
+        },
+      );
+
+      // 非同步觸發 reconcileAll，讓 Discord 指令狀態與 desired set 對齊
+      getReconciler()
+        .reconcileAll()
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          botEventLog.record(
+            "warn",
+            "bot",
+            `plugin-routes: behavior override toggle 後 reconcileAll 失敗: ${msg}`,
+            { pluginId: p.id, pluginKey, behaviorKey },
+          );
+        });
+
+      return {
+        behavior: {
+          pluginKey,
+          behaviorKey,
+          enabled: request.body.enabled,
+        },
+      };
+    },
+  );
 
   // ─── Per-guild feature config (admin) ────────────────────────────
 

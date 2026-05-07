@@ -72,6 +72,8 @@ export interface PluginManifest {
     integration_types?: string[];
     contexts?: string[];
     webhook_path?: string;
+    /** OQ-11：admin override 狀態，從 plugin_behavior_overrides 讀取；預設 true */
+    enabled?: boolean;
   }>;
   /** v2 manifest plugin_commands（軌三），admin 只能 on/off */
   plugin_commands?: Array<{
@@ -289,4 +291,26 @@ export async function setPluginCommandEnabled(
     body: JSON.stringify({ enabled }),
   });
   return jsonOrThrow<SetPluginCommandEnabledResult>(r);
+}
+
+// ─── Plugin behavior override toggle (OQ-11) ──────────────────────
+
+/**
+ * PATCH /api/plugins/:pluginKey/behaviors/:behaviorKey/enabled
+ * OQ-11：admin toggle plugin behavior on/off
+ */
+export async function setPluginBehaviorOverride(
+  pluginKey: string,
+  behaviorKey: string,
+  enabled: boolean,
+): Promise<void> {
+  const r = await authedFetch(
+    `/api/plugins/${encodeURIComponent(pluginKey)}/behaviors/${encodeURIComponent(behaviorKey)}/enabled`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    },
+  );
+  await jsonOrThrow<{ behavior: { pluginKey: string; behaviorKey: string; enabled: boolean } }>(r);
 }

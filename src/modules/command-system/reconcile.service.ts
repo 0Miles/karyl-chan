@@ -33,6 +33,7 @@ import {
   Behavior,
   type BehaviorRow,
 } from "../behavior/models/behavior.model.js";
+import { findAllDisabledBehaviorOverrides } from "../plugin-system/models/plugin-behavior-override.model.js";
 import {
   PluginCommand,
   type PluginCommandRow,
@@ -621,6 +622,10 @@ export class CommandReconciler {
   private async buildDesiredSet(): Promise<DesiredItem[]> {
     const items: DesiredItem[] = [];
 
+    // OQ-11 最佳化：一次性讀取所有 plugin_behavior_overrides disabled rows，
+    // 建 Map<pluginId, Set<behaviorKey>> 供後續 in-memory filter，避免 N+1。
+    const disabledOverrides = await findAllDisabledBehaviorOverrides();
+
     // 步驟 1a：behaviors 表 WHERE enabled=true AND triggerType='slash_command'
     const behaviorRows = await Behavior.findAll({
       where: {
@@ -631,6 +636,24 @@ export class CommandReconciler {
 
     for (const row of behaviorRows) {
       const behaviorRow = rowOfBehavior(row);
+
+      // OQ-11 過濾：source='plugin' 的 behavior 若 admin 已 override disabled，跳過
+      if (
+        behaviorRow.source === "plugin" &&
+        behaviorRow.pluginId !== null &&
+        behaviorRow.pluginBehaviorKey !== null
+      ) {
+        const disabledKeys = disabledOverrides.get(behaviorRow.pluginId);
+        if (disabledKeys?.has(behaviorRow.pluginBehaviorKey)) {
+          botEventLog.record(
+            "info",
+            "bot",
+            `command-reconciler: behavior ${behaviorRow.id} (plugin=${behaviorRow.pluginId} key=${behaviorRow.pluginBehaviorKey}) 被 plugin_behavior_override 停用，跳過`,
+          );
+          continue;
+        }
+      }
+
       const item = await this.behaviorToDesiredItem(behaviorRow);
       if (item) items.push(item);
     }
