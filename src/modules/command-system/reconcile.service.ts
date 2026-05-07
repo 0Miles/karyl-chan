@@ -24,6 +24,7 @@ import {
   ApplicationIntegrationType,
   InteractionContextType,
   type Client,
+  type Guild,
   type ApplicationCommandData,
   type ApplicationCommand,
 } from "discord.js";
@@ -510,6 +511,109 @@ export class CommandReconciler {
 
     const discordState = await this.fetchDiscordState(bot);
     return this.applyOne(bot, item, discordState);
+  }
+
+  /**
+   * 增量 reconcile 單一 guild（OQ-8 補強）。
+   *
+   * 在 bot 加入新 guild（guildCreate 事件）時呼叫，確保 scope='guild' 的
+   * 軌二 behaviors 與軌三 plugin_commands 在該 guild 自動 register，
+   * 不需要重啟才生效。
+   *
+   * 流程：
+   *   1. 枚舉 desired set（只取 scope='guild' 的項目）
+   *   2. 拉取該 guild 的 Discord 現況
+   *   3. diff + apply create / patch（不做 stale 清除，讓 reconcileAll 負責全量 cleanup）
+   *   4. 更新 reconciler_owned_commands 名冊（限此 guild）
+   */
+  async reconcileForGuild(guild: Guild): Promise<ReconcileReport> {
+    const bot = this.getBot();
+    if (!bot?.application) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `command-reconciler: reconcileForGuild(${guild.id}) bot not ready, skipping`,
+      );
+      return { created: 0, patched: 0, deleted: 0, errors: [] };
+    }
+
+    const report: ReconcileReport = {
+      created: 0,
+      patched: 0,
+      deleted: 0,
+      errors: [],
+    };
+
+    // 步驟 1：枚舉 desired set，只保留 scope='guild' 的項目
+    const allDesired = await this.buildDesiredSet();
+    const guildDesired = allDesired.filter((i) => i.spec.scope === "guild");
+
+    if (guildDesired.length === 0) {
+      return report;
+    }
+
+    // 步驟 2：拉取此 guild 的 Discord 現況
+    const discordState = new Map<string, ApplicationCommand>();
+    try {
+      const guildCmds = await guild.commands.fetch();
+      for (const cmd of guildCmds.values()) {
+        discordState.set(`guild:${cmd.name}:${guild.id}`, cmd);
+      }
+    } catch (err) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `command-reconciler: reconcileForGuild(${guild.id}) 拉 guild commands 失敗：${err instanceof Error ? err.message : String(err)}`,
+      );
+      return report;
+    }
+
+    // 步驟 3：diff + apply
+    for (const item of guildDesired) {
+      const { name, spec, source, sourceId } = item;
+      const key = `guild:${name}:${guild.id}`;
+      const existing = discordState.get(key);
+      try {
+        if (!existing) {
+          await guild.commands.create(spec.data);
+          report.created++;
+        } else if (commandNeedsPatch(existing, spec.data)) {
+          await guild.commands.edit(existing.id, spec.data);
+          report.patched++;
+        }
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        report.errors.push({ ok: false, source, sourceId, error });
+        botEventLog.record(
+          "warn",
+          "bot",
+          `command-reconciler: reconcileForGuild(${guild.id}) ${name} 失敗：${error}`,
+        );
+      }
+    }
+
+    // 步驟 4：更新名冊（限此 guild 的 guild-scope 項目）
+    for (const item of guildDesired) {
+      await upsertOwnedCommand({
+        name: item.name,
+        scope: "guild",
+        guildId: guild.id,
+      }).catch((e: unknown) => {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `command-reconciler: reconcileForGuild 名冊 upsert 失敗 ${item.name}/${guild.id}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      });
+    }
+
+    botEventLog.record(
+      "info",
+      "bot",
+      `command-reconciler: reconcileForGuild(${guild.id}) 完成 created=${report.created} patched=${report.patched} errors=${report.errors.length}`,
+    );
+
+    return report;
   }
 
   // ── 私有：desired set 建構 ────────────────────────────────────────────────
