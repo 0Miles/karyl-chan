@@ -1061,6 +1061,21 @@ export async function registerPluginRoutes(
           actor: request.authUserId,
         },
       );
+      // plugin disable 時：setEnabled 內部已呼叫 unregisterAll 刪 DB rows。
+      // 但 global 軌三指令的 discordCommandId=null，deleteOne 無法直接刪 Discord 端。
+      // 觸發 reconcileAll，讓 stale 清除機制從名冊 diff 刪除 Discord 端指令（Batch 1 #4）。
+      if (!enabled) {
+        getReconciler()
+          .reconcileAll()
+          .catch((err: unknown) => {
+            botEventLog.record(
+              "warn",
+              "bot",
+              `plugin-routes: plugin disable 後 reconcileAll 失敗: ${err instanceof Error ? err.message : String(err)}`,
+              { pluginId: id },
+            );
+          });
+      }
       return {
         plugin: {
           id: updated.id,
@@ -1116,6 +1131,9 @@ export async function registerPluginRoutes(
       pluginAuthStore.revokeByPluginId(pluginId);
 
       // 2. Unregister Discord commands (best-effort; logs internally).
+      // unregisterAll 刪 DB rows + feature 半部 Discord 指令（discordCommandId 有值）。
+      // global 軌三指令（discordCommandId=null）無法由 deleteOne 直接刪，
+      // 由後續 reconcileAll 透過 stale 清除機制從名冊 diff 刪除 Discord 端（Batch 1 #4）。
       const { pluginCommandRegistry } =
         await import("./plugin-command-registry.service.js");
       await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
@@ -1124,6 +1142,20 @@ export async function registerPluginRoutes(
 
       // 3. Destroy the DB row. ON DELETE CASCADE wipes related tables.
       await deletePlugin(pluginId);
+
+      // 3b. reconcileAll：讓 reconciler stale 清除機制刪除 Discord 端 global 指令。
+      // deletePlugin 後 desired set 不含此 plugin 的指令，reconciler diff 會發現名冊有但
+      // desired set 沒，自動刪 Discord 端。非同步觸發，不阻擋 204 回應。
+      getReconciler()
+        .reconcileAll()
+        .catch((err: unknown) => {
+          botEventLog.record(
+            "warn",
+            "bot",
+            `plugin-routes: plugin delete 後 reconcileAll 失敗: ${err instanceof Error ? err.message : String(err)}`,
+            { pluginId },
+          );
+        });
 
       // 4. Rebuild the event-dispatch index so the deleted plugin is gone.
       const { rebuildEventIndex } =
