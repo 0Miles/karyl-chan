@@ -752,8 +752,11 @@ export function createPopover(
         }
       }
 
-      // 必須在建立 Popper 之前設定 display，否則 Popper 無法測量元素尺寸
-      content.style.display = "";
+      // 必須在建立 Popper 之前設定 display，否則 Popper 無法測量元素尺寸。
+      // 使用明確的 "block" 而非清空字串，確保能覆蓋 CSS class 的 display:none
+      // （例如 AppMenu/AppPopover 用 scoped class 取代 inline style 後，清空
+      // inline style 會讓 class 的 display:none 重新生效，導致 popover 不顯示）。
+      content.style.display = "block";
       content.setAttribute("data-show", "");
 
       if (!popperInstance) {
