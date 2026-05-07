@@ -34,6 +34,7 @@ import {
   seedDefaultRoles,
 } from "./modules/admin/authorized-user.service.js";
 import { botEventLog } from "./modules/bot-events/bot-event-log.js";
+import { ensureSystemBehaviors } from "./modules/behavior/system-seed.service.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 // M1-C2: CommandReconciler / InteractionDispatcher / MessagePatternMatcher 接線。
@@ -495,8 +496,14 @@ async function run() {
     const migrations = await runPendingMigrations();
     setReady("migrations", true);
     migrationsApplied = true;
-    // M1-A1: v1 system seed（admin-login / manual / break）與 all_dms target
-    // singleton 已退場。系統 behavior 由 M1-C 重新設計後注入。
+    // v2 system behavior seed（admin-login / manual / break）。
+    // v1 → v2 重構期間 ensureSystem* helpers 被改成 no-op 但 main.ts 也不再
+    // 呼叫，導致 behaviors 表沒 source='system' row → CommandReconciler 的
+    // desired set 不含 /login，Discord 不註冊。這裡 idempotent 補建，
+    // 必須在 reconcileAll（bot ready handler 內）之前完成。
+    await ensureSystemBehaviors().catch((err: unknown) => {
+      log.error({ err }, "ensureSystemBehaviors failed");
+    });
     if (migrations.length > 0) {
       botEventLog.record(
         "info",
