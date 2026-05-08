@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import AppSelectField from '../../../components/AppSelectField.vue';
+import AppButton from '../../../components/AppButton.vue';
 import {
     createBehaviorV2,
     type BehaviorRow,
@@ -366,10 +367,10 @@ const showAuthMode = computed(() =>
                 <p class="system-note muted">{{ t('behaviors.addModal.sourceSystemNote') }}</p>
 
                 <footer class="actions">
-                    <button type="button" class="ghost" @click="emit('close')">{{ t('common.cancel') }}</button>
-                    <button type="button" class="primary" :disabled="!selectedSource" @click="onNext">
+                    <AppButton variant="ghost" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
+                    <AppButton variant="primary" :disabled="!selectedSource" @click="onNext">
                         {{ t('behaviors.addModal.next') }} →
-                    </button>
+                    </AppButton>
                 </footer>
             </template>
 
@@ -502,10 +503,10 @@ const showAuthMode = computed(() =>
                 <p v-if="error" class="error" role="alert">{{ error }}</p>
 
                 <footer class="actions">
-                    <button type="button" class="ghost" @click="emit('close')" :disabled="submitting">{{ t('common.cancel') }}</button>
-                    <button type="button" class="primary" :disabled="submitting" @click="onSubmitCustom">
-                        {{ submitting ? t('common.saving') : t('behaviors.addModal.create') }}
-                    </button>
+                    <AppButton variant="ghost" :disabled="submitting" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
+                    <AppButton variant="primary" :loading="submitting" @click="onSubmitCustom">
+                        {{ t('behaviors.addModal.create') }}
+                    </AppButton>
                 </footer>
             </template>
 
@@ -567,10 +568,10 @@ const showAuthMode = computed(() =>
                 <p v-if="error" class="error" role="alert">{{ error }}</p>
 
                 <footer class="actions">
-                    <button type="button" class="ghost" @click="emit('close')" :disabled="submitting">{{ t('common.cancel') }}</button>
-                    <button type="button" class="primary" :disabled="submitting || !pluginForm.pluginId || !pluginForm.pluginBehaviorKey" @click="onSubmitPlugin">
-                        {{ submitting ? t('common.saving') : t('behaviors.addModal.create') }}
-                    </button>
+                    <AppButton variant="ghost" :disabled="submitting" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
+                    <AppButton variant="primary" :loading="submitting" :disabled="!pluginForm.pluginId || !pluginForm.pluginBehaviorKey" @click="onSubmitPlugin">
+                        {{ t('behaviors.addModal.create') }}
+                    </AppButton>
                 </footer>
             </template>
 
@@ -759,23 +760,6 @@ const showAuthMode = computed(() =>
     justify-content: flex-end;
     gap: 0.5rem;
     padding-top: 0.25rem;
-}
-.actions button {
-    padding: 0.5rem 0.9rem;
-    border-radius: var(--radius-sm);
-    font: inherit;
-    cursor: pointer;
-}
-.actions .primary {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: 1px solid var(--accent);
-}
-.actions .primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.actions .ghost {
-    background: transparent;
-    color: var(--text);
-    border: 1px solid var(--border);
 }
 
 .muted { color: var(--text-muted); }

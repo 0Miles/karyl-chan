@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import Sortable from 'sortablejs';
 import BehaviorCard from './BehaviorCard.vue';
 import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
+import AppButton from '../../../components/AppButton.vue';
 import {
     listBehaviors,
     reorderBehaviors,
@@ -196,20 +197,23 @@ const headerTitle = computed(() => {
                 <template v-else>{{ t('behaviors.workspace.kindGroup') }}</template>
             </span>
             <span class="spacer" />
-            <button type="button" class="primary" :disabled="loading" @click="emit('add-behavior')">
-                <Icon icon="material-symbols:add-rounded" width="16" height="16" />
-                {{ t('behaviors.workspace.addBehavior') }}
-            </button>
-            <button
+            <AppButton
+                variant="primary"
+                size="sm"
+                icon="material-symbols:add-rounded"
+                :disabled="loading"
+                @click="emit('add-behavior')"
+            >{{ t('behaviors.workspace.addBehavior') }}</AppButton>
+            <AppButton
                 v-if="audience.kind !== 'all' && canManageCatalog"
-                type="button"
-                class="danger ghost"
+                variant="danger"
+                size="sm"
+                icon="material-symbols:delete-outline-rounded"
                 :disabled="loading || behaviors.length === 0"
                 :title="t('behaviors.workspace.deleteTargetTooltip')"
+                style="padding: 0.4rem; min-width: 0;"
                 @click="onDeleteAudience"
-            >
-                <Icon icon="material-symbols:delete-outline-rounded" width="18" height="18" />
-            </button>
+            />
         </header>
 
         <p v-if="loading && behaviors.length === 0" class="muted loading">{{ t('common.loading') }}</p>
@@ -294,33 +298,6 @@ const headerTitle = computed(() => {
     color: var(--text-muted);
 }
 .spacer { flex: 1; }
-button.primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.45rem 0.85rem;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font: inherit;
-}
-button.primary.small { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
-button.primary:disabled { opacity: 0.55; cursor: not-allowed; }
-button.danger.ghost {
-    background: none;
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: var(--danger);
-    padding: 0.4rem;
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-}
 .card-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .muted { color: var(--text-muted); }
 .loading, .empty { padding: 1rem; text-align: center; }
