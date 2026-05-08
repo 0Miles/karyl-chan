@@ -12,6 +12,7 @@ import {
 import { ApiError } from '../../../api/client';
 import AppModal from '../../../components/AppModal.vue';
 import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
+import AppButton from '../../../components/AppButton.vue';
 
 const props = defineProps<{
     data: AdminUserList;
@@ -179,10 +180,9 @@ const matchSummary = computed(() =>
                     :drawer-title="$t('admin.users.filterAll')"
                 />
             </div>
-            <button type="button" class="primary" @click="addOpen = true">
-                <Icon icon="material-symbols:person-add-outline-rounded" width="16" height="16" />
+            <AppButton variant="primary" size="sm" icon="material-symbols:person-add-outline-rounded" @click="addOpen = true">
                 {{ $t('admin.users.add') }}
-            </button>
+            </AppButton>
         </header>
 
         <p class="muted match-count">{{ matchSummary }}</p>
@@ -221,16 +221,16 @@ const matchSummary = computed(() =>
                         @update:model-value="onChangeRole(user, $event)"
                     />
                 </div>
-                <button
-                    type="button"
-                    class="icon-btn danger"
+                <AppButton
+                    variant="danger"
+                    size="sm"
+                    icon="material-symbols:delete-outline-rounded"
                     :disabled="isUserPending(user.userId)"
                     :title="$t('admin.users.remove')"
                     :aria-label="$t('admin.users.remove')"
+                    style="padding: 0.35rem; min-width: 0;"
                     @click="onRemove(user)"
-                >
-                    <Icon icon="material-symbols:delete-outline-rounded" width="18" height="18" />
-                </button>
+                />
             </li>
         </ul>
 
@@ -263,10 +263,10 @@ const matchSummary = computed(() =>
                     <input v-model="addForm.note" type="text" :placeholder="$t('admin.users.notePlaceholder')" />
                 </label>
                 <footer class="actions">
-                    <button type="button" class="ghost" @click="addOpen = false">{{ $t('common.cancel') }}</button>
-                    <button type="submit" class="primary" :disabled="adding || !roles.length">
+                    <AppButton variant="ghost" type="button" @click="addOpen = false">{{ $t('common.cancel') }}</AppButton>
+                    <AppButton variant="primary" type="submit" :loading="adding" :disabled="!roles.length">
                         {{ $t('admin.users.addSubmit') }}
-                    </button>
+                    </AppButton>
                 </footer>
             </form>
         </AppModal>
@@ -312,21 +312,6 @@ const matchSummary = computed(() =>
 .role-filter {
     min-width: 140px;
 }
-.primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.9rem;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-base);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.88rem;
-    font-weight: 500;
-}
-.primary:disabled { opacity: 0.55; cursor: default; }
 .match-count {
     margin: 0;
     font-size: 0.78rem;
@@ -413,21 +398,6 @@ const matchSummary = computed(() =>
 .role-select {
     min-width: 140px;
 }
-.icon-btn {
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-base);
-    background: var(--bg-surface);
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.icon-btn:hover { background: var(--bg-surface-hover); }
-.icon-btn.danger { color: var(--danger); }
-.icon-btn.danger:hover { background: rgba(239, 68, 68, 0.12); }
-.icon-btn:disabled { opacity: 0.55; cursor: default; }
 .muted { color: var(--text-muted); font-size: 0.85rem; }
 .empty { padding: 1.2rem; text-align: center; }
 
@@ -460,17 +430,6 @@ const matchSummary = computed(() =>
     gap: 0.5rem;
     margin-top: 0.4rem;
 }
-.ghost {
-    padding: 0.45rem 0.9rem;
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.88rem;
-}
-.ghost:hover { background: var(--bg-surface-hover); }
 
 @media (max-width: 600px) {
     .user-row {

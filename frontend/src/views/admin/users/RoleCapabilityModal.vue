@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import AppTabs from '../../../components/AppTabs.vue';
+import AppButton from '../../../components/AppButton.vue';
 import { listGuilds, type GuildSummary } from '../../../api/guilds';
 import { listAudiences, type AudienceEntry } from '../../../api/behavior';
 import {
@@ -387,13 +388,10 @@ function onConfirm() {
                     <Icon icon="material-symbols:edit-outline-rounded" width="14" height="14" />
                     {{ t('admin.roles.pendingChanges', { count: pendingCount }) }}
                 </span>
-                <button type="button" class="ghost" @click="onCancel">{{ t('common.cancel') }}</button>
-                <button
-                    type="button"
-                    class="primary"
-                    :disabled="!hasChanges || pending"
-                    @click="onConfirm"
-                >{{ t('admin.roles.confirmChanges') }}</button>
+                <AppButton variant="ghost" @click="onCancel">{{ t('common.cancel') }}</AppButton>
+                <AppButton variant="primary" :loading="pending" :disabled="!hasChanges" @click="onConfirm">
+                    {{ t('admin.roles.confirmChanges') }}
+                </AppButton>
             </footer>
         </div>
     </AppModal>
@@ -576,25 +574,4 @@ function onConfirm() {
     font-weight: 500;
     margin-right: auto;
 }
-.actions .ghost,
-.actions .primary {
-    padding: 0.45rem 0.95rem;
-    border-radius: var(--radius-base);
-    font: inherit;
-    font-size: 0.88rem;
-    cursor: pointer;
-}
-.ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-.ghost:hover { background: var(--bg-surface-hover); }
-.primary {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: 1px solid var(--accent);
-    font-weight: 500;
-}
-.primary:disabled { opacity: 0.5; cursor: default; }
 </style>
