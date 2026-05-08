@@ -33,6 +33,11 @@ import {
   type BehaviorAudienceKind,
   type BehaviorWebhookAuthMode,
 } from "./models/behavior.model.js";
+import {
+  BehaviorScopeTab,
+  deriveFieldsFromTab,
+  rowOf as tabRowOf,
+} from "./models/behavior-scope-tab.model.js";
 import { Op, fn, col } from "sequelize";
 import { encryptSecret } from "../../utils/crypto.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
@@ -93,6 +98,7 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
     systemKey:
       (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
+    scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
   };
 }
 
@@ -117,6 +123,7 @@ export async function registerBehaviorRoutes(
     if (!requireBehaviorAdmin(request, reply)) return;
 
     const query = request.query as {
+      scopeTabId?: string;
       audienceKind?: string;
       audienceUserId?: string;
       audienceGroupName?: string;
@@ -125,6 +132,10 @@ export async function registerBehaviorRoutes(
     };
 
     const where: Record<string, unknown> = {};
+    if (query.scopeTabId) {
+      const tabId = parseInt(query.scopeTabId, 10);
+      if (!isNaN(tabId)) where["scopeTabId"] = tabId;
+    }
     if (
       query.audienceKind &&
       ["all", "user", "group"].includes(query.audienceKind)
@@ -205,9 +216,9 @@ export async function registerBehaviorRoutes(
       forwardType?: string;
       stopOnMatch?: boolean;
       enabled?: boolean;
-      // source=plugin
       pluginId?: number;
       pluginBehaviorKey?: string;
+      scopeTabId?: number;
     };
 
     // 基本驗證
@@ -283,9 +294,38 @@ export async function registerBehaviorRoutes(
       });
     }
 
+    // Resolve scope tab — derive scope/contexts/audience/placement
+    let derivedScope = body.scope ?? "global";
+    let derivedContexts: string;
+    let derivedAudienceKind = body.audienceKind ?? "all";
+    let derivedAudienceUserId = body.audienceUserId ?? null;
+    let derivedAudienceGroupName = body.audienceGroupName ?? null;
+    let derivedPlacementGuildId: string | null = null;
+    let derivedPlacementChannelId: string | null = null;
+    let resolvedTabId = body.scopeTabId ?? 1;
+
+    if (body.scopeTabId) {
+      const tabRow = await BehaviorScopeTab.findByPk(body.scopeTabId);
+      if (!tabRow) {
+        return reply.code(400).send({ error: "無效的 scopeTabId" });
+      }
+      const tab = tabRowOf(tabRow);
+      const derived = deriveFieldsFromTab(tab);
+      derivedScope = derived.scope;
+      derivedContexts = derived.contexts;
+      derivedAudienceKind = derived.audienceKind;
+      derivedAudienceUserId = derived.audienceUserId;
+      derivedAudienceGroupName = derived.audienceGroupName;
+      derivedPlacementGuildId = derived.placementGuildId;
+      derivedPlacementChannelId = derived.placementChannelId;
+      resolvedTabId = body.scopeTabId;
+    } else {
+      derivedContexts = sortJoin(body.contexts || "Guild");
+    }
+
     // 三軸排序
     const integrationTypes = sortJoin(body.integrationTypes || "guild_install");
-    const contexts = sortJoin(body.contexts || "Guild");
+    const contexts = body.scopeTabId ? derivedContexts : sortJoin(body.contexts || "Guild");
 
     // 最大 sortOrder
     const maxSortRow = await Behavior.findOne({
@@ -315,14 +355,16 @@ export async function registerBehaviorRoutes(
         body.triggerType === "slash_command"
           ? (body.slashCommandDescription ?? "")
           : null,
-      scope: body.scope ?? "global",
+      scope: derivedScope,
       integrationTypes,
       contexts,
-      audienceKind: body.audienceKind ?? "all",
+      audienceKind: derivedAudienceKind,
       audienceUserId:
-        body.audienceKind === "user" ? (body.audienceUserId ?? null) : null,
+        derivedAudienceKind === "user" ? derivedAudienceUserId : null,
       audienceGroupName:
-        body.audienceKind === "group" ? (body.audienceGroupName ?? null) : null,
+        derivedAudienceKind === "group" ? derivedAudienceGroupName : null,
+      placementGuildId: derivedPlacementGuildId,
+      placementChannelId: derivedPlacementChannelId,
       webhookUrl:
         body.source === "custom" && body.webhookUrl
           ? encryptSecret(body.webhookUrl.trim())
@@ -341,6 +383,7 @@ export async function registerBehaviorRoutes(
       stopOnMatch: !!body.stopOnMatch,
       enabled: body.enabled !== undefined ? !!body.enabled : true,
       sortOrder: nextSortOrder,
+      scopeTabId: resolvedTabId,
     });
 
     const created = decryptedView(rowOf(row));
@@ -640,12 +683,14 @@ export async function registerBehaviorRoutes(
       raw: true,
     });
 
-    const summary = (rows as unknown as Array<{
-      audienceKind: string;
-      audienceUserId: string | null;
-      audienceGroupName: string | null;
-      behaviorCount: string | number;
-    }>).map((r) => ({
+    const summary = (
+      rows as unknown as Array<{
+        audienceKind: string;
+        audienceUserId: string | null;
+        audienceGroupName: string | null;
+        behaviorCount: string | number;
+      }>
+    ).map((r) => ({
       audienceKind: r.audienceKind,
       audienceUserId: r.audienceUserId ?? null,
       audienceGroupName: r.audienceGroupName ?? null,
@@ -668,19 +713,30 @@ export async function registerBehaviorRoutes(
       audienceGroupName?: string;
     };
 
-    if (!query.audienceKind || !["all", "user", "group"].includes(query.audienceKind)) {
-      return reply.code(400).send({ error: "audienceKind 為必填 (all | user | group)" });
+    if (
+      !query.audienceKind ||
+      !["all", "user", "group"].includes(query.audienceKind)
+    ) {
+      return reply
+        .code(400)
+        .send({ error: "audienceKind 為必填 (all | user | group)" });
     }
     if (query.audienceKind === "user" && !query.audienceUserId) {
-      return reply.code(400).send({ error: "audienceKind=user 需要 audienceUserId" });
+      return reply
+        .code(400)
+        .send({ error: "audienceKind=user 需要 audienceUserId" });
     }
     if (query.audienceKind === "group" && !query.audienceGroupName) {
-      return reply.code(400).send({ error: "audienceKind=group 需要 audienceGroupName" });
+      return reply
+        .code(400)
+        .send({ error: "audienceKind=group 需要 audienceGroupName" });
     }
 
     const where: Record<string, unknown> = { audienceKind: query.audienceKind };
-    if (query.audienceKind === "user") where["audienceUserId"] = query.audienceUserId;
-    if (query.audienceKind === "group") where["audienceGroupName"] = query.audienceGroupName;
+    if (query.audienceKind === "user")
+      where["audienceUserId"] = query.audienceUserId;
+    if (query.audienceKind === "group")
+      where["audienceGroupName"] = query.audienceGroupName;
 
     // system behaviors cannot be deleted — exclude them from the bulk delete.
     where["source"] = { [Op.ne]: "system" };

@@ -10,9 +10,8 @@ import {
     type BehaviorRow,
     type BehaviorSource,
     type BehaviorTriggerType,
-    type BehaviorScope,
-    type BehaviorAudienceKind,
     type BehaviorWebhookAuthMode,
+    type ScopeTabRow,
 } from '../../../api/behavior';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
@@ -33,11 +32,8 @@ const { t } = useI18n();
 
 const props = defineProps<{
     visible: boolean;
-    /** 預設 audienceKind（從 sidebar 選中的 target 帶入）*/
-    defaultAudienceKind?: BehaviorAudienceKind;
-    defaultAudienceUserId?: string;
-    defaultAudienceGroupName?: string;
-    /** 由 BehaviorsPage 傳入的 page-level plugins 快取；若有則不再自行打 API */
+    scopeTabId: number;
+    scopeTab: ScopeTabRow | null;
     preloadedPlugins?: PluginRecord[];
 }>();
 
@@ -93,12 +89,7 @@ const customForm = ref({
     messagePatternValue: '',
     slashCommandName: '',
     slashCommandDescription: '',
-    scope: 'global' as BehaviorScope,
     integrationTypes: 'user_install',
-    contexts: 'BotDM,PrivateChannel',
-    audienceKind: (props.defaultAudienceKind ?? 'all') as BehaviorAudienceKind,
-    audienceUserId: props.defaultAudienceUserId ?? '',
-    audienceGroupName: props.defaultAudienceGroupName ?? '',
     forwardMode: 'webhook' as 'webhook' | 'plugin',
     webhookUrl: '',
     webhookSecret: '',
@@ -116,12 +107,7 @@ function resetCustomForm() {
         messagePatternValue: '',
         slashCommandName: '',
         slashCommandDescription: '',
-        scope: 'global',
         integrationTypes: 'user_install',
-        contexts: 'BotDM,PrivateChannel',
-        audienceKind: props.defaultAudienceKind ?? 'all',
-        audienceUserId: props.defaultAudienceUserId ?? '',
-        audienceGroupName: props.defaultAudienceGroupName ?? '',
         forwardMode: 'webhook',
         webhookUrl: '',
         webhookSecret: '',
@@ -137,9 +123,6 @@ const pluginForm = ref({
     pluginId: null as number | null,
     pluginBehaviorKey: '',
     displayName: '',
-    audienceKind: (props.defaultAudienceKind ?? 'all') as BehaviorAudienceKind,
-    audienceUserId: props.defaultAudienceUserId ?? '',
-    audienceGroupName: props.defaultAudienceGroupName ?? '',
 });
 
 function resetPluginForm() {
@@ -147,9 +130,6 @@ function resetPluginForm() {
         pluginId: null,
         pluginBehaviorKey: '',
         displayName: '',
-        audienceKind: props.defaultAudienceKind ?? 'all',
-        audienceUserId: props.defaultAudienceUserId ?? '',
-        audienceGroupName: props.defaultAudienceGroupName ?? '',
     };
 }
 
@@ -228,11 +208,6 @@ const messagePatternKindOptions = [
     { value: 'regex', label: t('behaviors.card.triggerRegex') },
 ];
 
-const scopeOptions = [
-    { value: 'global' as BehaviorScope, label: 'global' },
-    { value: 'guild' as BehaviorScope, label: 'guild' },
-];
-
 const webhookAuthModeOptions = [
     { value: 'token' as BehaviorWebhookAuthMode, label: 'Token' },
     { value: 'hmac' as BehaviorWebhookAuthMode, label: 'HMAC' },
@@ -269,12 +244,8 @@ async function onSubmitCustom() {
             ...(f.triggerType === 'slash_command'
                 ? { slashCommandName: f.slashCommandName.trim(), slashCommandDescription: f.slashCommandDescription }
                 : { messagePatternKind: f.messagePatternKind as 'startswith' | 'endswith' | 'regex', messagePatternValue: f.messagePatternValue.trim() }),
-            scope: f.scope,
             integrationTypes: f.integrationTypes,
-            contexts: f.contexts,
-            audienceKind: f.audienceKind,
-            ...(f.audienceKind === 'user' ? { audienceUserId: f.audienceUserId.trim() } : {}),
-            ...(f.audienceKind === 'group' ? { audienceGroupName: f.audienceGroupName.trim() } : {}),
+            scopeTabId: props.scopeTabId,
             ...(f.forwardMode === 'webhook'
                 ? {
                     webhookUrl: f.webhookUrl.trim(),
@@ -310,18 +281,13 @@ async function onSubmitPlugin() {
         const created = await createBehaviorV2({
             title: f.displayName.trim(),
             source: 'plugin' as BehaviorSource,
-            triggerType: 'message_pattern',  // plugin behavior 預設 pattern，manifest 決定
+            triggerType: 'message_pattern',
             messagePatternKind: 'startswith',
-            messagePatternValue: '',
-            audienceKind: f.audienceKind,
-            ...(f.audienceKind === 'user' ? { audienceUserId: f.audienceUserId.trim() } : {}),
-            ...(f.audienceKind === 'group' ? { audienceGroupName: f.audienceGroupName.trim() } : {}),
+            messagePatternValue: f.pluginBehaviorKey,
             pluginId: f.pluginId,
             pluginBehaviorKey: f.pluginBehaviorKey,
-            // 三軸預設值（plugin 建立後可在卡片內修改）
-            scope: 'global',
+            scopeTabId: props.scopeTabId,
             integrationTypes: 'user_install',
-            contexts: 'BotDM,PrivateChannel',
         });
         emit('created', created);
         emit('close');
@@ -430,22 +396,12 @@ const showAuthMode = computed(() =>
                         </label>
                     </template>
 
-                    <!-- 三軸設定 -->
+                    <!-- Integration Types -->
                     <div class="section-heading">{{ t('behaviors.addModal.axesLabel') }}</div>
-                    <div class="two-col">
-                        <div class="field">
-                            <span class="label">Scope</span>
-                            <AppSelectField v-model="customForm.scope" :options="scopeOptions" />
-                        </div>
-                        <label class="field">
-                            <span class="label">Integration Types</span>
-                            <input v-model="customForm.integrationTypes" type="text" placeholder="user_install" />
-                        </label>
-                        <label class="field">
-                            <span class="label">Contexts</span>
-                            <input v-model="customForm.contexts" type="text" placeholder="BotDM,PrivateChannel" />
-                        </label>
-                    </div>
+                    <label class="field">
+                        <span class="label">Integration Types</span>
+                        <input v-model="customForm.integrationTypes" type="text" placeholder="user_install" />
+                    </label>
 
                     <!-- 轉發設定 -->
                     <div class="section-heading">{{ t('behaviors.addModal.forwardLabel') }}</div>

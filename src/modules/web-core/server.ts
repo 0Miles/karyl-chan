@@ -88,6 +88,7 @@ import { registerAdminLoginStatusRoutes } from "../admin/admin-login-status-rout
 import { registerAdminSystemSettingsRoutes } from "../admin/admin-system-settings-routes.js";
 import { registerBotEventRoutes } from "../bot-events/bot-event-routes.js";
 import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
+import { registerScopeTabRoutes } from "../behavior/scope-tab-routes.js";
 import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
 import { registerBotFeatureRoutes } from "../feature-toggle/bot-feature-routes.js";
 import { registerPluginRpcRoutes } from "../plugin-system/plugin-rpc-routes.js";
@@ -642,6 +643,7 @@ export async function createWebServer(
   await registerAdminSystemSettingsRoutes(server);
   await registerBotEventRoutes(server);
   await registerBehaviorRoutes(server, { bot });
+  await registerScopeTabRoutes(server);
   await registerPluginRoutes(server, { bot });
   await registerPluginRpcRoutes(server, { bot, dmLimiter: options.dmLimiter });
   await registerVoiceRpcRoutes(server, { bot });

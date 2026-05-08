@@ -335,6 +335,7 @@ export class MessagePatternMatcher {
         (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
       systemKey:
         (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
+      scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
     };
   }
 }
@@ -447,5 +448,6 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
     systemKey:
       (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
+    scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
   };
 }

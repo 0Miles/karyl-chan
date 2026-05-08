@@ -1,49 +1,99 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
-import type { AudienceEntry } from '../../../api/behavior';
+import type { ScopeTabRow } from '../../../api/behavior';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 const { t } = useI18n();
 
-/**
- * BehaviorSidebar v2 — 使用 AudienceEntry（audience-summary 推導）
- *
- * 移除 v1 BehaviorTargetSummary 依賴。
- * - all 釘頂
- * - user / group 依後端回傳順序
- * - 「+ 新增」= 開 AddBehaviorModal（emit 'add'）
- */
-
 const props = defineProps<{
-    audiences: AudienceEntry[];
-    selectedKey: string | null;
+    tabs: ScopeTabRow[];
+    selectedTabId: number | null;
     loading?: boolean;
     canAdd?: boolean;
 }>();
 
 const emit = defineEmits<{
-    (e: 'select', key: string): void;
+    (e: 'select', tabId: number): void;
     (e: 'add'): void;
 }>();
 
-const allEntry = computed(() => props.audiences.find(a => a.kind === 'all') ?? null);
-const otherEntries = computed(() => props.audiences.filter(a => a.kind !== 'all'));
+// ── Section grouping ─────────────────────────────────────────────────────────
 
-// Batch-resolve user display names via the shared user-summary store.
+const topTabs = computed(() =>
+    props.tabs.filter(t => ['global_all', 'all_dms', 'all_bot_dms'].includes(t.tabType))
+);
+
+const guildTabs = computed(() =>
+    props.tabs.filter(t => ['all_guilds', 'specific_guild', 'specific_channel'].includes(t.tabType))
+);
+
+const dmTabs = computed(() =>
+    props.tabs.filter(t => ['specific_user', 'specific_group'].includes(t.tabType))
+);
+
+// ── Collapsible state ────────────────────────────────────────────────────────
+
+const guildOpen = ref(true);
+const dmOpen = ref(true);
+
+// ── User display name resolution ─────────────────────────────────────────────
+
 const userIds = computed(() =>
-    props.audiences.filter(a => a.kind === 'user' && a.userId).map(a => a.userId!)
+    props.tabs.filter(t => t.tabType === 'specific_user' && t.userId).map(t => t.userId!)
 );
 const { getDisplayName } = useUserSummaries(userIds);
 
-function labelFor(entry: AudienceEntry): string {
-    if (entry.kind === 'all') return t('behaviors.sidebar.allDms');
-    if (entry.kind === 'user') {
-        const name = entry.userId ? getDisplayName(entry.userId) : null;
-        return name ?? entry.userId ?? '?';
+// ── Label helpers ────────────────────────────────────────────────────────────
+
+function iconFor(tab: ScopeTabRow): string {
+    switch (tab.tabType) {
+        case 'global_all': return 'material-symbols:public-rounded';
+        case 'all_dms': return 'material-symbols:forum-outline-rounded';
+        case 'all_bot_dms': return 'material-symbols:smart-toy-outline-rounded';
+        case 'all_guilds': return 'material-symbols:dns-outline-rounded';
+        case 'specific_guild': return 'material-symbols:shield-outline-rounded';
+        case 'specific_channel': return 'material-symbols:tag-rounded';
+        case 'specific_user': return 'material-symbols:person-outline-rounded';
+        case 'specific_group': return 'material-symbols:groups-outline-rounded';
     }
-    return entry.groupName ?? '?';
+}
+
+function labelFor(tab: ScopeTabRow): string {
+    switch (tab.tabType) {
+        case 'global_all': return t('behaviors.sidebar.globalAll');
+        case 'all_dms': return t('behaviors.sidebar.allDms');
+        case 'all_bot_dms': return t('behaviors.sidebar.allBotDms');
+        case 'all_guilds': return t('behaviors.sidebar.allGuilds');
+        case 'specific_guild': return tab.label || tab.guildId || '?';
+        case 'specific_channel': return tab.label || tab.channelId || '?';
+        case 'specific_user': {
+            const name = tab.userId ? getDisplayName(tab.userId) : null;
+            return name ?? tab.label ?? tab.userId ?? '?';
+        }
+        case 'specific_group': return tab.label || tab.groupName || '?';
+    }
+}
+
+function subtextFor(tab: ScopeTabRow): string {
+    const count = tab.behaviorCount;
+    switch (tab.tabType) {
+        case 'global_all': return t('behaviors.sidebar.globalAllHint');
+        case 'all_dms': return t('behaviors.sidebar.allDmsHint');
+        case 'all_bot_dms': return t('behaviors.sidebar.allBotDmsHint');
+        case 'all_guilds': return t('behaviors.sidebar.allGuildsHint');
+        default:
+            return t('behaviors.sidebar.behaviorCount', { count });
+    }
+}
+
+function avatarClassFor(tab: ScopeTabRow): string {
+    if (tab.tabType === 'global_all') return 'avatar-fallback all-scope';
+    if (tab.tabType === 'all_dms' || tab.tabType === 'all_bot_dms') return 'avatar-fallback all-dms';
+    if (tab.tabType.startsWith('specific_guild') || tab.tabType === 'all_guilds' || tab.tabType === 'specific_channel') return 'avatar-fallback guild';
+    if (tab.tabType === 'specific_group') return 'avatar-fallback group';
+    return 'avatar-fallback';
 }
 </script>
 
@@ -54,66 +104,93 @@ function labelFor(entry: AudienceEntry): string {
             v-if="canAdd"
             type="button"
             class="ghost"
-            :title="t('behaviors.sidebar.addTooltip')"
-            :aria-label="t('behaviors.sidebar.addTooltip')"
+            :title="t('behaviors.sidebar.addTabTooltip')"
+            :aria-label="t('behaviors.sidebar.addTabTooltip')"
             @click="emit('add')"
         >
             <Icon icon="material-symbols:add-rounded" width="20" height="20" />
         </button>
     </header>
 
-    <!-- 對象 (Audience) 分類標題 -->
-    <div class="section-label">{{ t('behaviors.sidebar.audienceLabel') }}</div>
-
-    <div v-if="loading && audiences.length === 0" class="loading muted">
+    <div v-if="loading && tabs.length === 0" class="loading muted">
         {{ t('common.loading') }}
     </div>
 
-    <ul v-else class="target-list">
-        <!-- all 釘頂 -->
-        <li
-            v-if="allEntry"
-            :class="['target-row', 'pinned', { active: selectedKey === allEntry.key }]"
-            @click="emit('select', allEntry.key)"
-        >
-            <div class="avatar avatar-fallback all-dms" aria-hidden="true">
-                <Icon icon="material-symbols:forum-outline-rounded" width="18" height="18" />
-            </div>
-            <div class="meta">
-                <div class="name">{{ labelFor(allEntry) }}</div>
-                <div class="sub">{{ t('behaviors.sidebar.allDmsHint') }}</div>
-            </div>
-        </li>
+    <template v-else>
+        <!-- Top-level fixed tabs -->
+        <ul class="tab-list">
+            <li
+                v-for="tab in topTabs"
+                :key="tab.id"
+                :class="['tab-row', 'pinned', { active: selectedTabId === tab.id }]"
+                @click="emit('select', tab.id)"
+            >
+                <div :class="['avatar', avatarClassFor(tab)]" aria-hidden="true">
+                    <Icon :icon="iconFor(tab)" width="18" height="18" />
+                </div>
+                <div class="meta">
+                    <div class="name">{{ labelFor(tab) }}</div>
+                    <div class="sub">{{ subtextFor(tab) }}</div>
+                </div>
+            </li>
+        </ul>
 
-        <!-- user / group audiences -->
-        <li
-            v-for="entry in otherEntries"
-            :key="entry.key"
-            :class="['target-row', { active: selectedKey === entry.key }]"
-            @click="emit('select', entry.key)"
-        >
-            <template v-if="entry.kind === 'user'">
-                <div class="avatar avatar-fallback">
-                    {{ labelFor(entry).charAt(0).toUpperCase() }}
+        <!-- Guild section -->
+        <div class="section-header" @click="guildOpen = !guildOpen">
+            <Icon
+                :icon="guildOpen ? 'material-symbols:expand-more-rounded' : 'material-symbols:chevron-right-rounded'"
+                width="18" height="18"
+            />
+            <span class="section-label">{{ t('behaviors.sidebar.guildSection') }}</span>
+        </div>
+        <ul v-show="guildOpen" class="tab-list">
+            <li
+                v-for="tab in guildTabs"
+                :key="tab.id"
+                :class="['tab-row', { active: selectedTabId === tab.id, pinned: tab.isFixed }]"
+                @click="emit('select', tab.id)"
+            >
+                <div :class="['avatar', avatarClassFor(tab)]" aria-hidden="true">
+                    <Icon :icon="iconFor(tab)" width="18" height="18" />
                 </div>
                 <div class="meta">
-                    <div class="name">{{ labelFor(entry) }}</div>
-                    <div class="sub">{{ t('behaviors.sidebar.userKindHint') }}</div>
+                    <div class="name">{{ labelFor(tab) }}</div>
+                    <div class="sub">{{ subtextFor(tab) }}</div>
                 </div>
-            </template>
-            <template v-else>
-                <div class="avatar avatar-fallback group">
-                    <Icon icon="material-symbols:groups-outline-rounded" width="18" height="18" />
+            </li>
+            <li v-if="guildTabs.length === 0" class="empty-hint">
+                {{ t('behaviors.sidebar.noGuildTabs') }}
+            </li>
+        </ul>
+
+        <!-- Bot DM section -->
+        <div class="section-header" @click="dmOpen = !dmOpen">
+            <Icon
+                :icon="dmOpen ? 'material-symbols:expand-more-rounded' : 'material-symbols:chevron-right-rounded'"
+                width="18" height="18"
+            />
+            <span class="section-label">{{ t('behaviors.sidebar.dmSection') }}</span>
+        </div>
+        <ul v-show="dmOpen" class="tab-list">
+            <li
+                v-for="tab in dmTabs"
+                :key="tab.id"
+                :class="['tab-row', { active: selectedTabId === tab.id }]"
+                @click="emit('select', tab.id)"
+            >
+                <div :class="['avatar', avatarClassFor(tab)]" aria-hidden="true">
+                    <Icon :icon="iconFor(tab)" width="18" height="18" />
                 </div>
                 <div class="meta">
-                    <div class="name">{{ labelFor(entry) }}</div>
-                    <div class="sub">
-                        {{ t('behaviors.sidebar.behaviorCount', { count: entry.behaviorCount }) }}
-                    </div>
+                    <div class="name">{{ labelFor(tab) }}</div>
+                    <div class="sub">{{ subtextFor(tab) }}</div>
                 </div>
-            </template>
-        </li>
-    </ul>
+            </li>
+            <li v-if="dmTabs.length === 0" class="empty-hint">
+                {{ t('behaviors.sidebar.noDmTabs') }}
+            </li>
+        </ul>
+    </template>
 </template>
 
 <style scoped>
@@ -149,21 +226,29 @@ function labelFor(entry: AudienceEntry): string {
 }
 .ghost:hover { background: var(--bg-surface-hover); }
 
-.section-label {
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     padding: 0.45rem 0.75rem 0.2rem;
+    cursor: pointer;
+    user-select: none;
+    color: var(--text-muted);
+}
+.section-header:hover { color: var(--text); }
+.section-label {
     font-size: 0.72rem;
     font-weight: 600;
-    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
 
-.target-list {
+.tab-list {
     list-style: none;
     margin: 0;
     padding: 0;
 }
-.target-row {
+.tab-row {
     display: flex;
     gap: 0.6rem;
     padding: 0.55rem 0.75rem;
@@ -171,10 +256,10 @@ function labelFor(entry: AudienceEntry): string {
     border-bottom: 1px solid var(--border);
     align-items: center;
 }
-.target-row:hover { background: var(--bg-surface-hover); }
-.target-row.active { background: var(--bg-surface-active); }
-.target-row.pinned { background: var(--bg-surface-hover); }
-.target-row.pinned.active { background: var(--bg-surface-active); }
+.tab-row:hover { background: var(--bg-surface-hover); }
+.tab-row.active { background: var(--bg-surface-active); }
+.tab-row.pinned { background: var(--bg-surface-hover); }
+.tab-row.pinned.active { background: var(--bg-surface-active); }
 .avatar {
     width: 36px;
     height: 36px;
@@ -190,9 +275,17 @@ function labelFor(entry: AudienceEntry): string {
     justify-content: center;
     font-weight: 600;
 }
+.avatar-fallback.all-scope {
+    background: var(--accent-bg);
+    color: var(--accent-text-strong);
+}
 .avatar-fallback.all-dms {
     background: var(--accent-bg);
     color: var(--accent-text-strong);
+}
+.avatar-fallback.guild {
+    background: var(--success-bg, var(--accent-bg));
+    color: var(--success-text, var(--accent-text-strong));
 }
 .avatar-fallback.group {
     background: var(--warn-bg);
@@ -212,6 +305,12 @@ function labelFor(entry: AudienceEntry): string {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+.empty-hint {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-style: italic;
 }
 .muted { color: var(--text-muted); font-size: 0.9rem; }
 .loading { padding: 1rem; text-align: center; }

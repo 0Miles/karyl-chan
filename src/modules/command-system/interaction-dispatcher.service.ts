@@ -213,6 +213,7 @@ export class InteractionDispatcher {
           (row.getDataValue("pluginBehaviorKey") as string | null) ?? null,
         systemKey:
           (row.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
+        scopeTabId: (row.getDataValue("scopeTabId") as number) ?? 1,
       };
     } catch (err) {
       botEventLog.record(

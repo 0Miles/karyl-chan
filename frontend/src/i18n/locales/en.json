@@ -1101,12 +1101,20 @@
         },
         "sidebar": {
             "title": "Behaviors",
-            "audienceLabel": "Audience",
-            "addTooltip": "Add behavior audience",
+            "addTabTooltip": "Add scope tab",
+            "globalAll": "All Scope",
+            "globalAllHint": "Applies to all platforms and contexts",
             "allDms": "All DMs",
             "allDmsHint": "Applies to every DM sender",
-            "userKindHint": "Individual user DM",
-            "behaviorCount": "{count} behaviors"
+            "allBotDms": "All Bot DMs",
+            "allBotDmsHint": "Bot DM channels only",
+            "allGuilds": "All Guilds",
+            "allGuildsHint": "Applies to every guild",
+            "behaviorCount": "{count} behaviors",
+            "guildSection": "Guild",
+            "dmSection": "Bot DMs",
+            "noGuildTabs": "No guild-specific tabs yet",
+            "noDmTabs": "No user-specific tabs yet"
         },
         "addPlugin": {
             "title": "Add plugin behavior",
@@ -1118,17 +1126,18 @@
             "create": "Create"
         },
         "workspace": {
+            "kindGlobalAll": "All Scope",
             "kindAllDms": "All DMs",
+            "kindAllBotDms": "Bot DMs",
+            "kindAllGuilds": "All Guilds",
+            "kindGuild": "Specific Guild",
+            "kindChannel": "Specific Channel",
             "kindUser": "Individual user",
             "kindGroup": "User group",
             "addBehavior": "Add behavior",
-            "addBehaviorMenu": "More add options",
-            "addWebhookBehavior": "Add webhook behavior",
-            "addPluginBehavior": "Add plugin behavior",
-            "deleteTargetTooltip": "Delete this audience",
-            "deleteTargetTitle": "Delete audience",
-            "deleteTargetConfirm": "Delete audience \"{label}\"? All behaviors for this audience will also be removed.",
-            "newBehaviorDefaultTitle": "New behavior",
+            "deleteTabTooltip": "Delete this tab",
+            "deleteTabTitle": "Delete tab",
+            "deleteTabConfirm": "Delete tab \"{label}\"? All behaviors in this tab will also be removed.",
             "empty": "No behaviors configured yet."
         },
         "card": {
@@ -1193,6 +1202,19 @@
             "sourceNoticSystem": "System built-in behavior. Only the trigger value can be edited.",
             "saveTrigger": "Save trigger",
             "saveAxes": "Save axes"
+        },
+        "addTab": {
+            "title": "Add Scope Tab",
+            "typeLabel": "Tab type",
+            "type_specific_guild": "Specific Guild",
+            "type_specific_channel": "Specific Channel",
+            "type_specific_user": "Specific User",
+            "type_specific_group": "User Group",
+            "labelField": "Display name (optional)",
+            "labelPlaceholder": "Leave blank to show ID",
+            "groupNameLabel": "Group name",
+            "groupNamePlaceholder": "e.g. VIP",
+            "submit": "Create tab"
         },
         "addModal": {
             "title": "Add Behavior",

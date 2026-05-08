@@ -14,6 +14,7 @@ import {
   SYSTEM_BEHAVIOR_KEYS,
   type BehaviorSystemKey,
 } from "./models/behavior.model.js";
+import { FIXED_TAB_IDS } from "./models/behavior-scope-tab.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 
 interface SystemBehaviorSeed {
@@ -136,6 +137,7 @@ export async function ensureSystemBehaviors(): Promise<{
       pluginId: null,
       pluginBehaviorKey: null,
       systemKey: seed.systemKey,
+      scopeTabId: FIXED_TAB_IDS.all_dms,
     });
     created.push(seed.systemKey);
   }

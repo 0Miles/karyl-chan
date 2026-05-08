@@ -574,20 +574,10 @@ const saveLabel = computed(() => {
                             </label>
                         </template>
 
-                        <!-- 三軸 section -->
-                        <div class="field-group-title">Discord 三軸</div>
-
-                        <div class="field">
-                            <span class="label">Scope</span>
-                            <AppSelectField v-model="draft.scope" :options="scopeOptions" />
-                        </div>
+                        <!-- Integration Types (scope/contexts derived from tab) -->
                         <label class="field">
                             <span class="label">Integration Types</span>
                             <input v-model="draft.integrationTypes" type="text" placeholder="guild_install,user_install" />
-                        </label>
-                        <label class="field">
-                            <span class="label">Contexts</span>
-                            <input v-model="draft.contexts" type="text" placeholder="Guild,BotDM,PrivateChannel" />
                         </label>
 
                         <!-- 轉發設定 -->

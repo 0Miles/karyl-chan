@@ -35,6 +35,7 @@ import {
 } from "./modules/admin/authorized-user.service.js";
 import { botEventLog } from "./modules/bot-events/bot-event-log.js";
 import { ensureSystemBehaviors } from "./modules/behavior/system-seed.service.js";
+import { ensureFixedScopeTabs } from "./modules/behavior/scope-tab-seed.service.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
 // M1-C2: CommandReconciler / InteractionDispatcher / MessagePatternMatcher 接線。
@@ -511,6 +512,7 @@ async function run() {
     // 呼叫，導致 behaviors 表沒 source='system' row → CommandReconciler 的
     // desired set 不含 /login，Discord 不註冊。這裡 idempotent 補建，
     // 必須在 reconcileAll（bot ready handler 內）之前完成。
+    await ensureFixedScopeTabs();
     await ensureSystemBehaviors().catch((err: unknown) => {
       log.error({ err }, "ensureSystemBehaviors failed");
     });

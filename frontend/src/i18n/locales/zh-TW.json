@@ -1101,12 +1101,20 @@
         },
         "sidebar": {
             "title": "Behaviors",
-            "audienceLabel": "對象 (Audience)",
-            "addTooltip": "新增 behavior 對象",
+            "addTabTooltip": "新增範圍分頁",
+            "globalAll": "全範圍",
+            "globalAllHint": "所有平台與情境皆適用",
             "allDms": "所有私訊",
             "allDmsHint": "所有私訊使用者皆適用",
-            "userKindHint": "個別使用者私訊",
-            "behaviorCount": "{count} 個行為"
+            "allBotDms": "所有與 Bot 的私訊",
+            "allBotDmsHint": "僅 Bot 私訊頻道",
+            "allGuilds": "全 Guild",
+            "allGuildsHint": "所有 Guild 皆適用",
+            "behaviorCount": "{count} 個行為",
+            "guildSection": "Guild",
+            "dmSection": "Bot 私訊",
+            "noGuildTabs": "尚無 Guild 專屬分頁",
+            "noDmTabs": "尚無使用者專屬分頁"
         },
         "addPlugin": {
             "title": "新增 Plugin 行為",
@@ -1118,17 +1126,18 @@
             "create": "建立"
         },
         "workspace": {
+            "kindGlobalAll": "全範圍",
             "kindAllDms": "所有私訊",
+            "kindAllBotDms": "Bot 私訊",
+            "kindAllGuilds": "全 Guild",
+            "kindGuild": "指定 Guild",
+            "kindChannel": "指定頻道",
             "kindUser": "個別使用者",
             "kindGroup": "使用者組",
             "addBehavior": "新增行為",
-            "addBehaviorMenu": "更多新增選項",
-            "addWebhookBehavior": "新增 Webhook 行為",
-            "addPluginBehavior": "新增 Plugin 行為",
-            "deleteTargetTooltip": "刪除此對象",
-            "deleteTargetTitle": "刪除對象",
-            "deleteTargetConfirm": "確定要刪除對象「{label}」?其下所有行為將一併移除。",
-            "newBehaviorDefaultTitle": "新行為",
+            "deleteTabTooltip": "刪除此分頁",
+            "deleteTabTitle": "刪除分頁",
+            "deleteTabConfirm": "確定要刪除分頁「{label}」?其下所有行為將一併移除。",
             "empty": "目前沒有設定行為。"
         },
         "card": {
@@ -1193,6 +1202,19 @@
             "sourceNoticSystem": "系統內建 behavior，僅可修改觸發指令",
             "saveTrigger": "儲存觸發",
             "saveAxes": "儲存三軸設定"
+        },
+        "addTab": {
+            "title": "新增範圍分頁",
+            "typeLabel": "分頁類型",
+            "type_specific_guild": "指定 Guild",
+            "type_specific_channel": "指定頻道",
+            "type_specific_user": "指定使用者",
+            "type_specific_group": "使用者組",
+            "labelField": "顯示名稱（選填）",
+            "labelPlaceholder": "留空則使用 ID 顯示",
+            "groupNameLabel": "組名稱",
+            "groupNamePlaceholder": "例：VIP",
+            "submit": "建立分頁"
         },
         "addModal": {
             "title": "新增 Behavior",

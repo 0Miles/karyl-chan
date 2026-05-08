@@ -1101,12 +1101,20 @@
         },
         "sidebar": {
             "title": "Behaviors",
-            "audienceLabel": "对象 (Audience)",
-            "addTooltip": "新增 behavior 对象",
+            "addTabTooltip": "新增范围分页",
+            "globalAll": "全范围",
+            "globalAllHint": "所有平台与情境皆适用",
             "allDms": "所有私信",
             "allDmsHint": "所有私信用户皆适用",
-            "userKindHint": "个别用户私信",
-            "behaviorCount": "{count} 个行为"
+            "allBotDms": "所有与 Bot 的私信",
+            "allBotDmsHint": "仅 Bot 私信频道",
+            "allGuilds": "全 Guild",
+            "allGuildsHint": "所有 Guild 皆适用",
+            "behaviorCount": "{count} 个行为",
+            "guildSection": "Guild",
+            "dmSection": "Bot 私信",
+            "noGuildTabs": "尚无 Guild 专属分页",
+            "noDmTabs": "尚无用户专属分页"
         },
         "addPlugin": {
             "title": "新增 Plugin 行为",
@@ -1118,17 +1126,18 @@
             "create": "创建"
         },
         "workspace": {
+            "kindGlobalAll": "全范围",
             "kindAllDms": "所有私信",
+            "kindAllBotDms": "Bot 私信",
+            "kindAllGuilds": "全 Guild",
+            "kindGuild": "指定 Guild",
+            "kindChannel": "指定频道",
             "kindUser": "个别用户",
             "kindGroup": "用户组",
             "addBehavior": "新增行为",
-            "addBehaviorMenu": "更多新增选项",
-            "addWebhookBehavior": "新增 Webhook 行为",
-            "addPluginBehavior": "新增 Plugin 行为",
-            "deleteTargetTooltip": "删除此对象",
-            "deleteTargetTitle": "删除对象",
-            "deleteTargetConfirm": "确定要删除对象「{label}」？其下所有行为将一并移除。",
-            "newBehaviorDefaultTitle": "新行为",
+            "deleteTabTooltip": "删除此分页",
+            "deleteTabTitle": "删除分页",
+            "deleteTabConfirm": "确定要删除分页「{label}」？其下所有行为将一并移除。",
             "empty": "目前没有设定行为。"
         },
         "card": {
@@ -1193,6 +1202,19 @@
             "sourceNoticSystem": "系统内建 behavior，仅可修改触发指令",
             "saveTrigger": "保存触发",
             "saveAxes": "保存三轴设定"
+        },
+        "addTab": {
+            "title": "新增范围分页",
+            "typeLabel": "分页类型",
+            "type_specific_guild": "指定 Guild",
+            "type_specific_channel": "指定频道",
+            "type_specific_user": "指定用户",
+            "type_specific_group": "用户组",
+            "labelField": "显示名称（选填）",
+            "labelPlaceholder": "留空则使用 ID 显示",
+            "groupNameLabel": "组名称",
+            "groupNamePlaceholder": "例：VIP",
+            "submit": "创建分页"
         },
         "addModal": {
             "title": "新增 Behavior",

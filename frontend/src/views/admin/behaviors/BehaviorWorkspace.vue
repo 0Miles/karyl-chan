@@ -10,39 +10,28 @@ import {
     listBehaviors,
     reorderBehaviors,
     deleteBehavior,
-    deleteBehaviorsByAudience,
+    deleteScopeTab,
     type BehaviorRow,
-    type AudienceEntry,
+    type ScopeTabRow,
 } from '../../../api/behavior';
 import type { PluginRecord } from '../../../api/plugins';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
 
-/**
- * BehaviorWorkspace v2 — 改用 AudienceEntry，移除 v1 target API 依賴
- *
- * 主要變更：
- * - props.target (BehaviorTargetSummary) → props.audience (AudienceEntry)
- * - deleteTarget → 收集該 audience 下所有 behavior ID，emit 'audience-deleted' 讓 Page 負責刪除
- * - group member section（v1 addGroupMember/removeGroupMember）已移除
- *   （v2 中 group members 是 per-behavior 管理，不在 workspace 層面）
- */
-
 const { t } = useI18n();
 
 const props = defineProps<{
-    audience: AudienceEntry;
+    tab: ScopeTabRow;
     canManageCatalog?: boolean;
-    /** Plugin 清單由 BehaviorsPage 層統一載入並快取，避免每次切換 audience 重打 API */
     plugins?: PluginRecord[];
 }>();
 
 const emit = defineEmits<{
-    (e: 'audience-deleted'): void;
+    (e: 'tab-deleted'): void;
     (e: 'add-behavior'): void;
     (e: 'behavior-deleted'): void;
 }>();
 
-// ── behaviors 資料 ────────────────────────────────────────────────────────────
+// ── behaviors data ───────────────────────────────────────────────────────────
 
 const behaviors = ref<BehaviorRow[]>([]);
 const loading = ref(false);
@@ -51,15 +40,11 @@ const newlyCreatedId = ref<number | null>(null);
 const listRef = useTemplateRef<HTMLElement>('listRef');
 let sortable: Sortable | null = null;
 
-async function load(audience: AudienceEntry) {
+async function load(tab: ScopeTabRow) {
     loading.value = true;
     error.value = null;
     try {
-        behaviors.value = await listBehaviors({
-            audienceKind: audience.kind,
-            audienceUserId: audience.kind === 'user' ? (audience.userId ?? undefined) : undefined,
-            audienceGroupName: audience.kind === 'group' ? (audience.groupName ?? undefined) : undefined,
-        });
+        behaviors.value = await listBehaviors({ scopeTabId: tab.id });
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
     } finally {
@@ -67,16 +52,16 @@ async function load(audience: AudienceEntry) {
     }
 }
 
-watch(() => props.audience.key, () => {
+watch(() => props.tab.id, () => {
     teardownSortable();
-    void load(props.audience);
+    void load(props.tab);
 }, { immediate: true });
 
-// ── plugin list（由父元件 BehaviorsPage 傳入，本元件不再自行載入）─────────────
+// ── plugin list ──────────────────────────────────────────────────────────────
 
 const pluginsLocal = computed(() => props.plugins ?? []);
 
-// ── sortable ──────────────────────────────────────────────────────────────────
+// ── sortable ─────────────────────────────────────────────────────────────────
 
 const systemBehaviors = computed(() => behaviors.value.filter(b => b.source === 'system'));
 const customBehaviors = computed(() => behaviors.value.filter(b => b.source === 'custom'));
@@ -115,8 +100,6 @@ async function ensureSortable() {
     });
 }
 
-// Only rebuild Sortable when the count of draggable items changes or the
-// audience switches — not on every behavior field update.
 watch(() => customBehaviors.value.length, async () => {
     await nextTick();
     void ensureSortable();
@@ -124,7 +107,7 @@ watch(() => customBehaviors.value.length, async () => {
 
 onBeforeUnmount(teardownSortable);
 
-// ── event handlers ────────────────────────────────────────────────────────────
+// ── event handlers ───────────────────────────────────────────────────────────
 
 function onUpdated(row: BehaviorRow) {
     behaviors.value = behaviors.value.map(b => b.id === row.id ? row : b);
@@ -135,52 +118,77 @@ function onDeleted(id: number) {
     emit('behavior-deleted');
 }
 
-const deleteAudienceDialogOpen = ref(false);
-const deleteAudienceDeleting = ref(false);
-const deleteAudienceError = ref<string | null>(null);
+const deleteTabDialogOpen = ref(false);
+const deleteTabDeleting = ref(false);
+const deleteTabError = ref<string | null>(null);
 
-const deleteAudienceLabel = computed(() => {
-    if (props.audience.kind !== 'user' && props.audience.kind !== 'group') return '';
-    return props.audience.kind === 'user'
-        ? (getWorkspaceDisplayName(props.audience.userId ?? '') ?? props.audience.userId ?? '?')
-        : (props.audience.groupName ?? '?');
+const deleteTabLabel = computed(() => {
+    const tab = props.tab;
+    if (tab.tabType === 'specific_user') {
+        return getWorkspaceDisplayName(tab.userId ?? '') ?? tab.userId ?? '?';
+    }
+    if (tab.tabType === 'specific_group') return tab.groupName ?? '?';
+    if (tab.tabType === 'specific_guild') return tab.label || tab.guildId || '?';
+    if (tab.tabType === 'specific_channel') return tab.label || tab.channelId || '?';
+    return '';
 });
 
-function onDeleteAudience() {
-    if (props.audience.kind === 'all') return;
-    if (loading.value || behaviors.value.length === 0) return;
-    deleteAudienceError.value = null;
-    deleteAudienceDialogOpen.value = true;
+function onDeleteTab() {
+    if (props.tab.isFixed) return;
+    if (loading.value) return;
+    deleteTabError.value = null;
+    deleteTabDialogOpen.value = true;
 }
 
-async function doDeleteAudience() {
-    if (deleteAudienceDeleting.value) return;
-    deleteAudienceDeleting.value = true;
-    deleteAudienceError.value = null;
+async function doDeleteTab() {
+    if (deleteTabDeleting.value) return;
+    deleteTabDeleting.value = true;
+    deleteTabError.value = null;
     try {
-        await deleteBehaviorsByAudience(props.audience);
-        deleteAudienceDialogOpen.value = false;
-        emit('audience-deleted');
+        await deleteScopeTab(props.tab.id);
+        deleteTabDialogOpen.value = false;
+        emit('tab-deleted');
     } catch (err) {
-        deleteAudienceError.value = err instanceof Error ? err.message : String(err);
+        deleteTabError.value = err instanceof Error ? err.message : String(err);
     } finally {
-        deleteAudienceDeleting.value = false;
+        deleteTabDeleting.value = false;
     }
 }
 
-// Resolve display name for user audiences.
+// Resolve display name for user tabs.
 const workspaceUserIds = computed(() =>
-    props.audience.kind === 'user' && props.audience.userId ? [props.audience.userId] : []
+    props.tab.tabType === 'specific_user' && props.tab.userId ? [props.tab.userId] : []
 );
 const { getDisplayName: getWorkspaceDisplayName } = useUserSummaries(workspaceUserIds);
 
 const headerTitle = computed(() => {
-    if (props.audience.kind === 'all') return t('behaviors.sidebar.allDms');
-    if (props.audience.kind === 'user') {
-        const name = props.audience.userId ? getWorkspaceDisplayName(props.audience.userId) : null;
-        return name ?? props.audience.userId ?? '?';
+    const tab = props.tab;
+    switch (tab.tabType) {
+        case 'global_all': return t('behaviors.sidebar.globalAll');
+        case 'all_dms': return t('behaviors.sidebar.allDms');
+        case 'all_bot_dms': return t('behaviors.sidebar.allBotDms');
+        case 'all_guilds': return t('behaviors.sidebar.allGuilds');
+        case 'specific_guild': return tab.label || tab.guildId || '?';
+        case 'specific_channel': return tab.label || tab.channelId || '?';
+        case 'specific_user': {
+            const name = tab.userId ? getWorkspaceDisplayName(tab.userId) : null;
+            return name ?? tab.userId ?? '?';
+        }
+        case 'specific_group': return tab.groupName ?? '?';
     }
-    return props.audience.groupName ?? '?';
+});
+
+const kindBadge = computed(() => {
+    switch (props.tab.tabType) {
+        case 'global_all': return t('behaviors.workspace.kindGlobalAll');
+        case 'all_dms': return t('behaviors.workspace.kindAllDms');
+        case 'all_bot_dms': return t('behaviors.workspace.kindAllBotDms');
+        case 'all_guilds': return t('behaviors.workspace.kindAllGuilds');
+        case 'specific_guild': return t('behaviors.workspace.kindGuild');
+        case 'specific_channel': return t('behaviors.workspace.kindChannel');
+        case 'specific_user': return t('behaviors.workspace.kindUser');
+        case 'specific_group': return t('behaviors.workspace.kindGroup');
+    }
 });
 </script>
 
@@ -188,11 +196,7 @@ const headerTitle = computed(() => {
     <section class="workspace">
         <header class="ws-head">
             <h2 class="title">{{ headerTitle }}</h2>
-            <span class="kind-badge">
-                <template v-if="audience.kind === 'all'">{{ t('behaviors.workspace.kindAllDms') }}</template>
-                <template v-else-if="audience.kind === 'user'">{{ t('behaviors.workspace.kindUser') }}</template>
-                <template v-else>{{ t('behaviors.workspace.kindGroup') }}</template>
-            </span>
+            <span class="kind-badge">{{ kindBadge }}</span>
             <span class="spacer" />
             <AppButton
                 variant="primary"
@@ -202,14 +206,14 @@ const headerTitle = computed(() => {
                 @click="emit('add-behavior')"
             >{{ t('behaviors.workspace.addBehavior') }}</AppButton>
             <AppButton
-                v-if="audience.kind !== 'all' && canManageCatalog"
+                v-if="!tab.isFixed && canManageCatalog"
                 variant="danger"
                 size="sm"
                 icon="material-symbols:delete-outline-rounded"
-                :disabled="loading || behaviors.length === 0"
-                :title="t('behaviors.workspace.deleteTargetTooltip')"
+                :disabled="loading"
+                :title="t('behaviors.workspace.deleteTabTooltip')"
                 style="padding: 0.4rem; min-width: 0;"
-                @click="onDeleteAudience"
+                @click="onDeleteTab"
             />
         </header>
 
@@ -219,7 +223,7 @@ const headerTitle = computed(() => {
         </p>
         <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-        <!-- system behaviors（固定釘頂，不可拖曳）-->
+        <!-- system behaviors -->
         <div v-if="systemBehaviors.length > 0" class="card-list">
             <BehaviorCard
                 v-for="b in systemBehaviors"
@@ -230,7 +234,7 @@ const headerTitle = computed(() => {
             />
         </div>
 
-        <!-- plugin behaviors（固定，不可拖曳）-->
+        <!-- plugin behaviors -->
         <div v-if="pluginBehaviors.length > 0" class="card-list">
             <BehaviorCard
                 v-for="b in pluginBehaviors"
@@ -241,7 +245,7 @@ const headerTitle = computed(() => {
             />
         </div>
 
-        <!-- custom behaviors（可拖曳排序）-->
+        <!-- custom behaviors (drag-sortable) -->
         <div ref="listRef" class="card-list">
             <BehaviorCard
                 v-for="b in customBehaviors"
@@ -255,17 +259,16 @@ const headerTitle = computed(() => {
         </div>
     </section>
 
-    <!-- 刪除 audience 確認 dialog -->
     <AppConfirmDialog
-        :visible="deleteAudienceDialogOpen"
-        :title="t('behaviors.workspace.deleteTargetTitle')"
-        :message="t('behaviors.workspace.deleteTargetConfirm', { label: deleteAudienceLabel })"
+        :visible="deleteTabDialogOpen"
+        :title="t('behaviors.workspace.deleteTabTitle')"
+        :message="t('behaviors.workspace.deleteTabConfirm', { label: deleteTabLabel })"
         :confirm-label="t('common.delete')"
         confirm-variant="danger"
-        :loading="deleteAudienceDeleting"
-        :error="deleteAudienceError ?? undefined"
-        @close="deleteAudienceDialogOpen = false"
-        @confirm="doDeleteAudience"
+        :loading="deleteTabDeleting"
+        :error="deleteTabError ?? undefined"
+        @close="deleteTabDialogOpen = false"
+        @confirm="doDeleteTab"
     />
 </template>
 

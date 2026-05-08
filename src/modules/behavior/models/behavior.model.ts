@@ -177,6 +177,12 @@ export const Behavior = sequelize.define(
       allowNull: true,
       validate: { isIn: [[null, "admin-login", "manual", "break"]] },
     },
+    // scope tab FK (added by migration 20260508010000)
+    scopeTabId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    },
   },
   {
     tableName: "behaviors",
@@ -214,6 +220,7 @@ export interface BehaviorRow {
   pluginId: number | null;
   pluginBehaviorKey: string | null;
   systemKey: BehaviorSystemKey | null;
+  scopeTabId: number;
 }
 
 function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
@@ -261,6 +268,7 @@ function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
       (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
     systemKey:
       (model.getDataValue("systemKey") as BehaviorSystemKey | null) ?? null,
+    scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
   };
 }
 

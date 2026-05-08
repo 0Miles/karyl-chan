@@ -9,20 +9,13 @@ import { hasAdminCapability } from '../../../libs/admin-capabilities';
 import BehaviorSidebar from './BehaviorSidebar.vue';
 import BehaviorWorkspace from './BehaviorWorkspace.vue';
 import AddBehaviorModal from './AddBehaviorModal.vue';
+import AddScopeTabModal from './AddScopeTabModal.vue';
 import {
-    listAudiences,
-    type AudienceEntry,
+    listScopeTabs,
+    type ScopeTabRow,
     type BehaviorRow,
-    type BehaviorAudienceKind,
 } from '../../../api/behavior';
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
-
-/**
- * BehaviorsPage v2 — sidebar 切到 audience-summary endpoint
- *
- * 移除 v1 target 依賴（listTargets / createUserTarget / AddTargetModal）。
- * sidebar 資料來自 GET /api/behaviors/audience-summary，前端聚合 DISTINCT。
- */
 
 const { t } = useI18n();
 const { isMobile } = useBreakpoint();
@@ -34,38 +27,27 @@ const canManageCatalog = computed(() => {
     return hasAdminCapability(caps, 'behavior.manage');
 });
 
-const audiences = ref<AudienceEntry[]>([]);
-// 預設選 'all'，讓 BehaviorWorkspace 可與 listAudiences 並行 mount 載入
-const selectedKey = ref<string>('all');
+const tabs = ref<ScopeTabRow[]>([]);
+const selectedTabId = ref<number>(1);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
-// Plugin 清單：page-level 快取，避免每次切換 audience 重打 API
 const plugins = ref<PluginRecord[]>([]);
 
-// AddBehaviorModal 開關
 const addBehaviorModalOpen = ref(false);
+const addTabModalOpen = ref(false);
 
-// 當 audiences 尚未載入時，提供 synthetic 'all' entry 讓 workspace 可並行 mount
-const SYNTHETIC_ALL_AUDIENCE: AudienceEntry = { kind: 'all', key: 'all', behaviorCount: 0 };
-
-const selectedAudience = computed((): AudienceEntry =>
-    audiences.value.find(a => a.key === selectedKey.value) ?? SYNTHETIC_ALL_AUDIENCE
-);
-
-const selectedAudienceKind = computed<BehaviorAudienceKind>(() =>
-    selectedAudience.value.kind
+const selectedTab = computed((): ScopeTabRow | null =>
+    tabs.value.find(t => t.id === selectedTabId.value) ?? null
 );
 
 async function load() {
     loading.value = true;
     error.value = null;
     try {
-        audiences.value = await listAudiences();
-        // 確認選中的 key 仍然存在；若不在清單裡（audience 剛被刪）則改選 all
-        if (!audiences.value.some(a => a.key === selectedKey.value)) {
-            const fallback = audiences.value.find(a => a.kind === 'all') ?? audiences.value[0];
-            selectedKey.value = fallback?.key ?? 'all';
+        tabs.value = await listScopeTabs();
+        if (!tabs.value.some(t => t.id === selectedTabId.value)) {
+            selectedTabId.value = tabs.value[0]?.id ?? 1;
         }
     } catch (err) {
         error.value = err instanceof Error ? err.message : String(err);
@@ -75,30 +57,32 @@ async function load() {
 }
 
 onMounted(() => {
-    // 並行載入 audiences + plugins，兩者互不依賴
     void load();
     listPlugins().then(v => { plugins.value = v; }).catch(() => { plugins.value = []; });
 });
 
-function onSelect(key: string) {
-    selectedKey.value = key;
+function onSelect(tabId: number) {
+    selectedTabId.value = tabId;
     if (isMobile.value) closeOverlay();
 }
 
-// audience-deleted：workspace 已完成刪除，重新 load sidebar
-async function onAudienceDeleted() {
+async function onTabDeleted() {
     await load();
 }
 
-// behavior 建立後重新載入 audience-summary（count 可能改變）
 async function onBehaviorCreated(_row: BehaviorRow) {
     addBehaviorModalOpen.value = false;
     await load();
 }
 
-// workspace 通知有 behavior 被刪（count 更新）
 async function onBehaviorDeleted() {
     await load();
+}
+
+async function onTabCreated(tab: ScopeTabRow) {
+    addTabModalOpen.value = false;
+    await load();
+    selectedTabId.value = tab.id;
 }
 </script>
 
@@ -106,34 +90,39 @@ async function onBehaviorDeleted() {
     <SidebarLayout>
         <template #sidebar>
             <BehaviorSidebar
-                :audiences="audiences"
-                :selected-key="selectedKey"
+                :tabs="tabs"
+                :selected-tab-id="selectedTabId"
                 :loading="loading"
                 :can-add="canManageCatalog"
                 @select="onSelect"
-                @add="addBehaviorModalOpen = true"
+                @add="addTabModalOpen = true"
             />
         </template>
 
         <BehaviorWorkspace
-            :key="selectedAudience.key"
-            :audience="selectedAudience"
+            v-if="selectedTab"
+            :key="selectedTab.id"
+            :tab="selectedTab"
             :can-manage-catalog="canManageCatalog"
             :plugins="plugins"
-            @audience-deleted="onAudienceDeleted"
+            @tab-deleted="onTabDeleted"
             @add-behavior="addBehaviorModalOpen = true"
             @behavior-deleted="onBehaviorDeleted"
         />
 
-        <!-- 新增 Behavior modal（v2 wizard，同時負責新增 audience）-->
         <AddBehaviorModal
             :visible="addBehaviorModalOpen"
-            :default-audience-kind="selectedAudienceKind"
-            :default-audience-user-id="selectedAudience.userId"
-            :default-audience-group-name="selectedAudience.groupName"
+            :scope-tab-id="selectedTabId"
+            :scope-tab="selectedTab"
             :preloaded-plugins="plugins"
             @close="addBehaviorModalOpen = false"
             @created="onBehaviorCreated"
+        />
+
+        <AddScopeTabModal
+            :visible="addTabModalOpen"
+            @close="addTabModalOpen = false"
+            @created="onTabCreated"
         />
     </SidebarLayout>
 </template>
