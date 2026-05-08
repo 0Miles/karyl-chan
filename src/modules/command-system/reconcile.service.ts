@@ -101,6 +101,43 @@ function parseIntegrationTypes(raw: string): DiscordIntegrationType[] {
 
 // ── 輔助：行比對（指令是否需要 patch）────────────────────────────────────────
 
+/**
+ * Canonical JSON for options comparison.
+ * Projects each option (and nested sub-command options) to a stable
+ * {type, name, description, required, options} shape, sorts sibling
+ * arrays by name, then serialises to JSON.
+ * Used for both the desired side (ApplicationCommandOptionData[]) and
+ * the existing side (ApplicationCommandOption[] from Discord's cache).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function canonicalOptions(options: any[]): string {
+  type CanonicalOption = {
+    type: number;
+    name: string;
+    description: string;
+    required: boolean;
+    options?: CanonicalOption[];
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function project(o: any): CanonicalOption {
+    const node: CanonicalOption = {
+      type: o.type as number,
+      name: o.name as string,
+      description: (o.description as string | undefined) ?? "",
+      required: (o.required as boolean | undefined) ?? false,
+    };
+    if (Array.isArray(o.options) && o.options.length > 0) {
+      node.options = (o.options as unknown[])
+        .map(project)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return node;
+  }
+  return JSON.stringify(
+    options.map(project).sort((a, b) => a.name.localeCompare(b.name)),
+  );
+}
+
 function commandNeedsPatch(
   existing: ApplicationCommand,
   desired: ApplicationCommandData,
@@ -130,6 +167,18 @@ function commandNeedsPatch(
       .integrationTypes ?? [];
   const desiredItSorted = desiredIt.slice().sort().join(",");
   if (existItSorted !== desiredItSorted) return true;
+
+  // 比對 options（sub_command / 參數定義）
+  // Discord cache 的 existing.options 是 ApplicationCommandOption[]；
+  // desired.options 是 ApplicationCommandOptionData[]。
+  // 兩側都序列化成 canonical JSON 再比對，避免嵌套 sub_command stale。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existOptions: any[] = (existing as any).options ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const desiredOptions: any[] = (desired as any).options ?? [];
+  if (canonicalOptions(existOptions) !== canonicalOptions(desiredOptions)) {
+    return true;
+  }
 
   return false;
 }
