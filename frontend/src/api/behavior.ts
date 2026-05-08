@@ -159,7 +159,8 @@ export async function listBehaviors(params?: {
   triggerType?: BehaviorTriggerType;
 }): Promise<BehaviorRow[]> {
   const qs = new URLSearchParams();
-  if (params?.scopeTabId != null) qs.set("scopeTabId", String(params.scopeTabId));
+  if (params?.scopeTabId != null)
+    qs.set("scopeTabId", String(params.scopeTabId));
   if (params?.audienceKind) qs.set("audienceKind", params.audienceKind);
   if (params?.audienceUserId) qs.set("audienceUserId", params.audienceUserId);
   if (params?.audienceGroupName)
@@ -339,9 +340,7 @@ export async function updateScopeTab(
   return body.tab;
 }
 
-export async function deleteScopeTab(
-  id: number,
-): Promise<{ deleted: number }> {
+export async function deleteScopeTab(id: number): Promise<{ deleted: number }> {
   const r = await authedFetch(`/api/behavior-tabs/${id}`, {
     method: "DELETE",
   });

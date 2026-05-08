@@ -63,7 +63,10 @@ export async function registerScopeTabRoutes(
 
     // Attach behavior count per tab
     const counts = (await Behavior.findAll({
-      attributes: ["scopeTabId", [Behavior.sequelize!.fn("COUNT", Behavior.sequelize!.col("id")), "cnt"]],
+      attributes: [
+        "scopeTabId",
+        [Behavior.sequelize!.fn("COUNT", Behavior.sequelize!.col("id")), "cnt"],
+      ],
       group: ["scopeTabId"],
       raw: true,
     })) as unknown as Array<{ scopeTabId: number; cnt: string | number }>;
@@ -119,9 +122,7 @@ export async function registerScopeTabRoutes(
       }
     } else if (tabType === "specific_group") {
       if (!body.groupName?.trim()) {
-        return reply
-          .code(400)
-          .send({ error: "specific_group 需要 groupName" });
+        return reply.code(400).send({ error: "specific_group 需要 groupName" });
       }
     }
 
@@ -138,7 +139,9 @@ export async function registerScopeTabRoutes(
 
     const existing = await BehaviorScopeTab.findOne({ where });
     if (existing) {
-      return reply.code(409).send({ error: "此分頁已存在", tab: rowOf(existing) });
+      return reply
+        .code(409)
+        .send({ error: "此分頁已存在", tab: rowOf(existing) });
     }
 
     // Max sort order among dynamic tabs
@@ -155,9 +158,10 @@ export async function registerScopeTabRoutes(
       tabType,
       label: body.label?.trim() || "",
       isFixed: false,
-      guildId: tabType === "specific_guild" || tabType === "specific_channel"
-        ? body.guildId!.trim()
-        : null,
+      guildId:
+        tabType === "specific_guild" || tabType === "specific_channel"
+          ? body.guildId!.trim()
+          : null,
       channelId: tabType === "specific_channel" ? body.channelId!.trim() : null,
       userId: tabType === "specific_user" ? body.userId!.trim() : null,
       groupName: tabType === "specific_group" ? body.groupName!.trim() : null,
@@ -202,7 +206,10 @@ export async function registerScopeTabRoutes(
       patch["label"] = body.label?.trim() ?? "";
     }
     if ("sortOrder" in body) {
-      if (typeof body.sortOrder !== "number" || !Number.isFinite(body.sortOrder)) {
+      if (
+        typeof body.sortOrder !== "number" ||
+        !Number.isFinite(body.sortOrder)
+      ) {
         return reply.code(400).send({ error: "sortOrder 必須為有效數字" });
       }
       patch["sortOrder"] = body.sortOrder;
