@@ -37,6 +37,8 @@ const props = defineProps<{
     defaultAudienceKind?: BehaviorAudienceKind;
     defaultAudienceUserId?: string;
     defaultAudienceGroupName?: string;
+    /** 由 BehaviorsPage 傳入的 page-level plugins 快取；若有則不再自行打 API */
+    preloadedPlugins?: PluginRecord[];
 }>();
 
 const emit = defineEmits<{
@@ -50,17 +52,20 @@ type Step = 'step1' | 'step2-custom' | 'step2-plugin';
 const step = ref<Step>('step1');
 const selectedSource = ref<BehaviorSource | null>(null);
 
-// ── plugins 預載 ──────────────────────────────────────────────────────────────
+// ── plugins 預載（優先使用父層傳入的快取，無則自行打 API）────────────────────
 
-const plugins = ref<PluginRecord[]>([]);
+const pluginsSelf = ref<PluginRecord[]>([]);
 const pluginsLoading = ref(false);
 
-async function loadPlugins() {
+const plugins = computed(() => props.preloadedPlugins ?? pluginsSelf.value);
+
+async function loadPluginsIfNeeded() {
+    if (props.preloadedPlugins) return;  // 父層已快取，不重打
     pluginsLoading.value = true;
     try {
-        plugins.value = await listPlugins();
+        pluginsSelf.value = await listPlugins();
     } catch {
-        plugins.value = [];
+        pluginsSelf.value = [];
     } finally {
         pluginsLoading.value = false;
     }
@@ -74,7 +79,7 @@ watch(() => props.visible, (open) => {
         selectedSource.value = null;
         resetCustomForm();
         resetPluginForm();
-        void loadPlugins();
+        void loadPluginsIfNeeded();
     }
 });
 

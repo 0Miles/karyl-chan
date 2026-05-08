@@ -14,7 +14,7 @@ import {
     type BehaviorRow,
     type AudienceEntry,
 } from '../../../api/behavior';
-import { listPlugins, type PluginRecord } from '../../../api/plugins';
+import type { PluginRecord } from '../../../api/plugins';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 /**
@@ -32,6 +32,8 @@ const { t } = useI18n();
 const props = defineProps<{
     audience: AudienceEntry;
     canManageCatalog?: boolean;
+    /** Plugin 清單由 BehaviorsPage 層統一載入並快取，避免每次切換 audience 重打 API */
+    plugins?: PluginRecord[];
 }>();
 
 const emit = defineEmits<{
@@ -70,14 +72,9 @@ watch(() => props.audience.key, () => {
     void load(props.audience);
 }, { immediate: true });
 
-// ── plugin list ───────────────────────────────────────────────────────────────
+// ── plugin list（由父元件 BehaviorsPage 傳入，本元件不再自行載入）─────────────
 
-const plugins = ref<PluginRecord[]>([]);
-async function loadPlugins() {
-    try { plugins.value = await listPlugins(); }
-    catch { plugins.value = []; }
-}
-void loadPlugins();
+const pluginsLocal = computed(() => props.plugins ?? []);
 
 // ── sortable ──────────────────────────────────────────────────────────────────
 
@@ -228,7 +225,7 @@ const headerTitle = computed(() => {
                 v-for="b in systemBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :plugins="plugins"
+                :plugins="pluginsLocal"
                 @updated="onUpdated"
             />
         </div>
@@ -239,7 +236,7 @@ const headerTitle = computed(() => {
                 v-for="b in pluginBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :plugins="plugins"
+                :plugins="pluginsLocal"
                 @updated="onUpdated"
             />
         </div>
@@ -250,7 +247,7 @@ const headerTitle = computed(() => {
                 v-for="b in customBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :plugins="plugins"
+                :plugins="pluginsLocal"
                 :initially-open="newlyCreatedId === b.id"
                 @updated="onUpdated"
                 @deleted="onDeleted"

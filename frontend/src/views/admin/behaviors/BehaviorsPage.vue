@@ -15,6 +15,7 @@ import {
     type BehaviorRow,
     type BehaviorAudienceKind,
 } from '../../../api/behavior';
+import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
 /**
  * BehaviorsPage v2 — sidebar 切到 audience-summary endpoint
@@ -38,6 +39,9 @@ const audiences = ref<AudienceEntry[]>([]);
 const selectedKey = ref<string>('all');
 const loading = ref(false);
 const error = ref<string | null>(null);
+
+// Plugin 清單：page-level 快取，避免每次切換 audience 重打 API
+const plugins = ref<PluginRecord[]>([]);
 
 // AddBehaviorModal 開關
 const addBehaviorModalOpen = ref(false);
@@ -70,7 +74,11 @@ async function load() {
     }
 }
 
-onMounted(() => { void load(); });
+onMounted(() => {
+    // 並行載入 audiences + plugins，兩者互不依賴
+    void load();
+    listPlugins().then(v => { plugins.value = v; }).catch(() => { plugins.value = []; });
+});
 
 function onSelect(key: string) {
     selectedKey.value = key;
@@ -111,6 +119,7 @@ async function onBehaviorDeleted() {
             :key="selectedAudience.key"
             :audience="selectedAudience"
             :can-manage-catalog="canManageCatalog"
+            :plugins="plugins"
             @audience-deleted="onAudienceDeleted"
             @add-behavior="addBehaviorModalOpen = true"
             @behavior-deleted="onBehaviorDeleted"
@@ -122,6 +131,7 @@ async function onBehaviorDeleted() {
             :default-audience-kind="selectedAudienceKind"
             :default-audience-user-id="selectedAudience.userId"
             :default-audience-group-name="selectedAudience.groupName"
+            :preloaded-plugins="plugins"
             @close="addBehaviorModalOpen = false"
             @created="onBehaviorCreated"
         />
