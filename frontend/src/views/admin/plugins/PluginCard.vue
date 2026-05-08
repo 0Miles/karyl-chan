@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import { RouterLink } from 'vue-router';
 import AppModal from '../../../components/AppModal.vue';
 import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
+import AppButton from '../../../components/AppButton.vue';
 import {
     approvePluginScopes,
     deletePlugin,
@@ -397,10 +398,9 @@ async function confirmDelete() {
                     <dt>{{ t('admin.plugins.scopes.pending') }}</dt>
                     <dd class="pending-row">
                         <code v-for="s in pendingScopes" :key="s" class="scope-chip scope-chip--pending">{{ s }}</code>
-                        <button type="button" class="approve-btn" :disabled="approving" @click="approveModalOpen = true">
-                            <Icon icon="material-symbols:check-circle-outline-rounded" width="14" height="14" />
+                        <AppButton variant="primary" size="sm" icon="material-symbols:check-circle-outline-rounded" :disabled="approving" @click="approveModalOpen = true">
                             {{ t('admin.plugins.scopes.approveButton') }}
-                        </button>
+                        </AppButton>
                     </dd>
                 </div>
                 <div class="meta-row" v-else-if="approvedScopes.length === 0 && rpcScopes.length > 0">
@@ -463,23 +463,18 @@ async function confirmDelete() {
                         />
                     </label>
                     <div class="config-actions">
-                        <button type="button" class="primary" :disabled="configSaving" @click="saveConfig">
-                            {{ configSaving ? '儲存中…' : '儲存設定' }}
-                        </button>
+                        <AppButton variant="primary" size="sm" :loading="configSaving" @click="saveConfig">
+                            儲存設定
+                        </AppButton>
                     </div>
                 </div>
             </section>
 
             <!-- Setup secret section -->
             <section class="setup-secret-section">
-                <button
-                    type="button"
-                    class="setup-secret-btn"
-                    @click="setupSecretConfirmOpen = true"
-                >
-                    <Icon icon="material-symbols:key-outline-rounded" width="14" height="14" />
+                <AppButton variant="danger" size="sm" icon="material-symbols:key-outline-rounded" @click="setupSecretConfirmOpen = true">
                     {{ t('admin.plugins.setupSecret.button') }}
-                </button>
+                </AppButton>
             </section>
 
             <details v-if="plugin.manifest" class="manifest-fold">
@@ -526,14 +521,15 @@ async function confirmDelete() {
                     autocomplete="off"
                     @click="($event.target as HTMLInputElement).select()"
                 />
-                <button type="button" class="copy-btn" :class="{ copied: setupSecretCopied }" @click="copySetupSecret">
-                    <Icon
-                        :icon="setupSecretCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'"
-                        width="15"
-                        height="15"
-                    />
+                <AppButton
+                    :variant="setupSecretCopied ? 'secondary' : 'ghost'"
+                    size="sm"
+                    :icon="setupSecretCopied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-outline-rounded'"
+                    :style="setupSecretCopied ? 'color: var(--success, #16a34a); border-color: color-mix(in srgb, var(--success, #16a34a) 35%, transparent);' : ''"
+                    @click="copySetupSecret"
+                >
                     {{ setupSecretCopied ? t('admin.plugins.setupSecret.copiedButton') : t('admin.plugins.setupSecret.copyButton') }}
-                </button>
+                </AppButton>
             </div>
             <p class="secret-instruction">{{ t('admin.plugins.setupSecret.instruction') }}</p>
             <div class="secret-env-hint">
@@ -552,14 +548,9 @@ async function confirmDelete() {
                 <span>{{ t('admin.plugins.setupSecret.checkboxLabel') }}</span>
             </label>
             <div class="secret-result-actions">
-                <button
-                    type="button"
-                    class="primary"
-                    :disabled="!setupSecretAcknowledged"
-                    @click="closeSecretResult"
-                >
+                <AppButton variant="primary" :disabled="!setupSecretAcknowledged" @click="closeSecretResult">
                     {{ t('admin.plugins.setupSecret.closeButton') }}
-                </button>
+                </AppButton>
             </div>
         </div>
     </AppModal>
@@ -579,13 +570,12 @@ async function confirmDelete() {
             </div>
             <p v-if="approveError" class="error" role="alert">{{ approveError }}</p>
             <div class="acd-scope-actions">
-                <button type="button" class="acd-scope-btn acd-scope-btn--ghost" :disabled="approving" @click="approveModalOpen = false">
+                <AppButton variant="ghost" :disabled="approving" @click="approveModalOpen = false">
                     {{ t('common.cancel') }}
-                </button>
-                <button type="button" class="acd-scope-btn acd-scope-btn--primary" :disabled="approving" @click="confirmApproveScopes">
-                    <Icon v-if="approving" icon="material-symbols:progress-activity" width="14" height="14" class="spin" />
-                    {{ approving ? t('common.loading') : t('admin.plugins.scopes.approveButton') }}
-                </button>
+                </AppButton>
+                <AppButton variant="primary" :loading="approving" @click="confirmApproveScopes">
+                    {{ t('admin.plugins.scopes.approveButton') }}
+                </AppButton>
             </div>
         </div>
     </AppModal>
@@ -810,16 +800,6 @@ async function confirmDelete() {
     grid-column: 1 / -1;
     display: flex; justify-content: flex-end;
 }
-.config-actions .primary {
-    padding: 0.4rem 0.85rem;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-}
-.config-actions .primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ── Scope chips ─────────────────────────────────────────────────── */
 .scope-chip--approved {
@@ -859,45 +839,11 @@ async function confirmDelete() {
     gap: 0.25rem;
     align-items: center;
 }
-.approve-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.18rem 0.55rem;
-    font-size: 0.78rem;
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.approve-btn:hover { filter: brightness(1.1); }
-.approve-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* ── Setup secret section ────────────────────────────────────────── */
 .setup-secret-section {
     display: flex;
     padding-top: 0.1rem;
-}
-.setup-secret-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.3rem 0.7rem;
-    font-size: 0.78rem;
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    background: none;
-    color: var(--danger, #dc2626);
-    border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 45%, transparent);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
-}
-.setup-secret-btn:hover {
-    background: color-mix(in srgb, var(--danger, #dc2626) 9%, var(--bg-surface));
-    border-color: color-mix(in srgb, var(--danger, #dc2626) 65%, transparent);
 }
 
 /* ── Secret result modal ─────────────────────────────────────────── */
@@ -935,27 +881,6 @@ async function confirmDelete() {
 .secret-input:focus {
     outline: 2px solid var(--accent);
     outline-offset: -1px;
-}
-.copy-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.22rem;
-    flex-shrink: 0;
-    padding: 0.35rem 0.7rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--bg-surface);
-    color: var(--text);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.copy-btn:hover { background: var(--bg-surface-hover, var(--bg-page)); }
-.copy-btn.copied {
-    background: color-mix(in srgb, var(--success, #16a34a) 14%, var(--bg-surface));
-    color: var(--success, #16a34a);
-    border-color: color-mix(in srgb, var(--success, #16a34a) 35%, transparent);
 }
 .secret-instruction {
     margin: 0;
@@ -1012,20 +937,6 @@ async function confirmDelete() {
     justify-content: flex-end;
     padding-top: 0.25rem;
     border-top: 1px solid var(--border);
-}
-.secret-result-actions .primary {
-    padding: 0.4rem 0.85rem;
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-.secret-result-actions .primary:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
 }
 
 /* ── View detail link ────────────────────────────────────────────── */
@@ -1135,29 +1046,4 @@ async function confirmDelete() {
     padding-top: 0.25rem;
     border-top: 1px solid var(--border);
 }
-.acd-scope-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.4rem 0.85rem;
-    border-radius: var(--radius-sm);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-}
-.acd-scope-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.acd-scope-btn--ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-.acd-scope-btn--ghost:not(:disabled):hover { background: var(--bg-surface-hover); }
-.acd-scope-btn--primary {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    border: none;
-}
-.acd-scope-btn--primary:not(:disabled):hover { filter: brightness(1.1); }
-@keyframes spin { to { transform: rotate(360deg); } }
-.spin { animation: spin 0.8s linear infinite; }
 </style>
