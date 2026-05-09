@@ -180,7 +180,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
     function cancelReply() { replyTo.value = null; }
 
     function startEdit(message: Message) {
-        if (opts.botUserId && message.author.id !== opts.botUserId.value) return;
+        if (opts.botUserId?.value && message.author.id !== opts.botUserId.value) return;
         editingMessageId.value = message.id;
     }
     function cancelEdit() { editingMessageId.value = null; }
@@ -201,7 +201,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
     async function confirmDelete(message: Message, event?: MouseEvent) {
         const channelId = opts.channelId.value;
         if (!channelId) return;
-        if (opts.botUserId && message.author.id !== opts.botUserId.value) return;
+        if (opts.botUserId?.value && message.author.id !== opts.botUserId.value) return;
         const skipPrompt = event?.shiftKey === true;
         if (!skipPrompt && !window.confirm('Delete this message?')) return;
         try {

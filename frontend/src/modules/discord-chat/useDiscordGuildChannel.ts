@@ -85,17 +85,36 @@ export function useDiscordGuildChannel(guildId: Ref<string | null>, opts: UseDis
         channelId: selectedChannelId,
         botUserId,
         api: {
-            listMessages: (channelId, o) => guildStore.listMessages(guildId.value!, channelId, o),
-            sendMessage: (channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor) =>
-                guildStore.sendMessage(guildId.value!, channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor),
-            editMessage: (channelId, messageId, content) =>
-                guildStore.editMessage(guildId.value!, channelId, messageId, content),
-            deleteMessage: (channelId, messageId) =>
-                guildStore.deleteMessage(guildId.value!, channelId, messageId),
-            addReaction: (channelId, messageId, emoji) =>
-                guildStore.addReaction(guildId.value!, channelId, messageId, emoji),
-            removeReaction: (channelId, messageId, emoji) =>
-                guildStore.removeReaction(guildId.value!, channelId, messageId, emoji),
+            listMessages: (channelId, o) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.resolve({ messages: [], hasMore: false });
+                return guildStore.listMessages(gid, channelId, o);
+            },
+            sendMessage: (channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.reject(new Error("no guild selected"));
+                return guildStore.sendMessage(gid, channelId, content, files, stickerIds, replyToMessageId, replyPingAuthor);
+            },
+            editMessage: (channelId, messageId, content) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.reject(new Error("no guild selected"));
+                return guildStore.editMessage(gid, channelId, messageId, content);
+            },
+            deleteMessage: (channelId, messageId) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.reject(new Error("no guild selected"));
+                return guildStore.deleteMessage(gid, channelId, messageId);
+            },
+            addReaction: (channelId, messageId, emoji) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.reject(new Error("no guild selected"));
+                return guildStore.addReaction(gid, channelId, messageId, emoji);
+            },
+            removeReaction: (channelId, messageId, emoji) => {
+                const gid = guildId.value;
+                if (!gid) return Promise.reject(new Error("no guild selected"));
+                return guildStore.removeReaction(gid, channelId, messageId, emoji);
+            },
         },
         onError: bailOnAuthError,
     });
