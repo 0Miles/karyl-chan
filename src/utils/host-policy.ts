@@ -313,6 +313,7 @@ export async function assertPluginTarget(
   };
   const checkIPv4 = (ip: string) => {
     if (isBlockedIPv4(ip)) denyPlugin();
+    if (isUnspecifiedIPv4(ip)) denyPlugin();
     if (isProd && isLoopbackIPv4(ip)) denyPlugin();
   };
 

@@ -300,7 +300,8 @@ export async function createWebServer(
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
     if (!WRITE_METHODS.has(request.method)) return;
-    const key = request.authUserId ?? clientKey(request);
+    const key = request.authUserId
+      ?? (request.pluginAuth ? `plugin:${request.pluginAuth.pluginId}` : clientKey(request));
     if (writeRateLimiter.isRateLimited(`write:${key}`)) {
       reply.code(429).send({ error: "Too many write requests, slow down" });
     }

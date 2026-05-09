@@ -158,20 +158,16 @@ export async function registerPluginRoutes(
 
       const pluginRow = await findPluginByKey(manifestPluginId);
       if (!pluginRow?.setupSecretHash) {
-        // Plugin has no pre-provisioned setup secret — admin must call
-        // POST /api/plugins/setup-secret first.
         const ip = request.ip;
         if (shouldRecord(`pluginAuth:${ip}`)) {
           botEventLog.record(
             "warn",
             "auth",
-            `Plugin registration rejected: plugin '${manifestPluginId}' has no setup secret; admin must run POST /api/plugins/setup-secret first`,
+            "Plugin registration rejected (no setup secret configured)",
             { ip, pluginKey: manifestPluginId },
           );
         }
-        reply.code(401).send({
-          error: `plugin '${manifestPluginId}' has no setup secret; admin must run POST /api/plugins/setup-secret first`,
-        });
+        reply.code(401).send({ error: "invalid setup secret" });
         return;
       }
 
