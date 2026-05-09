@@ -7,6 +7,7 @@ import type {
 } from "../../libs/messages";
 import type { MediaSelection } from "../../libs/messages/picker/MediaPicker.vue";
 import { useMessageCacheStore } from "./stores/messageCacheStore";
+import { useConfirm } from "../../composables/use-confirm";
 
 export type { ChannelMessageEvent } from "./stores/messageCacheStore";
 
@@ -51,6 +52,7 @@ export interface UseDiscordChatOptions {
 
 export function useDiscordChat(opts: UseDiscordChatOptions) {
   const messageCache = useMessageCacheStore();
+  const { confirm: showConfirm } = useConfirm();
 
   const replyTo = ref<MessageReference | null>(null);
   const editingMessageId = ref<string | null>(null);
@@ -265,7 +267,7 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
     if (opts.botUserId?.value && message.author.id !== opts.botUserId.value)
       return;
     const skipPrompt = event?.shiftKey === true;
-    if (!skipPrompt && !window.confirm("Delete this message?")) return;
+    if (!skipPrompt && !await showConfirm({ title: 'Delete message', message: 'Delete this message?', confirmLabel: 'Delete', confirmVariant: 'danger' })) return;
     try {
       await opts.api.deleteMessage(channelId, message.id);
     } catch (err) {

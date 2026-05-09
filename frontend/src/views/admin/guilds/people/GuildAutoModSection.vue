@@ -9,6 +9,7 @@ import {
     type AutoModRulePayload
 } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
+import { useConfirm } from '../../../../composables/use-confirm';
 import { useI18n } from 'vue-i18n';
 import GuildAutoModEditModal from './GuildAutoModEditModal.vue';
 
@@ -18,6 +19,7 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const { handle: handleApiError } = useApiError();
+const { confirm } = useConfirm();
 
 const rules = ref<AutoModRule[]>([]);
 const loading = ref(false);
@@ -85,7 +87,7 @@ async function toggleEnabled(rule: AutoModRule) {
 }
 
 async function onDelete(rule: AutoModRule) {
-    if (!confirm(t('guilds.automod.deleteConfirm', { name: rule.name }))) return;
+    if (!await confirm({ title: t('guilds.automod.delete'), message: t('guilds.automod.deleteConfirm', { name: rule.name }), confirmLabel: t('guilds.automod.delete'), confirmVariant: 'danger' })) return;
     try {
         await deleteAutoModRule(props.guildId, rule.id);
         rules.value = rules.value.filter(r => r.id !== rule.id);

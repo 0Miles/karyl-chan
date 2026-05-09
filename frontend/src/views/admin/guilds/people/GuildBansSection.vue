@@ -2,12 +2,14 @@
 import { onMounted, ref, watch } from 'vue';
 import { listGuildBans, unbanGuildUser, type GuildBanEntry } from '../../../../api/guilds';
 import { useApiError } from '../../../../composables/use-api-error';
+import { useConfirm } from '../../../../composables/use-confirm';
 
 const props = defineProps<{
     guildId: string;
 }>();
 
 const { handle: handleApiError } = useApiError();
+const { confirm } = useConfirm();
 
 const bans = ref<GuildBanEntry[]>([]);
 const loading = ref(false);
@@ -35,7 +37,7 @@ function displayName(b: GuildBanEntry): string {
 }
 
 async function onUnban(b: GuildBanEntry) {
-    if (!confirm(`Unban ${displayName(b)}?`)) return;
+    if (!await confirm({ title: 'Unban', message: `Unban ${displayName(b)}?`, confirmLabel: 'Unban', confirmVariant: 'danger' })) return;
     actionError.value = null;
     try {
         await unbanGuildUser(props.guildId, b.userId);

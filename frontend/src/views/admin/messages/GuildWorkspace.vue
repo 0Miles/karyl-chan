@@ -24,6 +24,7 @@ import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import { useToastStore } from '../../../stores/toastStore';
+import { useConfirm } from '../../../composables/use-confirm';
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 const router = useRouter();
 const route = useRoute();
 const toast = useToastStore();
+const { confirm } = useConfirm();
 const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
 
@@ -166,9 +168,7 @@ async function onUnpinMessage(message: Message) {
 }
 async function onModDeleteMessage(message: Message) {
     if (!selectedChannelId.value) return;
-    // Confirm via native confirm() — keeps the moderation deletion path
-    // a single click from the menu while still preventing accidents.
-    if (!confirm('Delete this message?')) return;
+    if (!await confirm({ title: 'Delete message', message: 'Delete this message?', confirmLabel: 'Delete', confirmVariant: 'danger' })) return;
     try { await deleteGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch (err) { toast.show(err instanceof Error ? err.message : 'Delete failed'); }
 }
 

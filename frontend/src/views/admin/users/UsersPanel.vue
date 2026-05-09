@@ -13,6 +13,7 @@ import { ApiError } from '../../../api/client';
 import AppModal from '../../../components/AppModal.vue';
 import AppSelectField, { type SelectOption } from '../../../components/AppSelectField.vue';
 import AppButton from '../../../components/AppButton.vue';
+import { useConfirm } from '../../../composables/use-confirm';
 
 const props = defineProps<{
     data: AdminUserList;
@@ -29,6 +30,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { confirm } = useConfirm();
 
 const search = ref('');
 const roleFilter = ref<string>('');
@@ -110,7 +112,7 @@ async function onChangeRole(user: AuthorizedUser, role: string) {
 }
 
 async function onRemove(user: AuthorizedUser) {
-    if (!window.confirm(t('admin.users.removeConfirm', { user: displayNameFor(user) }))) return;
+    if (!await confirm({ title: t('admin.users.remove'), message: t('admin.users.removeConfirm', { user: displayNameFor(user) }), confirmLabel: t('admin.users.remove'), confirmVariant: 'danger' })) return;
     await withUserLock(user.userId, async () => {
         try {
             await deleteAdminUser(user.userId);

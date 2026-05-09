@@ -15,9 +15,11 @@ import {
 } from '../../api/guilds';
 import { useI18n } from 'vue-i18n';
 import { useToastStore } from '../../stores/toastStore';
+import { useConfirm } from '../../composables/use-confirm';
 
 const { t: $t } = useI18n();
 const toast = useToastStore();
+const { confirm } = useConfirm();
 
 const props = defineProps<{
     /** Voice channels in the current guild — used to populate the
@@ -112,7 +114,7 @@ async function pick(key: string) {
     if (key === 'mgmt-kick') {
         // Kick uses a native confirm() rather than a modal — no extra
         // fields needed (reason is optional and lives in the audit log).
-        if (confirm(`Kick ${t.displayName ?? t.userId}?`)) {
+        if (await confirm({ title: $t('userMenu.kick'), message: `Kick ${t.displayName ?? t.userId}?`, confirmLabel: $t('userMenu.kick'), confirmVariant: 'danger' })) {
             try { await kickGuildMember(t.guildId, t.userId); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
         }
         return;

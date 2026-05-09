@@ -15,6 +15,7 @@ import { ApiError } from '../../../api/client';
 import { GLOBAL_CAPABILITY_KEYS } from '../../../libs/admin-capabilities';
 import AppModal from '../../../components/AppModal.vue';
 import RoleCapabilityModal from './RoleCapabilityModal.vue';
+import { useConfirm } from '../../../composables/use-confirm';
 
 const props = defineProps<{
     roles: AdminRole[];
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { confirm } = useConfirm();
 
 // ── Per-role lock so rapid clicks on different controls of the same
 // role don't fire concurrent mutations.
@@ -155,7 +157,7 @@ async function onModalRevoke(token: string) {
 
 // ── Role delete ─────────────────────────────────────────────────────
 async function onDeleteRole(role: AdminRole) {
-    if (!window.confirm(t('admin.roles.removeConfirm', { name: role.name }))) return;
+    if (!await confirm({ title: t('admin.roles.remove'), message: t('admin.roles.removeConfirm', { name: role.name }), confirmLabel: t('admin.roles.remove'), confirmVariant: 'danger' })) return;
     await withRoleLock(role.name, async () => {
         try {
             await deleteAdminRole(role.name);

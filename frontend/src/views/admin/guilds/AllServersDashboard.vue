@@ -17,6 +17,7 @@ import {
 } from '../../../api/builtin-features';
 import { guildFeatures as builtinRegistry } from '../../../modules/guild-features/registry';
 import { useApiError } from '../../../composables/use-api-error';
+import { useConfirm } from '../../../composables/use-confirm';
 
 /**
  * "All Servers" dashboard with two top-level tabs:
@@ -37,6 +38,7 @@ import { useApiError } from '../../../composables/use-api-error';
 
 const { t: $t } = useI18n();
 const { handle: handleApiError } = useApiError();
+const { confirm } = useConfirm();
 
 type Tab = 'overview' | 'bot-features';
 const activeTab = ref<Tab>('overview');
@@ -149,7 +151,7 @@ async function onTogglePluginDefault(item: FeatureDefaultItem) {
 async function onApplyPluginToAll(item: FeatureDefaultItem) {
     const k = `plugin:${pluginKey(item)}`;
     if (busy.value.has(k)) return;
-    if (!confirm(`將「${item.featureName}」的預設值 (${item.effectiveDefault ? '啟用' : '停用'}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。`)) return;
+    if (!await confirm({ title: 'Apply to all', message: `將「${item.featureName}」的預設值 (${item.effectiveDefault ? '啟用' : '停用'}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。`, confirmLabel: 'Apply', confirmVariant: 'danger' })) return;
     busy.value.add(k);
     try {
         const result = await applyFeatureDefaultToAll(item.pluginId, item.featureKey);

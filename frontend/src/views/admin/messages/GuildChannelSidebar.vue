@@ -13,6 +13,7 @@ import { useMuteStore } from '../../../modules/discord-chat/stores/muteStore';
 import { useUserContextMenuStore } from '../../../modules/discord-chat/stores/userContextMenuStore';
 import { useChannelMgmtStore } from '../../../modules/discord-chat/stores/channelMgmtStore';
 import { useLongPress } from '../../../composables/use-long-press';
+import { useConfirm } from '../../../composables/use-confirm';
 import { deleteGuildChannel, editGuildChannel, type VoiceChannelMember } from '../../../api/guilds';
 import UnreadPill from '../../../components/UnreadPill.vue';
 import ModeSelect from './ModeSelect.vue';
@@ -25,6 +26,7 @@ const unreadStore = useUnreadStore();
 const muteStore = useMuteStore();
 const userMenu = useUserContextMenuStore();
 const channelMgmt = useChannelMgmtStore();
+const { confirm } = useConfirm();
 
 // Channel right-click — surfaces mute/unmute, mark-as-read, copy helpers
 // AND moderation entries (edit / delete / thread archive+lock). The
@@ -144,7 +146,7 @@ async function onChannelMenuPick(actionKey: string) {
             break;
         case 'delete':
             if (!props.guildId) break;
-            if (!confirm($t('channelMgmt.deleteConfirm', { name }))) break;
+            if (!await confirm({ title: 'Delete channel', message: $t('channelMgmt.deleteConfirm', { name }), confirmLabel: 'Delete', confirmVariant: 'danger' })) break;
             try { await deleteGuildChannel(props.guildId, id); } catch { /* ignore */ }
             break;
         case 'thread-archive':

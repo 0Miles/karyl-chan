@@ -21,6 +21,7 @@ import AppMenuItem from './components/AppMenuItem.vue';
 import QuickSwitcher from './components/QuickSwitcher.vue';
 import ImageLightbox from './modules/discord-chat/ImageLightbox.vue';
 import AppToast from './components/AppToast.vue';
+import GlobalConfirmDialog from './components/GlobalConfirmDialog.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -280,6 +281,7 @@ function navigate() {
         <QuickSwitcher :visible="quickSwitcherOpen" @close="quickSwitcherOpen = false" />
         <ImageLightbox />
         <AppToast />
+        <GlobalConfirmDialog />
     </div>
 </template>
 

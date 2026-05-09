@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useConfirm } from '../../../../composables/use-confirm';
 import AppModal from '../../../../components/AppModal.vue';
 import {
     createGuildEmoji,
@@ -20,6 +21,7 @@ const props = defineProps<{
 }>();
 
 const { t: $t } = useI18n();
+const { confirm } = useConfirm();
 
 const emojis = ref<GuildEmojiRow[]>([]);
 const stickers = ref<GuildStickerRow[]>([]);
@@ -86,7 +88,7 @@ async function onRenameEmoji(emoji: GuildEmojiRow) {
 
 async function onDeleteEmoji(emoji: GuildEmojiRow) {
     if (!props.guildId) return;
-    if (!confirm($t('emojiMgmt.deleteConfirm', { name: emoji.name ?? emoji.id }))) return;
+    if (!await confirm({ title: $t('emojiMgmt.delete'), message: $t('emojiMgmt.deleteConfirm', { name: emoji.name ?? emoji.id }), confirmLabel: $t('emojiMgmt.delete'), confirmVariant: 'danger' })) return;
     try {
         await deleteGuildEmoji(props.guildId, emoji.id);
         await loadAll();
@@ -154,7 +156,7 @@ async function submitStickerModal() {
 
 async function onDeleteSticker(s: GuildStickerRow) {
     if (!props.guildId) return;
-    if (!confirm($t('stickerMgmt.deleteConfirm', { name: s.name }))) return;
+    if (!await confirm({ title: 'Delete', message: $t('stickerMgmt.deleteConfirm', { name: s.name }), confirmLabel: 'Delete', confirmVariant: 'danger' })) return;
     try {
         await deleteGuildSticker(props.guildId, s.id);
         await loadAll();

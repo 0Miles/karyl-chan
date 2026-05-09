@@ -18,6 +18,7 @@ import { SidebarLayout } from '../../../layouts';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { useApiError } from '../../../composables/use-api-error';
+import { useConfirm } from '../../../composables/use-confirm';
 import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import AppTabs from '../../../components/AppTabs.vue';
@@ -46,6 +47,7 @@ const { t: $t } = useI18n();
 const { closeOverlay } = useAppShell();
 const { isMobile } = useBreakpoint();
 const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
+const { confirm } = useConfirm();
 
 const guilds = ref<GuildSummary[]>([]);
 const detail = ref<GuildDetail | null>(null);
@@ -271,7 +273,7 @@ async function onRoleSaved() {
 }
 async function onDeleteRole(role: GuildRoleSummary) {
     if (!selectedId.value) return;
-    if (!confirm($t('roleMgmt.deleteConfirm', { name: role.name }))) return;
+    if (!await confirm({ title: $t('roleMgmt.delete'), message: $t('roleMgmt.deleteConfirm', { name: role.name }), confirmLabel: $t('roleMgmt.delete'), confirmVariant: 'danger' })) return;
     try {
         await deleteGuildRole(selectedId.value, role.id);
         await loadRoles(selectedId.value);
@@ -283,7 +285,7 @@ async function onDeleteRole(role: GuildRoleSummary) {
 // ── Invite revocation ──────────────────────────────────────────────
 async function onRevokeInvite(inv: GuildInvite) {
     if (!selectedId.value) return;
-    if (!confirm($t('inviteMgmt.revokeConfirm', { code: inv.code }))) return;
+    if (!await confirm({ title: $t('inviteMgmt.revoke'), message: $t('inviteMgmt.revokeConfirm', { code: inv.code }), confirmLabel: $t('inviteMgmt.revoke'), confirmVariant: 'danger' })) return;
     try {
         await deleteGuildInvite(selectedId.value, inv.code);
         await loadInvites(selectedId.value);

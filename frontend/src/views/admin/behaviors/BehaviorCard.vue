@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useConfirm } from '../../../composables/use-confirm';
 import { Icon } from '@iconify/vue';
 import AppMenu from '../../../components/AppMenu.vue';
 import AppMenuItem from '../../../components/AppMenuItem.vue';
@@ -34,6 +35,7 @@ import type { PluginRecord } from '../../../api/plugins';
  */
 
 const { t } = useI18n();
+const { confirm } = useConfirm();
 
 const props = defineProps<{
     behavior: BehaviorRow;
@@ -378,7 +380,7 @@ async function onSave() {
 // ── delete ────────────────────────────────────────────────────────────────────
 
 async function onDelete() {
-    if (!window.confirm(t('behaviors.card.deleteConfirm', { title: props.behavior.title }))) return;
+    if (!await confirm({ title: 'Delete', message: t('behaviors.card.deleteConfirm', { title: props.behavior.title }), confirmLabel: 'Delete', confirmVariant: 'danger' })) return;
     saving.value = true;
     try {
         await deleteBehavior(props.behavior.id);
