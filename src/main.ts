@@ -557,6 +557,7 @@ async function run() {
       host: webHost,
       bot,
       dmInbox: dmInboxService,
+      reconciler: commandReconciler,
     });
     const isHttps = !!(config.web.sslCertPath && config.web.sslKeyPath);
     botEventLog.record("info", "web", `Web server started on :${webPort}`, {

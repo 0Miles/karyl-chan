@@ -120,6 +120,7 @@ export interface WebServerOptions {
   host?: string;
   bot?: Client;
   dmInbox?: DmInboxStore;
+  reconciler?: import("../command-system/reconcile.service.js").CommandReconciler;
 }
 
 export interface CreateWebServerOptions {
@@ -133,6 +134,7 @@ export interface CreateWebServerOptions {
   dmLimiter?: { isRateLimited(key: string): boolean };
   /** Override owner ids for tests; production uses config.bot.ownerIds. */
   ownerIds?: string[];
+  reconciler?: import("../command-system/reconcile.service.js").CommandReconciler;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -643,9 +645,9 @@ export async function createWebServer(
   await registerAdminLoginStatusRoutes(server);
   await registerAdminSystemSettingsRoutes(server);
   await registerBotEventRoutes(server);
-  await registerBehaviorRoutes(server, { bot });
+  await registerBehaviorRoutes(server, { bot, reconciler: options.reconciler });
   await registerScopeTabRoutes(server);
-  await registerPluginRoutes(server, { bot });
+  await registerPluginRoutes(server, { bot, reconciler: options.reconciler });
   await registerPluginRpcRoutes(server, { bot, dmLimiter: options.dmLimiter });
   await registerVoiceRpcRoutes(server, { bot });
   await registerBotFeatureRoutes(server, { bot });
@@ -728,6 +730,7 @@ export async function startWebServer(
   const server = await createWebServer({
     bot: options.bot,
     dmInbox: options.dmInbox,
+    reconciler: options.reconciler,
   });
   await server.listen({
     port: options.port,

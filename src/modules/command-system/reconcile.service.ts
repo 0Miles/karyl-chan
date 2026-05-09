@@ -344,7 +344,21 @@ interface DesiredItem {
 // ── CommandReconciler 主類別 ──────────────────────────────────────────────────
 
 export class CommandReconciler {
+  private reconcileLock: Promise<void> = Promise.resolve();
+
   constructor(private readonly getBot: () => Client | null) {}
+
+  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    const prev = this.reconcileLock;
+    let resolve!: () => void;
+    this.reconcileLock = new Promise<void>((r) => { resolve = r; });
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      resolve();
+    }
+  }
 
   // ── 公開 API ──────────────────────────────────────────────────────────────
 
@@ -356,6 +370,10 @@ export class CommandReconciler {
    * 錯誤策略：每條 row 獨立 try/catch，單條失敗不阻擋其餘。
    */
   async reconcileAll(): Promise<ReconcileReport> {
+    return this.withLock(() => this._reconcileAll());
+  }
+
+  private async _reconcileAll(): Promise<ReconcileReport> {
     const bot = this.getBot();
     if (!bot?.application) {
       botEventLog.record(
@@ -471,6 +489,10 @@ export class CommandReconciler {
    * 若 triggerType !== 'slash_command' 則為 no-op。
    */
   async reconcileForBehavior(behaviorId: number): Promise<ReconcileItemResult> {
+    return this.withLock(() => this._reconcileForBehavior(behaviorId));
+  }
+
+  private async _reconcileForBehavior(behaviorId: number): Promise<ReconcileItemResult> {
     const bot = this.getBot();
     if (!bot?.application) {
       return {
@@ -533,6 +555,10 @@ export class CommandReconciler {
    * rowId 對應 plugin_commands.id（featureKey=null 的那半部）。
    */
   async reconcileForPluginCommand(rowId: number): Promise<ReconcileItemResult> {
+    return this.withLock(() => this._reconcileForPluginCommand(rowId));
+  }
+
+  private async _reconcileForPluginCommand(rowId: number): Promise<ReconcileItemResult> {
     const bot = this.getBot();
     if (!bot?.application) {
       return {
@@ -593,6 +619,10 @@ export class CommandReconciler {
    *   4. 更新 reconciler_owned_commands 名冊（限此 guild）
    */
   async reconcileForGuild(guild: Guild): Promise<ReconcileReport> {
+    return this.withLock(() => this._reconcileForGuild(guild));
+  }
+
+  private async _reconcileForGuild(guild: Guild): Promise<ReconcileReport> {
     const bot = this.getBot();
     if (!bot?.application) {
       botEventLog.record(

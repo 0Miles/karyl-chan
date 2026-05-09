@@ -33,7 +33,7 @@ import {
   findPluginCommandsByPlugin,
   PluginCommand,
 } from "./models/plugin-command.model.js";
-import { CommandReconciler } from "../command-system/reconcile.service.js";
+import type { CommandReconciler } from "../command-system/reconcile.service.js";
 import {
   getBehaviorEnabledMap,
   setPluginBehaviorEnabled,
@@ -85,6 +85,7 @@ function presentedBearerToken(req: FastifyRequest): string | null {
 
 export interface PluginRoutesOptions {
   bot?: Client;
+  reconciler?: import("../command-system/reconcile.service.js").CommandReconciler;
 }
 
 export async function registerPluginRoutes(
@@ -93,13 +94,11 @@ export async function registerPluginRoutes(
 ): Promise<void> {
   const bot = options.bot;
 
-  // Lazy getter for CommandReconciler（與 behavior-routes 同模式）
-  let reconcilerInstance: CommandReconciler | null = null;
   function getReconciler(): CommandReconciler {
-    if (!reconcilerInstance) {
-      reconcilerInstance = new CommandReconciler(() => options.bot ?? null);
+    if (!options.reconciler) {
+      throw new Error("CommandReconciler not provided to plugin routes");
     }
-    return reconcilerInstance;
+    return options.reconciler;
   }
 
   // ─── Plugin-facing ───────────────────────────────────────────────

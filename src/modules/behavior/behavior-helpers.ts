@@ -10,6 +10,7 @@ import {
 
 export interface BehaviorRoutesOptions {
   bot?: Client;
+  reconciler?: import("../command-system/reconcile.service.js").CommandReconciler;
 }
 
 /**

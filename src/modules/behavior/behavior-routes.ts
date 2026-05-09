@@ -41,7 +41,7 @@ import {
 import { Op, fn, col } from "sequelize";
 import { encryptSecret } from "../../utils/crypto.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
-import { CommandReconciler } from "../command-system/reconcile.service.js";
+import type { CommandReconciler } from "../command-system/reconcile.service.js";
 
 export type { BehaviorRoutesOptions };
 
@@ -108,13 +108,11 @@ export async function registerBehaviorRoutes(
   server: FastifyInstance,
   options: BehaviorRoutesOptions = {},
 ): Promise<void> {
-  // 用 lazy getter 取得 CommandReconciler（bot 可能在 route 建立後才 ready）
-  let reconcilerInstance: CommandReconciler | null = null;
   function getReconciler(): CommandReconciler {
-    if (!reconcilerInstance) {
-      reconcilerInstance = new CommandReconciler(() => options.bot ?? null);
+    if (!options.reconciler) {
+      throw new Error("CommandReconciler not provided to behavior routes");
     }
-    return reconcilerInstance;
+    return options.reconciler;
   }
 
   // ── GET /api/behaviors ──────────────────────────────────────────────────────
