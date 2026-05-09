@@ -189,6 +189,27 @@ export function useDiscordGuildChannel(
     return candidates.some((c) => !!c && c.toLowerCase().includes(q));
   }
 
+  const memberMap = computed(() => {
+    const gid = guildId.value;
+    const cid = selectedChannelId.value;
+    if (!gid || !cid) return null;
+    const members = guildStore.getChannelMembers(gid, cid);
+    if (!members) return null;
+    const map = new Map<string, (typeof members)[number]>();
+    for (const m of members) map.set(m.id, m);
+    return map;
+  });
+
+  const roleMap = computed(() => {
+    const gid = guildId.value;
+    if (!gid) return null;
+    const roles = guildStore.getRoles(gid);
+    if (!roles) return null;
+    const map = new Map<string, (typeof roles)[number]>();
+    for (const r of roles) map.set(r.id, r);
+    return map;
+  });
+
   const messageContext = createDiscordMessageContext({
     botUserId,
     guildId,
@@ -219,17 +240,12 @@ export function useDiscordGuildChannel(
         const name = botDisplayName();
         if (name) return { name };
       }
-      const gid = guildId.value;
-      const channelId = selectedChannelId.value;
-      if (gid && channelId) {
-        const members = guildStore.getChannelMembers(gid, channelId);
-        const hit = members?.find((m) => m.id === id);
-        if (hit)
-          return {
-            name: hit.nickname ?? hit.globalName ?? hit.username,
-            color: hit.color,
-          };
-      }
+      const hit = memberMap.value?.get(id);
+      if (hit)
+        return {
+          name: hit.nickname ?? hit.globalName ?? hit.username,
+          color: hit.color,
+        };
       for (const message of chat.messages.value) {
         if (message.author.id === id) {
           return { name: message.author.globalName ?? message.author.username };
@@ -238,9 +254,7 @@ export function useDiscordGuildChannel(
       return null;
     },
     resolveRole(id) {
-      const gid = guildId.value;
-      if (!gid) return null;
-      const role = guildStore.getRoles(gid)?.find((r) => r.id === id);
+      const role = roleMap.value?.get(id);
       return role ? { name: role.name, color: role.color } : null;
     },
     suggestionProviders: [
