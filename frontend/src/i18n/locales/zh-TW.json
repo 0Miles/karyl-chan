@@ -64,7 +64,8 @@
         "timeout": "暫停發言",
         "removeTimeout": "解除暫停",
         "nickname": "變更暱稱",
-        "manageRoles": "管理身分組"
+        "manageRoles": "管理身分組",
+        "actionFailed": "操作失敗"
     },
     "memberMgmt": {
         "reasonLabel": "原因（選填）",

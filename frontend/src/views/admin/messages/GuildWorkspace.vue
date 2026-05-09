@@ -23,6 +23,7 @@ import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
+import { useToastStore } from '../../../stores/toastStore';
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -37,6 +38,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const route = useRoute();
+const toast = useToastStore();
 const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
 
@@ -147,8 +149,8 @@ async function onForwardPick(targetChannelId: string) {
     forwardSource.value = null;
     try {
         await forwardMessage(src.channelId, src.messageId, targetChannelId);
-    } catch {
-        /* surface via toast in a future change; for now silent */
+    } catch (err) {
+        toast.show(err instanceof Error ? err.message : 'Forward failed');
     }
 }
 
@@ -156,18 +158,18 @@ async function onForwardPick(targetChannelId: string) {
 // the workspace owns the network calls + any required modal flow.
 async function onPinMessage(message: Message) {
     if (!selectedChannelId.value) return;
-    try { await pinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+    try { await pinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch (err) { toast.show(err instanceof Error ? err.message : 'Pin failed'); }
 }
 async function onUnpinMessage(message: Message) {
     if (!selectedChannelId.value) return;
-    try { await unpinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+    try { await unpinGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch (err) { toast.show(err instanceof Error ? err.message : 'Unpin failed'); }
 }
 async function onModDeleteMessage(message: Message) {
     if (!selectedChannelId.value) return;
     // Confirm via native confirm() — keeps the moderation deletion path
     // a single click from the menu while still preventing accidents.
     if (!confirm('Delete this message?')) return;
-    try { await deleteGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch { /* ignore */ }
+    try { await deleteGuildMessage(props.guildId, selectedChannelId.value, message.id); } catch (err) { toast.show(err instanceof Error ? err.message : 'Delete failed'); }
 }
 
 // Browse threads — opens the per-channel modal listing active +

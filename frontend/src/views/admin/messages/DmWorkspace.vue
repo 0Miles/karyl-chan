@@ -12,6 +12,7 @@ import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
+import { useToastStore } from '../../../stores/toastStore';
 
 const props = defineProps<{
     guilds: GuildSummary[];
@@ -25,6 +26,7 @@ const emit = defineEmits<{
 
 const router = useRouter();
 const route = useRoute();
+const toast = useToastStore();
 const { closeOverlay } = useAppShell();
 
 // `onScrollFinished` fires from the workspace machine once a pending
@@ -82,8 +84,8 @@ async function onForwardPick(targetChannelId: string) {
     forwardSource.value = null;
     try {
         await forwardMessage(src.channelId, src.messageId, targetChannelId);
-    } catch {
-        /* surfaced as a silent error today; toast hooks pending */
+    } catch (err) {
+        toast.show(err instanceof Error ? err.message : 'Forward failed');
     }
 }
 

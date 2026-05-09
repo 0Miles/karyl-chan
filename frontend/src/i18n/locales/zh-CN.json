@@ -64,7 +64,8 @@
         "timeout": "暂停发言",
         "removeTimeout": "解除暂停",
         "nickname": "更改昵称",
-        "manageRoles": "管理身份组"
+        "manageRoles": "管理身份组",
+        "actionFailed": "操作失败"
     },
     "memberMgmt": {
         "reasonLabel": "原因（可选）",

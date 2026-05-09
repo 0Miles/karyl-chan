@@ -14,8 +14,10 @@ import {
     type GuildTextChannel
 } from '../../api/guilds';
 import { useI18n } from 'vue-i18n';
+import { useToastStore } from '../../stores/toastStore';
 
 const { t: $t } = useI18n();
+const toast = useToastStore();
 
 const props = defineProps<{
     /** Voice channels in the current guild — used to populate the
@@ -77,7 +79,9 @@ async function pick(key: string) {
         try {
             const channel = await startDmChannel(t.userId);
             await router.push({ name: 'messages', query: { channel: channel.id } });
-        } catch { /* ignore */ }
+        } catch (err) {
+            toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed'));
+        }
         return;
     }
     if (key === 'copy-mention') { void copyToClipboard(`<@${t.userId}>`); return; }
@@ -88,20 +92,20 @@ async function pick(key: string) {
     if (!t.guildId) return;
     if (t.voice) {
         if (key === 'voice-mute') {
-            try { await setGuildVoiceMemberMute(t.guildId, t.userId, !t.voice.serverMuted); } catch { /* ignore */ }
+            try { await setGuildVoiceMemberMute(t.guildId, t.userId, !t.voice.serverMuted); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
             return;
         }
         if (key === 'voice-deafen') {
-            try { await setGuildVoiceMemberDeafen(t.guildId, t.userId, !t.voice.serverDeafened); } catch { /* ignore */ }
+            try { await setGuildVoiceMemberDeafen(t.guildId, t.userId, !t.voice.serverDeafened); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
             return;
         }
         if (key === 'voice-disconnect') {
-            try { await moveGuildVoiceMember(t.guildId, t.userId, null); } catch { /* ignore */ }
+            try { await moveGuildVoiceMember(t.guildId, t.userId, null); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
             return;
         }
         if (key.startsWith('voice-move:')) {
             const channelId = key.slice('voice-move:'.length);
-            try { await moveGuildVoiceMember(t.guildId, t.userId, channelId); } catch { /* ignore */ }
+            try { await moveGuildVoiceMember(t.guildId, t.userId, channelId); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
             return;
         }
     }
@@ -109,7 +113,7 @@ async function pick(key: string) {
         // Kick uses a native confirm() rather than a modal — no extra
         // fields needed (reason is optional and lives in the audit log).
         if (confirm(`Kick ${t.displayName ?? t.userId}?`)) {
-            try { await kickGuildMember(t.guildId, t.userId); } catch { /* ignore */ }
+            try { await kickGuildMember(t.guildId, t.userId); } catch (err) { toast.show(err instanceof Error ? err.message : $t('userMenu.actionFailed')); }
         }
         return;
     }

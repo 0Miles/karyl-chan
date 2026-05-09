@@ -64,7 +64,8 @@
         "timeout": "Timeout",
         "removeTimeout": "Remove timeout",
         "nickname": "Change nickname",
-        "manageRoles": "Manage roles"
+        "manageRoles": "Manage roles",
+        "actionFailed": "Action failed"
     },
     "memberMgmt": {
         "reasonLabel": "Reason (optional)",
