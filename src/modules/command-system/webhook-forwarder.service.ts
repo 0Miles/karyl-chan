@@ -266,7 +266,12 @@ export class WebhookForwarder {
     // 發送 HTTP POST
     let res: Response;
     try {
-      res = await fetch(url, { method: "POST", headers, body });
+      res = await fetch(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {

@@ -116,6 +116,11 @@ function canonicalOptions(options: any[]): string {
     name: string;
     description: string;
     required: boolean;
+    choices?: unknown[];
+    channel_types?: number[];
+    min_value?: number | null;
+    max_value?: number | null;
+    autocomplete?: boolean;
     options?: CanonicalOption[];
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,6 +130,11 @@ function canonicalOptions(options: any[]): string {
       name: o.name as string,
       description: (o.description as string | undefined) ?? "",
       required: (o.required as boolean | undefined) ?? false,
+      choices: o.choices ?? [],
+      channel_types: o.channel_types ?? o.channelTypes ?? [],
+      min_value: o.min_value ?? o.minValue ?? null,
+      max_value: o.max_value ?? o.maxValue ?? null,
+      autocomplete: o.autocomplete ?? false,
     };
     if (Array.isArray(o.options) && o.options.length > 0) {
       node.options = (o.options as unknown[])
@@ -1029,7 +1039,13 @@ export class CommandReconciler {
     if (!row.slashCommandName) return;
     const name = row.slashCommandName;
     const scope: CommandScope = row.scope === "guild" ? "guild" : "global";
-    await this.deleteStale(bot, name, scope, null);
+    if (scope === "global") {
+      await this.deleteStale(bot, name, "global", null);
+    } else {
+      for (const guild of bot.guilds.cache.values()) {
+        await this.deleteStale(bot, name, "guild", guild.id);
+      }
+    }
   }
 
   // ── 步驟 5：清舊版 dm-slash-rebind 遺留物 ────────────────────────────────
