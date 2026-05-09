@@ -399,6 +399,10 @@ export class InteractionDispatcher {
   ): Promise<DispatchOutcome> {
     const payload = buildWebhookPayload(interaction);
 
+    if (behaviorRow.source === "custom") {
+      delete (payload._meta as Record<string, unknown>).interaction_token;
+    }
+
     // Defer reply（slash command 需要在 3s 內 ack）
     try {
       await interaction.deferReply({ ephemeral: true });
