@@ -902,17 +902,21 @@
                 "globalHint": "Apply to every server and surface the bot reaches.",
                 "perGuild": "Per-server",
                 "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them.",
-                "perBehaviorAudience": "Per-behavior-audience",
-                "perBehaviorAudienceHint": "Grant the role CRUD over behaviors under specific audiences only. Adding/removing audiences themselves still requires behavior.manage."
+                "perBehaviorTab": "Per-behavior-tab",
+                "perBehaviorTabHint": "Grant the role CRUD over behaviors within specific scope tabs only. Adding/removing tabs themselves still requires behavior.manage."
             },
             "searchGuilds": "Search servers…",
             "noGuilds": "No servers match this filter.",
-            "searchBehaviorAudiences": "Search audiences…",
-            "noBehaviorAudiences": "No behavior audiences match this filter.",
             "noGlobalCaps": "No global capabilities granted.",
             "perGuildSummary": "{count} per-server grant(s)",
             "pendingChanges": "{count} change(s) pending",
-            "confirmChanges": "Confirm"
+            "confirmChanges": "Confirm",
+            "searchBehaviorTabs": "Search scope tabs…",
+            "noBehaviorTabs": "No behavior scope tabs match this filter.",
+            "perBehaviorTabSummary": "{count} per-tab grant(s)",
+            "legacyBehaviorHeader": "Legacy audience grants (pre-migration)",
+            "legacyBehaviorDesc": "Legacy token — revoke and replace with a per-tab grant above.",
+            "legacyBehaviorSummary": "{count} legacy behavior grant(s)"
         },
         "capabilitiesCatalog": "Known capability tokens",
         "capabilityDesc": {

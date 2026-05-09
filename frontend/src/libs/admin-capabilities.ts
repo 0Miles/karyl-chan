@@ -59,6 +59,7 @@ export function makeGuildScopedCapability(
  * a typed AudienceKey object.
  *
  * v2 canonical form: `behavior:all.manage` / `behavior:user:123.manage` / `behavior:group:VIP.manage`
+ * @deprecated Use makeBehaviorTabToken for scope-tab-based tokens.
  */
 export function makeBehaviorScopedCapability(
   target: number | string | AudienceKey,
@@ -69,6 +70,27 @@ export function makeBehaviorScopedCapability(
     return `behavior:group:${target.groupName}.manage`;
   }
   return `behavior:${target}.manage`;
+}
+
+/**
+ * Per-tab capability token: `behavior:tab:<tabId>.manage`.
+ * Grants CRUD on behaviors within that scope tab.
+ */
+export function makeBehaviorTabToken(
+  tabId: number,
+): BehaviorScopedCapability {
+  return `behavior:tab:${tabId}.manage`;
+}
+
+const BEHAVIOR_TAB_RE = /^behavior:tab:(\d+)\.manage$/;
+
+/**
+ * Parse a tab-scoped capability token, returning the tab ID or null.
+ */
+export function parseBehaviorTabToken(token: string): number | null {
+  const m = BEHAVIOR_TAB_RE.exec(token);
+  if (!m) return null;
+  return parseInt(m[1], 10);
 }
 
 /**

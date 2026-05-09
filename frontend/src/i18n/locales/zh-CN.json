@@ -902,17 +902,21 @@
                 "globalHint": "应用于 bot 所有服务器与所有功能界面。",
                 "perGuild": "单个服务器",
                 "perGuildHint": "将相同范围限定到单个服务器,与全局权限为相加关系,不会覆盖。",
-                "perBehaviorAudience": "单个行为对象",
-                "perBehaviorAudienceHint": "授权该角色管理特定行为对象下的行为(不可增删对象本身,需 behavior.manage 才能调整对象列表)。"
+                "perBehaviorTab": "单个行为分页",
+                "perBehaviorTabHint": "授权该角色管理特定行为分页下的行为（不可增删分页本身，需 behavior.manage 才能调整分页列表）。"
             },
             "searchGuilds": "搜索服务器…",
             "noGuilds": "没有符合条件的服务器。",
-            "searchBehaviorAudiences": "搜索行为对象…",
-            "noBehaviorAudiences": "没有符合条件的行为对象。",
             "noGlobalCaps": "尚未授予任何全局权限。",
             "perGuildSummary": "已授予 {count} 个单服务器权限",
             "pendingChanges": "已修改 {count} 项",
-            "confirmChanges": "确认变更"
+            "confirmChanges": "确认变更",
+            "searchBehaviorTabs": "搜索行为分页…",
+            "noBehaviorTabs": "没有符合条件的行为分页。",
+            "perBehaviorTabSummary": "已授予 {count} 个行为分页权限",
+            "legacyBehaviorHeader": "旧版行为对象授权（迁移前）",
+            "legacyBehaviorDesc": "旧版 token — 建议撤销并改用上方的分页授权。",
+            "legacyBehaviorSummary": "{count} 个旧版行为授权"
         },
         "capabilitiesCatalog": "可用权限词条",
         "capabilityDesc": {
