@@ -1297,5 +1297,61 @@
             "rateLimit": "DM rate limit (per minute)",
             "maxHistory": "DM history cache size"
         }
+    },
+    "allServers": {
+        "tabs": {
+            "overview": "Overview",
+            "botFeatures": "Bot Features"
+        },
+        "overviewTitle": "All Servers — Overview",
+        "refresh": "Refresh",
+        "loading": "Loading…",
+        "metrics": {
+            "guilds": "Servers",
+            "registeredPlugins": "Registered Plugins",
+            "builtinFeatures": "Built-in Features",
+            "builtinOverrides": "Built-in per-server overrides",
+            "pluginFeatures": "Plugin Features",
+            "pluginOverrides": "Plugin Features overrides",
+            "defaultOn": "default on"
+        },
+        "botFeaturesTitle": "All Servers — Bot Feature Defaults",
+        "botFeaturesDesc": "Set the default enabled state for each guild feature when a new server joins. Existing servers are not affected automatically — built-in features can be overridden on the server page; plugin features require the \"Apply to all servers\" button below.",
+        "builtinSection": "Built-in Features",
+        "noBuiltin": "No built-in features.",
+        "overriddenServers": "Overridden servers: {count}",
+        "originalDefault": "Original default: enabled",
+        "overriddenTo": "Overridden to {state}",
+        "defaultEnabled": "Default on",
+        "defaultDisabled": "Default off",
+        "enabled": "enabled",
+        "disabled": "disabled",
+        "pluginFeaturesSection": "Plugin Features",
+        "noPluginFeatures": "No plugins have declared any guild features.",
+        "enabledGuilds": "{count} guild enabled",
+        "disabledGuilds": "{count} guild disabled",
+        "manifestDefault": "Manifest default: {state}",
+        "overriddenToParens": "(overridden to {state})",
+        "appliedTo": "Applied to {count} guild",
+        "applyToAllTitle": "Apply to all",
+        "applyToAllMessage": "Apply the default for \"{name}\" ({state}) to all servers?\nThis will override each server's current setting.",
+        "applyBtn": "Apply to all servers",
+        "applyBtnTooltip": "Apply current default to all servers (overrides existing settings)",
+        "statusActive": "active",
+        "statusInactive": "inactive",
+        "statusDisabled": "disabled"
+    },
+    "voice": {
+        "title": "Voice Playback",
+        "description": "When enabled, guild members can use the bot's voice features in voice channels (e.g. /voice commands or plugin playback controls).",
+        "builtinCommands": "Built-in commands:",
+        "cmdJoin": "Make the bot join your current voice channel",
+        "cmdPlay": "Play an audio URL (http/https)",
+        "cmdStop": "Stop current playback",
+        "cmdLeave": "Leave the voice channel",
+        "cmdStatus": "View bot voice status"
+    },
+    "pluginSecurity": {
+        "setupSecretDesc": "Regenerating the Setup Secret immediately invalidates the old one. The plugin must re-register with the bot using the new secret."
     }
 }

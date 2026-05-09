@@ -1297,5 +1297,61 @@
             "rateLimit": "DM 速率限制（每分鐘）",
             "maxHistory": "DM 歷史訊息快取筆數"
         }
+    },
+    "allServers": {
+        "tabs": {
+            "overview": "總覽",
+            "botFeatures": "Bot 功能"
+        },
+        "overviewTitle": "所有伺服器 — 總覽",
+        "refresh": "重新整理",
+        "loading": "載入中…",
+        "metrics": {
+            "guilds": "伺服器",
+            "registeredPlugins": "已註冊 Plugin",
+            "builtinFeatures": "內建功能",
+            "builtinOverrides": "內建功能單伺服器覆寫",
+            "pluginFeatures": "Plugin Features",
+            "pluginOverrides": "Plugin Features 覆寫",
+            "defaultOn": "預設啟用"
+        },
+        "botFeaturesTitle": "所有伺服器 — Bot 功能預設",
+        "botFeaturesDesc": "設定每個 guild feature 在新加入伺服器時的預設啟用值。既有伺服器的設定不會自動跟隨改動 — 內建功能可在伺服器頁覆寫;Plugin Features 需點下方「套用到所有伺服器」一鍵套用。",
+        "builtinSection": "內建功能",
+        "noBuiltin": "沒有內建功能。",
+        "overriddenServers": "已覆寫的伺服器:{count}",
+        "originalDefault": "原預設:啟用",
+        "overriddenTo": "已被覆蓋為 {state}",
+        "defaultEnabled": "預設啟用",
+        "defaultDisabled": "預設停用",
+        "enabled": "啟用",
+        "disabled": "停用",
+        "pluginFeaturesSection": "Plugin Features",
+        "noPluginFeatures": "目前沒有 plugin 宣告任何 guild feature。",
+        "enabledGuilds": "已啟用 {count} guild",
+        "disabledGuilds": "已停用 {count} guild",
+        "manifestDefault": "Manifest 預設:{state}",
+        "overriddenToParens": "(覆蓋為 {state})",
+        "appliedTo": "已套用到 {count} guild",
+        "applyToAllTitle": "套用到所有伺服器",
+        "applyToAllMessage": "將「{name}」的預設值 ({state}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。",
+        "applyBtn": "套用到所有伺服器",
+        "applyBtnTooltip": "把目前的預設值套到所有伺服器(會覆蓋既有設定)",
+        "statusActive": "運行中",
+        "statusInactive": "未運行",
+        "statusDisabled": "已停用"
+    },
+    "voice": {
+        "title": "語音播放",
+        "description": "開啟後,公會成員可在語音頻道中使用 bot 的語音功能(如 /voice 指令或外部 plugin 的播放控制)。",
+        "builtinCommands": "內建指令:",
+        "cmdJoin": "讓 bot 加入你目前所在的語音頻道",
+        "cmdPlay": "播放音訊 URL(http/https)",
+        "cmdStop": "停止當前播放",
+        "cmdLeave": "離開語音頻道",
+        "cmdStatus": "查看 bot 語音狀態"
+    },
+    "pluginSecurity": {
+        "setupSecretDesc": "重新產生 Setup Secret 後，舊的 secret 立即失效。Plugin 必須使用新 secret 重新向 bot 登記。"
     }
 }

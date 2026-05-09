@@ -65,7 +65,7 @@ function closeSecretResult() {
         <section class="section">
             <h3 class="section-title">Setup Secret</h3>
             <p class="section-desc">
-                重新產生 Setup Secret 後，舊的 secret 立即失效。Plugin 必須使用新 secret 重新向 bot 登記。
+                {{ t('pluginSecurity.setupSecretDesc') }}
             </p>
             <div class="section-action">
                 <button

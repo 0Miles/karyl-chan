@@ -1297,5 +1297,61 @@
             "rateLimit": "DM 速率限制（每分钟）",
             "maxHistory": "DM 历史消息缓存条数"
         }
+    },
+    "allServers": {
+        "tabs": {
+            "overview": "总览",
+            "botFeatures": "Bot 功能"
+        },
+        "overviewTitle": "所有服务器 — 总览",
+        "refresh": "刷新",
+        "loading": "加载中…",
+        "metrics": {
+            "guilds": "服务器",
+            "registeredPlugins": "已注册 Plugin",
+            "builtinFeatures": "内建功能",
+            "builtinOverrides": "内建功能单服务器覆写",
+            "pluginFeatures": "Plugin Features",
+            "pluginOverrides": "Plugin Features 覆写",
+            "defaultOn": "默认启用"
+        },
+        "botFeaturesTitle": "所有服务器 — Bot 功能默认",
+        "botFeaturesDesc": "设定每个 guild feature 在新加入服务器时的默认启用值。现有服务器的设定不会自动跟随改动 — 内建功能可在服务器页覆写；Plugin Features 需点下方「套用到所有服务器」一键套用。",
+        "builtinSection": "内建功能",
+        "noBuiltin": "没有内建功能。",
+        "overriddenServers": "已覆写的服务器：{count}",
+        "originalDefault": "原默认：启用",
+        "overriddenTo": "已被覆盖为 {state}",
+        "defaultEnabled": "默认启用",
+        "defaultDisabled": "默认停用",
+        "enabled": "启用",
+        "disabled": "停用",
+        "pluginFeaturesSection": "Plugin Features",
+        "noPluginFeatures": "目前没有 plugin 声明任何 guild feature。",
+        "enabledGuilds": "已启用 {count} guild",
+        "disabledGuilds": "已停用 {count} guild",
+        "manifestDefault": "Manifest 默认：{state}",
+        "overriddenToParens": "(覆盖为 {state})",
+        "appliedTo": "已套用到 {count} guild",
+        "applyToAllTitle": "套用到所有服务器",
+        "applyToAllMessage": "将「{name}」的默认值 ({state}) 套用到所有服务器？\n这会覆盖每个服务器目前的设定。",
+        "applyBtn": "套用到所有服务器",
+        "applyBtnTooltip": "把目前的默认值套到所有服务器（会覆盖现有设定）",
+        "statusActive": "运行中",
+        "statusInactive": "未运行",
+        "statusDisabled": "已停用"
+    },
+    "voice": {
+        "title": "语音播放",
+        "description": "开启后，公会成员可在语音频道中使用 bot 的语音功能（如 /voice 指令或外部 plugin 的播放控制）。",
+        "builtinCommands": "内建指令：",
+        "cmdJoin": "让 bot 加入你当前所在的语音频道",
+        "cmdPlay": "播放音频 URL（http/https）",
+        "cmdStop": "停止当前播放",
+        "cmdLeave": "离开语音频道",
+        "cmdStatus": "查看 bot 语音状态"
+    },
+    "pluginSecurity": {
+        "setupSecretDesc": "重新生成 Setup Secret 后，旧的 secret 立即失效。Plugin 必须使用新 secret 重新向 bot 注册。"
     }
 }

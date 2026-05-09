@@ -1,26 +1,27 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { GuildDetail } from "../../../api/guilds";
 
 defineProps<{ detail: GuildDetail }>();
+const { t } = useI18n();
 </script>
 
 <template>
     <section class="card">
         <header class="card-head">
-            <h3>語音播放</h3>
+            <h3>{{ t('voice.title') }}</h3>
         </header>
         <p class="card-body">
-            開啟後,公會成員可在語音頻道中使用 bot 的語音功能(如 <code>/voice</code>
-            指令或外部 plugin 的播放控制)。
+            {{ t('voice.description') }}
             <br /><br />
-            <strong>內建指令:</strong>
+            <strong>{{ t('voice.builtinCommands') }}</strong>
         </p>
         <ul class="card-body">
-            <li><code>/voice join</code> — 讓 bot 加入你目前所在的語音頻道</li>
-            <li><code>/voice play &lt;url&gt;</code> — 播放音訊 URL(http/https)</li>
-            <li><code>/voice stop</code> — 停止當前播放</li>
-            <li><code>/voice leave</code> — 離開語音頻道</li>
-            <li><code>/voice status</code> — 查看 bot 語音狀態</li>
+            <li><code>/voice join</code> — {{ t('voice.cmdJoin') }}</li>
+            <li><code>/voice play &lt;url&gt;</code> — {{ t('voice.cmdPlay') }}</li>
+            <li><code>/voice stop</code> — {{ t('voice.cmdStop') }}</li>
+            <li><code>/voice leave</code> — {{ t('voice.cmdLeave') }}</li>
+            <li><code>/voice status</code> — {{ t('voice.cmdStatus') }}</li>
         </ul>
     </section>
 </template>

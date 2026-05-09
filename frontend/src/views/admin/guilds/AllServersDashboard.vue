@@ -152,7 +152,7 @@ async function onTogglePluginDefault(item: FeatureDefaultItem) {
 async function onApplyPluginToAll(item: FeatureDefaultItem) {
     const k = `plugin:${pluginKey(item)}`;
     if (busy.value.has(k)) return;
-    if (!await confirm({ title: 'Apply to all', message: `將「${item.featureName}」的預設值 (${item.effectiveDefault ? '啟用' : '停用'}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。`, confirmLabel: 'Apply', confirmVariant: 'danger' })) return;
+    if (!await confirm({ title: $t('allServers.applyToAllTitle'), message: $t('allServers.applyToAllMessage', { name: item.featureName, state: item.effectiveDefault ? $t('allServers.enabled') : $t('allServers.disabled') }), confirmLabel: $t('allServers.applyBtn'), confirmVariant: 'danger' })) return;
     busy.value.add(k);
     try {
         const result = await applyFeatureDefaultToAll(item.pluginId, item.featureKey);
@@ -186,8 +186,8 @@ async function onToggleBuiltinDefault(featureKey: string, current: boolean) {
 }
 
 const tabs = computed(() => [
-    { key: 'overview', label: '總覽', icon: 'material-symbols:dashboard-outline-rounded' },
-    { key: 'bot-features', label: 'Bot 功能', icon: 'material-symbols:tune-rounded' }
+    { key: 'overview', label: $t('allServers.tabs.overview'), icon: 'material-symbols:dashboard-outline-rounded' },
+    { key: 'bot-features', label: $t('allServers.tabs.botFeatures'), icon: 'material-symbols:tune-rounded' }
 ]);
 
 onMounted(refresh);
@@ -200,44 +200,44 @@ onMounted(refresh);
             <section v-if="activeTab === 'overview'" class="overview">
                 <header class="page-header">
                     <div>
-                        <h2>所有伺服器 — 總覽</h2>
+                        <h2>{{ $t('allServers.overviewTitle') }}</h2>
                     </div>
                     <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
                         <Icon icon="material-symbols:refresh-rounded" />
-                        重新整理
+                        {{ $t('allServers.refresh') }}
                     </button>
                 </header>
                 <p v-if="error" class="error">{{ error }}</p>
-                <p v-if="loading" class="muted">載入中…</p>
+                <p v-if="loading" class="muted">{{ $t('allServers.loading') }}</p>
                 <div v-else class="metric-grid">
                     <div class="metric">
-                        <div class="metric-label">伺服器</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.guilds') }}</div>
                         <div class="metric-value">{{ overviewMetrics.guildCount }}</div>
                     </div>
                     <div class="metric">
-                        <div class="metric-label">已註冊 Plugin</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.registeredPlugins') }}</div>
                         <div class="metric-value">{{ overviewMetrics.pluginCount }}</div>
                     </div>
                     <div class="metric">
-                        <div class="metric-label">內建功能</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.builtinFeatures') }}</div>
                         <div class="metric-value">
                             {{ overviewMetrics.builtinDefaultOn }} / {{ overviewMetrics.builtinTotal }}
-                            <span class="metric-sub">預設啟用</span>
+                            <span class="metric-sub">{{ $t('allServers.metrics.defaultOn') }}</span>
                         </div>
                     </div>
                     <div class="metric">
-                        <div class="metric-label">內建功能單伺服器覆寫</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.builtinOverrides') }}</div>
                         <div class="metric-value">{{ overviewMetrics.builtinOverridden }}</div>
                     </div>
                     <div class="metric">
-                        <div class="metric-label">Plugin Features</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.pluginFeatures') }}</div>
                         <div class="metric-value">
                             {{ overviewMetrics.enabledByDefaultPlugin }} / {{ overviewMetrics.totalPluginFeatures }}
-                            <span class="metric-sub">預設啟用</span>
+                            <span class="metric-sub">{{ $t('allServers.metrics.defaultOn') }}</span>
                         </div>
                     </div>
                     <div class="metric">
-                        <div class="metric-label">Plugin Features 覆寫</div>
+                        <div class="metric-label">{{ $t('allServers.metrics.pluginOverrides') }}</div>
                         <div class="metric-value">{{ overviewMetrics.overriddenPlugin }}</div>
                     </div>
                 </div>
@@ -247,47 +247,46 @@ onMounted(refresh);
             <section v-else-if="activeTab === 'bot-features'" class="bot-features">
                 <header class="page-header">
                     <div>
-                        <h2>所有伺服器 — Bot 功能預設</h2>
+                        <h2>{{ $t('allServers.botFeaturesTitle') }}</h2>
                         <p class="muted">
-                            設定每個 guild feature 在新加入伺服器時的預設啟用值。既有伺服器的設定不會自動跟隨改動 —
-                            內建功能可在伺服器頁覆寫;Plugin Features 需點下方「套用到所有伺服器」一鍵套用。
+                            {{ $t('allServers.botFeaturesDesc') }}
                         </p>
                     </div>
                     <button type="button" class="btn ghost" :disabled="loading" @click="refresh">
                         <Icon icon="material-symbols:refresh-rounded" />
-                        重新整理
+                        {{ $t('allServers.refresh') }}
                     </button>
                 </header>
 
                 <p v-if="error" class="error">{{ error }}</p>
-                <p v-if="loading" class="muted">載入中…</p>
+                <p v-if="loading" class="muted">{{ $t('allServers.loading') }}</p>
 
                 <template v-else>
                     <!-- Built-in features -->
                     <section class="feature-section">
                         <h3 class="section-title">
                             <Icon icon="material-symbols:settings-outline-rounded" />
-                            內建功能
+                            {{ $t('allServers.builtinSection') }}
                         </h3>
-                        <p v-if="builtinMeta.length === 0" class="muted empty">沒有內建功能。</p>
+                        <p v-if="builtinMeta.length === 0" class="muted empty">{{ $t('allServers.noBuiltin') }}</p>
                         <ul v-else class="feature-list">
                             <li v-for="item in builtinMeta" :key="item.key" class="feature-row">
                                 <Icon :icon="item.icon" class="feature-icon" />
                                 <div class="feature-meta">
                                     <div class="feature-name">{{ item.label }}</div>
                                     <div class="feature-stats muted">
-                                        <span>已覆寫的伺服器:{{ item.state!.perGuild.length }}</span>
+                                        <span>{{ $t('allServers.overriddenServers', { count: item.state!.perGuild.length }) }}</span>
                                         <span class="dot">·</span>
-                                        <span>原預設:啟用</span>
+                                        <span>{{ $t('allServers.originalDefault') }}</span>
                                         <template v-if="item.state!.default">
                                             <span class="dot">·</span>
-                                            <span>已被覆蓋為 {{ item.state!.default!.enabled ? '啟用' : '停用' }}</span>
+                                            <span>{{ $t('allServers.overriddenTo', { state: item.state!.default!.enabled ? $t('allServers.enabled') : $t('allServers.disabled') }) }}</span>
                                         </template>
                                     </div>
                                 </div>
                                 <div class="feature-controls">
                                     <label class="toggle-wrap">
-                                        <span class="toggle-label">{{ item.state!.effectiveDefault ? '預設啟用' : '預設停用' }}</span>
+                                        <span class="toggle-label">{{ item.state!.effectiveDefault ? $t('allServers.defaultEnabled') : $t('allServers.defaultDisabled') }}</span>
                                         <button
                                             type="button"
                                             role="switch"
@@ -308,10 +307,10 @@ onMounted(refresh);
                     <section class="feature-section">
                         <h3 class="section-title">
                             <Icon icon="material-symbols:extension-outline-rounded" />
-                            Plugin Features
+                            {{ $t('allServers.pluginFeaturesSection') }}
                         </h3>
                         <p v-if="pluginGroups.length === 0" class="muted empty">
-                            目前沒有 plugin 宣告任何 guild feature。
+                            {{ $t('allServers.noPluginFeatures') }}
                         </p>
                         <div v-for="group in pluginGroups" :key="group.pluginKey" class="plugin-group">
                             <header class="plugin-header">
@@ -320,9 +319,9 @@ onMounted(refresh);
                                     <span class="plugin-key muted">({{ group.pluginKey }})</span>
                                 </h4>
                                 <span :class="['status-pill', group.pluginStatus]">
-                                    {{ group.pluginStatus === 'active' ? 'active' : 'inactive' }}
+                                    {{ group.pluginStatus === 'active' ? $t('allServers.statusActive') : $t('allServers.statusInactive') }}
                                 </span>
-                                <span v-if="!group.pluginEnabled" class="status-pill disabled">disabled</span>
+                                <span v-if="!group.pluginEnabled" class="status-pill disabled">{{ $t('allServers.statusDisabled') }}</span>
                             </header>
                             <ul class="feature-list">
                                 <li v-for="item in group.items" :key="item.featureKey" class="feature-row">
@@ -334,24 +333,24 @@ onMounted(refresh);
                                             {{ item.featureDescription }}
                                         </div>
                                         <div class="feature-stats muted">
-                                            <span>已啟用 {{ item.enabledGuildCount }} guild</span>
+                                            <span>{{ $t('allServers.enabledGuilds', { count: item.enabledGuildCount }) }}</span>
                                             <span class="dot">·</span>
-                                            <span>已停用 {{ item.disabledGuildCount }} guild</span>
+                                            <span>{{ $t('allServers.disabledGuilds', { count: item.disabledGuildCount }) }}</span>
                                             <span class="dot">·</span>
                                             <span>
-                                                Manifest 預設:{{ item.manifestDefault ? '啟用' : '停用' }}
+                                                {{ $t('allServers.manifestDefault', { state: item.manifestDefault ? $t('allServers.enabled') : $t('allServers.disabled') }) }}
                                                 <template v-if="item.override !== null">
-                                                    (覆蓋為 {{ item.override ? '啟用' : '停用' }})
+                                                    {{ $t('allServers.overriddenToParens', { state: item.override ? $t('allServers.enabled') : $t('allServers.disabled') }) }}
                                                 </template>
                                             </span>
                                         </div>
                                         <div v-if="lastApplyResult[`plugin:${pluginKey(item)}`]" class="apply-result">
-                                            ✓ 已套用到 {{ lastApplyResult[`plugin:${pluginKey(item)}`]?.updated }} guild
+                                            ✓ {{ $t('allServers.appliedTo', { count: lastApplyResult[`plugin:${pluginKey(item)}`]?.updated }) }}
                                         </div>
                                     </div>
                                     <div class="feature-controls">
                                         <label class="toggle-wrap">
-                                            <span class="toggle-label">{{ item.effectiveDefault ? '預設啟用' : '預設停用' }}</span>
+                                            <span class="toggle-label">{{ item.effectiveDefault ? $t('allServers.defaultEnabled') : $t('allServers.defaultDisabled') }}</span>
                                             <button
                                                 type="button"
                                                 role="switch"
@@ -368,10 +367,10 @@ onMounted(refresh);
                                             class="btn small"
                                             :disabled="busy.has(`plugin:${pluginKey(item)}`)"
                                             @click="onApplyPluginToAll(item)"
-                                            title="把目前的預設值套到所有伺服器(會覆蓋既有設定)"
+                                            :title="$t('allServers.applyBtnTooltip')"
                                         >
                                             <Icon icon="material-symbols:checklist-rounded" />
-                                            套用到所有伺服器
+                                            {{ $t('allServers.applyBtn') }}
                                         </button>
                                     </div>
                                 </li>
