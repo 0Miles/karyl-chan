@@ -48,6 +48,25 @@ export const findAudienceMembers = async (
   return rows.map((r) => r.getDataValue("userId") as string);
 };
 
+export const findAudienceMembersBulk = async (
+  behaviorIds: number[],
+): Promise<Map<number, string[]>> => {
+  if (behaviorIds.length === 0) return new Map();
+  const rows = await BehaviorAudienceMember.findAll({
+    where: { behaviorId: behaviorIds },
+    order: [["behaviorId", "ASC"], ["userId", "ASC"]],
+  });
+  const map = new Map<number, string[]>();
+  for (const r of rows) {
+    const bid = r.getDataValue("behaviorId") as number;
+    const uid = r.getDataValue("userId") as string;
+    let list = map.get(bid);
+    if (!list) { list = []; map.set(bid, list); }
+    list.push(uid);
+  }
+  return map;
+};
+
 export const addAudienceMember = async (
   behaviorId: number,
   userId: string,

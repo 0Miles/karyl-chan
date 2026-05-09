@@ -31,6 +31,7 @@ import {
 import { Op } from "sequelize";
 import {
   Behavior,
+  rowOfBehavior,
   type BehaviorRow,
 } from "../behavior/models/behavior.model.js";
 import {
@@ -38,7 +39,7 @@ import {
   startSession,
   endSession,
 } from "../behavior/models/behavior-session.model.js";
-import { findAudienceMembers } from "../behavior/models/behavior-audience-member.model.js";
+import { findAudienceMembersBulk } from "../behavior/models/behavior-audience-member.model.js";
 import { matchesTrigger } from "../behavior/behavior-trigger.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import type { MessageMatchOutcome } from "./types.js";
@@ -373,81 +374,22 @@ export async function collectApplicableBehaviorsForUser(
     order: [["sortOrder", "ASC"]],
   });
 
+  const behaviors = allRows.map(rowOfBehavior);
+  const groupIds = behaviors
+    .filter((b) => b.audienceKind === "group")
+    .map((b) => b.id);
+  const memberMap = await findAudienceMembersBulk(groupIds);
+
   const result: BehaviorRow[] = [];
-
-  for (const row of allRows) {
-    const behavior = rowOfBehavior(row);
-
+  for (const behavior of behaviors) {
     if (behavior.audienceKind === "user") {
-      if (behavior.audienceUserId === userId) {
-        result.push(behavior);
-      }
+      if (behavior.audienceUserId === userId) result.push(behavior);
     } else if (behavior.audienceKind === "group") {
-      const members = await findAudienceMembers(behavior.id);
-      if (members.includes(userId)) {
-        result.push(behavior);
-      }
+      if (memberMap.get(behavior.id)?.includes(userId)) result.push(behavior);
     } else if (behavior.audienceKind === "all") {
       result.push(behavior);
     }
   }
-
   return result;
 }
 
-// ── module-level rowOfBehavior（供 collectApplicableBehaviorsForUser 使用）──────
-
-function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
-  return {
-    id: model.getDataValue("id") as number,
-    title: model.getDataValue("title") as string,
-    description: (model.getDataValue("description") as string) ?? "",
-    enabled: !!model.getDataValue("enabled"),
-    sortOrder: model.getDataValue("sortOrder") as number,
-    stopOnMatch: !!model.getDataValue("stopOnMatch"),
-    forwardType: model.getDataValue(
-      "forwardType",
-    ) as BehaviorRow["forwardType"],
-    source: model.getDataValue("source") as BehaviorRow["source"],
-    triggerType: model.getDataValue(
-      "triggerType",
-    ) as BehaviorRow["triggerType"],
-    messagePatternKind:
-      (model.getDataValue(
-        "messagePatternKind",
-      ) as BehaviorRow["messagePatternKind"]) ?? null,
-    messagePatternValue:
-      (model.getDataValue("messagePatternValue") as string | null) ?? null,
-    slashCommandName:
-      (model.getDataValue("slashCommandName") as string | null) ?? null,
-    slashCommandDescription:
-      (model.getDataValue("slashCommandDescription") as string | null) ?? null,
-    scope: model.getDataValue("scope") as BehaviorRow["scope"],
-    integrationTypes: model.getDataValue("integrationTypes") as string,
-    contexts: model.getDataValue("contexts") as string,
-    placementGuildId:
-      (model.getDataValue("placementGuildId") as string | null) ?? null,
-    placementChannelId:
-      (model.getDataValue("placementChannelId") as string | null) ?? null,
-    audienceKind: model.getDataValue(
-      "audienceKind",
-    ) as BehaviorRow["audienceKind"],
-    audienceUserId:
-      (model.getDataValue("audienceUserId") as string | null) ?? null,
-    audienceGroupName:
-      (model.getDataValue("audienceGroupName") as string | null) ?? null,
-    webhookUrl: (model.getDataValue("webhookUrl") as string | null) ?? null,
-    webhookSecret:
-      (model.getDataValue("webhookSecret") as string | null) ?? null,
-    webhookAuthMode:
-      (model.getDataValue(
-        "webhookAuthMode",
-      ) as BehaviorRow["webhookAuthMode"]) ?? null,
-    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
-    pluginBehaviorKey:
-      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
-    systemKey:
-      (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
-    scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
-  };
-}

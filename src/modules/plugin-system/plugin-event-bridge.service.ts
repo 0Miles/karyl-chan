@@ -1,7 +1,7 @@
 import { config } from "../../config.js";
 import {
   findAllPlugins,
-  findPluginById,
+  findPluginsByIds,
   type PluginRow,
 } from "./models/plugin.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
@@ -219,17 +219,18 @@ export function dispatchEventToPlugins(eventType: string, data: unknown): void {
   const ids = index.subscribers(eventType);
   // Fire all dispatches in parallel; we do not await. Errors per
   // plugin are logged inside postEventToPlugin and do not propagate.
-  void Promise.allSettled(
-    ids.map(async (id) => {
-      const plugin = await findPluginById(id);
-      if (!plugin || !plugin.enabled || plugin.status !== "active") return;
-      // Dispatch key is mandatory. Plugins that don't have one yet must
-      // re-register to obtain one — skip silently here.
-      const signingKey = plugin.dispatchHmacKey;
-      if (!signingKey) return;
-      await postEventToPlugin(plugin, eventType, data, signingKey);
-    }),
-  );
+  void (async () => {
+    const pluginMap = await findPluginsByIds(ids);
+    await Promise.allSettled(
+      ids.map(async (id) => {
+        const plugin = pluginMap.get(id);
+        if (!plugin || !plugin.enabled || plugin.status !== "active") return;
+        const signingKey = plugin.dispatchHmacKey;
+        if (!signingKey) return;
+        await postEventToPlugin(plugin, eventType, data, signingKey);
+      }),
+    );
+  })();
 }
 
 /** Test-only / startup hook to read the current index snapshot. */

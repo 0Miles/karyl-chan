@@ -109,6 +109,19 @@ export const findPluginById = async (id: number): Promise<PluginRow | null> => {
   return row ? rowOf(row) : null;
 };
 
+export const findPluginsByIds = async (
+  ids: number[],
+): Promise<Map<number, PluginRow>> => {
+  if (ids.length === 0) return new Map();
+  const rows = await Plugin.findAll({ where: { id: ids } });
+  const map = new Map<number, PluginRow>();
+  for (const r of rows) {
+    const p = rowOf(r);
+    map.set(p.id, p);
+  }
+  return map;
+};
+
 export const findPluginByKey = async (
   pluginKey: string,
 ): Promise<PluginRow | null> => {
