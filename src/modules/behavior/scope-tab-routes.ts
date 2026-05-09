@@ -179,7 +179,11 @@ export async function registerScopeTabRoutes(
       { tabId: created.id },
     );
 
-    return reply.code(201).send({ tab: { ...created, scopeKey: scopeKeyOf(created), behaviorCount: 0 } });
+    return reply
+      .code(201)
+      .send({
+        tab: { ...created, scopeKey: scopeKeyOf(created), behaviorCount: 0 },
+      });
   });
 
   // ── PATCH /api/behavior-tabs/:id ───────────────────────────────────────────
