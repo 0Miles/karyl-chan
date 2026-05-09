@@ -19,6 +19,7 @@ import {
   BehaviorScopeTab,
   FIXED_TAB_IDS,
   rowOf,
+  scopeKeyOf,
   type ScopeTabType,
   type BehaviorScopeTabRow,
 } from "./models/behavior-scope-tab.model.js";
@@ -74,6 +75,7 @@ export async function registerScopeTabRoutes(
     const countMap = new Map(counts.map((c) => [c.scopeTabId, Number(c.cnt)]));
     const tabsWithCount = tabs.map((t) => ({
       ...t,
+      scopeKey: scopeKeyOf(t),
       behaviorCount: countMap.get(t.id) ?? 0,
     }));
 
@@ -177,7 +179,7 @@ export async function registerScopeTabRoutes(
       { tabId: created.id },
     );
 
-    return reply.code(201).send({ tab: { ...created, behaviorCount: 0 } });
+    return reply.code(201).send({ tab: { ...created, scopeKey: scopeKeyOf(created), behaviorCount: 0 } });
   });
 
   // ── PATCH /api/behavior-tabs/:id ───────────────────────────────────────────

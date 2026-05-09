@@ -222,6 +222,33 @@ export function deriveFieldsFromTab(
   }
 }
 
+// ── Scope key ───────────────────────────────────────────────────────────────
+//
+// Stable, human-readable identifier derived from the tab's content rather
+// than its auto-increment id. Used as the segment in capability tokens
+// (`behavior:<scopeKey>.manage`) so grants survive database rebuilds.
+
+export function scopeKeyOf(tab: BehaviorScopeTabRow): string {
+  switch (tab.tabType) {
+    case "global_all":
+      return "global_all";
+    case "all_dms":
+      return "all_dms";
+    case "all_bot_dms":
+      return "all_bot_dms";
+    case "all_guilds":
+      return "all_guilds";
+    case "specific_guild":
+      return `guild:${tab.guildId}`;
+    case "specific_channel":
+      return `channel:${tab.guildId}:${tab.channelId}`;
+    case "specific_user":
+      return `user:${tab.userId}`;
+    case "specific_group":
+      return `group:${tab.groupName}`;
+  }
+}
+
 // ── Query helpers ────────────────────────────────────────────────────────────
 
 export async function findScopeTabById(

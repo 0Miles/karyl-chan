@@ -73,24 +73,38 @@ export function makeBehaviorScopedCapability(
 }
 
 /**
- * Per-tab capability token: `behavior:tab:<tabId>.manage`.
- * Grants CRUD on behaviors within that scope tab.
+ * Per-scope-tab capability token: `behavior:<scopeKey>.manage`.
+ * The scope key is derived from the tab's content (tabType + discriminator),
+ * not its auto-increment ID, so grants survive database rebuilds.
  */
-export function makeBehaviorTabToken(
-  tabId: number,
+export function makeBehaviorScopeToken(
+  scopeKey: string,
 ): BehaviorScopedCapability {
-  return `behavior:tab:${tabId}.manage`;
+  return `behavior:${scopeKey}.manage`;
 }
 
-const BEHAVIOR_TAB_RE = /^behavior:tab:(\d+)\.manage$/;
+const KNOWN_SCOPE_PREFIXES = [
+  "global_all",
+  "all_dms",
+  "all_bot_dms",
+  "all_guilds",
+  "guild:",
+  "channel:",
+  "user:",
+  "group:",
+];
 
 /**
- * Parse a tab-scoped capability token, returning the tab ID or null.
+ * Returns true if the token is a scope-key-based behavior capability
+ * (as opposed to a legacy audience token or unknown format).
  */
-export function parseBehaviorTabToken(token: string): number | null {
-  const m = BEHAVIOR_TAB_RE.exec(token);
-  if (!m) return null;
-  return parseInt(m[1], 10);
+export function isBehaviorScopeToken(token: string): boolean {
+  const m = SCOPED_BEHAVIOR_RE.exec(token);
+  if (!m) return false;
+  const segment = m[1];
+  return KNOWN_SCOPE_PREFIXES.some(
+    (p) => segment === p || segment.startsWith(p),
+  );
 }
 
 /**

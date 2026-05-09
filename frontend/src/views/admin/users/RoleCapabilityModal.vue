@@ -9,9 +9,9 @@ import { useGuildListStore } from '../../../stores/guildListStore';
 import { listScopeTabs, type ScopeTabRow } from '../../../api/behavior';
 import {
     GLOBAL_CAPABILITY_KEYS,
-    makeBehaviorTabToken,
+    makeBehaviorScopeToken,
     makeGuildScopedCapability,
-    parseBehaviorTabToken,
+    isBehaviorScopeToken,
     type GuildScope
 } from '../../../libs/admin-capabilities';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
@@ -185,8 +185,8 @@ function scopedToken(guildId: string, scope: GuildScope): string {
     return makeGuildScopedCapability(guildId, scope);
 }
 
-function behaviorTabToken(tabId: number): string {
-    return makeBehaviorTabToken(tabId);
+function behaviorTabToken(scopeKey: string): string {
+    return makeBehaviorScopeToken(scopeKey);
 }
 
 function tabIcon(tab: ScopeTabRow): string {
@@ -227,22 +227,21 @@ const filteredBehaviorTabs = computed(() => {
     if (!needle) return behaviorTabs.value;
     return behaviorTabs.value.filter(row => {
         const label = tabLabel(row).toLowerCase();
-        const token = behaviorTabToken(row.id).toLowerCase();
+        const token = behaviorTabToken(row.scopeKey).toLowerCase();
         return label.includes(needle) || token.includes(needle);
     });
 });
 
-const LEGACY_BEHAVIOR_RE = /^behavior:(?!tab:).+\.manage$/;
-
 const legacyBehaviorTokens = computed(() => {
     if (!props.role) return [];
+    const BEHAVIOR_RE = /^behavior:.+\.manage$/;
     const allTokens = new Set([
         ...props.role.capabilities,
         ...pendingGrants.value
     ]);
     for (const r of pendingRevokes.value) allTokens.delete(r);
     return [...allTokens].filter(cap =>
-        LEGACY_BEHAVIOR_RE.test(cap) && parseBehaviorTabToken(cap) === null
+        BEHAVIOR_RE.test(cap) && !isBehaviorScopeToken(cap)
     );
 });
 
@@ -384,23 +383,23 @@ function onConfirm() {
                             :class="[
                                 'cap',
                                 {
-                                    granted: isGranted(behaviorTabToken(entry.id)),
-                                    pending: pendingGrants.has(behaviorTabToken(entry.id)) || pendingRevokes.has(behaviorTabToken(entry.id))
+                                    granted: isGranted(behaviorTabToken(entry.scopeKey)),
+                                    pending: pendingGrants.has(behaviorTabToken(entry.scopeKey)) || pendingRevokes.has(behaviorTabToken(entry.scopeKey))
                                 }
                             ]"
-                            @click="toggle(behaviorTabToken(entry.id))"
+                            @click="toggle(behaviorTabToken(entry.scopeKey))"
                         >
                             <input
                                 type="checkbox"
                                 tabindex="-1"
-                                :checked="isGranted(behaviorTabToken(entry.id))"
+                                :checked="isGranted(behaviorTabToken(entry.scopeKey))"
                                 :disabled="pending"
                                 @click.stop
-                                @change="toggle(behaviorTabToken(entry.id))"
+                                @change="toggle(behaviorTabToken(entry.scopeKey))"
                             />
                             <Icon :icon="tabIcon(entry)" width="18" height="18" class="cap-tab-icon" />
                             <div class="cap-text">
-                                <code class="cap-key">{{ behaviorTabToken(entry.id) }}</code>
+                                <code class="cap-key">{{ behaviorTabToken(entry.scopeKey) }}</code>
                                 <span class="cap-desc">
                                     {{ tabLabel(entry) }}
                                     <span class="cap-kind">· {{ tabSubtext(entry) }}</span>

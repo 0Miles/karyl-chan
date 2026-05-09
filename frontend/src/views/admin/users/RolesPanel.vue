@@ -12,7 +12,7 @@ import {
     type AdminRole
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
-import { GLOBAL_CAPABILITY_KEYS, parseBehaviorTabToken } from '../../../libs/admin-capabilities';
+import { GLOBAL_CAPABILITY_KEYS, isBehaviorScopeToken } from '../../../libs/admin-capabilities';
 import AppModal from '../../../components/AppModal.vue';
 import RoleCapabilityModal from './RoleCapabilityModal.vue';
 import { useConfirm } from '../../../composables/use-confirm';
@@ -221,7 +221,7 @@ function summariseCaps(role: AdminRole): CapSummary {
     for (const cap of role.capabilities) {
         if (knownGlobal.has(cap)) global.push(cap);
         else if (SCOPED_GUILD_RE.test(cap)) perGuild += 1;
-        else if (parseBehaviorTabToken(cap) !== null) perBehaviorTab += 1;
+        else if (isBehaviorScopeToken(cap)) perBehaviorTab += 1;
         else if (SCOPED_BEHAVIOR_RE.test(cap)) legacyBehavior += 1;
         else unknown.push(cap);
     }

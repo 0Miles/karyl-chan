@@ -113,25 +113,21 @@ export function parseBehaviorCapabilityToken(
 }
 
 /**
- * Per-tab capability token: `behavior:tab:<tabId>.manage`.
- * Grants CRUD on behaviors within that scope tab.
+ * Per-scope-tab capability token: `behavior:<scopeKey>.manage`.
+ * The scope key is derived from the tab's content (tabType + discriminator),
+ * not its auto-increment ID, so grants survive database rebuilds.
+ *
+ * Examples:
+ *   - `behavior:global_all.manage`
+ *   - `behavior:all_dms.manage`
+ *   - `behavior:guild:123456789.manage`
+ *   - `behavior:user:987654321.manage`
+ *   - `behavior:group:VIP.manage`
  */
-export function makeBehaviorTabToken(
-  tabId: number,
+export function makeBehaviorScopeToken(
+  scopeKey: string,
 ): BehaviorScopedCapability {
-  return `behavior:tab:${tabId}.manage`;
-}
-
-/**
- * Parse a tab-scoped capability token, returning the tab ID or null.
- */
-export function parseBehaviorTabToken(token: string): number | null {
-  const m = SCOPED_BEHAVIOR_RE.exec(token);
-  if (!m) return null;
-  const segment = m[1];
-  if (!segment.startsWith("tab:")) return null;
-  const id = parseInt(segment.slice(4), 10);
-  return isNaN(id) ? null : id;
+  return `behavior:${scopeKey}.manage`;
 }
 
 function isGlobalCapability(value: string): value is GlobalCapability {
@@ -243,8 +239,8 @@ export function accessibleGuildIds(
 /**
  * Pure evaluator for behavior-tab-bound routes. Satisfied by:
  *   - `admin`
- *   - `behavior.manage`             (full module)
- *   - `behavior:tab:<tabId>.manage` (matching per-tab scope)
+ *   - `behavior.manage`                    (full module)
+ *   - `behavior:<scopeKey>.manage`         (matching per-scope-tab token)
  *
  * Adding/removing TABS themselves is NOT covered here — those
  * mutate the catalog and stay restricted to admin / behavior.manage
@@ -252,34 +248,32 @@ export function accessibleGuildIds(
  */
 export function hasBehaviorCapability(
   granted: Iterable<AdminCapability>,
-  targetId: number | string,
+  scopeKey: string,
 ): boolean {
-  const scopedToken = makeBehaviorScopedCapability(targetId);
-  const tabToken = typeof targetId === "number" ? makeBehaviorTabToken(targetId) : null;
+  const token = makeBehaviorScopeToken(scopeKey);
   for (const cap of granted) {
     if (cap === "admin") return true;
     if (cap === "behavior.manage") return true;
-    if (cap === scopedToken) return true;
-    if (tabToken && cap === tabToken) return true;
+    if (cap === token) return true;
   }
   return false;
 }
 
 /**
- * Returns the set of behavior tab IDs the user can access, or `'all'`
+ * Returns the set of behavior scope keys the user can access, or `'all'`
  * when they hold `admin` / `behavior.manage` (no filter needed).
  */
-export function accessibleBehaviorTabIds(
+export function accessibleBehaviorScopeKeys(
   granted: Iterable<AdminCapability>,
-): "all" | Set<number> {
-  const ids = new Set<number>();
+): "all" | Set<string> {
+  const keys = new Set<string>();
   for (const cap of granted) {
     if (cap === "admin") return "all";
     if (cap === "behavior.manage") return "all";
-    const tabId = parseBehaviorTabToken(cap);
-    if (tabId !== null) ids.add(tabId);
+    const parsed = parseScopedBehavior(cap);
+    if (parsed) keys.add(parsed.audienceKey);
   }
-  return ids;
+  return keys;
 }
 
 /**

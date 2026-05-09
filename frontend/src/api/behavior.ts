@@ -79,6 +79,7 @@ export interface ScopeTabRow {
   userId: string | null;
   groupName: string | null;
   sortOrder: number;
+  scopeKey: string;
   behaviorCount: number;
 }
 
