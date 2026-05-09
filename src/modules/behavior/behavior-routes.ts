@@ -27,6 +27,7 @@ import {
 import { sortJoin } from "../../utils/sort-join.js";
 import {
   Behavior,
+  rowOfBehavior,
   type BehaviorRow,
   type BehaviorSource,
   type BehaviorTriggerType,
@@ -44,63 +45,6 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
 import type { CommandReconciler } from "../command-system/reconcile.service.js";
 
 export type { BehaviorRoutesOptions };
-
-// ── 輔助：Sequelize model instance → BehaviorRow ──────────────────────────────
-
-function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
-  return {
-    id: model.getDataValue("id") as number,
-    title: model.getDataValue("title") as string,
-    description: (model.getDataValue("description") as string) ?? "",
-    enabled: !!model.getDataValue("enabled"),
-    sortOrder: model.getDataValue("sortOrder") as number,
-    stopOnMatch: !!model.getDataValue("stopOnMatch"),
-    forwardType: model.getDataValue(
-      "forwardType",
-    ) as BehaviorRow["forwardType"],
-    source: model.getDataValue("source") as BehaviorRow["source"],
-    triggerType: model.getDataValue(
-      "triggerType",
-    ) as BehaviorRow["triggerType"],
-    messagePatternKind:
-      (model.getDataValue(
-        "messagePatternKind",
-      ) as BehaviorRow["messagePatternKind"]) ?? null,
-    messagePatternValue:
-      (model.getDataValue("messagePatternValue") as string | null) ?? null,
-    slashCommandName:
-      (model.getDataValue("slashCommandName") as string | null) ?? null,
-    slashCommandDescription:
-      (model.getDataValue("slashCommandDescription") as string | null) ?? null,
-    scope: model.getDataValue("scope") as BehaviorRow["scope"],
-    integrationTypes: model.getDataValue("integrationTypes") as string,
-    contexts: model.getDataValue("contexts") as string,
-    placementGuildId:
-      (model.getDataValue("placementGuildId") as string | null) ?? null,
-    placementChannelId:
-      (model.getDataValue("placementChannelId") as string | null) ?? null,
-    audienceKind: model.getDataValue(
-      "audienceKind",
-    ) as BehaviorRow["audienceKind"],
-    audienceUserId:
-      (model.getDataValue("audienceUserId") as string | null) ?? null,
-    audienceGroupName:
-      (model.getDataValue("audienceGroupName") as string | null) ?? null,
-    webhookUrl: (model.getDataValue("webhookUrl") as string | null) ?? null,
-    webhookSecret:
-      (model.getDataValue("webhookSecret") as string | null) ?? null,
-    webhookAuthMode:
-      (model.getDataValue(
-        "webhookAuthMode",
-      ) as BehaviorRow["webhookAuthMode"]) ?? null,
-    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
-    pluginBehaviorKey:
-      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
-    systemKey:
-      (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
-    scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
-  };
-}
 
 // ── 主函式 ────────────────────────────────────────────────────────────────────
 
@@ -164,7 +108,7 @@ export async function registerBehaviorRoutes(
       ],
     });
 
-    const behaviors = rows.map((r) => decryptedView(rowOf(r)));
+    const behaviors = rows.map((r) => decryptedView(rowOfBehavior(r)));
     return reply.send({ behaviors });
   });
 
@@ -184,7 +128,7 @@ export async function registerBehaviorRoutes(
       return reply.code(404).send({ error: "Behavior 不存在" });
     }
 
-    return reply.send({ behavior: decryptedView(rowOf(row)) });
+    return reply.send({ behavior: decryptedView(rowOfBehavior(row)) });
   });
 
   // ── POST /api/behaviors ─────────────────────────────────────────────────────
@@ -384,7 +328,7 @@ export async function registerBehaviorRoutes(
       scopeTabId: resolvedTabId,
     });
 
-    const created = decryptedView(rowOf(row));
+    const created = decryptedView(rowOfBehavior(row));
 
     botEventLog.record(
       "info",
@@ -417,7 +361,7 @@ export async function registerBehaviorRoutes(
       return reply.code(404).send({ error: "Behavior 不存在" });
     }
 
-    const existingRow = rowOf(existing);
+    const existingRow = rowOfBehavior(existing);
     const body = request.body as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
 
@@ -577,7 +521,7 @@ export async function registerBehaviorRoutes(
     }
 
     await existing.update(patch);
-    const updated = decryptedView(rowOf(existing));
+    const updated = decryptedView(rowOfBehavior(existing));
 
     botEventLog.record(
       "info",
@@ -607,7 +551,7 @@ export async function registerBehaviorRoutes(
       return reply.code(404).send({ error: "Behavior 不存在" });
     }
 
-    const existingRow = rowOf(existing);
+    const existingRow = rowOfBehavior(existing);
     if (existingRow.source === "system") {
       return reply.code(403).send({ error: "system behavior 不可刪除" });
     }

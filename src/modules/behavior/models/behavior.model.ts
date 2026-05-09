@@ -223,7 +223,7 @@ export interface BehaviorRow {
   scopeTabId: number;
 }
 
-function rowOf(model: InstanceType<typeof Behavior>): BehaviorRow {
+export function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
   return {
     id: model.getDataValue("id") as number,
     title: model.getDataValue("title") as string,
@@ -278,7 +278,7 @@ export const findBehaviorById = async (
   id: number,
 ): Promise<BehaviorRow | null> => {
   const row = await Behavior.findByPk(id);
-  return row ? rowOf(row) : null;
+  return row ? rowOfBehavior(row) : null;
 };
 
 /**
@@ -287,7 +287,7 @@ export const findBehaviorById = async (
  */
 export const findAllSystemBehaviors = async (): Promise<BehaviorRow[]> => {
   const rows = await Behavior.findAll({ where: { source: "system" } });
-  return rows.map(rowOf);
+  return rows.map(rowOfBehavior);
 };
 
 /**
