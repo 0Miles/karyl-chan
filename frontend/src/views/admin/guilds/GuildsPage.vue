@@ -8,7 +8,6 @@ import {
     getGuildDetail,
     listGuildInvites,
     listGuildRoles,
-    listGuilds,
     type GuildDetail,
     type GuildInvite,
     type GuildRoleSummary,
@@ -19,6 +18,7 @@ import { useAppShell } from '../../../composables/use-app-shell';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { useApiError } from '../../../composables/use-api-error';
 import { useConfirm } from '../../../composables/use-confirm';
+import { useGuildListStore } from '../../../stores/guildListStore';
 import { useI18n } from 'vue-i18n';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import AppTabs from '../../../components/AppTabs.vue';
@@ -49,7 +49,8 @@ const { isMobile } = useBreakpoint();
 const { accessDenied, reset: resetError, handle: handleApiError } = useApiError();
 const { confirm } = useConfirm();
 
-const guilds = ref<GuildSummary[]>([]);
+const guildListStore = useGuildListStore();
+const guilds = computed(() => guildListStore.guilds);
 const detail = ref<GuildDetail | null>(null);
 const loadingList = ref(false);
 const loadingDetail = ref(false);
@@ -154,7 +155,7 @@ const currentSub = computed({
 async function refresh() {
     loadingList.value = true;
     try {
-        guilds.value = await listGuilds();
+        await guildListStore.refresh();
         // Default to "all servers" view (rather than first guild) so a
         // freshly-opened page lands on the cross-guild dashboard. Users
         // who want a specific guild click into it.

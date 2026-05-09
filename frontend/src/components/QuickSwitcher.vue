@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import { useDmStore } from '../modules/discord-chat/stores/dmStore';
 import { useGuildChannelStore } from '../modules/discord-chat/stores/guildChannelStore';
-import { listGuilds } from '../api/guilds';
+import { useGuildListStore } from '../stores/guildListStore';
 
 /**
  * Cmd/Ctrl+K palette: search across DMs and guild channels and jump
@@ -21,6 +21,7 @@ const router = useRouter();
 const { t } = useI18n();
 const dmStore = useDmStore();
 const guildStore = useGuildChannelStore();
+const guildListStore = useGuildListStore();
 
 interface Item {
     /** Stable id used as the v-for :key; combination of surface + ids
@@ -93,7 +94,7 @@ async function hydrateLists() {
     // need to wait for all of them — the computed list re-evaluates as
     // each guildStore entry resolves.
     try {
-        const guilds = await listGuilds();
+        const guilds = await guildListStore.ensure();
         guildIndex.value = guilds.map(g => ({ id: g.id, name: g.name }));
         for (const g of guilds) void guildStore.ensureChannels(g.id).catch(() => {});
     } catch {

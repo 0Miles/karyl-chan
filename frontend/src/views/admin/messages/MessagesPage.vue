@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DmWorkspace from './DmWorkspace.vue';
 import GuildWorkspace from './GuildWorkspace.vue';
-import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import type { GuildSummary } from '../../../api/guilds';
+import { useGuildListStore } from '../../../stores/guildListStore';
 import { useBreakpoint } from '../../../composables/use-breakpoint';
 import { loadLastSurface } from '../../../modules/discord-chat/last-channel';
 
@@ -36,7 +37,8 @@ function initialMode(): string {
 }
 
 const mode = ref<string>(initialMode());
-const guilds = ref<GuildSummary[]>([]);
+const guildListStore = useGuildListStore();
+const guilds = computed(() => guildListStore.guilds);
 const { isMobile } = useBreakpoint();
 
 async function handleModeChange(next: string) {
@@ -70,11 +72,9 @@ onMounted(async () => {
             router.replace({ query });
         }
     }
-    try {
-        guilds.value = await listGuilds();
-    } catch {
+    guildListStore.ensure().catch(() => {
         // guilds dropdown stays empty; DM mode still works
-    }
+    });
 });
 </script>
 

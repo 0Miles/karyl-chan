@@ -3,7 +3,8 @@ import { computed, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import AppTabs from '../../../components/AppTabs.vue';
-import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import type { GuildSummary } from '../../../api/guilds';
+import { useGuildListStore } from '../../../stores/guildListStore';
 import {
     applyFeatureDefaultToAll,
     listFeatureDefaults,
@@ -39,11 +40,12 @@ import { useConfirm } from '../../../composables/use-confirm';
 const { t: $t } = useI18n();
 const { handle: handleApiError } = useApiError();
 const { confirm } = useConfirm();
+const guildListStore = useGuildListStore();
 
 type Tab = 'overview' | 'bot-features';
 const activeTab = ref<Tab>('overview');
 
-const guilds = ref<GuildSummary[]>([]);
+const guilds = computed(() => guildListStore.guilds);
 const pluginFeatures = ref<FeatureDefaultItem[]>([]);
 const builtinFeatures = ref<BuiltinFeatureState[]>([]);
 const loading = ref(true);
@@ -115,12 +117,11 @@ async function refresh() {
     loading.value = true;
     error.value = null;
     try {
-        const [g, pf, bf] = await Promise.all([
-            listGuilds(),
+        const [, pf, bf] = await Promise.all([
+            guildListStore.refresh(),
             listFeatureDefaults(),
             listBuiltinFeatureState()
         ]);
-        guilds.value = g;
         pluginFeatures.value = pf;
         builtinFeatures.value = bf;
     } catch (err) {

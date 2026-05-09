@@ -5,7 +5,8 @@ import { Icon } from '@iconify/vue';
 import AppModal from '../../../components/AppModal.vue';
 import AppTabs from '../../../components/AppTabs.vue';
 import AppButton from '../../../components/AppButton.vue';
-import { listGuilds, type GuildSummary } from '../../../api/guilds';
+import type { GuildSummary } from '../../../api/guilds';
+import { useGuildListStore } from '../../../stores/guildListStore';
 import { listAudiences, type AudienceEntry } from '../../../api/behavior';
 import {
     GLOBAL_CAPABILITY_KEYS,
@@ -56,7 +57,8 @@ const tabs = computed(() => [
 // admin user opening this modal carries the `admin` token (the page
 // itself is gated behind it), so listGuilds returns every guild the
 // bot is in regardless of per-guild grants on the editor's account.
-const guilds = ref<GuildSummary[]>([]);
+const guildListStore = useGuildListStore();
+const guilds = computed(() => guildListStore.guilds);
 const guildsLoading = ref(false);
 const search = ref('');
 
@@ -100,7 +102,7 @@ watch(visible, async (open) => {
     if (guilds.value.length === 0) {
         guildsLoading.value = true;
         try {
-            guilds.value = await listGuilds();
+            await guildListStore.ensure();
         } catch {
             // Surface nothing — the parent already shows API errors at the
             // page level. The list just stays empty.

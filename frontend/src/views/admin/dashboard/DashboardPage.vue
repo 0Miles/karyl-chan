@@ -4,8 +4,8 @@ import { ApiError, api } from '../../../api/client';
 import { getSystemStats } from '../../../api/system';
 import { fetchRecentAudit, fetchBotEvents, fetchAdminLoginStatus } from '../../../api/admin';
 import type { BotStatus, SystemStats, AdminAuditEntry, BotEvent, AdminLoginEntry } from '../../../api/types';
-import { listGuilds } from '../../../api/guilds';
 import type { GuildSummary } from '../../../api/guilds';
+import { useGuildListStore } from '../../../stores/guildListStore';
 import { DashboardLayout } from '../../../layouts';
 import { useApiError } from '../../../composables/use-api-error';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
@@ -26,7 +26,8 @@ const systemStats = ref<SystemStats | null>(null);
 const auditEntries = ref<AdminAuditEntry[]>([]);
 const botEvents = ref<BotEvent[]>([]);
 const adminLogins = ref<AdminLoginEntry[]>([]);
-const guilds = ref<GuildSummary[]>([]);
+const guildListStore = useGuildListStore();
+const guilds = computed(() => guildListStore.guilds);
 const lastUpdated = ref<Date | null>(null);
 
 // Loading states per section (don't block the whole page)
@@ -170,7 +171,7 @@ async function loadGuilds() {
     loadingGuilds.value = true;
     errorGuilds.value = null;
     try {
-        guilds.value = await listGuilds();
+        await guildListStore.refresh();
     } catch (err) {
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
             handleApiError(err);
