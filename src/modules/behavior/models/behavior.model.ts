@@ -223,7 +223,9 @@ export interface BehaviorRow {
   scopeTabId: number;
 }
 
-export function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
+export function rowOfBehavior(
+  model: InstanceType<typeof Behavior>,
+): BehaviorRow {
   return {
     id: model.getDataValue("id") as number,
     title: model.getDataValue("title") as string,

@@ -351,7 +351,9 @@ export class CommandReconciler {
   private async withLock<T>(fn: () => Promise<T>): Promise<T> {
     const prev = this.reconcileLock;
     let resolve!: () => void;
-    this.reconcileLock = new Promise<void>((r) => { resolve = r; });
+    this.reconcileLock = new Promise<void>((r) => {
+      resolve = r;
+    });
     await prev;
     try {
       return await fn();
@@ -492,7 +494,9 @@ export class CommandReconciler {
     return this.withLock(() => this._reconcileForBehavior(behaviorId));
   }
 
-  private async _reconcileForBehavior(behaviorId: number): Promise<ReconcileItemResult> {
+  private async _reconcileForBehavior(
+    behaviorId: number,
+  ): Promise<ReconcileItemResult> {
     const bot = this.getBot();
     if (!bot?.application) {
       return {
@@ -558,7 +562,9 @@ export class CommandReconciler {
     return this.withLock(() => this._reconcileForPluginCommand(rowId));
   }
 
-  private async _reconcileForPluginCommand(rowId: number): Promise<ReconcileItemResult> {
+  private async _reconcileForPluginCommand(
+    rowId: number,
+  ): Promise<ReconcileItemResult> {
     const bot = this.getBot();
     if (!bot?.application) {
       return {

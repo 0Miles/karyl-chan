@@ -267,7 +267,16 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
     if (opts.botUserId?.value && message.author.id !== opts.botUserId.value)
       return;
     const skipPrompt = event?.shiftKey === true;
-    if (!skipPrompt && !await showConfirm({ title: 'Delete message', message: 'Delete this message?', confirmLabel: 'Delete', confirmVariant: 'danger' })) return;
+    if (
+      !skipPrompt &&
+      !(await showConfirm({
+        title: "Delete message",
+        message: "Delete this message?",
+        confirmLabel: "Delete",
+        confirmVariant: "danger",
+      }))
+    )
+      return;
     try {
       await opts.api.deleteMessage(channelId, message.id);
     } catch (err) {

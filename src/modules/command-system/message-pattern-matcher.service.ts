@@ -392,4 +392,3 @@ export async function collectApplicableBehaviorsForUser(
   }
   return result;
 }
-

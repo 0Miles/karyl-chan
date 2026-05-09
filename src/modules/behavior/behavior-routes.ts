@@ -267,7 +267,9 @@ export async function registerBehaviorRoutes(
 
     // 三軸排序
     const integrationTypes = sortJoin(body.integrationTypes || "guild_install");
-    const contexts = body.scopeTabId ? derivedContexts : sortJoin(body.contexts || "Guild");
+    const contexts = body.scopeTabId
+      ? derivedContexts
+      : sortJoin(body.contexts || "Guild");
 
     // 最大 sortOrder
     const maxSortRow = await Behavior.findOne({
