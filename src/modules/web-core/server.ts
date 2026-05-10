@@ -618,6 +618,13 @@ export async function createWebServer(
       reply.code(401).send({ error: "Unauthorized" });
       return;
     }
+    // Embed only the subset a plugin can act on: the `admin` superuser
+    // bypass and any `plugin:<key>:*` tokens. Guild / behavior scopes
+    // are irrelevant to a plugin and would just bloat the token.
+    const allCaps = await resolveUserCapabilities(userId, ownerIds);
+    const pluginCaps = [...allCaps].filter(
+      (c) => c === "admin" || c.startsWith("plugin:"),
+    );
     const { token, expiresAt } = jwt.sign(
       {
         purpose: "plugin-session",
@@ -625,6 +632,7 @@ export async function createWebServer(
         guildId: null,
         channelId: "web",
         messageId: "session",
+        capabilities: pluginCaps,
       },
       { ttlMs: 900_000 },
     );

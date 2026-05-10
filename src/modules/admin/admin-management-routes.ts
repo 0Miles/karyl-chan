@@ -18,6 +18,9 @@ import {
   type AdminCapability,
   type GlobalCapability,
 } from "./authorized-user.service.js";
+import { makePluginCapabilityToken } from "./admin-capabilities.js";
+import { findAllPlugins } from "../plugin-system/models/plugin.model.js";
+import { findAllCapabilities } from "../plugin-system/models/plugin-capability.model.js";
 import { listAudit, recordAudit } from "./admin-audit.service.js";
 import { avatarUrlFor } from "../web-core/message-mapper.js";
 import { requireCapability } from "../web-core/route-guards.js";
@@ -310,6 +313,52 @@ export async function registerAdminManagementRoutes(
       }),
     );
     return { capabilities };
+  });
+
+  // ── Plugin capability catalog ────────────────────────────────────────
+  // Dynamic catalog: the RBAC capabilities each currently-enabled plugin
+  // declared in its manifest. The role-permission modal renders one tab
+  // per plugin from this. Token form: `plugin:<pluginKey>:<capKey>`.
+  // Mirrors the behavior-scope-tabs pattern (a runtime catalog feeding a
+  // capability tab) — see GET /api/behavior-tabs.
+  server.get("/api/admin/plugin-capabilities", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const plugins = await findAllPlugins();
+    const caps = await findAllCapabilities();
+    const byId = new Map(plugins.map((p) => [p.id, p]));
+    const grouped = new Map<
+      number,
+      {
+        pluginKey: string;
+        pluginName: string;
+        capabilities: Array<{ token: string; key: string; description: string }>;
+      }
+    >();
+    for (const c of caps) {
+      const plugin = byId.get(c.pluginId);
+      // Only surface capabilities for plugins that are enabled (the
+      // admin on/off toggle). Disabled / orphaned rows stay hidden but
+      // are NOT auto-purged — re-enabling restores the tab as-is.
+      if (!plugin || !plugin.enabled) continue;
+      let entry = grouped.get(c.pluginId);
+      if (!entry) {
+        entry = {
+          pluginKey: plugin.pluginKey,
+          pluginName: plugin.name,
+          capabilities: [],
+        };
+        grouped.set(c.pluginId, entry);
+      }
+      entry.capabilities.push({
+        token: makePluginCapabilityToken(plugin.pluginKey, c.capKey),
+        key: c.capKey,
+        description: c.description,
+      });
+    }
+    const result = [...grouped.values()].sort((a, b) =>
+      a.pluginKey.localeCompare(b.pluginKey),
+    );
+    return { plugins: result };
   });
 
   // ── Roles ────────────────────────────────────────────────────────────

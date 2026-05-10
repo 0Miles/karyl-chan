@@ -63,16 +63,34 @@ export type GuildScopedCapability = `guild:${string}.${GuildScope}`;
 export type BehaviorScopedCapability = `behavior:${string}.manage`;
 
 /**
+ * Capability declared by a plugin for its own needs. Token shape:
+ * `plugin:<pluginKey>:<capKey>`, e.g. `plugin:karyl-radio:webui.access`.
+ *
+ * Plugins enumerate these in their manifest; the bot persists them on
+ * register (table `plugin_capabilities`) and surfaces them in the
+ * admin role-permission modal as a per-plugin tab. On plugin delete
+ * the tokens are purged from every role.
+ *
+ * Recognition here is purely structural (like behavior tokens) — a
+ * stranded token from a removed plugin still parses but simply won't
+ * appear in the catalog endpoint, so the modal won't offer it.
+ */
+export type PluginScopedCapability = `plugin:${string}:${string}`;
+
+/**
  * Any token persisted in `admin_role_capabilities`.
  */
 export type AdminCapability =
   | GlobalCapability
   | GuildScopedCapability
-  | BehaviorScopedCapability;
+  | BehaviorScopedCapability
+  | PluginScopedCapability;
 
 const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
 /** Allow any character in the audience segment (user IDs, group names with Unicode/punctuation). */
 const SCOPED_BEHAVIOR_RE = /^behavior:(.+)\.manage$/;
+/** pluginKey = plugin.id shape ([a-z0-9][a-z0-9-]*); capKey = [a-z0-9][a-z0-9._-]*. */
+const SCOPED_PLUGIN_RE = /^plugin:([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9._-]*)$/;
 
 /**
  * Typed audience key — mirrors the frontend AudienceKey type.
@@ -151,11 +169,25 @@ function parseScopedBehavior(value: string): { audienceKey: string } | null {
   return { audienceKey: m[1] };
 }
 
+/**
+ * Parse a `plugin:<pluginKey>:<capKey>` token. Returns null on any
+ * other shape. Recognition is purely structural — it does NOT check
+ * whether `pluginKey` names a currently-registered plugin.
+ */
+export function parsePluginCapabilityToken(
+  value: string,
+): { pluginKey: string; capKey: string } | null {
+  const m = SCOPED_PLUGIN_RE.exec(value);
+  if (!m) return null;
+  return { pluginKey: m[1], capKey: m[2] };
+}
+
 export function isAdminCapability(value: string): value is AdminCapability {
   return (
     isGlobalCapability(value) ||
     parseScopedGuild(value) !== null ||
-    parseScopedBehavior(value) !== null
+    parseScopedBehavior(value) !== null ||
+    parsePluginCapabilityToken(value) !== null
   );
 }
 
@@ -170,6 +202,36 @@ export function makeBehaviorScopedCapability(
   targetId: number | string,
 ): BehaviorScopedCapability {
   return `behavior:${targetId}.manage`;
+}
+
+/**
+ * Build a plugin-scoped capability token from a plugin key + the
+ * plugin-local capability key declared in its manifest.
+ */
+export function makePluginCapabilityToken(
+  pluginKey: string,
+  capKey: string,
+): PluginScopedCapability {
+  return `plugin:${pluginKey}:${capKey}`;
+}
+
+/**
+ * Pure evaluator for plugin-scoped capabilities. Satisfied by `admin`
+ * or the exact `plugin:<pluginKey>:<capKey>` token. Plugins receive
+ * the holder's `plugin:*` + `admin` subset in their session JWT and
+ * call this (mirrored client-side) to decide whether to allow.
+ */
+export function hasPluginCapability(
+  granted: Iterable<string>,
+  pluginKey: string,
+  capKey: string,
+): boolean {
+  const token = makePluginCapabilityToken(pluginKey, capKey);
+  for (const cap of granted) {
+    if (cap === "admin") return true;
+    if (cap === token) return true;
+  }
+  return false;
 }
 
 /**

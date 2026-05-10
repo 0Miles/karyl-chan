@@ -23,9 +23,23 @@ import {
   assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
+import {
+  deleteStaleCapabilities,
+  upsertPluginCapability,
+} from "./models/plugin-capability.model.js";
+import { AdminRoleCapability } from "../admin/models/admin-role-capability.model.js";
+import { invalidateCapabilityCache } from "../admin/authorized-user.service.js";
+import {
+  makePluginCapabilityToken,
+  parsePluginCapabilityToken,
+} from "../admin/admin-capabilities.js";
+import { Op } from "sequelize";
 import { randomBytes } from "crypto";
 
 const log = moduleLogger("plugin-registry");
+
+/** Hard cap on how many capabilities one plugin may declare. */
+const MAX_PLUGIN_CAPABILITIES = 32;
 
 /**
  * Plugin lifecycle owner. Sits between the HTTP layer (plugin-routes)
@@ -162,6 +176,16 @@ export interface ManifestBehaviorV2 {
 }
 
 /**
+ * v2：plugin 宣告的一個 RBAC 權限詞條（manifest 形式）。
+ */
+export interface ManifestCapabilityDecl {
+  /** plugin 內唯一，格式 [a-z0-9][a-z0-9._-]*。 */
+  key: string;
+  /** 給 admin 看的說明文字（非空）。 */
+  description: string;
+}
+
+/**
  * v2 軌三：plugin_commands[]（plugin 鎖死三軸，admin 只能 on/off）。
  */
 export interface ManifestPluginCommandV2 {
@@ -209,6 +233,12 @@ export interface PluginManifest {
   behaviors?: ManifestBehaviorV2[];
   /** v2 軌三：plugin 自訂指令（三軸寫死）。 */
   plugin_commands?: ManifestPluginCommandV2[];
+  /**
+   * v2：plugin 為自身需求宣告的 RBAC 權限詞條。register 時持久化到
+   * plugin_capabilities，並在 admin 身分組權限 modal 開專屬分頁。
+   * 對外 token 形式 `plugin:<plugin.id>:<key>`。
+   */
+  capabilities?: ManifestCapabilityDecl[];
   /**
    * @deprecated v1 欄位，v2 改用 behaviors[]。
    * 保留型別以不破壞 manifestJson 的 JSON.parse；validateManifest 不再接受含此欄位的 manifest。
@@ -264,6 +294,89 @@ export function computeScopeDiff(
     };
   }
   return { approved: stillApproved, pending: added };
+}
+
+/**
+ * Purge `plugin:<pluginKey>:<capKey>` capability tokens from every
+ * admin role and invalidate the capability cache so the cut is
+ * instant. No-op when `capKeys` is empty.
+ */
+export async function purgePluginCapabilityGrants(
+  pluginKey: string,
+  capKeys: string[],
+): Promise<void> {
+  if (capKeys.length === 0) return;
+  const tokens = capKeys.map((k) => makePluginCapabilityToken(pluginKey, k));
+  await AdminRoleCapability.destroy({
+    where: { capability: { [Op.in]: tokens } },
+  });
+  invalidateCapabilityCache();
+}
+
+/**
+ * Drop any `plugin:<pluginKey>:*` grant whose capKey is NOT in
+ * `keepKeys`. Unlike `purgePluginCapabilityGrants` (which deletes a
+ * known list), this is a full sweep against the role table — it
+ * self-heals a grant that a previous reconcile / delete failed to
+ * purge (so a retired capability can't silently re-bind on a future
+ * re-register). Returns the tokens it removed.
+ */
+async function sweepOrphanPluginGrants(
+  pluginKey: string,
+  keepKeys: string[],
+): Promise<string[]> {
+  const keep = new Set(keepKeys);
+  const rows = await AdminRoleCapability.findAll({
+    where: { capability: { [Op.like]: `plugin:${pluginKey}:%` } },
+    attributes: ["capability"],
+  });
+  const stale = [
+    ...new Set(
+      rows
+        .map((r) => r.getDataValue("capability") as string)
+        .filter((tok) => {
+          const parsed = parsePluginCapabilityToken(tok);
+          return (
+            parsed !== null &&
+            parsed.pluginKey === pluginKey &&
+            !keep.has(parsed.capKey)
+          );
+        }),
+    ),
+  ];
+  if (stale.length > 0) {
+    await AdminRoleCapability.destroy({
+      where: { capability: { [Op.in]: stale } },
+    });
+    invalidateCapabilityCache();
+  }
+  return stale;
+}
+
+/**
+ * Reconcile a plugin's manifest-declared capabilities against what's
+ * persisted in `plugin_capabilities`:
+ *   - declared ∖ stored → inserted
+ *   - declared ∩ stored → description refreshed if changed
+ *   - stored ∖ declared → row deleted
+ *   - role grants for any `plugin:<pluginKey>:*` not in `declared`
+ *     are swept from `admin_role_capabilities` (full sync, not just
+ *     the rows removed this run)
+ *
+ * Returns the removed capKeys (for the audit log).
+ */
+async function reconcilePluginCapabilities(
+  pluginId: number,
+  pluginKey: string,
+  declared: ManifestCapabilityDecl[],
+): Promise<string[]> {
+  for (const c of declared) {
+    await upsertPluginCapability(pluginId, c.key, c.description);
+  }
+  const declaredKeys = declared.map((c) => c.key);
+  const removed = await deleteStaleCapabilities(pluginId, declaredKeys);
+  await sweepOrphanPluginGrants(pluginKey, declaredKeys);
+  return removed;
 }
 
 export type ManifestValidation =
@@ -340,11 +453,55 @@ export async function validateManifest(
     "behaviors",
     "plugin_commands",
     "guild_features",
+    "capabilities",
     "events_subscribed_global",
   ] as const) {
     if (m[k] !== undefined && !Array.isArray(m[k])) {
       return { ok: false, error: `manifest.${k} must be an array` };
     }
+  }
+
+  // ── capabilities[] 驗證 ──────────────────────────────────────────────────
+  // key 格式 [a-z0-9][a-z0-9._-]*、description 非空、key 不重複、≤32 個。
+  const capabilities =
+    (m.capabilities as ManifestCapabilityDecl[] | undefined) ?? [];
+  if (capabilities.length > MAX_PLUGIN_CAPABILITIES) {
+    return {
+      ok: false,
+      error: `manifest.capabilities: at most ${MAX_PLUGIN_CAPABILITIES} allowed (got ${capabilities.length})`,
+    };
+  }
+  const seenCapKeys = new Set<string>();
+  for (let i = 0; i < capabilities.length; i++) {
+    const c = capabilities[i];
+    if (!c || typeof c !== "object") {
+      return { ok: false, error: `capabilities[${i}] must be an object` };
+    }
+    if (typeof c.key !== "string" || !/^[a-z0-9][a-z0-9._-]*$/.test(c.key)) {
+      return {
+        ok: false,
+        error: `capabilities[${i}].key "${String(c.key)}" must match [a-z0-9][a-z0-9._-]*`,
+      };
+    }
+    if (typeof c.description !== "string" || c.description.trim().length === 0) {
+      return {
+        ok: false,
+        error: `capabilities[${c.key}].description must be a non-empty string`,
+      };
+    }
+    if (c.description.length > 200) {
+      return {
+        ok: false,
+        error: `capabilities[${c.key}].description must be ≤200 chars`,
+      };
+    }
+    if (seenCapKeys.has(c.key)) {
+      return {
+        ok: false,
+        error: `capabilities[${c.key}].key is declared more than once`,
+      };
+    }
+    seenCapKeys.add(c.key);
   }
 
   // ── behaviors[] 驗證（V-09、V-10）────────────────────────────────────────
@@ -699,6 +856,33 @@ export class PluginRegistry {
         version: manifest.plugin.version,
       },
     );
+    // Reconcile plugin-declared RBAC capabilities. A re-register that
+    // drops a capability auto-removes it from every role (mirrors how
+    // dropped RPC scopes are auto-removed above). Failures here don't
+    // roll back the registration — a plugin with stale capability rows
+    // is still useful.
+    try {
+      const removedCaps = await reconcilePluginCapabilities(
+        persisted.id,
+        manifest.plugin.id,
+        manifest.capabilities ?? [],
+      );
+      if (removedCaps.length > 0) {
+        botEventLog.record(
+          "info",
+          "bot",
+          `Plugin '${manifest.plugin.id}' dropped capabilities: ${removedCaps.join(", ")}`,
+          { pluginId: persisted.id, removed: removedCaps },
+        );
+      }
+    } catch (err) {
+      log.error({ err }, "reconcilePluginCapabilities after register failed");
+      botEventLog.record(
+        "warn",
+        "bot",
+        `reconcilePluginCapabilities failed for ${manifest.plugin.id}`,
+      );
+    }
     // Refresh the event subscription index so this plugin's
     // events_subscribed start receiving fan-out immediately.
     await rebuildEventIndex().catch((err) => {

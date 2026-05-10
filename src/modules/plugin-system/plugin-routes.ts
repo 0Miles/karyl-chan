@@ -1,6 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { Client } from "discord.js";
-import { ManifestError, pluginRegistry } from "./plugin-registry.service.js";
+import {
+  ManifestError,
+  pluginRegistry,
+  purgePluginCapabilityGrants,
+} from "./plugin-registry.service.js";
+import { deleteAllCapabilities } from "./models/plugin-capability.model.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
@@ -1241,6 +1246,24 @@ export async function registerPluginRoutes(
       await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
         /* logged inside unregisterAll */
       });
+
+      // 2b. Purge this plugin's RBAC capability grants from every role
+      // (and drop its plugin_capabilities rows). ON DELETE CASCADE would
+      // clear the rows anyway, but the `plugin:<key>:*` tokens stored in
+      // admin_role_capabilities are plain strings with no FK, so they
+      // must be removed explicitly — otherwise they'd linger and re-bind
+      // if a plugin with the same key is ever registered again.
+      try {
+        const capKeys = await deleteAllCapabilities(pluginId);
+        await purgePluginCapabilityGrants(plugin.pluginKey, capKeys);
+      } catch (err) {
+        botEventLog.record(
+          "warn",
+          "bot",
+          `plugin-routes: capability cleanup failed during delete of ${plugin.pluginKey}: ${err instanceof Error ? err.message : String(err)}`,
+          { pluginId },
+        );
+      }
 
       // 3. Destroy the DB row. ON DELETE CASCADE wipes related tables.
       await deletePlugin(pluginId);
