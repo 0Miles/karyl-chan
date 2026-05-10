@@ -606,6 +606,31 @@ export async function createWebServer(
     reply.code(204).send();
   });
 
+  server.post("/api/auth/plugin-session", async (request, reply) => {
+    if (!authEnabled) {
+      reply.code(503).send({ error: "Auth not configured" });
+      return;
+    }
+    const header = request.headers.authorization;
+    const presented = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    const userId = presented ? auth.verifyAccessToken(presented) : null;
+    if (!userId) {
+      reply.code(401).send({ error: "Unauthorized" });
+      return;
+    }
+    const { token, expiresAt } = jwt.sign(
+      {
+        purpose: "plugin-session",
+        userId,
+        guildId: null,
+        channelId: "web",
+        messageId: "session",
+      },
+      { ttlMs: 900_000 },
+    );
+    return { jwt: token, expiresAt };
+  });
+
   // /api/health, /api/health/live, /api/health/ready are registered
   // by registerSystemRoutes() (web-core/system-routes.ts). They're
   // kept there because readiness checks need the DB + readiness state
