@@ -22,6 +22,9 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 import { findEnabledFeaturesByPluginGuild } from "../feature-toggle/models/plugin-guild-feature.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
+import { jwtService } from "../web-core/jwt.service.js";
+import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
+import { makePluginCapabilityToken } from "../admin/admin-capabilities.js";
 
 /**
  * Plugin RPC endpoints: the things plugins are allowed to ask the bot
@@ -720,6 +723,7 @@ export async function registerPluginRpcRoutes(
       interaction_token?: unknown;
       content?: unknown;
       embeds?: unknown;
+      components?: unknown;
       ephemeral?: unknown;
     };
   }>("/api/plugin/interactions.respond", async (request, reply) => {
@@ -739,8 +743,11 @@ export async function registerPluginRpcRoutes(
     }
     const content = typeof body.content === "string" ? body.content : undefined;
     const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
-    if (!content && !embeds) {
-      reply.code(400).send({ error: "content or embeds required" });
+    const components = Array.isArray(body.components)
+      ? body.components
+      : undefined;
+    if (!content && !embeds && !components) {
+      reply.code(400).send({ error: "content, embeds or components required" });
       return;
     }
     const ephemeral = body.ephemeral === true;
@@ -748,7 +755,9 @@ export async function registerPluginRpcRoutes(
       // Edit the original (deferred) interaction reply via Discord
       // REST. Discord's webhook-message-edit endpoint accepts the
       // same shape as initial response except flags is read-only;
-      // the ephemeral state was locked at defer time.
+      // the ephemeral state was locked at defer time. `components` is
+      // forwarded verbatim (Discord component-v1 action rows) — used
+      // e.g. for link buttons that open a plugin WebUI.
       await bot.rest.patch(
         Routes.webhookMessage(
           bot.application.id,
@@ -759,6 +768,7 @@ export async function registerPluginRpcRoutes(
           body: {
             content,
             embeds,
+            components,
             // Honor `ephemeral` only as a signal — if defer was
             // public, Discord rejects this flag. Pass through and
             // let Discord ignore on mismatch.
@@ -788,6 +798,7 @@ export async function registerPluginRpcRoutes(
       interaction_token?: unknown;
       content?: unknown;
       embeds?: unknown;
+      components?: unknown;
       ephemeral?: unknown;
     };
   }>("/api/plugin/interactions.followup", async (request, reply) => {
@@ -807,8 +818,11 @@ export async function registerPluginRpcRoutes(
     }
     const content = typeof body.content === "string" ? body.content : undefined;
     const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
-    if (!content && !embeds) {
-      reply.code(400).send({ error: "content or embeds required" });
+    const components = Array.isArray(body.components)
+      ? body.components
+      : undefined;
+    if (!content && !embeds && !components) {
+      reply.code(400).send({ error: "content, embeds or components required" });
       return;
     }
     const ephemeral = body.ephemeral === true;
@@ -819,6 +833,7 @@ export async function registerPluginRpcRoutes(
           body: {
             content,
             embeds,
+            components,
             flags: ephemeral ? MessageFlags.Ephemeral : undefined,
             allowed_mentions: { parse: [] },
           },
@@ -829,6 +844,88 @@ export async function registerPluginRpcRoutes(
       const m = err instanceof Error ? err.message : String(err);
       reply.code(400).send({ error: `followup failed: ${m}` });
     }
+  });
+
+  // ─── auth.session ─────────────────────────────────────────────────
+  /**
+   * POST /api/plugin/auth.session
+   * Body: { user_id, kind?: 'manage' | 'session', guild_id?, ttl_ms? }
+   *
+   * Mint a `plugin-session` JWT for a Discord user so the plugin can
+   * hand them a WebUI link. The bot is the authority on the user's
+   * capabilities — the plugin must trust the bot's verdict:
+   *   - kind='manage': requires the user to hold `admin` OR
+   *     `plugin:<thisPluginKey>:webui.access`. Otherwise → { allowed:false }.
+   *     Short-lived (default 15 min) — re-mint as needed.
+   *   - kind='session': no capability gate (the slash command that
+   *     produced the link is itself permission-gated). Default 6 h.
+   *     `guild_id` is embedded in the token so the WebUI scopes to that
+   *     playback session.
+   *
+   * The token always carries the user's `admin` + `plugin:*` capability
+   * subset so the plugin can do its own offline authorization.
+   */
+  server.post<{
+    Body: {
+      user_id?: unknown;
+      kind?: unknown;
+      guild_id?: unknown;
+      ttl_ms?: unknown;
+    };
+  }>("/api/plugin/auth.session", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "auth.session");
+    if (!ctx) return;
+    const body = request.body ?? {};
+    const userId =
+      typeof body.user_id === "string" && body.user_id.length > 0
+        ? body.user_id
+        : null;
+    if (!userId) {
+      reply.code(400).send({ error: "user_id required" });
+      return;
+    }
+    const kind = body.kind === "manage" ? "manage" : "session";
+    const guildId =
+      typeof body.guild_id === "string" && body.guild_id.length > 0
+        ? body.guild_id
+        : null;
+    const defaultTtl =
+      kind === "manage" ? 15 * 60_000 : 6 * 60 * 60_000;
+    let ttlMs =
+      typeof body.ttl_ms === "number" && Number.isFinite(body.ttl_ms)
+        ? body.ttl_ms
+        : defaultTtl;
+    ttlMs = Math.max(60_000, Math.min(ttlMs, 7 * 24 * 60 * 60_000));
+
+    const allCaps = await resolveUserCapabilities(userId);
+    const requiredCap = makePluginCapabilityToken(ctx.pluginKey, "webui.access");
+    const privileged = allCaps.has("admin") || allCaps.has(requiredCap);
+    if (kind === "manage" && !privileged) {
+      return { allowed: false };
+    }
+    // Only `manage` tokens carry capabilities (and only `admin` + this
+    // plugin's own `plugin:<key>:*` — never another plugin's grants).
+    // `session` tokens are authorized purely by the embedded guildId, so
+    // they ship NO capabilities — they may end up in a link button the
+    // invoker copies/shares, and a leaked token must not confer admin.
+    const pluginCaps =
+      kind === "manage"
+        ? [...allCaps].filter(
+            (c) => c === "admin" || c.startsWith(`plugin:${ctx.pluginKey}:`),
+          )
+        : [];
+    const { token, expiresAt } = jwtService.sign(
+      {
+        purpose: "plugin-session",
+        userId,
+        guildId,
+        channelId: "web",
+        messageId: "session",
+        capabilities: pluginCaps,
+      },
+      { ttlMs },
+    );
+    return { allowed: true, token, expiresAt };
   });
 
   // ─── plugin self-info ─────────────────────────────────────────────
