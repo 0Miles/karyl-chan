@@ -889,8 +889,7 @@ export async function registerPluginRpcRoutes(
       typeof body.guild_id === "string" && body.guild_id.length > 0
         ? body.guild_id
         : null;
-    const defaultTtl =
-      kind === "manage" ? 15 * 60_000 : 6 * 60 * 60_000;
+    const defaultTtl = kind === "manage" ? 15 * 60_000 : 6 * 60 * 60_000;
     let ttlMs =
       typeof body.ttl_ms === "number" && Number.isFinite(body.ttl_ms)
         ? body.ttl_ms
@@ -898,7 +897,10 @@ export async function registerPluginRpcRoutes(
     ttlMs = Math.max(60_000, Math.min(ttlMs, 7 * 24 * 60 * 60_000));
 
     const allCaps = await resolveUserCapabilities(userId);
-    const requiredCap = makePluginCapabilityToken(ctx.pluginKey, "webui.access");
+    const requiredCap = makePluginCapabilityToken(
+      ctx.pluginKey,
+      "webui.access",
+    );
     const privileged = allCaps.has("admin") || allCaps.has(requiredCap);
     if (kind === "manage" && !privileged) {
       return { allowed: false };
