@@ -903,7 +903,9 @@
                 "perGuild": "個別伺服器",
                 "perGuildHint": "將相同範圍限定到單一伺服器,與全域權限為相加關係,不會覆蓋。",
                 "perBehaviorTab": "個別行為分頁",
-                "perBehaviorTabHint": "授權該角色管理特定行為分頁下的行為(不可增刪分頁本身,需 behavior.manage 才能調整分頁清單)。"
+                "perBehaviorTabHint": "授權該角色管理特定行為分頁下的行為(不可增刪分頁本身,需 behavior.manage 才能調整分頁清單)。",
+                "perPlugin": "外掛",
+                "perPluginHint": "各已啟用外掛為自身需求宣告的權限(例如 WebUI 存取)。外掛被刪除或重新註冊後不再宣告時會自動移除。"
             },
             "searchGuilds": "搜尋伺服器…",
             "noGuilds": "沒有符合條件的伺服器。",
@@ -916,7 +918,13 @@
             "perBehaviorTabSummary": "已授予 {count} 個行為分頁權限",
             "legacyBehaviorHeader": "舊版行為對象授權(遷移前)",
             "legacyBehaviorDesc": "舊版 token — 建議撤銷並改用上方的分頁授權。",
-            "legacyBehaviorSummary": "{count} 個舊版行為授權"
+            "legacyBehaviorSummary": "{count} 個舊版行為授權",
+            "searchPlugins": "搜尋外掛權限…",
+            "noPluginCapabilities": "沒有已啟用的外掛宣告權限。",
+            "noPluginCapabilitiesFiltered": "沒有符合條件的外掛權限。",
+            "orphanedPluginHeader": "孤立的外掛授權",
+            "orphanedPluginDesc": "外掛已停用或權限已移除 — 若不再需要請撤銷",
+            "pluginCapabilitySummary": "{count} 個外掛權限"
         },
         "capabilitiesCatalog": "可用權限詞條",
         "capabilityDesc": {

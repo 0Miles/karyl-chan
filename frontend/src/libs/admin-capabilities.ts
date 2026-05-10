@@ -24,12 +24,15 @@ export type GuildScope = (typeof GUILD_SCOPES)[number];
 
 export type GuildScopedCapability = `guild:${string}.${GuildScope}`;
 export type BehaviorScopedCapability = `behavior:${string}.manage`;
+/** Capability a plugin declared for its own use: `plugin:<pluginKey>:<capKey>`. */
+export type PluginScopedCapability = `plugin:${string}:${string}`;
 
 /** Anything that can be persisted in the role→capability mapping. */
 export type AdminCapability =
   | GlobalCapability
   | GuildScopedCapability
-  | BehaviorScopedCapability;
+  | BehaviorScopedCapability
+  | PluginScopedCapability;
 
 /**
  * Typed audience key — matches the three formats used by v2 behavior audience:
@@ -45,6 +48,8 @@ export type AudienceKey =
 const SCOPED_GUILD_RE = /^guild:([^.:]+)\.(message|manage)$/;
 /** Allow any character in the audience segment (user IDs, group names with Unicode/punctuation). */
 const SCOPED_BEHAVIOR_RE = /^behavior:(.+)\.manage$/;
+/** pluginKey = plugin.id shape; capKey = [a-z0-9][a-z0-9._-]*. Mirrors the backend. */
+const SCOPED_PLUGIN_RE = /^plugin:([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9._-]*)$/;
 
 export function makeGuildScopedCapability(
   guildId: string,
@@ -138,6 +143,47 @@ function parseScopedBehavior(value: string): { audienceKey: string } | null {
   const m = SCOPED_BEHAVIOR_RE.exec(value);
   if (!m) return null;
   return { audienceKey: m[1] };
+}
+
+/** Build a `plugin:<pluginKey>:<capKey>` token. */
+export function makePluginCapabilityToken(
+  pluginKey: string,
+  capKey: string,
+): PluginScopedCapability {
+  return `plugin:${pluginKey}:${capKey}`;
+}
+
+/** Parse a plugin-scoped token; null on any other shape. */
+export function parsePluginCapabilityToken(
+  value: string,
+): { pluginKey: string; capKey: string } | null {
+  const m = SCOPED_PLUGIN_RE.exec(value);
+  if (!m) return null;
+  return { pluginKey: m[1], capKey: m[2] };
+}
+
+/** True iff `token` is structurally a `plugin:<pluginKey>:<capKey>` token. */
+export function isPluginCapabilityToken(token: string): boolean {
+  return SCOPED_PLUGIN_RE.test(token);
+}
+
+/**
+ * "Does this user satisfy a plugin-scoped capability?" — `admin`
+ * always passes, otherwise the exact `plugin:<pluginKey>:<capKey>`
+ * token. Mirror of the backend's hasPluginCapability; plugins use the
+ * client-side equivalent on the `capabilities` claim in their session JWT.
+ */
+export function hasPluginCapability(
+  granted: Iterable<string>,
+  pluginKey: string,
+  capKey: string,
+): boolean {
+  const token = makePluginCapabilityToken(pluginKey, capKey);
+  for (const cap of granted) {
+    if (cap === "admin") return true;
+    if (cap === token) return true;
+  }
+  return false;
 }
 
 /**

@@ -7,11 +7,14 @@ import AppTabs from '../../../components/AppTabs.vue';
 import AppButton from '../../../components/AppButton.vue';
 import { useGuildListStore } from '../../../stores/guildListStore';
 import { listScopeTabs, type ScopeTabRow } from '../../../api/behavior';
+import { listPluginCapabilities, type PluginCapabilityGroup } from '../../../api/admin';
 import {
     GLOBAL_CAPABILITY_KEYS,
     makeBehaviorScopeToken,
     makeGuildScopedCapability,
     isBehaviorScopeToken,
+    isPluginCapabilityToken,
+    parsePluginCapabilityToken,
     type GuildScope
 } from '../../../libs/admin-capabilities';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
@@ -45,10 +48,11 @@ const { t } = useI18n();
 
 const visible = computed(() => props.role !== null);
 
-const tab = ref<'global' | 'per-guild' | 'per-behavior-tab'>('global');
+const tab = ref<'global' | 'per-guild' | 'per-plugin' | 'per-behavior-tab'>('global');
 const tabs = computed(() => [
     { key: 'global', label: t('admin.roles.capabilityTabs.global'), icon: 'material-symbols:tune-rounded' },
     { key: 'per-guild', label: t('admin.roles.capabilityTabs.perGuild'), icon: 'material-symbols:groups-outline-rounded' },
+    { key: 'per-plugin', label: t('admin.roles.capabilityTabs.perPlugin'), icon: 'material-symbols:extension-outline-rounded' },
     { key: 'per-behavior-tab', label: t('admin.roles.capabilityTabs.perBehaviorTab'), icon: 'material-symbols:forum-outline-rounded' }
 ]);
 
@@ -69,6 +73,12 @@ const search = ref('');
 const behaviorTabs = ref<ScopeTabRow[]>([]);
 const behaviorTabsLoading = ref(false);
 const behaviorTabsFetched = ref(false);
+
+// Plugin-declared capabilities — same lazy-fetch pattern. Catalog comes
+// from GET /api/admin/plugin-capabilities (only currently-enabled plugins).
+const pluginCaps = ref<PluginCapabilityGroup[]>([]);
+const pluginCapsLoading = ref(false);
+const pluginCapsFetched = ref(false);
 
 // Resolve display names for specific_user tabs.
 const behaviorUserIds = computed(() =>
@@ -119,6 +129,17 @@ watch(visible, async (open) => {
             // Same: silent — empty list is OK as a fallback.
         } finally {
             behaviorTabsLoading.value = false;
+        }
+    }
+    if (!pluginCapsFetched.value) {
+        pluginCapsLoading.value = true;
+        try {
+            pluginCaps.value = await listPluginCapabilities();
+            pluginCapsFetched.value = true;
+        } catch {
+            // Silent — empty list is an acceptable fallback.
+        } finally {
+            pluginCapsLoading.value = false;
         }
     }
 });
@@ -245,6 +266,49 @@ const legacyBehaviorTokens = computed(() => {
     );
 });
 
+// ── Plugin capability tab ────────────────────────────────────────────
+const filteredPluginCaps = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (!needle) return pluginCaps.value;
+    return pluginCaps.value
+        .map(group => ({
+            ...group,
+            capabilities: group.capabilities.filter(c =>
+                c.token.toLowerCase().includes(needle) ||
+                c.description.toLowerCase().includes(needle) ||
+                group.pluginName.toLowerCase().includes(needle) ||
+                group.pluginKey.toLowerCase().includes(needle)
+            )
+        }))
+        .filter(group => group.capabilities.length > 0);
+});
+
+// `plugin:*` grants the role still holds whose plugin/capKey isn't in
+// the live catalog (plugin disabled, removed, or capability dropped).
+// Shown so an admin can revoke them; the backend purges them
+// automatically on plugin delete / re-register, but a disabled plugin's
+// grants linger by design.
+const knownPluginTokens = computed(() => {
+    const s = new Set<string>();
+    for (const g of pluginCaps.value) for (const c of g.capabilities) s.add(c.token);
+    return s;
+});
+const orphanedPluginTokens = computed(() => {
+    if (!props.role) return [];
+    const allTokens = new Set([
+        ...props.role.capabilities,
+        ...pendingGrants.value
+    ]);
+    for (const r of pendingRevokes.value) allTokens.delete(r);
+    return [...allTokens].filter(cap =>
+        isPluginCapabilityToken(cap) && !knownPluginTokens.value.has(cap)
+    );
+});
+function orphanLabel(token: string): string {
+    const p = parsePluginCapabilityToken(token);
+    return p ? `${p.pluginKey} · ${p.capKey}` : token;
+}
+
 function modalTitle(): string {
     return props.role ? t('admin.roles.capabilityModalTitle', { name: props.role.name }) : '';
 }
@@ -357,6 +421,99 @@ function onConfirm() {
                             </ul>
                         </article>
                     </div>
+                </section>
+
+                <!-- Per-plugin capabilities. Each currently-enabled
+                     plugin that declared `capabilities[]` in its
+                     manifest gets a section here; granting one of these
+                     `plugin:<key>:<capKey>` tokens lets the holder use
+                     whatever the plugin gates on it (e.g. its WebUI).
+                     Plugin delete / re-register cleans these up; a
+                     disabled plugin's grants linger until re-enabled. -->
+                <section v-else-if="tab === 'per-plugin'" class="pane">
+                    <p class="hint">{{ t('admin.roles.capabilityTabs.perPluginHint') }}</p>
+                    <input
+                        v-model="search"
+                        type="search"
+                        class="search"
+                        :placeholder="t('admin.roles.searchPlugins')"
+                    />
+                    <p v-if="pluginCapsLoading" class="muted">{{ t('common.loading') }}</p>
+                    <p v-else-if="filteredPluginCaps.length === 0 && orphanedPluginTokens.length === 0" class="muted">
+                        {{ search.trim() ? t('admin.roles.noPluginCapabilitiesFiltered') : t('admin.roles.noPluginCapabilities') }}
+                    </p>
+                    <div v-if="filteredPluginCaps.length > 0" class="guild-sections">
+                        <article v-for="group in filteredPluginCaps" :key="group.pluginKey" class="guild-section">
+                            <header class="guild-head">
+                                <Icon icon="material-symbols:extension-outline-rounded" width="22" height="22" class="cap-tab-icon" />
+                                <div class="guild-text">
+                                    <span class="guild-name">{{ group.pluginName }}</span>
+                                    <code class="guild-id">{{ group.pluginKey }}</code>
+                                </div>
+                            </header>
+                            <ul class="cap-list inset">
+                                <li
+                                    v-for="c in group.capabilities"
+                                    :key="c.token"
+                                    :class="[
+                                        'cap',
+                                        {
+                                            granted: isGranted(c.token),
+                                            pending: pendingGrants.has(c.token) || pendingRevokes.has(c.token)
+                                        }
+                                    ]"
+                                    @click="toggle(c.token)"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        tabindex="-1"
+                                        :checked="isGranted(c.token)"
+                                        :disabled="pending"
+                                        @click.stop
+                                        @change="toggle(c.token)"
+                                    />
+                                    <div class="cap-text">
+                                        <code class="cap-key">{{ c.token }}</code>
+                                        <span class="cap-desc">{{ c.description }}</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </article>
+                    </div>
+
+                    <!-- Orphaned plugin grants (disabled / removed plugin,
+                         or a dropped capability). Shown so admins can revoke. -->
+                    <template v-if="orphanedPluginTokens.length > 0">
+                        <p class="legacy-header">{{ t('admin.roles.orphanedPluginHeader') }}</p>
+                        <ul class="cap-list">
+                            <li
+                                v-for="token in orphanedPluginTokens"
+                                :key="token"
+                                :class="[
+                                    'cap', 'legacy',
+                                    {
+                                        granted: isGranted(token),
+                                        pending: pendingGrants.has(token) || pendingRevokes.has(token)
+                                    }
+                                ]"
+                                @click="toggle(token)"
+                            >
+                                <input
+                                    type="checkbox"
+                                    tabindex="-1"
+                                    :checked="isGranted(token)"
+                                    :disabled="pending"
+                                    @click.stop
+                                    @change="toggle(token)"
+                                />
+                                <Icon icon="material-symbols:extension-off-outline-rounded" width="18" height="18" class="cap-tab-icon" />
+                                <div class="cap-text">
+                                    <code class="cap-key">{{ token }}</code>
+                                    <span class="cap-desc">{{ orphanLabel(token) }} · {{ t('admin.roles.orphanedPluginDesc') }}</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </template>
                 </section>
 
                 <!-- Per-tab behavior capabilities. Granting one of

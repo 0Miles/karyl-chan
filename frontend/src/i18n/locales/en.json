@@ -903,7 +903,9 @@
                 "perGuild": "Per-server",
                 "perGuildHint": "Restrict the same scopes to a single server — these add to global tokens, they don't replace them.",
                 "perBehaviorTab": "Per-behavior-tab",
-                "perBehaviorTabHint": "Grant the role CRUD over behaviors within specific scope tabs only. Adding/removing tabs themselves still requires behavior.manage."
+                "perBehaviorTabHint": "Grant the role CRUD over behaviors within specific scope tabs only. Adding/removing tabs themselves still requires behavior.manage.",
+                "perPlugin": "Per-plugin",
+                "perPluginHint": "Capabilities each enabled plugin declared for its own use (e.g. WebUI access). These are removed automatically when a plugin is deleted or re-registered without them."
             },
             "searchGuilds": "Search servers…",
             "noGuilds": "No servers match this filter.",
@@ -916,7 +918,13 @@
             "perBehaviorTabSummary": "{count} per-tab grant(s)",
             "legacyBehaviorHeader": "Legacy audience grants (pre-migration)",
             "legacyBehaviorDesc": "Legacy token — revoke and replace with a per-tab grant above.",
-            "legacyBehaviorSummary": "{count} legacy behavior grant(s)"
+            "legacyBehaviorSummary": "{count} legacy behavior grant(s)",
+            "searchPlugins": "Search plugin capabilities…",
+            "noPluginCapabilities": "No enabled plugin declares any capabilities.",
+            "noPluginCapabilitiesFiltered": "No plugin capabilities match this filter.",
+            "orphanedPluginHeader": "Orphaned plugin grants",
+            "orphanedPluginDesc": "plugin disabled or capability removed — revoke if no longer needed",
+            "pluginCapabilitySummary": "{count} plugin grant(s)"
         },
         "capabilitiesCatalog": "Known capability tokens",
         "capabilityDesc": {

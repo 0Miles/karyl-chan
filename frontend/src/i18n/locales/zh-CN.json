@@ -903,7 +903,9 @@
                 "perGuild": "单个服务器",
                 "perGuildHint": "将相同范围限定到单个服务器,与全局权限为相加关系,不会覆盖。",
                 "perBehaviorTab": "单个行为分页",
-                "perBehaviorTabHint": "授权该角色管理特定行为分页下的行为（不可增删分页本身，需 behavior.manage 才能调整分页列表）。"
+                "perBehaviorTabHint": "授权该角色管理特定行为分页下的行为（不可增删分页本身，需 behavior.manage 才能调整分页列表）。",
+                "perPlugin": "插件",
+                "perPluginHint": "各已启用插件为自身需求声明的权限（例如 WebUI 存取）。插件被删除或重新注册后不再声明时会自动移除。"
             },
             "searchGuilds": "搜索服务器…",
             "noGuilds": "没有符合条件的服务器。",
@@ -916,7 +918,13 @@
             "perBehaviorTabSummary": "已授予 {count} 个行为分页权限",
             "legacyBehaviorHeader": "旧版行为对象授权（迁移前）",
             "legacyBehaviorDesc": "旧版 token — 建议撤销并改用上方的分页授权。",
-            "legacyBehaviorSummary": "{count} 个旧版行为授权"
+            "legacyBehaviorSummary": "{count} 个旧版行为授权",
+            "searchPlugins": "搜索插件权限…",
+            "noPluginCapabilities": "没有已启用的插件声明权限。",
+            "noPluginCapabilitiesFiltered": "没有符合条件的插件权限。",
+            "orphanedPluginHeader": "孤立的插件授权",
+            "orphanedPluginDesc": "插件已停用或权限已移除 — 若不再需要请撤销",
+            "pluginCapabilitySummary": "{count} 个插件权限"
         },
         "capabilitiesCatalog": "可用权限词条",
         "capabilityDesc": {

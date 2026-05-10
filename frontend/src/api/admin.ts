@@ -103,6 +103,21 @@ export async function listAdminCapabilities(): Promise<
   return body.capabilities;
 }
 
+/** One plugin's declared capabilities, as surfaced for the role modal. */
+export interface PluginCapabilityGroup {
+  pluginKey: string;
+  pluginName: string;
+  capabilities: Array<{ token: string; key: string; description: string }>;
+}
+
+export async function listPluginCapabilities(): Promise<
+  PluginCapabilityGroup[]
+> {
+  const response = await authedFetch("/api/admin/plugin-capabilities");
+  const body = await json<{ plugins: PluginCapabilityGroup[] }>(response);
+  return body.plugins;
+}
+
 export async function listAdminRoles(): Promise<AdminRole[]> {
   const response = await authedFetch("/api/admin/roles");
   const body = await json<{ roles: AdminRole[] }>(response);

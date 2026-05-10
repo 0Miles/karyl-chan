@@ -12,7 +12,7 @@ import {
     type AdminRole
 } from '../../../api/admin';
 import { ApiError } from '../../../api/client';
-import { GLOBAL_CAPABILITY_KEYS, isBehaviorScopeToken } from '../../../libs/admin-capabilities';
+import { GLOBAL_CAPABILITY_KEYS, isBehaviorScopeToken, isPluginCapabilityToken } from '../../../libs/admin-capabilities';
 import AppModal from '../../../components/AppModal.vue';
 import RoleCapabilityModal from './RoleCapabilityModal.vue';
 import { useConfirm } from '../../../composables/use-confirm';
@@ -208,6 +208,7 @@ interface CapSummary {
     perGuildCount: number;
     perBehaviorTabCount: number;
     legacyBehaviorCount: number;
+    pluginCount: number;
     unknown: string[];
 }
 
@@ -216,16 +217,18 @@ function summariseCaps(role: AdminRole): CapSummary {
     let perGuild = 0;
     let perBehaviorTab = 0;
     let legacyBehavior = 0;
+    let plugin = 0;
     const unknown: string[] = [];
     const knownGlobal = new Set<string>(GLOBAL_CAPABILITY_KEYS);
     for (const cap of role.capabilities) {
         if (knownGlobal.has(cap)) global.push(cap);
         else if (SCOPED_GUILD_RE.test(cap)) perGuild += 1;
+        else if (isPluginCapabilityToken(cap)) plugin += 1;
         else if (isBehaviorScopeToken(cap)) perBehaviorTab += 1;
         else if (SCOPED_BEHAVIOR_RE.test(cap)) legacyBehavior += 1;
         else unknown.push(cap);
     }
-    return { global, perGuildCount: perGuild, perBehaviorTabCount: perBehaviorTab, legacyBehaviorCount: legacyBehavior, unknown };
+    return { global, perGuildCount: perGuild, perBehaviorTabCount: perBehaviorTab, legacyBehaviorCount: legacyBehavior, pluginCount: plugin, unknown };
 }
 </script>
 
@@ -305,6 +308,13 @@ function summariseCaps(role: AdminRole): CapSummary {
                             {{ $t('admin.roles.perGuildSummary', { count: summariseCaps(role).perGuildCount }) }}
                         </span>
                         <span
+                            v-if="summariseCaps(role).pluginCount > 0"
+                            class="cap-tag scoped"
+                        >
+                            <Icon icon="material-symbols:extension-outline-rounded" width="14" height="14" />
+                            {{ $t('admin.roles.pluginCapabilitySummary', { count: summariseCaps(role).pluginCount }) }}
+                        </span>
+                        <span
                             v-if="summariseCaps(role).perBehaviorTabCount > 0"
                             class="cap-tag scoped"
                         >
@@ -329,6 +339,7 @@ function summariseCaps(role: AdminRole): CapSummary {
                                 && summariseCaps(role).perGuildCount === 0
                                 && summariseCaps(role).perBehaviorTabCount === 0
                                 && summariseCaps(role).legacyBehaviorCount === 0
+                                && summariseCaps(role).pluginCount === 0
                                 && summariseCaps(role).unknown.length === 0"
                             class="muted"
                         >{{ $t('admin.roles.noGlobalCaps') }}</span>
