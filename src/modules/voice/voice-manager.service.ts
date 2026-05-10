@@ -291,7 +291,13 @@ export function getStatus(guildId: string): VoiceStatus {
   return {
     connected: state.connection.state.status === VoiceConnectionStatus.Ready,
     channelId: state.channelId,
-    playing: state.player.state.status === AudioPlayerStatus.Playing,
+    // "playing" = the player currently holds an audio resource — i.e. any
+    // state that isn't Idle (Playing, but also Buffering during a freshly
+    // started track, AutoPaused, Paused). Reporting only `=== Playing`
+    // here made callers (the radio plugin's advance loop) think nothing
+    // was playing during the 1–3 s ffmpeg startup of a just-started
+    // track and "advance" past it — desyncing the WebUI / cutting tracks.
+    playing: state.player.state.status !== AudioPlayerStatus.Idle,
     playingUrl: state.playingUrl,
     connectionStatus: state.connection.state.status,
     playerStatus: state.player.state.status,
