@@ -37,7 +37,22 @@ const refreshRateLimiter = new RateLimiter({ windowMs: 60_000, max: 60 });
 // is well above legitimate UI usage and well below what would saturate
 // Discord's REST queue or the SQLite writer.
 const writeRateLimiter = new RateLimiter({ windowMs: 60_000, max: 30 });
+// Plugins are server-side trusted code (bearer-token authed) and the
+// /api/plugin/* RPC convention uses POST for *everything* — including
+// reads like voice.status / config.get / storage.kv_get that a plugin
+// may legitimately poll (the radio plugin's 5 s advance loop alone is
+// ~12 voice.status/min, doubled when its WebUI is open). 30/min would
+// throttle that into a death spiral, so plugin tokens get their own,
+// far higher ceiling (still enough to stop a runaway).
+const pluginWriteRateLimiter = new RateLimiter({ windowMs: 60_000, max: 600 });
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+// Interaction replies/followups must never be throttled — they're the
+// response to a user action (at most 1 + 5 followups per interaction),
+// and throttling them leaves the slash command stuck on "thinking…".
+const THROTTLE_EXEMPT_PATHS = new Set([
+  "/api/plugin/interactions.respond",
+  "/api/plugin/interactions.followup",
+]);
 
 function clientKey(request: import("fastify").FastifyRequest): string {
   // request.ip reflects the trust-proxy configuration: when
@@ -302,11 +317,17 @@ export async function createWebServer(
     if (!request.url.startsWith("/api")) return;
     if (request.url.startsWith("/api/auth/")) return;
     if (!WRITE_METHODS.has(request.method)) return;
-    const key =
-      request.authUserId ??
-      (request.pluginAuth
-        ? `plugin:${request.pluginAuth.pluginId}`
-        : clientKey(request));
+    const path = request.url.split("?")[0];
+    if (THROTTLE_EXEMPT_PATHS.has(path)) return;
+    if (request.pluginAuth) {
+      if (
+        pluginWriteRateLimiter.isRateLimited(`plugin:${request.pluginAuth.pluginId}`)
+      ) {
+        reply.code(429).send({ error: "Too many plugin requests, slow down" });
+      }
+      return;
+    }
+    const key = request.authUserId ?? clientKey(request);
     if (writeRateLimiter.isRateLimited(`write:${key}`)) {
       reply.code(429).send({ error: "Too many write requests, slow down" });
     }
