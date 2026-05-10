@@ -65,12 +65,18 @@ export async function registerVoiceRpcRoutes(
   const bot = options.bot;
 
   // POST /api/plugin/voice.join
-  // Body: { guild_id: string, channel_id: string, self_deaf?: boolean,
-  //         self_mute?: boolean }
+  // Body: { guild_id: string, channel_id?: string, user_id?: string,
+  //         self_deaf?: boolean, self_mute?: boolean }
+  //
+  // Provide `channel_id` to join a specific voice channel, OR `user_id`
+  // to join whatever voice channel that member is currently in (needs
+  // the GuildVoiceStates intent — which the bot has). At least one is
+  // required; `channel_id` wins if both are given.
   server.post<{
     Body: {
       guild_id?: unknown;
       channel_id?: unknown;
+      user_id?: unknown;
       self_deaf?: unknown;
       self_mute?: unknown;
     };
@@ -82,11 +88,14 @@ export async function registerVoiceRpcRoutes(
       return;
     }
     const body = request.body ?? {};
-    if (
-      typeof body.guild_id !== "string" ||
-      typeof body.channel_id !== "string"
-    ) {
-      reply.code(400).send({ error: "guild_id and channel_id required" });
+    if (typeof body.guild_id !== "string") {
+      reply.code(400).send({ error: "guild_id required" });
+      return;
+    }
+    const hasChannel = typeof body.channel_id === "string";
+    const hasUser = typeof body.user_id === "string";
+    if (!hasChannel && !hasUser) {
+      reply.code(400).send({ error: "channel_id or user_id required" });
       return;
     }
     const guild = await bot.guilds.fetch(body.guild_id).catch(() => null);
@@ -94,9 +103,22 @@ export async function registerVoiceRpcRoutes(
       reply.code(404).send({ error: "guild not found or bot not in it" });
       return;
     }
-    const channel = await guild.channels
-      .fetch(body.channel_id)
-      .catch(() => null);
+    let channelId: string | null = hasChannel
+      ? (body.channel_id as string)
+      : null;
+    if (!channelId && hasUser) {
+      const member = await guild.members
+        .fetch(body.user_id as string)
+        .catch(() => null);
+      channelId = member?.voice.channelId ?? null;
+      if (!channelId) {
+        reply.code(404).send({ error: "that user is not in a voice channel" });
+        return;
+      }
+    }
+    const channel = channelId
+      ? await guild.channels.fetch(channelId).catch(() => null)
+      : null;
     if (
       !channel ||
       (channel.type !== ChannelType.GuildVoice &&
@@ -107,7 +129,7 @@ export async function registerVoiceRpcRoutes(
     }
     const status = await joinVoice({
       guildId: body.guild_id,
-      channelId: body.channel_id,
+      channelId: channel.id,
       adapterCreator: guild.voiceAdapterCreator,
       selfDeaf: typeof body.self_deaf === "boolean" ? body.self_deaf : true,
       selfMute: typeof body.self_mute === "boolean" ? body.self_mute : false,
