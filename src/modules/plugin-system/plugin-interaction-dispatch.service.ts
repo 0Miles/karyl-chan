@@ -10,6 +10,7 @@ import {
 } from "./models/plugin-command.model.js";
 import { findPluginById, type PluginRow } from "./models/plugin.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
+import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import {
   assertPluginTarget,
@@ -181,6 +182,15 @@ async function dispatchChatInputCommand(
   }
 
   const opts = serializeOptions(interaction);
+  // The invoker's plugin-relevant RBAC tokens, narrowed to what THIS
+  // plugin may act on: the `admin` superuser token plus this plugin's
+  // own `plugin:<pluginKey>:*` grants — never another plugin's, never
+  // guild/behavior scopes. Lets a plugin gate a subcommand on a
+  // capability it declared (e.g. radio's `download`).
+  const allCaps = await resolveUserCapabilities(interaction.user.id);
+  const pluginCaps = [...allCaps].filter(
+    (c) => c === "admin" || c.startsWith(`plugin:${plugin.pluginKey}:`),
+  );
   const payload = {
     interaction_id: interaction.id,
     interaction_token: interaction.token,
@@ -210,6 +220,7 @@ async function dispatchChatInputCommand(
                 voice?: { channelId?: string | null };
               }
             ).voice?.channelId ?? null,
+          capabilities: pluginCaps,
         }
       : null,
     locale: interaction.locale ?? null,
