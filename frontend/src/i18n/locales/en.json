@@ -1342,7 +1342,7 @@
             "defaultOn": "default on"
         },
         "botFeaturesTitle": "All Servers — Bot Feature Defaults",
-        "botFeaturesDesc": "Set the default enabled state for each guild feature when a new server joins. Existing servers are not affected automatically — built-in features can be overridden on the server page; plugin features require the \"Apply to all servers\" button below.",
+        "botFeaturesDesc": "Set each guild feature's default on/off state. The default applies to every server that hasn't been given an explicit override on its own page — change it here and it takes effect everywhere immediately (no extra step). A server with an override keeps that override until you clear it on the server page.",
         "builtinSection": "Built-in Features",
         "noBuiltin": "No built-in features.",
         "overriddenServers": "Overridden servers: {count}",
@@ -1358,11 +1358,6 @@
         "disabledGuilds": "{count} guild disabled",
         "manifestDefault": "Manifest default: {state}",
         "overriddenToParens": "(overridden to {state})",
-        "appliedTo": "Applied to {count} guild",
-        "applyToAllTitle": "Apply to all",
-        "applyToAllMessage": "Apply the default for \"{name}\" ({state}) to all servers?\nThis will override each server's current setting.",
-        "applyBtn": "Apply to all servers",
-        "applyBtnTooltip": "Apply current default to all servers (overrides existing settings)",
         "statusActive": "active",
         "statusInactive": "inactive",
         "statusDisabled": "disabled"

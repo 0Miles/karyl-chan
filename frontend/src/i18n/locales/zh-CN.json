@@ -1342,7 +1342,7 @@
             "defaultOn": "默认启用"
         },
         "botFeaturesTitle": "所有服务器 — Bot 功能默认",
-        "botFeaturesDesc": "设定每个 guild feature 在新加入服务器时的默认启用值。现有服务器的设定不会自动跟随改动 — 内建功能可在服务器页覆写；Plugin Features 需点下方「套用到所有服务器」一键套用。",
+        "botFeaturesDesc": "设置每个 guild feature 的默认开关。没在各服务器页面手动覆盖过的服务器都跟随这个默认 —— 在这里改，所有未覆盖的服务器立即生效（不用再多按一步）。有手动覆盖的服务器会维持覆盖，直到你在该服务器页面清掉它。",
         "builtinSection": "内建功能",
         "noBuiltin": "没有内建功能。",
         "overriddenServers": "已覆写的服务器：{count}",
@@ -1358,11 +1358,6 @@
         "disabledGuilds": "已停用 {count} guild",
         "manifestDefault": "Manifest 默认：{state}",
         "overriddenToParens": "(覆盖为 {state})",
-        "appliedTo": "已套用到 {count} guild",
-        "applyToAllTitle": "套用到所有服务器",
-        "applyToAllMessage": "将「{name}」的默认值 ({state}) 套用到所有服务器？\n这会覆盖每个服务器目前的设定。",
-        "applyBtn": "套用到所有服务器",
-        "applyBtnTooltip": "把目前的默认值套到所有服务器（会覆盖现有设定）",
         "statusActive": "运行中",
         "statusInactive": "未运行",
         "statusDisabled": "已停用"

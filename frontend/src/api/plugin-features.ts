@@ -10,10 +10,11 @@ import { ApiError, authedFetch } from "./client";
  *
  *   - Cross-guild: GET /api/plugins/feature-defaults
  *                  PUT /api/plugins/:id/feature-defaults/:featureKey
- *                  POST /api/plugins/:id/feature-defaults/:featureKey/apply-to-all
  *     Used in the "All Servers" dashboard to manage operator-level
- *     defaults that override the manifest's enabled_by_default for
- *     every (current and future) guild.
+ *     defaults that override the manifest's enabled_by_default. A
+ *     guild with no explicit per-guild row follows the default, so
+ *     changing it takes effect everywhere automatically (the bot
+ *     re-syncs the feature's slash commands) — no "apply to all" step.
  */
 
 export interface GuildFeatureItem {
@@ -26,7 +27,12 @@ export interface GuildFeatureItem {
   icon: string | undefined;
   configSchema: unknown;
   surfaces: string[];
+  /** Effective on/off for this guild: per-guild row → operator default → manifest default → false. */
   enabled: boolean;
+  /** True if there's an explicit per-guild row (i.e. this guild overrides the default). */
+  overridden: boolean;
+  /** The default this guild falls back to when not overridden. */
+  defaultEnabled: boolean;
   config: Record<string, unknown>;
   metrics: Record<string, unknown>;
   pluginEnabled: boolean;
@@ -110,17 +116,3 @@ export async function setFeatureDefault(
   await jsonOrThrow<unknown>(r);
 }
 
-export async function applyFeatureDefaultToAll(
-  pluginId: number,
-  featureKey: string,
-): Promise<{ updated: number; skipped: number }> {
-  const r = await authedFetch(
-    `/api/plugins/${pluginId}/feature-defaults/${featureKey}/apply-to-all`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    },
-  );
-  return jsonOrThrow<{ updated: number; skipped: number }>(r);
-}

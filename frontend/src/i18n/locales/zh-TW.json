@@ -1342,7 +1342,7 @@
             "defaultOn": "預設啟用"
         },
         "botFeaturesTitle": "所有伺服器 — Bot 功能預設",
-        "botFeaturesDesc": "設定每個 guild feature 在新加入伺服器時的預設啟用值。既有伺服器的設定不會自動跟隨改動 — 內建功能可在伺服器頁覆寫;Plugin Features 需點下方「套用到所有伺服器」一鍵套用。",
+        "botFeaturesDesc": "設定每個 guild feature 的預設開關。沒在各伺服器頁面手動覆寫過的伺服器都跟隨這個預設 —— 在這裡改，所有未覆寫的伺服器立即生效（不用再多按一步）。有手動覆寫的伺服器會維持覆寫，直到你在該伺服器頁面清掉它。",
         "builtinSection": "內建功能",
         "noBuiltin": "沒有內建功能。",
         "overriddenServers": "已覆寫的伺服器:{count}",
@@ -1358,11 +1358,6 @@
         "disabledGuilds": "已停用 {count} guild",
         "manifestDefault": "Manifest 預設:{state}",
         "overriddenToParens": "(覆蓋為 {state})",
-        "appliedTo": "已套用到 {count} guild",
-        "applyToAllTitle": "套用到所有伺服器",
-        "applyToAllMessage": "將「{name}」的預設值 ({state}) 套用到所有伺服器?\n這會覆蓋每個伺服器目前的設定。",
-        "applyBtn": "套用到所有伺服器",
-        "applyBtnTooltip": "把目前的預設值套到所有伺服器(會覆蓋既有設定)",
         "statusActive": "運行中",
         "statusInactive": "未運行",
         "statusDisabled": "已停用"

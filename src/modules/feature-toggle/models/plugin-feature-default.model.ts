@@ -5,11 +5,18 @@ import { sequelize } from "../../../db.js";
  * plugin_feature_defaults — operator-controlled default for a plugin
  * feature, overriding the manifest's static `enabled_by_default`.
  *
- * Lookup precedence at admin-page render time:
+ * Lookup precedence (used at admin-page render time AND by
+ * pluginCommandRegistry to decide which guilds get the feature's slash
+ * commands — same shape as resolveBuiltinFeatureEnabled for built-ins):
  *   1. plugin_guild_features row for (pluginId, guildId, featureKey) — if exists, that's the truth
- *   2. plugin_feature_defaults row for (pluginId, featureKey) — operator override
+ *   2. plugin_feature_defaults row for (pluginId, featureKey) — operator default
  *   3. manifest.guild_features[].enabled_by_default — author-declared default
  *   4. false — final fallback
+ *
+ * A guild with no per-guild row follows the default automatically;
+ * changing this default re-syncs every un-overridden guild (the PUT
+ * /api/plugins/:id/feature-defaults/:featureKey route runs the command
+ * sync). No "apply to all" step.
  */
 export const PluginFeatureDefault = sequelize.define(
   "PluginFeatureDefault",

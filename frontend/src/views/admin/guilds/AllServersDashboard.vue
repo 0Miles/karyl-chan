@@ -6,7 +6,6 @@ import AppTabs from '../../../components/AppTabs.vue';
 import type { GuildSummary } from '../../../api/guilds';
 import { useGuildListStore } from '../../../stores/guildListStore';
 import {
-    applyFeatureDefaultToAll,
     listFeatureDefaults,
     setFeatureDefault,
     type FeatureDefaultItem
@@ -18,28 +17,25 @@ import {
 } from '../../../api/builtin-features';
 import { guildFeatures as builtinRegistry } from '../../../modules/guild-features/registry';
 import { useApiError } from '../../../composables/use-api-error';
-import { useConfirm } from '../../../composables/use-confirm';
 
 /**
  * "All Servers" dashboard with two top-level tabs:
  *
  *   總覽 (overview)   — bird's-eye counts: guilds, plugins, features.
  *   Bot 功能          — defaults editor for both built-in (in-process)
- *                       guild features and plugin-provided guild
- *                       features. Toggling the default override here
- *                       affects new guilds; existing per-guild rows
- *                       only flip after the operator hits "apply to
- *                       all servers" (plugin features) or sets a
- *                       per-guild override on the guild detail page.
+ *                       and plugin-provided guild features. The default
+ *                       applies to every guild that has no explicit
+ *                       per-guild override (set on the guild detail
+ *                       page) — changing it takes effect everywhere
+ *                       immediately, no separate "apply" step.
  *
- * Lookup precedence the backend encodes:
+ * Lookup precedence the backend encodes (same shape for both kinds):
  *   - built-in:  per-guild row → operator default (NULL row) → true (built-ins default ON)
- *   - plugin:    per-guild row (plugin_guild_features) → operator override (plugin_feature_defaults) → manifest enabled_by_default
+ *   - plugin:    per-guild row (plugin_guild_features) → operator default (plugin_feature_defaults) → manifest enabled_by_default → false
  */
 
 const { t: $t } = useI18n();
 const { handle: handleApiError } = useApiError();
-const { confirm } = useConfirm();
 const guildListStore = useGuildListStore();
 
 type Tab = 'overview' | 'bot-features';
@@ -51,7 +47,6 @@ const builtinFeatures = ref<BuiltinFeatureState[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const busy = ref<Set<string>>(new Set());
-const lastApplyResult = ref<Record<string, { updated: number } | null>>({});
 
 const builtinByKey = computed(() => {
     const m = new Map<string, BuiltinFeatureState>();
@@ -144,23 +139,6 @@ async function onTogglePluginDefault(item: FeatureDefaultItem) {
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'save default failed';
-    } finally {
-        busy.value.delete(k);
-    }
-}
-
-async function onApplyPluginToAll(item: FeatureDefaultItem) {
-    const k = `plugin:${pluginKey(item)}`;
-    if (busy.value.has(k)) return;
-    if (!await confirm({ title: $t('allServers.applyToAllTitle'), message: $t('allServers.applyToAllMessage', { name: item.featureName, state: item.effectiveDefault ? $t('allServers.enabled') : $t('allServers.disabled') }), confirmLabel: $t('allServers.applyBtn'), confirmVariant: 'danger' })) return;
-    busy.value.add(k);
-    try {
-        const result = await applyFeatureDefaultToAll(item.pluginId, item.featureKey);
-        lastApplyResult.value = { ...lastApplyResult.value, [k]: { updated: result.updated } };
-        await refresh();
-    } catch (err) {
-        if (handleApiError(err) !== 'unhandled') return;
-        error.value = err instanceof Error ? err.message : 'apply failed';
     } finally {
         busy.value.delete(k);
     }
@@ -344,9 +322,6 @@ onMounted(refresh);
                                                 </template>
                                             </span>
                                         </div>
-                                        <div v-if="lastApplyResult[`plugin:${pluginKey(item)}`]" class="apply-result">
-                                            ✓ {{ $t('allServers.appliedTo', { count: lastApplyResult[`plugin:${pluginKey(item)}`]?.updated }) }}
-                                        </div>
                                     </div>
                                     <div class="feature-controls">
                                         <label class="toggle-wrap">
@@ -362,16 +337,6 @@ onMounted(refresh);
                                                 <span class="slider" aria-hidden="true"></span>
                                             </button>
                                         </label>
-                                        <button
-                                            type="button"
-                                            class="btn small"
-                                            :disabled="busy.has(`plugin:${pluginKey(item)}`)"
-                                            @click="onApplyPluginToAll(item)"
-                                            :title="$t('allServers.applyBtnTooltip')"
-                                        >
-                                            <Icon icon="material-symbols:checklist-rounded" />
-                                            {{ $t('allServers.applyBtn') }}
-                                        </button>
                                     </div>
                                 </li>
                             </ul>
@@ -481,7 +446,6 @@ onMounted(refresh);
 .feature-desc { font-size: 0.82rem; line-height: 1.35; }
 .feature-stats { display: flex; flex-wrap: wrap; gap: 0.35rem; font-size: 0.75rem; }
 .feature-stats .dot { opacity: 0.4; }
-.apply-result { font-size: 0.78rem; color: var(--accent); margin-top: 0.2rem; }
 
 .feature-controls {
     display: flex; flex-direction: column; align-items: flex-end; gap: 0.45rem;
@@ -530,5 +494,4 @@ onMounted(refresh);
 .btn:hover:not(:disabled) { background: var(--bg-surface-hover); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
 .btn.ghost { background: transparent; }
-.btn.small { padding: 0.3rem 0.55rem; font-size: 0.78rem; }
 </style>

@@ -1,4 +1,4 @@
-import type { Client } from "discord.js";
+import type { Client, Guild } from "discord.js";
 import {
   ApplicationCommandOptionType,
   ApplicationCommandType,
@@ -19,6 +19,7 @@ import {
   type PluginCommandRow,
 } from "./models/plugin-command.model.js";
 import { findFeatureRowsByPlugin } from "../feature-toggle/models/plugin-guild-feature.model.js";
+import { findFeatureDefaultsByPlugin } from "../feature-toggle/models/plugin-feature-default.model.js";
 import { findAllPlugins, type PluginRow } from "./models/plugin.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { findEnabledSlashCommandNames } from "../behavior/models/behavior.model.js";
@@ -384,30 +385,34 @@ export class PluginCommandRegistry {
     }
 
     // ── Per-feature commands ─────────────────────────────────────
-    // For each feature with declared commands, find which guilds have
-    // that feature enabled (per plugin_guild_features), then register
-    // the feature's commands into those guilds. Disabled-by-default +
-    // no row = NOT enabled (stricter than "no row → fall through to
-    // manifest default" because feature commands ride along with the
-    // user's explicit on/off state — no row means the operator hasn't
-    // chosen, default to OFF for command visibility).
+    // A feature's slash commands are registered in a guild iff the
+    // feature resolves to "on" there. Resolution mirrors built-in
+    // features (resolveBuiltinFeatureEnabled): per-guild row →
+    // plugin_feature_defaults (operator default) → manifest
+    // enabled_by_default → false. So a guild that's never been touched
+    // follows the default — no "apply to all" step. (When the operator
+    // default changes, the feature-defaults route re-runs this sync.)
     const featureRows = await findFeatureRowsByPlugin(plugin.id);
-    const enabledByFeature = new Map<string, string[]>();
+    const rowEnabled = new Map<string, boolean>(); // `${featureKey} ${guildId}` → enabled
     for (const r of featureRows) {
-      if (!r.enabled) continue;
-      const list = enabledByFeature.get(r.featureKey) ?? [];
-      list.push(r.guildId);
-      enabledByFeature.set(r.featureKey, list);
+      rowEnabled.set(`${r.featureKey} ${r.guildId}`, r.enabled);
     }
+    const opDefaultEnabled = new Map<string, boolean>();
+    for (const d of await findFeatureDefaultsByPlugin(plugin.id)) {
+      opDefaultEnabled.set(d.featureKey, d.enabled);
+    }
+    const allGuildIds = [...bot.guilds.cache.keys()];
     for (const feature of manifest.guild_features ?? []) {
       const cmds = feature.commands ?? [];
       if (cmds.length === 0) continue;
-      const enabledGuilds = enabledByFeature.get(feature.key) ?? [];
-      for (const cmd of cmds) {
-        const stalesForCmd = [...stale.values()].filter(
-          (r) => r.featureKey === feature.key && r.name === cmd.name,
-        );
-        for (const guildId of enabledGuilds) {
+      const manifestDefault = !!feature.enabled_by_default;
+      for (const guildId of allGuildIds) {
+        const enabled =
+          rowEnabled.get(`${feature.key} ${guildId}`) ??
+          opDefaultEnabled.get(feature.key) ??
+          manifestDefault;
+        if (!enabled) continue; // off — any leftover row gets cleaned below
+        for (const cmd of cmds) {
           const upsertResult = await this.registerFeatureCommandInGuild(
             plugin,
             feature.key,
@@ -416,11 +421,6 @@ export class PluginCommandRegistry {
           );
           if (upsertResult) stale.delete(upsertResult.id);
         }
-        // Stales for this (feature, name) pair: rows that exist but
-        // the feature is no longer enabled in that guild — delete
-        // (loop above only marks-not-stale guilds where feature is
-        // currently enabled).
-        void stalesForCmd; // walked into the final stale-cleanup
       }
     }
 
@@ -521,6 +521,98 @@ export class PluginCommandRegistry {
       const rows = await findPluginCommandsByFeature(plugin.id, featureKey);
       for (const r of rows) {
         if (r.guildId === guildId) await this.deleteOne(r);
+      }
+    }
+  }
+
+  /**
+   * Re-evaluate one feature's slash commands across every guild the bot
+   * is in — register where it resolves "on", delete where it resolves
+   * "off". Resolution per guild: per-guild row → operator default
+   * (plugin_feature_defaults) → manifest enabled_by_default → false.
+   * Called when the operator default for the feature changes (there's
+   * no "apply to all" step anymore).
+   */
+  async syncFeatureCommandsAcrossGuilds(
+    plugin: PluginRow,
+    manifest: PluginManifest,
+    featureKey: string,
+  ): Promise<void> {
+    const bot = this.getBot();
+    if (!bot) return;
+    if (!plugin.enabled || plugin.status !== "active") return;
+    const feature = manifest.guild_features?.find((f) => f.key === featureKey);
+    const cmds = feature?.commands ?? [];
+    if (!feature || cmds.length === 0) return;
+    const manifestDefault = !!feature.enabled_by_default;
+    const opDefault = (await findFeatureDefaultsByPlugin(plugin.id)).find(
+      (d) => d.featureKey === featureKey,
+    )?.enabled;
+    const rowEnabled = new Map<string, boolean>();
+    for (const r of await findFeatureRowsByPlugin(plugin.id)) {
+      if (r.featureKey === featureKey) rowEnabled.set(r.guildId, r.enabled);
+    }
+    const existingByGuild = new Map<string, PluginCommandRow[]>();
+    for (const r of await findPluginCommandsByFeature(plugin.id, featureKey)) {
+      if (!r.guildId) continue;
+      const list = existingByGuild.get(r.guildId) ?? [];
+      list.push(r);
+      existingByGuild.set(r.guildId, list);
+    }
+    for (const guildId of bot.guilds.cache.keys()) {
+      const enabled = rowEnabled.get(guildId) ?? opDefault ?? manifestDefault;
+      if (enabled) {
+        for (const cmd of cmds) {
+          await this.registerFeatureCommandInGuild(
+            plugin,
+            featureKey,
+            guildId,
+            cmd,
+          );
+        }
+      } else {
+        for (const r of existingByGuild.get(guildId) ?? []) {
+          await this.deleteOne(r);
+        }
+      }
+    }
+  }
+
+  /**
+   * When the bot joins a guild: register the feature commands of every
+   * active plugin whose feature resolves "on" in that brand-new guild
+   * (no per-guild row can exist yet → operator default / manifest
+   * default decides). Mirrors syncInProcessCommandsForGuild for
+   * built-in features.
+   */
+  async syncFeatureCommandsForNewGuild(guild: Guild): Promise<void> {
+    const bot = this.getBot();
+    if (!bot || !bot.application) return;
+    for (const plugin of await findAllPlugins()) {
+      if (!plugin.enabled || plugin.status !== "active") continue;
+      let manifest: PluginManifest;
+      try {
+        manifest = JSON.parse(plugin.manifestJson) as PluginManifest;
+      } catch {
+        continue;
+      }
+      const opDefaults = await findFeatureDefaultsByPlugin(plugin.id);
+      for (const feature of manifest.guild_features ?? []) {
+        const cmds = feature.commands ?? [];
+        if (cmds.length === 0) continue;
+        const opDefault = opDefaults.find(
+          (d) => d.featureKey === feature.key,
+        )?.enabled;
+        const enabled = opDefault ?? !!feature.enabled_by_default;
+        if (!enabled) continue;
+        for (const cmd of cmds) {
+          await this.registerFeatureCommandInGuild(
+            plugin,
+            feature.key,
+            guild.id,
+            cmd,
+          );
+        }
       }
     }
   }

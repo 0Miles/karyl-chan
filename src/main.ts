@@ -309,8 +309,16 @@ bot.on("guildCreate", async (guild) => {
     guildName: guild.name,
     memberCount: guild.memberCount,
   });
-  // 軌一：in-process 指令（guild feature commands）
+  // 軌一：in-process（built-in）guild feature 指令
   await syncInProcessCommandsForGuild(guild);
+  // plugin guild-feature 指令：把每個 active plugin 在這個新 guild 解析為 on 的
+  // feature 指令註冊起來（新 guild 還沒有 per-guild row → 跟 operator / manifest 預設）。
+  pluginCommandRegistry.syncFeatureCommandsForNewGuild(guild).catch((err: unknown) => {
+    log.error(
+      { err, guildId: guild.id },
+      "pluginCommandRegistry.syncFeatureCommandsForNewGuild failed",
+    );
+  });
   // 軌二 + 軌三 scope=guild：增量 reconcile（OQ-8 補強）
   // 確保 bot 加入新 guild 時，scope='guild' 的 behaviors / plugin_commands 自動 register，
   // 不需重啟。catch 避免單 guild 失敗阻擋其他邏輯。

@@ -107,6 +107,7 @@ async function onTogglePlugin(item: GuildFeatureItem) {
     try {
         await setGuildFeatureEnabled(item.pluginId, props.guildId, item.featureKey, next);
         item.enabled = next;
+        item.overridden = true; // toggling creates an explicit per-guild row
     } catch (err) {
         if (handleApiError(err) !== 'unhandled') return;
         error.value = err instanceof Error ? err.message : 'toggle failed';
@@ -209,6 +210,9 @@ watch(() => props.guildId, refresh);
                                 <span class="plugin-tag muted">({{ item.pluginName }})</span>
                             </div>
                             <div v-if="item.description" class="feature-desc muted">{{ item.description }}</div>
+                            <div v-if="item.overridden" class="feature-desc muted">
+                                此伺服器已覆寫（預設為{{ item.defaultEnabled ? '啟用' : '停用' }}）
+                            </div>
                             <div v-if="!item.pluginEnabled || item.pluginStatus !== 'active'" class="warn">
                                 ⚠ Plugin 目前 {{ !item.pluginEnabled ? '已停用' : '不在線' }};即使 toggle 開啟也不會收到事件。
                             </div>

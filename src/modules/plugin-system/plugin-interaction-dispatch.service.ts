@@ -149,7 +149,9 @@ async function dispatchChatInputCommand(
   const url = resolveUrl(
     plugin,
     manifest,
-    manifest.endpoints?.plugin_command ?? manifest.endpoints?.command ?? DEFAULT_COMMAND_PATH,
+    manifest.endpoints?.plugin_command ??
+      manifest.endpoints?.command ??
+      DEFAULT_COMMAND_PATH,
     { command_name: interaction.commandName },
   );
   if (!url) {
