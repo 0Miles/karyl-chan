@@ -29,7 +29,6 @@ npm run start   # nodemon + ts-node 開發模式，檔案變更自動 reload
 | `npm test` | vitest 跑所有測試 |
 | `npm run test:watch` | vitest watch 模式 |
 | `npm run test:typecheck` | `tsc -p tsconfig.test.json --noEmit`，對 `tests/` 做型別檢查 |
-| `npm run build:changelog` | 用 `@discordx/changelog` 掃 src 產生 changelog |
 
 ## 專案結構
 
@@ -44,22 +43,23 @@ src/
   migrations/                  # Umzug schema migrations(時間線扁平)
   types/                       # ambient declarations
   utils/                       # 純函式工具(crypto/rate-limiter/host-policy/constant)
-  modules/                     # 9 個業務模組
+  modules/                     # 11 個業務模組
     plugin-system/             # 外部 RPC plugin 生命週期
-    behavior/                  # DM 觸發轉發三型
+    command-system/            # slash 指令 reconcile + interaction dispatch + message pattern
+    behavior/                  # DM 觸發轉發三型 + webhook 接口層
     builtin-features/          # in-process Discord 功能(picture-only/role-emoji/todo/rcon)
     feature-toggle/            # 功能開關狀態層(plugin + builtin 兩條軌道)
+    voice/                     # 語音頻道連線 + voice RPC（plugin 用）
     admin/                     # 管理員身份、登入、capability、審計
     dm-inbox/                  # DM 收件匣 + SSE
     guild-management/          # Discord guild 管理 web API
     bot-events/                # bot 事件日誌
-    web-core/                  # Fastify 基礎設施 + bot-wide meta endpoints
+    web-core/                  # Fastify 基礎設施 + JWT 簽發中心 + bot-wide meta endpoints
 
 tests/                         # vitest 單元測試(扁平)
 docs/                          # 本文件所在
 .github/workflows/
-  ci.yml                       # PR/push 跑 build + test + audit
-  docker-publish.yml           # main push 跑 test 後 build/push ghcr image
+  docker-publish.yml           # main push 跑 build + typecheck + test，通過後 build/push ghcr image
 ```
 
 **新增 feature / endpoint / event handler / model 的標準流程**見 [docs/architecture.md](architecture.md) 的「新增 feature 決策樹」與「加新 builtin feature(完整 SOP)」段。
@@ -123,21 +123,22 @@ npm run test:typecheck         # 驗證 tests/ 型別
 
 ## CI pipeline
 
-見 [.github/workflows/](../.github/workflows/)：
+見 [.github/workflows/docker-publish.yml](../.github/workflows/docker-publish.yml) —
+push 到 `main` 時觸發，兩個 job：
 
-| Workflow | 觸發 | 做什麼 |
-|---|---|---|
-| `ci.yml` | push to main / all PRs | `npm ci` → build → `test:typecheck` → `test` → `npm audit` (non-blocking) |
-| `docker-publish.yml` | push to main | 先跑 `test` job，通過後 build docker image 推到 `ghcr.io/0miles/karyl-chan` |
+| Job | 做什麼 |
+|---|---|
+| `test` | `npm ci` → `npm run build` → `npm run test:typecheck` → `npm test` |
+| `build-and-push` | `needs: test`；通過後 build docker image 推到 `ghcr.io/${repo}`（`:latest` + `:<branch>-<sha>`） |
 
-`docker-publish` 的 `build-and-push` job 有 `needs: test`，測試失敗不會發 image。
+測試失敗不會發 image。（目前沒有獨立的 PR-only workflow；本機跑 `npm run build && npm run test:typecheck && npm test` 自驗。）
 
 ### 分支策略
 
 此 bot 目前主要由單人維護，常見模式：
-- 直接在 `main` 工作
-- 每個邏輯變更一個 commit，commit message 用 conventional commits 風格（`feat:`、`fix:`、`chore:`、`refactor:`、`test:`、`docs:` 等）
-- 大型變動或外部協作可走 PR（CI 一樣會跑）
+- 直接在 `main` 工作（或短命 feature branch）
+- 每個邏輯變更一個 commit，commit message 用 conventional commits 風格（`feat:`、`fix:`、`chore:`、`refactor:`、`test:`、`docs:`、`style:` 等）
+- 大型變動或外部協作可走 PR
 
 ## 常見擴充任務
 
