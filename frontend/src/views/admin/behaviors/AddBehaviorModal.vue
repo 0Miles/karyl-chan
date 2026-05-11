@@ -16,16 +16,15 @@ import {
 import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
 /**
- * AddBehaviorModal — M1-D1
+ * AddBehaviorModal — admin-defined behaviors only.
  *
- * 兩步驟 wizard（D-ui §3 + §6 拒絕 AI slop 規則）：
- * - Step 1：選 source（custom / plugin；system 不可建）
- * - Step 2a (custom)：設 trigger → 三軸 → webhookUrl/secret/mode
- * - Step 2b (plugin)：選 plugin → 選 behavior key → 三軸預覽（唯讀）→ 命名
- *
- * 設計重點（§6）：
- * 1. 兩步驟 wizard 不縮減為單一長 form
- * 2. plugin 路徑三軸標示「由 manifest 鎖定」+ ℹ️ 圖示說明
+ * Every behavior here is created by an operator: pick a trigger
+ * (slash command or message pattern), then decide where it's
+ * forwarded — to a webhook URL, or to a plugin that exposes a
+ * spec-compliant behavior endpoint (the "plugin" forward option).
+ * There is no separate "plugin-provided behavior" source; a plugin
+ * that wants to power a behavior simply provides the webhook the
+ * operator points at.
  */
 
 const { t } = useI18n();
@@ -41,12 +40,6 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'created', row: BehaviorRow): void;
 }>();
-
-// ── step 狀態 ─────────────────────────────────────────────────────────────────
-
-type Step = 'step1' | 'step2-custom' | 'step2-plugin';
-const step = ref<Step>('step1');
-const selectedSource = ref<BehaviorSource | null>(null);
 
 // ── plugins 預載（優先使用父層傳入的快取，無則自行打 API）────────────────────
 
@@ -71,17 +64,15 @@ async function loadPluginsIfNeeded() {
 
 watch(() => props.visible, (open) => {
     if (open) {
-        step.value = 'step1';
-        selectedSource.value = null;
-        resetCustomForm();
-        resetPluginForm();
+        resetForm();
+        error.value = null;
         void loadPluginsIfNeeded();
     }
 });
 
-// ── Step 2a：custom form ──────────────────────────────────────────────────────
+// ── form state ────────────────────────────────────────────────────────────────
 
-const customForm = ref({
+const form = ref({
     title: '',
     description: '',
     triggerType: 'message_pattern' as BehaviorTriggerType,
@@ -98,8 +89,8 @@ const customForm = ref({
     pluginBehaviorKey: '',
 });
 
-function resetCustomForm() {
-    customForm.value = {
+function resetForm() {
+    form.value = {
         title: '',
         description: '',
         triggerType: 'message_pattern',
@@ -117,23 +108,7 @@ function resetCustomForm() {
     };
 }
 
-// ── Step 2b：plugin form ──────────────────────────────────────────────────────
-
-const pluginForm = ref({
-    pluginId: null as number | null,
-    pluginBehaviorKey: '',
-    displayName: '',
-});
-
-function resetPluginForm() {
-    pluginForm.value = {
-        pluginId: null,
-        pluginBehaviorKey: '',
-        displayName: '',
-    };
-}
-
-// ── plugin select options ─────────────────────────────────────────────────────
+// ── plugin forward options ────────────────────────────────────────────────────
 
 const eligiblePlugins = computed(() =>
     plugins.value.filter(p =>
@@ -145,62 +120,17 @@ const pluginOptions = computed(() =>
     eligiblePlugins.value.map(p => ({ value: p.id, label: `${p.name} (v${p.version})` }))
 );
 
-const selectedPlugin = computed(() =>
-    eligiblePlugins.value.find(p => p.id === pluginForm.value.pluginId) ?? null
+const pluginBehaviorOptions = computed(() =>
+    (eligiblePlugins.value.find(p => p.id === form.value.pluginId)?.manifest?.dm_behaviors ?? [])
+        .map(b => ({ value: b.key, label: b.name }))
 );
 
-const behaviorKeyOptions = computed(() =>
-    (selectedPlugin.value?.manifest?.dm_behaviors ?? []).map(b => ({
-        value: b.key,
-        label: b.description ? `${b.name} — ${b.description}` : b.name,
-    }))
-);
-
-const selectedBehavior = computed(() =>
-    (selectedPlugin.value?.manifest?.dm_behaviors ?? []).find(
-        b => b.key === pluginForm.value.pluginBehaviorKey
-    ) ?? null
-);
-
-// 自動填 displayName
-watch(() => [pluginForm.value.pluginId, pluginForm.value.pluginBehaviorKey], () => {
-    if (selectedBehavior.value && !pluginForm.value.displayName) {
-        pluginForm.value.displayName = selectedBehavior.value.name;
-    }
+// 切換 forward plugin 時重設 behavior key
+watch(() => form.value.pluginId, () => {
+    form.value.pluginBehaviorKey = '';
 });
 
-// 切換 plugin 時重設 key
-watch(() => pluginForm.value.pluginId, () => {
-    pluginForm.value.pluginBehaviorKey = '';
-    pluginForm.value.displayName = '';
-});
-
-// ── step 切換 ─────────────────────────────────────────────────────────────────
-
-function onSelectSource(src: BehaviorSource) {
-    selectedSource.value = src;
-}
-
-function onNext() {
-    if (!selectedSource.value) return;
-    if (selectedSource.value === 'custom') {
-        step.value = 'step2-custom';
-    } else {
-        step.value = 'step2-plugin';
-    }
-}
-
-function onBack() {
-    step.value = 'step1';
-    selectedSource.value = null;
-}
-
-// ── select options（step 2） ──────────────────────────────────────────────────
-
-const triggerTypeOptions = [
-    { value: 'slash_command' as BehaviorTriggerType, label: t('behaviors.addModal.triggerSlash') },
-    { value: 'message_pattern' as BehaviorTriggerType, label: t('behaviors.addModal.triggerPattern') },
-];
+// ── select options ────────────────────────────────────────────────────────────
 
 const messagePatternKindOptions = [
     { value: 'startswith', label: t('behaviors.card.triggerStartsWith') },
@@ -213,16 +143,16 @@ const webhookAuthModeOptions = [
     { value: 'hmac' as BehaviorWebhookAuthMode, label: 'HMAC' },
 ];
 
-// ── 提交 ──────────────────────────────────────────────────────────────────────
+// ── submit ────────────────────────────────────────────────────────────────────
 
 const submitting = ref(false);
 const error = ref<string | null>(null);
 
-async function onSubmitCustom() {
+async function onSubmit() {
     if (submitting.value) return;
     error.value = null;
 
-    const f = customForm.value;
+    const f = form.value;
     if (!f.title.trim()) { error.value = t('behaviors.card.titleRequired'); return; }
     if (f.triggerType === 'slash_command' && !f.slashCommandName.trim()) {
         error.value = t('behaviors.card.triggerValueRequired'); return;
@@ -232,6 +162,9 @@ async function onSubmitCustom() {
     }
     if (f.forwardMode === 'webhook' && !f.webhookUrl.trim()) {
         error.value = t('behaviors.card.webhookUrlRequired'); return;
+    }
+    if (f.forwardMode === 'plugin' && !f.pluginId) {
+        error.value = t('behaviors.card.pluginRequired'); return;
     }
 
     submitting.value = true;
@@ -266,276 +199,138 @@ async function onSubmitCustom() {
     }
 }
 
-async function onSubmitPlugin() {
-    if (submitting.value) return;
-    error.value = null;
-
-    const f = pluginForm.value;
-    if (!f.pluginId) { error.value = t('behaviors.card.pluginRequired'); return; }
-    if (!f.pluginBehaviorKey) { error.value = t('behaviors.card.pluginBehaviorKeyRequired'); return; }
-    if (!f.displayName.trim()) { error.value = t('behaviors.card.titleRequired'); return; }
-
-    const sel = selectedBehavior.value;
-    submitting.value = true;
-    try {
-        const created = await createBehaviorV2({
-            title: f.displayName.trim(),
-            source: 'plugin' as BehaviorSource,
-            triggerType: 'message_pattern',
-            messagePatternKind: 'startswith',
-            messagePatternValue: f.pluginBehaviorKey,
-            pluginId: f.pluginId,
-            pluginBehaviorKey: f.pluginBehaviorKey,
-            scopeTabId: props.scopeTabId,
-            integrationTypes: 'user_install',
-        });
-        emit('created', created);
-        emit('close');
-    } catch (err) {
-        error.value = err instanceof Error ? err.message : String(err);
-    } finally {
-        submitting.value = false;
-    }
-}
-
 const showAuthMode = computed(() =>
-    customForm.value.forwardMode === 'webhook' && customForm.value.webhookSecret.length > 0
+    form.value.forwardMode === 'webhook' && form.value.webhookSecret.length > 0
 );
 </script>
 
 <template>
     <AppModal :visible="visible" :title="t('behaviors.addModal.title')" width="min(560px, 94vw)" @close="emit('close')">
         <div class="modal-body">
+            <p class="step-hint">{{ t('behaviors.addModal.subtitle') }}</p>
 
-            <!-- ── Step 1：選擇來源 ──────────────────────────────────── -->
-            <template v-if="step === 'step1'">
-                <p class="step-hint">{{ t('behaviors.addModal.step1Title') }}</p>
+            <div class="form-section">
+                <label class="field">
+                    <span class="label">{{ t('behaviors.addModal.nameLabel') }} *</span>
+                    <input v-model="form.title" type="text" maxlength="200" :placeholder="t('behaviors.addModal.namePlaceholder')" autofocus />
+                </label>
 
-                <div class="source-cards">
-                    <!-- 自訂 -->
+                <!-- 觸發方式 -->
+                <div class="section-heading">{{ t('behaviors.card.triggerType') }}</div>
+                <div class="trigger-type-cards">
                     <button
                         type="button"
-                        :class="['source-card', { selected: selectedSource === 'custom' }]"
-                        @click="onSelectSource('custom')"
+                        :class="['trigger-card', { selected: form.triggerType === 'slash_command' }]"
+                        @click="form.triggerType = 'slash_command'"
                     >
-                        <Icon icon="material-symbols:bolt-outline-rounded" width="28" height="28" class="source-card-icon" aria-hidden="true" />
-                        <strong>{{ t('behaviors.addModal.sourceCustomTitle') }}</strong>
-                        <span class="source-card-desc">{{ t('behaviors.addModal.sourceCustomDesc') }}</span>
+                        <Icon icon="material-symbols:bolt-outline-rounded" width="20" height="20" />
+                        {{ t('behaviors.addModal.triggerSlash') }}
                     </button>
-
-                    <!-- Plugin 提供 -->
                     <button
                         type="button"
-                        :class="['source-card', { selected: selectedSource === 'plugin' }]"
-                        @click="onSelectSource('plugin')"
+                        :class="['trigger-card', { selected: form.triggerType === 'message_pattern' }]"
+                        @click="form.triggerType = 'message_pattern'"
                     >
-                        <Icon icon="material-symbols:extension-outline" width="28" height="28" class="source-card-icon" aria-hidden="true" />
-                        <strong>{{ t('behaviors.addModal.sourcePluginTitle') }}</strong>
-                        <span class="source-card-desc">{{ t('behaviors.addModal.sourcePluginDesc') }}</span>
+                        <Icon icon="material-symbols:article-outline" width="20" height="20" />
+                        {{ t('behaviors.addModal.triggerPattern') }}
                     </button>
                 </div>
 
-                <p class="system-note muted">{{ t('behaviors.addModal.sourceSystemNote') }}</p>
-
-                <footer class="actions">
-                    <AppButton variant="ghost" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
-                    <AppButton variant="primary" :disabled="!selectedSource" @click="onNext">
-                        {{ t('behaviors.addModal.next') }} →
-                    </AppButton>
-                </footer>
-            </template>
-
-            <!-- ── Step 2a：custom ──────────────────────────────────────── -->
-            <template v-else-if="step === 'step2-custom'">
-                <button type="button" class="back-btn" @click="onBack">
-                    <Icon icon="material-symbols:arrow-back-rounded" width="16" height="16" />
-                    {{ t('behaviors.addModal.back') }}
-                </button>
-
-                <div class="form-section">
+                <template v-if="form.triggerType === 'slash_command'">
                     <label class="field">
-                        <span class="label">{{ t('behaviors.addModal.nameLabel') }} *</span>
-                        <input v-model="customForm.title" type="text" maxlength="200" :placeholder="t('behaviors.addModal.namePlaceholder')" autofocus />
+                        <span class="label">{{ t('behaviors.card.slashCommandName') }} *</span>
+                        <input v-model="form.slashCommandName" type="text" maxlength="100" placeholder="指令名稱（不含 /）" />
                     </label>
-
-                    <!-- 觸發方式 -->
-                    <div class="section-heading">{{ t('behaviors.card.triggerType') }}</div>
-                    <div class="trigger-type-cards">
-                        <button
-                            type="button"
-                            :class="['trigger-card', { selected: customForm.triggerType === 'slash_command' }]"
-                            @click="customForm.triggerType = 'slash_command'"
-                        >
-                            <Icon icon="material-symbols:bolt-outline-rounded" width="20" height="20" />
-                            {{ t('behaviors.addModal.triggerSlash') }}
-                        </button>
-                        <button
-                            type="button"
-                            :class="['trigger-card', { selected: customForm.triggerType === 'message_pattern' }]"
-                            @click="customForm.triggerType = 'message_pattern'"
-                        >
-                            <Icon icon="material-symbols:article-outline" width="20" height="20" />
-                            {{ t('behaviors.addModal.triggerPattern') }}
-                        </button>
+                </template>
+                <template v-else>
+                    <div class="field">
+                        <span class="label">{{ t('behaviors.card.messagePatternKind') }}</span>
+                        <AppSelectField v-model="form.messagePatternKind" :options="messagePatternKindOptions" />
                     </div>
-
-                    <template v-if="customForm.triggerType === 'slash_command'">
-                        <label class="field">
-                            <span class="label">{{ t('behaviors.card.slashCommandName') }} *</span>
-                            <input v-model="customForm.slashCommandName" type="text" maxlength="100" placeholder="指令名稱（不含 /）" />
-                        </label>
-                    </template>
-                    <template v-else>
-                        <div class="field">
-                            <span class="label">{{ t('behaviors.card.messagePatternKind') }}</span>
-                            <AppSelectField v-model="customForm.messagePatternKind" :options="messagePatternKindOptions" />
-                        </div>
-                        <label class="field">
-                            <span class="label">{{ t('behaviors.card.messagePatternValue') }} *</span>
-                            <input v-model="customForm.messagePatternValue" type="text" maxlength="2000" placeholder="觸發詞" />
-                        </label>
-                    </template>
-
-                    <!-- Integration Types -->
-                    <div class="section-heading">{{ t('behaviors.addModal.axesLabel') }}</div>
                     <label class="field">
-                        <span class="label">Integration Types</span>
-                        <input v-model="customForm.integrationTypes" type="text" placeholder="user_install" />
+                        <span class="label">{{ t('behaviors.card.messagePatternValue') }} *</span>
+                        <input v-model="form.messagePatternValue" type="text" maxlength="2000" placeholder="觸發詞" />
                     </label>
+                </template>
 
-                    <!-- 轉發設定 -->
-                    <div class="section-heading">{{ t('behaviors.addModal.forwardLabel') }}</div>
-                    <div class="trigger-type-cards">
-                        <button
-                            type="button"
-                            :class="['trigger-card', { selected: customForm.forwardMode === 'webhook' }]"
-                            @click="customForm.forwardMode = 'webhook'"
-                        >
-                            <Icon icon="material-symbols:webhook-outline" width="20" height="20" />
-                            {{ t('behaviors.addModal.forwardWebhook') }}
-                        </button>
-                        <button
-                            type="button"
-                            :class="['trigger-card', { selected: customForm.forwardMode === 'plugin' }]"
-                            @click="customForm.forwardMode = 'plugin'"
-                        >
-                            <Icon icon="material-symbols:extension-outline" width="20" height="20" />
-                            {{ t('behaviors.addModal.forwardPlugin') }}
-                        </button>
-                    </div>
+                <!-- Integration Types -->
+                <div class="section-heading">{{ t('behaviors.addModal.axesLabel') }}</div>
+                <label class="field">
+                    <span class="label">Integration Types</span>
+                    <input v-model="form.integrationTypes" type="text" placeholder="user_install" />
+                </label>
 
-                    <template v-if="customForm.forwardMode === 'webhook'">
-                        <label class="field">
-                            <span class="label">Webhook URL *</span>
-                            <input v-model="customForm.webhookUrl" type="text" maxlength="1000" placeholder="https://…" />
-                        </label>
-                        <label class="field">
-                            <span class="label">
-                                {{ t('behaviors.card.webhookSecret') }}
-                                <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
-                            </span>
-                            <input v-model="customForm.webhookSecret" type="text" maxlength="200" :placeholder="t('behaviors.card.webhookSecretPlaceholder')" autocomplete="off" />
-                        </label>
-                        <div v-if="showAuthMode" class="field">
-                            <span class="label">{{ t('behaviors.card.webhookAuthMode') }}</span>
-                            <AppSelectField v-model="customForm.webhookAuthMode" :options="webhookAuthModeOptions" />
-                        </div>
-                    </template>
-                    <template v-else>
-                        <div class="field">
-                            <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
-                            <AppSelectField
-                                v-model="customForm.pluginId"
-                                :options="pluginOptions"
-                                :placeholder="t('behaviors.card.pluginNoneAvailable')"
-                                :disabled="pluginOptions.length === 0"
-                            />
-                        </div>
-                        <div v-if="customForm.pluginId" class="field">
-                            <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
-                            <AppSelectField
-                                v-model="customForm.pluginBehaviorKey"
-                                :options="(eligiblePlugins.find(p => p.id === customForm.pluginId)?.manifest?.dm_behaviors ?? []).map(b => ({ value: b.key, label: b.name }))"
-                            />
-                        </div>
-                    </template>
+                <!-- 轉發設定 -->
+                <div class="section-heading">{{ t('behaviors.addModal.forwardLabel') }}</div>
+                <div class="trigger-type-cards">
+                    <button
+                        type="button"
+                        :class="['trigger-card', { selected: form.forwardMode === 'webhook' }]"
+                        @click="form.forwardMode = 'webhook'"
+                    >
+                        <Icon icon="material-symbols:webhook-outline" width="20" height="20" />
+                        {{ t('behaviors.addModal.forwardWebhook') }}
+                    </button>
+                    <button
+                        type="button"
+                        :class="['trigger-card', { selected: form.forwardMode === 'plugin' }]"
+                        @click="form.forwardMode = 'plugin'"
+                    >
+                        <Icon icon="material-symbols:extension-outline" width="20" height="20" />
+                        {{ t('behaviors.addModal.forwardPlugin') }}
+                    </button>
                 </div>
 
-                <p v-if="error" class="error" role="alert">{{ error }}</p>
-
-                <footer class="actions">
-                    <AppButton variant="ghost" :disabled="submitting" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
-                    <AppButton variant="primary" :loading="submitting" @click="onSubmitCustom">
-                        {{ t('behaviors.addModal.create') }}
-                    </AppButton>
-                </footer>
-            </template>
-
-            <!-- ── Step 2b：plugin ──────────────────────────────────────── -->
-            <template v-else-if="step === 'step2-plugin'">
-                <button type="button" class="back-btn" @click="onBack">
-                    <Icon icon="material-symbols:arrow-back-rounded" width="16" height="16" />
-                    {{ t('behaviors.addModal.back') }}
-                </button>
-
-                <div class="form-section">
+                <template v-if="form.forwardMode === 'webhook'">
+                    <label class="field">
+                        <span class="label">Webhook URL *</span>
+                        <input v-model="form.webhookUrl" type="text" maxlength="1000" placeholder="https://…" />
+                    </label>
+                    <label class="field">
+                        <span class="label">
+                            {{ t('behaviors.card.webhookSecret') }}
+                            <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
+                        </span>
+                        <input v-model="form.webhookSecret" type="text" maxlength="200" :placeholder="t('behaviors.card.webhookSecretPlaceholder')" autocomplete="off" />
+                    </label>
+                    <div v-if="showAuthMode" class="field">
+                        <span class="label">{{ t('behaviors.card.webhookAuthMode') }}</span>
+                        <AppSelectField v-model="form.webhookAuthMode" :options="webhookAuthModeOptions" />
+                    </div>
+                </template>
+                <template v-else>
                     <div v-if="pluginsLoading" class="muted loading-hint">{{ t('common.loading') }}</div>
                     <template v-else>
                         <div class="field">
                             <span class="label">{{ t('behaviors.card.pluginPick') }}</span>
                             <AppSelectField
-                                v-model="pluginForm.pluginId"
+                                v-model="form.pluginId"
                                 :options="pluginOptions"
                                 :placeholder="t('behaviors.card.pluginNoneAvailable')"
                                 :disabled="pluginOptions.length === 0"
                             />
                         </div>
-
-                        <div v-if="pluginForm.pluginId" class="field">
+                        <div v-if="form.pluginId" class="field">
                             <span class="label">{{ t('behaviors.card.pluginBehaviorKey') }}</span>
                             <AppSelectField
-                                v-model="pluginForm.pluginBehaviorKey"
-                                :options="behaviorKeyOptions"
-                                :placeholder="behaviorKeyOptions.length === 0 ? '此 Plugin 無 behavior' : '選擇 behavior'"
-                                :disabled="behaviorKeyOptions.length === 0"
+                                v-model="form.pluginBehaviorKey"
+                                :options="pluginBehaviorOptions"
+                                :placeholder="pluginBehaviorOptions.length === 0 ? '此 Plugin 無 behavior' : '選擇 behavior'"
+                                :disabled="pluginBehaviorOptions.length === 0"
                             />
                         </div>
-
-                        <!-- 三軸預覽（唯讀，manifest 決定）-->
-                        <div v-if="selectedBehavior" class="axes-preview">
-                            <div class="axes-preview-header">
-                                <Icon icon="material-symbols:info-outline-rounded" width="14" height="14" aria-hidden="true" />
-                                {{ t('behaviors.addModal.axesNote') }}
-                            </div>
-                            <div class="axes-preview-content muted">
-                                <span>Scope: global</span>
-                                <span>IntegType: user_install</span>
-                                <span>Ctx: BotDM,PrivateChannel</span>
-                            </div>
-                        </div>
-
-                        <label class="field">
-                            <span class="label">{{ t('behaviors.addModal.nameLabel') }}</span>
-                            <input
-                                v-model="pluginForm.displayName"
-                                type="text"
-                                maxlength="200"
-                                :placeholder="selectedBehavior?.name ?? t('behaviors.addModal.namePlaceholder')"
-                            />
-                        </label>
                     </template>
-                </div>
+                </template>
+            </div>
 
-                <p v-if="error" class="error" role="alert">{{ error }}</p>
+            <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-                <footer class="actions">
-                    <AppButton variant="ghost" :disabled="submitting" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
-                    <AppButton variant="primary" :loading="submitting" :disabled="!pluginForm.pluginId || !pluginForm.pluginBehaviorKey" @click="onSubmitPlugin">
-                        {{ t('behaviors.addModal.create') }}
-                    </AppButton>
-                </footer>
-            </template>
-
+            <footer class="actions">
+                <AppButton variant="ghost" :disabled="submitting" @click="emit('close')">{{ t('common.cancel') }}</AppButton>
+                <AppButton variant="primary" :loading="submitting" @click="onSubmit">
+                    {{ t('behaviors.addModal.create') }}
+                </AppButton>
+            </footer>
         </div>
     </AppModal>
 </template>
@@ -553,63 +348,6 @@ const showAuthMode = computed(() =>
     font-size: 0.9rem;
     color: var(--text-muted);
 }
-
-/* ── source cards（step 1）────────────────────────────────────── */
-.source-cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.6rem;
-}
-.source-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 1rem 0.75rem;
-    border-radius: var(--radius-base);
-    border: 1px solid var(--border);
-    background: var(--bg-page);
-    cursor: pointer;
-    font: inherit;
-    text-align: center;
-    color: var(--text-muted);
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-.source-card:hover { background: var(--bg-surface-hover); color: var(--text); }
-.source-card.selected {
-    background: var(--accent-bg);
-    border-color: var(--accent);
-    color: var(--accent-text-strong);
-    font-weight: 600;
-}
-.source-card-icon { opacity: 0.8; }
-.source-card-desc {
-    font-size: 0.78rem;
-    font-weight: 400;
-    color: inherit;
-    opacity: 0.8;
-}
-
-.system-note {
-    font-size: 0.8rem;
-    text-align: center;
-    margin: 0;
-}
-
-/* ── back button ─────────────────────────────────────────────── */
-.back-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.85rem;
-    padding: 0.1rem 0;
-}
-.back-btn:hover { color: var(--text); }
 
 /* ── form fields ─────────────────────────────────────────────── */
 .form-section {
@@ -649,12 +387,6 @@ const showAuthMode = computed(() =>
     border-bottom: 1px solid var(--border);
 }
 
-.two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-}
-
 /* trigger-type 小卡片 */
 .trigger-type-cards {
     display: grid;
@@ -684,36 +416,6 @@ const showAuthMode = computed(() =>
     font-weight: 600;
 }
 
-/* 三軸預覽 */
-.axes-preview {
-    background: var(--bg-page);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 0.6rem 0.75rem;
-    font-size: 0.8rem;
-}
-.axes-preview-header {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    color: var(--text-muted);
-    font-weight: 600;
-    margin-bottom: 0.35rem;
-}
-.axes-preview-content {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-}
-.axes-preview-content span {
-    font-family: monospace;
-    font-size: 0.78rem;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 0.1rem 0.4rem;
-}
-
 /* ── footer actions ──────────────────────────────────────────── */
 .error { color: var(--danger); font-size: 0.85rem; margin: 0; }
 .actions {
@@ -727,6 +429,6 @@ const showAuthMode = computed(() =>
 .loading-hint { font-size: 0.85rem; text-align: center; padding: 0.5rem; }
 
 @media (max-width: 480px) {
-    .source-cards, .trigger-type-cards, .two-col { grid-template-columns: 1fr; }
+    .trigger-type-cards { grid-template-columns: 1fr; }
 }
 </style>
