@@ -649,7 +649,12 @@ export async function createWebServer(
       (c) => c === "admin" || c.startsWith("plugin:"),
     );
     const { token, expiresAt } = jwt.sign(
-      { purpose: "plugin-session", userId, guildId: null, capabilities: pluginCaps },
+      {
+        purpose: "plugin-session",
+        userId,
+        guildId: null,
+        capabilities: pluginCaps,
+      },
       { ttlMs: 900_000 },
     );
     return { jwt: token, expiresAt };

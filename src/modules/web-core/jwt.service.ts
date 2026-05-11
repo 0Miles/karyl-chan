@@ -235,8 +235,10 @@ export class JwtService {
     if (typeof p.userId !== "string" || !p.userId) return null;
     if (p.guildId !== null && typeof p.guildId !== "string") return null;
     // Optional claims — validated only when present.
-    if (p.channelId !== undefined && typeof p.channelId !== "string") return null;
-    if (p.messageId !== undefined && typeof p.messageId !== "string") return null;
+    if (p.channelId !== undefined && typeof p.channelId !== "string")
+      return null;
+    if (p.messageId !== undefined && typeof p.messageId !== "string")
+      return null;
     if (
       p.capabilities !== undefined &&
       (!Array.isArray(p.capabilities) ||
@@ -255,8 +257,12 @@ export class JwtService {
       purpose: p.purpose,
       userId: p.userId,
       guildId: p.guildId as string | null,
-      ...(p.channelId !== undefined ? { channelId: p.channelId as string } : {}),
-      ...(p.messageId !== undefined ? { messageId: p.messageId as string } : {}),
+      ...(p.channelId !== undefined
+        ? { channelId: p.channelId as string }
+        : {}),
+      ...(p.messageId !== undefined
+        ? { messageId: p.messageId as string }
+        : {}),
       ...(p.capabilities !== undefined
         ? { capabilities: p.capabilities as string[] }
         : {}),
@@ -374,7 +380,12 @@ export async function getJwtPublicKeyInfo(): Promise<{
 }> {
   const live = jwtService.publicKeyPem();
   if (!dbKeyInstalled) {
-    return { publicKeyPem: live, algorithm: KEY_ALGORITHM, persisted: false, createdAt: null };
+    return {
+      publicKeyPem: live,
+      algorithm: KEY_ALGORITHM,
+      persisted: false,
+      createdAt: null,
+    };
   }
   const row = await getActiveJwtSigningKey();
   return {

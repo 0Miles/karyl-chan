@@ -1,10 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, createPublicKey } from "crypto";
 import { config } from "../../config.js";
-import {
-  CONFIG_METADATA,
-  type ConfigGroup,
-} from "../../config-metadata.js";
+import { CONFIG_METADATA, type ConfigGroup } from "../../config-metadata.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import {
   getJwtPublicKeyInfo,
@@ -232,13 +229,10 @@ function publicKeyFingerprint(pem: string): string {
 export async function registerAdminSystemSettingsRoutes(
   server: FastifyInstance,
 ): Promise<void> {
-  server.get(
-    "/api/admin/system-settings",
-    async (request, reply) => {
-      if (!requireAdmin(request, reply)) return;
-      return buildSystemSettingsSnapshot();
-    },
-  );
+  server.get("/api/admin/system-settings", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    return buildSystemSettingsSnapshot();
+  });
 
   /**
    * GET /api/admin/jwt-signing-key — metadata about the bot's current

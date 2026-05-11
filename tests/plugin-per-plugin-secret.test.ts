@@ -90,9 +90,8 @@ beforeAll(async () => {
   await sequelize.sync({ force: true });
 
   const fastify = (await import("fastify")).default;
-  const { registerPluginRoutes } = await import(
-    "../src/modules/plugin-system/plugin-routes.js"
-  );
+  const { registerPluginRoutes } =
+    await import("../src/modules/plugin-system/plugin-routes.js");
 
   server = fastify({ logger: false });
 
@@ -207,9 +206,7 @@ describe("2. register with per-plugin setup_secret_hash (correct secret)", () =>
     };
     expect(typeof body.dispatchHmacKey).toBe("string");
     // Register hands back the Ed25519 public key for verifying plugin-session JWTs.
-    expect(body.sessionVerifyPublicKey).toMatch(
-      /^-----BEGIN PUBLIC KEY-----/,
-    );
+    expect(body.sessionVerifyPublicKey).toMatch(/^-----BEGIN PUBLIC KEY-----/);
     expect(() => createPublicKey(body.sessionVerifyPublicKey)).not.toThrow();
     expect(createPublicKey(body.sessionVerifyPublicKey).asymmetricKeyType).toBe(
       "ed25519",
@@ -256,7 +253,6 @@ describe("3. register with per-plugin hash set but presenting global secret", ()
     expect(res.statusCode).toBe(401);
   });
 });
-
 
 // ── 4. Dispatch key selection ─────────────────────────────────────────────────
 
