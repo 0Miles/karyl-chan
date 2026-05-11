@@ -1000,7 +1000,17 @@
             "title": "Plugins",
             "subtitle": "Sibling services registered with the bot. A plugin self-registers on startup; once enabled it can receive events and be referenced by behaviors.",
             "empty": "No plugins are registered yet.",
-            "emptyHint": "Plugins auto-register at startup. Make sure the container is on the same docker network and admin has run POST /api/plugins/setup-secret to provision the per-plugin secret.",
+            "emptyHint": "Plugins auto-register at startup. Make sure the container is on the same docker network and the per-plugin secret is provisioned — use the Add plugin button above for an easy start, or run POST /api/plugins/setup-secret manually.",
+            "addPlugin": {
+                "button": "Add plugin",
+                "title": "Add a plugin",
+                "body": "Enter the plugin's key (its manifest `id`). The bot creates a placeholder entry and gives you a one-time setup secret to put in the plugin's `.env` (`KARYL_PLUGIN_SETUP_SECRET`) before you start it.",
+                "keyLabel": "Plugin key",
+                "keyPlaceholder": "karyl-myplugin",
+                "keyInvalid": "Must match [a-z0-9][a-z0-9-]*",
+                "submit": "Create",
+                "alreadyExists": "This key already had an entry — its setup secret was regenerated (the old one is now invalid)."
+            },
             "statusActive": "online",
             "statusInactive": "offline",
             "toggleEnabled": "Enabled (click to disable)",

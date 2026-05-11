@@ -1000,7 +1000,17 @@
             "title": "插件",
             "subtitle": "已注册到 bot 的 sibling 服务。Plugin 启动后会主动向 bot 注册,启用后才会接收事件并被 behavior 引用。",
             "empty": "目前没有 plugin 注册到 bot。",
-            "emptyHint": "Plugin 启动时会自动注册。确认该 container 与 bot 在同一 docker network、且已由 admin 通过 POST /api/plugins/setup-secret 设置 per-plugin secret。",
+            "emptyHint": "Plugin 启动时会自动注册。确认该 container 与 bot 在同一 docker network，并已设置 per-plugin secret — 可点击上方的「新增插件」按钮快速完成，或手动执行 POST /api/plugins/setup-secret。",
+            "addPlugin": {
+                "button": "新增插件",
+                "title": "新增插件",
+                "body": "输入插件的 key（即其 manifest 中的 `id`）。Bot 会创建占位记录，并提供一次性 setup secret，请在启动插件前写入其 `.env`（`KARYL_PLUGIN_SETUP_SECRET`）。",
+                "keyLabel": "插件 key",
+                "keyPlaceholder": "karyl-myplugin",
+                "keyInvalid": "必须符合 [a-z0-9][a-z0-9-]*",
+                "submit": "创建",
+                "alreadyExists": "此 key 已存在记录 — 其 setup secret 已重新生成（旧的即刻失效）。"
+            },
             "statusActive": "在线",
             "statusInactive": "离线",
             "toggleEnabled": "已启用 (点击停用)",

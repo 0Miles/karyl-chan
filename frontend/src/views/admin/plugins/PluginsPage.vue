@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import { deletePlugin, listPlugins, type PluginRecord } from '../../../api/plugins';
 import PluginCard from './PluginCard.vue';
 import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
+import AddPluginModal from './AddPluginModal.vue';
 
 const { t } = useI18n();
 
@@ -92,6 +93,14 @@ function closeDeleteAllModal() {
     deleteAllProgress.value = null;
 }
 
+// ── Add plugin modal ─────────────────────────────────────────────
+const addPluginModalOpen = ref(false);
+
+function onPluginCreated() {
+    void load();
+    offlineOpen.value = true;
+}
+
 onMounted(load);
 </script>
 
@@ -100,6 +109,10 @@ onMounted(load);
         <header class="page-head">
             <h1 class="title">{{ t('admin.plugins.title') }}</h1>
             <p class="subtitle">{{ t('admin.plugins.subtitle') }}</p>
+            <button type="button" class="add-plugin-btn" @click="addPluginModalOpen = true">
+                <Icon icon="material-symbols:add-circle-outline" width="16" height="16" />
+                {{ t('admin.plugins.addPlugin.button') }}
+            </button>
             <button type="button" class="ghost" @click="load" :disabled="loading" :title="t('common.refresh')">
                 <Icon icon="material-symbols:refresh" width="18" height="18" />
             </button>
@@ -168,6 +181,12 @@ onMounted(load);
             </div>
         </div>
 
+        <AddPluginModal
+            :visible="addPluginModalOpen"
+            @close="addPluginModalOpen = false"
+            @created="onPluginCreated"
+        />
+
         <AppConfirmDialog
             :visible="deleteAllModalOpen"
             :title="t('admin.plugins.deleteAllConfirmTitle')"
@@ -218,6 +237,26 @@ onMounted(load);
 }
 .ghost:hover { background: var(--bg-surface-hover); }
 .ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.add-plugin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.7rem;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--accent-bg, color-mix(in srgb, var(--accent) 12%, transparent));
+    color: var(--accent);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.1s, filter 0.1s;
+}
+.add-plugin-btn:hover {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
 
 .muted { color: var(--text-muted); }
 .muted.empty {

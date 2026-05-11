@@ -98,6 +98,12 @@ external network 上，環境變數至少要 `BOT_URL`（預設 `http://karyl-ch
 `PLUGIN_URL`（bot 派 dispatch 用，預設容器主機名）、`KARYL_PLUGIN_SETUP_SECRET`。
 官方 plugin 的 `docker-compose.yml` 在 `karyl-chan-plugins` repo 根目錄。
 
+`KARYL_PLUGIN_SETUP_SECRET` 由 admin 預先配發：在 bot 的 `/admin/plugins`
+頁點「新增 Plugin」、輸入 plugin 的 manifest `id`（也可直接 `POST
+/api/plugins/setup-secret { pluginKey }`）—— bot 會建一個 placeholder row 並
+一次性回傳明文 secret。把它填進該 plugin 的 `.env` 再啟動 plugin，plugin 就會
+帶這個 secret 自動向 bot 註冊，之後在 `/admin/plugins` 由 admin 啟用。
+
 ## 相關檔案
 
 - bot 端：`src/modules/plugin-system/`（`plugin-routes.ts` register/heartbeat、

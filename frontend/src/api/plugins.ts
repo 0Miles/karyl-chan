@@ -245,6 +245,8 @@ export async function deletePlugin(id: number): Promise<void> {
 export interface GenerateSetupSecretResult {
   pluginKey: string;
   setupSecret: string;
+  /** true = a brand-new placeholder row was created; false = the key already existed */
+  created: boolean;
 }
 
 export async function generatePluginSetupSecret(

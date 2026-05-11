@@ -1000,7 +1000,17 @@
             "title": "外掛",
             "subtitle": "已註冊到 bot 的 sibling 服務。Plugin 會在啟動後主動向 bot 註冊,啟用後才會接收事件與被指派 behavior。",
             "empty": "目前沒有 plugin 註冊到 bot。",
-            "emptyHint": "Plugin 啟動時會自動註冊。確認該 container 與 bot 在同個 docker network、且已由 admin 透過 POST /api/plugins/setup-secret 設置 per-plugin secret。",
+            "emptyHint": "Plugin 啟動時會自動註冊。確認該 container 與 bot 在同個 docker network，並已設置 per-plugin secret — 可點擊上方的「新增 Plugin」按鈕快速完成，或手動執行 POST /api/plugins/setup-secret。",
+            "addPlugin": {
+                "button": "新增 Plugin",
+                "title": "新增 Plugin",
+                "body": "輸入 plugin 的 key（即其 manifest 中的 `id`）。Bot 會建立佔位記錄，並提供一次性的 setup secret，請在啟動 plugin 前寫入其 `.env`（`KARYL_PLUGIN_SETUP_SECRET`）。",
+                "keyLabel": "Plugin key",
+                "keyPlaceholder": "karyl-myplugin",
+                "keyInvalid": "必須符合 [a-z0-9][a-z0-9-]*",
+                "submit": "建立",
+                "alreadyExists": "此 key 已存在記錄 — 其 setup secret 已重新生成（舊的即刻失效）。"
+            },
             "statusActive": "在線",
             "statusInactive": "離線",
             "toggleEnabled": "已啟用 (點擊停用)",
