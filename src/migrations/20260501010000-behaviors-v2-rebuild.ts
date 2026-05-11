@@ -9,7 +9,8 @@ import type { Migration } from "./runner.js";
  * 步驟（up）：
  *   PRAGMA foreign_keys = OFF（在 transaction 外，SQLite 在 transaction 內忽略此 PRAGMA）
  *   transaction：
- *     1. DROP TABLE IF EXISTS behavior_sessions
+ *     1. DROP TABLE IF EXISTS behavior_sessions / behavior_audience_members
+ *        （含本 migration 自己會建的 v2 表 — 讓重跑時冪等，見 up() 內註解）
  *     2. DROP TABLE IF EXISTS behavior_target_members
  *     3. DROP TABLE IF EXISTS behavior_targets
  *     4. DROP TABLE IF EXISTS behaviors
@@ -39,8 +40,17 @@ const migration: Migration = {
     try {
       await queryInterface.sequelize.transaction(async (t) => {
         // Step 1-4：DROP 舊表（破壞性，v1 資料不保留）
+        // 也 DROP 本 migration 自己會建的 v2 表（behavior_audience_members），
+        // 否則若上次執行已 commit transaction 但未被 umzug 記錄（例如 process
+        // 在 commit 與寫 SequelizeMeta 之間被 kill），重跑時 CREATE 會撞到
+        // "table ... already exists" 而陷入 crash loop。整支 migration 設計上
+        // 就是破壞性重建，重跑直接 drop 重建即可。
         await queryInterface.sequelize.query(
           "DROP TABLE IF EXISTS behavior_sessions;",
+          { transaction: t },
+        );
+        await queryInterface.sequelize.query(
+          "DROP TABLE IF EXISTS behavior_audience_members;",
           { transaction: t },
         );
         await queryInterface.sequelize.query(
