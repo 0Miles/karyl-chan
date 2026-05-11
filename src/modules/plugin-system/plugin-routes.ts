@@ -100,7 +100,6 @@ export async function registerPluginRoutes(
   server: FastifyInstance,
   options: PluginRoutesOptions = {},
 ): Promise<void> {
-
   function getReconciler(): CommandReconciler {
     if (!options.reconciler) {
       throw new Error("CommandReconciler not provided to plugin routes");
@@ -901,9 +900,8 @@ export async function registerPluginRoutes(
       if (plugin.enabled && plugin.status === "active") {
         void (async () => {
           try {
-            const { pluginCommandRegistry } = await import(
-              "./plugin-command-registry.service.js"
-            );
+            const { pluginCommandRegistry } =
+              await import("./plugin-command-registry.service.js");
             await pluginCommandRegistry.syncFeatureCommandsAcrossGuilds(
               plugin,
               manifest,

@@ -115,4 +115,3 @@ export async function setFeatureDefault(
   );
   await jsonOrThrow<unknown>(r);
 }
-
