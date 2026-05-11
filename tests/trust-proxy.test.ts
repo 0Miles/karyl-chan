@@ -34,6 +34,9 @@ function makeWebCfg(
     trustedProxy: false,
     trustedProxyCidrs: [],
     trustCloudflare: false,
+    bodyLimitBytes: 31_457_280,
+    multipartFieldSizeBytes: 1_048_576,
+    multipartFieldsLimit: 50,
     ...overrides,
   };
 }

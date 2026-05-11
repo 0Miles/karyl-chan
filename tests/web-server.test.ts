@@ -8,7 +8,7 @@ import {
   it,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";

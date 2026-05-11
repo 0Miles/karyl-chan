@@ -9,7 +9,7 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import { createWebServer } from "../src/modules/web-core/server.js";
 import {
   InMemoryDmInbox,

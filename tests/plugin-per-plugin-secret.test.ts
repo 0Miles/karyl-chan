@@ -67,7 +67,7 @@ import {
 
 function makeManifest(pluginKey = "test-plugin") {
   return {
-    schema_version: "1",
+    schema_version: "2",
     plugin: {
       id: pluginKey,
       name: "Test Plugin",
@@ -122,7 +122,7 @@ afterAll(async () => {
 // ── 1. register without per-plugin secret (no row / no hash) → 401 ──────────
 
 describe("1. register without pre-provisioned setup secret", () => {
-  it("returns 401 with descriptive error when plugin has no row", async () => {
+  it("returns 401 with a generic error when plugin has no row", async () => {
     const res = await server.inject({
       method: "POST",
       url: "/api/plugins/register",
@@ -130,7 +130,9 @@ describe("1. register without pre-provisioned setup secret", () => {
       payload: { manifest: makeManifest() },
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json().error).toContain("no setup secret");
+    // The handler intentionally returns a non-descriptive message so it
+    // doesn't leak whether a plugin row / setup secret exists.
+    expect(res.json().error).toContain("invalid setup secret");
   });
 
   it("returns 401 when plugin row exists but setupSecretHash is null", async () => {
@@ -152,7 +154,7 @@ describe("1. register without pre-provisioned setup secret", () => {
       payload: { manifest: makeManifest() },
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json().error).toContain("no setup secret");
+    expect(res.json().error).toContain("invalid setup secret");
   });
 
   it("returns 401 when manifest plugin id is missing", async () => {

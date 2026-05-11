@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyMultipart from "@fastify/multipart";
 import { ChannelType } from "discord.js";
-import type { Client } from "discordx";
+import type { Client } from "discord.js";
 import { registerGuildChannelRoutes } from "../src/modules/guild-management/guild-channel-routes.js";
 import { GuildChannelEventBus } from "../src/modules/guild-management/guild-channel-event-bus.js";
 import type { AdminCapability } from "../src/modules/admin/authorized-user.service.js";
