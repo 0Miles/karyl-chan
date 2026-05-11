@@ -980,6 +980,20 @@
                 "rcon": "RCON",
                 "botEvents": "Bot 事件",
                 "dm": "DM 系统"
+            },
+            "jwtKey": {
+                "title": "JWT 签名密钥",
+                "desc": "Bot 用来签所有 JWT（admin 登录链接、plugin WebUI session token）的 Ed25519 密钥。启动时自动生成、加密存进数据库；公钥会发给 plugin 验证。",
+                "algorithm": "算法",
+                "fingerprint": "指纹",
+                "created": "创建时间",
+                "ephemeral": "当前使用临时内存密钥 —— 未设置 ENCRYPTION_KEY，密钥无法持久化、也无法轮换；token 在 bot 重启后即失效。",
+                "rotate": "轮换密钥",
+                "rotating": "轮换中…",
+                "rotateConfirmTitle": "确定要轮换 JWT 签名密钥？",
+                "rotateConfirmMessage": "会生成新密钥并立即作废所有现存 token —— admin 登录链接与 plugin WebUI session。Plugin 约 30 秒内拿到新公钥；受影响的用户需重新登录。",
+                "rotateConfirm": "轮换",
+                "rotated": "已轮换 JWT 签名密钥"
             }
         },
         "plugins": {

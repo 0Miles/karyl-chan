@@ -22,7 +22,7 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 import { findEnabledFeaturesByPluginGuild } from "../feature-toggle/models/plugin-guild-feature.model.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
-import { pluginSessionTokenService } from "../web-core/plugin-session-token.service.js";
+import { jwtService } from "../web-core/jwt.service.js";
 import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
 import { makePluginCapabilityToken } from "../admin/admin-capabilities.js";
 
@@ -916,8 +916,8 @@ export async function registerPluginRpcRoutes(
             (c) => c === "admin" || c.startsWith(`plugin:${ctx.pluginKey}:`),
           )
         : [];
-    const { token, expiresAt } = pluginSessionTokenService.sign(
-      { userId, guildId, capabilities: pluginCaps },
+    const { token, expiresAt } = jwtService.sign(
+      { purpose: "plugin-session", userId, guildId, capabilities: pluginCaps },
       { ttlMs },
     );
     return { allowed: true, token, expiresAt };

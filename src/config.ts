@@ -42,7 +42,6 @@ export interface AppConfig {
     encryptionKey: string | null;
   };
   jwt: {
-    secret: string | null;
     loginLinkTtlMs: number;
     accessTtlMs: number;
     refreshTtlMs: number;
@@ -60,8 +59,6 @@ export interface AppConfig {
     dmRatePerSec: number;
     dmWindowMs: number;
     autoApproveScopes: boolean;
-    /** Ed25519 PKCS#8 private key (base64 DER or PEM) for signing `plugin-session` JWTs. Null → ephemeral key generated at boot. */
-    sessionSigningKey: string | null;
   };
   behavior: {
     profileCacheTtlMs: number;
@@ -192,7 +189,6 @@ function loadConfig(): AppConfig {
       encryptionKey: strEnv("ENCRYPTION_KEY"),
     },
     jwt: {
-      secret: strEnv("JWT_SECRET"),
       loginLinkTtlMs: parseIntEnv("JWT_LOGIN_LINK_TTL_MS", 5 * 60 * 1000),
       accessTtlMs: parseIntEnv("JWT_ACCESS_TTL_MS", 15 * 60 * 1000),
       refreshTtlMs: parseIntEnv("JWT_REFRESH_TTL_MS", 7 * 24 * 60 * 60 * 1000),
@@ -216,7 +212,6 @@ function loadConfig(): AppConfig {
       dmRatePerSec: parseIntEnv("PLUGIN_DM_PER_SEC", 30),
       dmWindowMs: parseIntEnv("PLUGIN_DM_WINDOW_MS", 1000),
       autoApproveScopes: parseBoolEnv("PLUGIN_AUTO_APPROVE_SCOPES", false),
-      sessionSigningKey: strEnv("PLUGIN_SESSION_SIGNING_KEY"),
     },
     behavior: {
       profileCacheTtlMs: parseIntEnv(

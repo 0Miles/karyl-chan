@@ -980,6 +980,20 @@
                 "rcon": "RCON",
                 "botEvents": "Bot events",
                 "dm": "DM system"
+            },
+            "jwtKey": {
+                "title": "JWT signing key",
+                "desc": "The Ed25519 key the bot signs every JWT with (admin login links, plugin WebUI session tokens). Generated at runtime, stored encrypted in the database; the public key is published to plugins.",
+                "algorithm": "Algorithm",
+                "fingerprint": "Fingerprint",
+                "created": "Created",
+                "ephemeral": "Running on an ephemeral in-memory key — ENCRYPTION_KEY isn't set, so the key can't be persisted and rotation is unavailable. Tokens won't survive a bot restart.",
+                "rotate": "Rotate key",
+                "rotating": "Rotating…",
+                "rotateConfirmTitle": "Rotate the JWT signing key?",
+                "rotateConfirmMessage": "Generates a fresh key and immediately invalidates every outstanding token — admin login links and plugin WebUI sessions. Plugins pick up the new public key within ~30 s; affected users will need to re-authenticate.",
+                "rotateConfirm": "Rotate",
+                "rotated": "JWT signing key rotated"
             }
         },
         "plugins": {

@@ -30,7 +30,6 @@ const stubConfig: AppConfig = {
   db: { sqlitePath: null },
   crypto: { encryptionKey: null },
   jwt: {
-    secret: null,
     loginLinkTtlMs: 300_000,
     accessTtlMs: 900_000,
     refreshTtlMs: 604_800_000,
@@ -48,7 +47,6 @@ const stubConfig: AppConfig = {
     dmRatePerSec: 30,
     dmWindowMs: 1_000,
     autoApproveScopes: true,
-    sessionSigningKey: null,
   },
   behavior: { profileCacheTtlMs: 300_000 },
   admin: { profileCacheTtlMs: 300_000, sessionCacheTtlMs: 30_000 },
@@ -117,12 +115,7 @@ describe("sensitive field set", () => {
         .filter(([, meta]) => meta.sensitivity === "sensitive")
         .map(([key]) => key),
     );
-    const expected = new Set([
-      "bot.token",
-      "crypto.encryptionKey",
-      "jwt.secret",
-      "plugin.sessionSigningKey",
-    ]);
+    const expected = new Set(["bot.token", "crypto.encryptionKey"]);
     expect(actualSensitive).toEqual(expected);
   });
 });

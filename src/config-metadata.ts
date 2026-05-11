@@ -204,17 +204,9 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
   },
 
   // ── jwt ──────────────────────────────────────────────────────────────────
-  // SEC report 5.1: jwt.secret should be productionRequired=true but
-  // Tier 0 production guard is not yet implemented for this field.
-  // TODO (issue 5.1): flip productionRequired to true once the guard is added.
-  "jwt.secret": {
-    group: "jwt",
-    envVar: "JWT_SECRET",
-    sensitivity: "sensitive",
-    editability: "env-only",
-    productionRequired: false,
-    descriptionKey: "config.jwt.secret",
-  },
+  // Note: the JWT *signing key* itself is not a config field — it's
+  // generated at runtime and stored (encrypted) in the jwt_signing_keys
+  // table, rotatable from the admin UI. See web-core/jwt.service.ts.
   "jwt.loginLinkTtlMs": {
     group: "jwt",
     envVar: "JWT_LOGIN_LINK_TTL_MS",
@@ -336,14 +328,6 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     editability: "env-only",
     productionRequired: false,
     descriptionKey: "config.plugin.autoApproveScopes",
-  },
-  "plugin.sessionSigningKey": {
-    group: "plugin",
-    envVar: "PLUGIN_SESSION_SIGNING_KEY",
-    sensitivity: "sensitive",
-    editability: "env-only",
-    productionRequired: false,
-    descriptionKey: "config.plugin.sessionSigningKey",
   },
 
   // ── behavior ─────────────────────────────────────────────────────────────

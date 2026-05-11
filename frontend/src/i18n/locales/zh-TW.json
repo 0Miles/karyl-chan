@@ -980,6 +980,20 @@
                 "rcon": "RCON",
                 "botEvents": "Bot 事件",
                 "dm": "DM 系統"
+            },
+            "jwtKey": {
+                "title": "JWT 簽章金鑰",
+                "desc": "Bot 用來簽所有 JWT（admin 登入連結、plugin WebUI session token）的 Ed25519 金鑰。啟動時自動生成、加密存進資料庫；公鑰會發給 plugin 驗證。",
+                "algorithm": "演算法",
+                "fingerprint": "指紋",
+                "created": "建立時間",
+                "ephemeral": "目前使用臨時記憶體金鑰 —— 未設定 ENCRYPTION_KEY，金鑰無法持久化、也無法輪替；token 在 bot 重啟後即失效。",
+                "rotate": "輪替金鑰",
+                "rotating": "輪替中…",
+                "rotateConfirmTitle": "確定要輪替 JWT 簽章金鑰？",
+                "rotateConfirmMessage": "會生成新金鑰並立即作廢所有現存 token —— admin 登入連結與 plugin WebUI session。Plugin 約 30 秒內拿到新公鑰；受影響的使用者需重新登入。",
+                "rotateConfirm": "輪替",
+                "rotated": "已輪替 JWT 簽章金鑰"
             }
         },
         "plugins": {

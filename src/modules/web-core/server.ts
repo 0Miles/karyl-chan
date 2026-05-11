@@ -16,7 +16,6 @@ import {
   authStore as defaultAuthStore,
 } from "./auth-store.service.js";
 import { JwtService, jwtService as defaultJwtService } from "./jwt.service.js";
-import { pluginSessionTokenService } from "./plugin-session-token.service.js";
 import {
   resolveLoginRole,
   resolveUserCapabilities,
@@ -649,8 +648,8 @@ export async function createWebServer(
     const pluginCaps = [...allCaps].filter(
       (c) => c === "admin" || c.startsWith("plugin:"),
     );
-    const { token, expiresAt } = pluginSessionTokenService.sign(
-      { userId, guildId: null, capabilities: pluginCaps },
+    const { token, expiresAt } = jwt.sign(
+      { purpose: "plugin-session", userId, guildId: null, capabilities: pluginCaps },
       { ttlMs: 900_000 },
     );
     return { jwt: token, expiresAt };

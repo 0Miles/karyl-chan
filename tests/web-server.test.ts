@@ -12,7 +12,7 @@ import type { Client } from "discordx";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { randomBytes } from "crypto";
+import { generateKeyPairSync } from "crypto";
 
 // Pin the shared sequelize singleton to in-memory SQLite *before* any
 // import below pulls db.ts into the module graph. Without this, the
@@ -263,7 +263,7 @@ describe("web server", () => {
       // expects to find it empty.
       await sequelize.sync({ force: true });
       store = new AuthStore();
-      jwt = new JwtService(randomBytes(64));
+      jwt = new JwtService(generateKeyPairSync("ed25519").privateKey);
       server = await createWebServer({
         staticRoot: undefined,
         authStore: store,
@@ -359,7 +359,7 @@ describe("web server", () => {
     });
 
     it("rejects a JWT signed by a different key", async () => {
-      const otherJwt = new JwtService(randomBytes(64));
+      const otherJwt = new JwtService(generateKeyPairSync("ed25519").privateKey);
       const { token } = otherJwt.sign(baseClaims);
       const response = await server.inject({
         method: "POST",
@@ -435,7 +435,7 @@ describe("web server", () => {
         spaServer = await createWebServer({
           staticRoot: spaStaticRoot,
           authStore: spaStore,
-          jwtService: new JwtService(randomBytes(64)),
+          jwtService: new JwtService(generateKeyPairSync("ed25519").privateKey),
           ownerIds: [OWNER_ID],
         });
         await spaServer.ready();
@@ -540,7 +540,7 @@ describe("web server", () => {
       // the test never touches the DB. The previous describe already ran
       // sequelize.close(), so we must not call sequelize here.
       store = new AuthStore();
-      jwt = new JwtService(randomBytes(64));
+      jwt = new JwtService(generateKeyPairSync("ed25519").privateKey);
       server = await createWebServer({
         staticRoot: undefined,
         authStore: store,

@@ -38,6 +38,7 @@ import { ensureSystemBehaviors } from "./modules/behavior/system-seed.service.js
 import { ensureFixedScopeTabs } from "./modules/behavior/scope-tab-seed.service.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
 import { runPendingMigrations } from "./migrations/runner.js";
+import { initJwtSigningAuthority } from "./modules/web-core/jwt.service.js";
 // M1-C2: CommandReconciler / InteractionDispatcher / MessagePatternMatcher 接線。
 // system slash command（admin-login / manual / break）+ user-defined slash trigger
 // + DM message_pattern 由這三個模組接管（取代 v1 stub 路徑）。
@@ -507,6 +508,10 @@ async function run() {
     const migrations = await runPendingMigrations();
     setReady("migrations", true);
     migrationsApplied = true;
+    // Load (or, on a fresh DB, generate + persist) the JWT signing key
+    // before any route is served. Routes (login exchange, plugin
+    // register/heartbeat) call jwtService.{sign,verify,publicKeyPem}.
+    await initJwtSigningAuthority();
     // v2 system behavior seed（admin-login / manual / break）。
     // v1 → v2 重構期間 ensureSystem* helpers 被改成 no-op 但 main.ts 也不再
     // 呼叫，導致 behaviors 表沒 source='system' row → CommandReconciler 的

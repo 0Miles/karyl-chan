@@ -39,7 +39,7 @@ import {
 } from "../src/modules/web-core/auth-store.service.js";
 import { createWebServer } from "../src/modules/web-core/server.js";
 import { JwtService } from "../src/modules/web-core/jwt.service.js";
-import { randomBytes } from "crypto";
+import { generateKeyPairSync } from "crypto";
 import type { FastifyInstance } from "fastify";
 
 const OWNER_ID = "owner-revoke-test";
@@ -58,7 +58,7 @@ beforeAll(async () => {
   server = await createWebServer({
     staticRoot: undefined,
     authStore: store,
-    jwtService: new JwtService(randomBytes(64)),
+    jwtService: new JwtService(generateKeyPairSync("ed25519").privateKey),
     ownerIds: [OWNER_ID],
   });
   await server.ready();

@@ -90,3 +90,34 @@ export async function getSystemSettings(): Promise<SystemSettingsResponse> {
   const response = await authedFetch("/api/admin/system-settings");
   return json<SystemSettingsResponse>(response);
 }
+
+// ── JWT signing key ───────────────────────────────────────────────────────────
+
+export interface JwtSigningKeyInfo {
+  /** False when the bot is on an ephemeral in-memory key (no DB row). */
+  persisted: boolean;
+  algorithm?: string;
+  publicKeyPem?: string;
+  fingerprint?: string;
+  /** ISO timestamp; null when running on the ephemeral fallback. */
+  createdAt?: string | null;
+}
+
+export async function getJwtSigningKey(): Promise<JwtSigningKeyInfo> {
+  const response = await authedFetch("/api/admin/jwt-signing-key");
+  return json<JwtSigningKeyInfo>(response);
+}
+
+export interface RotateJwtSigningKeyResult {
+  ok: true;
+  algorithm: string;
+  publicKeyPem: string;
+  fingerprint: string;
+}
+
+export async function rotateJwtSigningKey(): Promise<RotateJwtSigningKeyResult> {
+  const response = await authedFetch("/api/admin/jwt-signing-key/rotate", {
+    method: "POST",
+  });
+  return json<RotateJwtSigningKeyResult>(response);
+}

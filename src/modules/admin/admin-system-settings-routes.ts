@@ -1,10 +1,17 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { createHash, createPublicKey } from "crypto";
 import { config } from "../../config.js";
 import {
   CONFIG_METADATA,
   type ConfigGroup,
 } from "../../config-metadata.js";
 import { requireCapability } from "../web-core/route-guards.js";
+import {
+  getJwtPublicKeyInfo,
+  rotateJwtSigningKey,
+} from "../web-core/jwt.service.js";
+import { recordAudit } from "./admin-audit.service.js";
+import { botEventLog } from "../bot-events/bot-event-log.js";
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -215,6 +222,13 @@ const requireAdmin = (request: FastifyRequest, reply: FastifyReply): boolean =>
  *   3. Requires the "admin" capability.
  *   4. No audit log (read-only endpoint, no side-effects).
  */
+/** Short, human-comparable fingerprint of an SPKI-PEM public key. */
+function publicKeyFingerprint(pem: string): string {
+  const der = createPublicKey(pem).export({ type: "spki", format: "der" });
+  const hex = createHash("sha256").update(der).digest("hex").slice(0, 16);
+  return hex.replace(/(.{4})(?=.)/g, "$1:");
+}
+
 export async function registerAdminSystemSettingsRoutes(
   server: FastifyInstance,
 ): Promise<void> {
@@ -225,4 +239,56 @@ export async function registerAdminSystemSettingsRoutes(
       return buildSystemSettingsSnapshot();
     },
   );
+
+  /**
+   * GET /api/admin/jwt-signing-key — metadata about the bot's current
+   * JWT signing key. Only the *public* key is exposed (it's public by
+   * design — handed to plugins). Returns `{ persisted: false }` when the
+   * bot is running on an ephemeral in-memory key (no DB row).
+   */
+  server.get("/api/admin/jwt-signing-key", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const info = await getJwtPublicKeyInfo();
+    return {
+      persisted: info.persisted,
+      algorithm: info.algorithm,
+      publicKeyPem: info.publicKeyPem,
+      fingerprint: publicKeyFingerprint(info.publicKeyPem),
+      createdAt: info.createdAt ? info.createdAt.toISOString() : null,
+    };
+  });
+
+  /**
+   * POST /api/admin/jwt-signing-key/rotate — generate a fresh Ed25519
+   * signing key, persist it, and make it current. Every outstanding
+   * token (admin login links, plugin WebUI session tokens) is thereby
+   * invalidated; plugins pick up the new public key on their next
+   * heartbeat (~30s). Audited.
+   */
+  server.post("/api/admin/jwt-signing-key/rotate", async (request, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    let result: { publicKeyPem: string };
+    try {
+      result = await rotateJwtSigningKey();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reply.code(409).send({ error: `cannot rotate: ${msg}` });
+      return;
+    }
+    const fingerprint = publicKeyFingerprint(result.publicKeyPem);
+    const actor = request.authUserId ?? "system";
+    await recordAudit(actor, "jwt.signing_key.rotate", null, { fingerprint });
+    botEventLog.record(
+      "warn",
+      "auth",
+      `JWT signing key rotated by ${actor} (new fingerprint ${fingerprint})`,
+      { actor, fingerprint },
+    );
+    return {
+      ok: true,
+      algorithm: "ed25519",
+      publicKeyPem: result.publicKeyPem,
+      fingerprint,
+    };
+  });
 }

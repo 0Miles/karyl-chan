@@ -2,14 +2,29 @@
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
-import { getSystemSettings, type SystemSettingsResponse } from '../../../api/systemSettings';
+import {
+    getSystemSettings,
+    getJwtSigningKey,
+    rotateJwtSigningKey,
+    type SystemSettingsResponse,
+    type JwtSigningKeyInfo,
+} from '../../../api/systemSettings';
+import { useToastStore } from '../../../stores/toastStore';
+import AppButton from '../../../components/AppButton.vue';
+import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 import GroupSection from './GroupSection.vue';
 
 const { t } = useI18n();
+const toast = useToastStore();
 
 const data = ref<SystemSettingsResponse | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+
+const jwtKey = ref<JwtSigningKeyInfo | null>(null);
+const rotateDialogOpen = ref(false);
+const rotating = ref(false);
+const rotateError = ref<string | undefined>(undefined);
 
 async function load() {
     loading.value = true;
@@ -23,7 +38,54 @@ async function load() {
     }
 }
 
-onMounted(load);
+async function loadJwtKey() {
+    try {
+        jwtKey.value = await getJwtSigningKey();
+    } catch {
+        // Non-fatal: only overwrite on success. If we've never loaded
+        // it (non-admin / first load failed) the section stays hidden;
+        // if a post-rotate refresh blipped, keep the value we have.
+    }
+}
+
+function fmtDate(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+function openRotateDialog() {
+    rotateError.value = undefined;
+    rotateDialogOpen.value = true;
+}
+
+async function confirmRotate() {
+    rotating.value = true;
+    rotateError.value = undefined;
+    try {
+        const res = await rotateJwtSigningKey();
+        rotateDialogOpen.value = false;
+        toast.show(t('admin.systemSettings.jwtKey.rotated'), 'info');
+        // Reflect the new key immediately.
+        jwtKey.value = {
+            persisted: true,
+            algorithm: res.algorithm,
+            publicKeyPem: res.publicKeyPem,
+            fingerprint: res.fingerprint,
+            createdAt: new Date().toISOString(),
+        };
+        void loadJwtKey();
+    } catch (err) {
+        rotateError.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        rotating.value = false;
+    }
+}
+
+onMounted(() => {
+    void load();
+    void loadJwtKey();
+});
 </script>
 
 <template>
@@ -101,6 +163,49 @@ onMounted(load);
                 </div>
             </div>
 
+            <!-- JWT signing key -->
+            <section v-if="jwtKey" class="section">
+                <h2 class="section-title">
+                    <Icon icon="material-symbols:key-outline-rounded" width="15" height="15" />
+                    {{ t('admin.systemSettings.jwtKey.title') }}
+                </h2>
+                <div class="jwt-key-card">
+                    <p class="jwt-key-desc">{{ t('admin.systemSettings.jwtKey.desc') }}</p>
+
+                    <div v-if="!jwtKey.persisted" class="jwt-key-ephemeral" role="status">
+                        <Icon icon="material-symbols:warning-outline-rounded" width="16" height="16" class="jwt-key-ephemeral-icon" />
+                        <span>{{ t('admin.systemSettings.jwtKey.ephemeral') }}</span>
+                    </div>
+
+                    <template v-else>
+                        <dl class="jwt-key-meta">
+                            <div class="jwt-key-meta-row">
+                                <dt>{{ t('admin.systemSettings.jwtKey.algorithm') }}</dt>
+                                <dd><code>{{ jwtKey.algorithm }}</code></dd>
+                            </div>
+                            <div class="jwt-key-meta-row">
+                                <dt>{{ t('admin.systemSettings.jwtKey.fingerprint') }}</dt>
+                                <dd><code class="jwt-key-fingerprint">{{ jwtKey.fingerprint }}</code></dd>
+                            </div>
+                            <div class="jwt-key-meta-row">
+                                <dt>{{ t('admin.systemSettings.jwtKey.created') }}</dt>
+                                <dd>{{ fmtDate(jwtKey.createdAt) }}</dd>
+                            </div>
+                        </dl>
+                        <div class="jwt-key-actions">
+                            <AppButton
+                                variant="danger"
+                                size="sm"
+                                icon="material-symbols:autorenew-rounded"
+                                @click="openRotateDialog"
+                            >
+                                {{ t('admin.systemSettings.jwtKey.rotate') }}
+                            </AppButton>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
             <!-- Runtime-editable section -->
             <section class="section">
                 <h2 class="section-title">
@@ -135,6 +240,18 @@ onMounted(load);
                 </div>
             </section>
         </template>
+
+        <AppConfirmDialog
+            :visible="rotateDialogOpen"
+            :title="t('admin.systemSettings.jwtKey.rotateConfirmTitle')"
+            :message="t('admin.systemSettings.jwtKey.rotateConfirmMessage')"
+            :confirm-label="t('admin.systemSettings.jwtKey.rotateConfirm')"
+            confirm-variant="danger"
+            :loading="rotating"
+            :error="rotateError"
+            @close="rotateDialogOpen = false"
+            @confirm="confirmRotate"
+        />
     </div>
 </template>
 
@@ -312,6 +429,70 @@ onMounted(load);
 }
 .empty-icon { color: var(--text-faint); flex-shrink: 0; }
 .empty-msg { font-size: 0.85rem; }
+
+/* ── JWT signing key card ─────────────────────────────────────────── */
+.jwt-key-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.8rem 1rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-base);
+}
+.jwt-key-desc {
+    margin: 0;
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+.jwt-key-ephemeral {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: var(--warning, #d97706);
+}
+.jwt-key-ephemeral-icon { flex-shrink: 0; margin-top: 0.1rem; }
+.jwt-key-meta {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.jwt-key-meta-row {
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+    font-size: 0.83rem;
+}
+.jwt-key-meta-row dt {
+    flex-shrink: 0;
+    width: 6.5rem;
+    color: var(--text-muted);
+}
+.jwt-key-meta-row dd {
+    margin: 0;
+    color: var(--text);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.jwt-key-meta-row code {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8rem;
+}
+.jwt-key-fingerprint {
+    padding: 0.08rem 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface-hover, color-mix(in srgb, var(--text) 7%, var(--bg-surface)));
+    border: 1px solid var(--border);
+}
+.jwt-key-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.1rem;
+}
 
 /* ── Groups list ──────────────────────────────────────────────────── */
 .groups-list {
