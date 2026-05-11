@@ -60,6 +60,8 @@ export interface AppConfig {
     dmRatePerSec: number;
     dmWindowMs: number;
     autoApproveScopes: boolean;
+    /** Ed25519 PKCS#8 private key (base64 DER or PEM) for signing `plugin-session` JWTs. Null → ephemeral key generated at boot. */
+    sessionSigningKey: string | null;
   };
   behavior: {
     profileCacheTtlMs: number;
@@ -214,6 +216,7 @@ function loadConfig(): AppConfig {
       dmRatePerSec: parseIntEnv("PLUGIN_DM_PER_SEC", 30),
       dmWindowMs: parseIntEnv("PLUGIN_DM_WINDOW_MS", 1000),
       autoApproveScopes: parseBoolEnv("PLUGIN_AUTO_APPROVE_SCOPES", false),
+      sessionSigningKey: strEnv("PLUGIN_SESSION_SIGNING_KEY"),
     },
     behavior: {
       profileCacheTtlMs: parseIntEnv(

@@ -25,13 +25,6 @@ export interface JwtClaims {
   guildId: string | null;
   channelId: string;
   messageId: string;
-  /**
-   * Optional snapshot of admin capability tokens carried in the token.
-   * Used by `plugin-session` tokens so a plugin can authorize its
-   * WebUI offline (verifying the JWT with the shared secret) instead
-   * of calling back to the bot. Omitted for login tokens.
-   */
-  capabilities?: string[];
 }
 
 interface SignedPayload extends JwtClaims {
@@ -164,14 +157,6 @@ export class JwtService {
     if (typeof p.channelId !== "string" || !p.channelId) return null;
     if (typeof p.messageId !== "string" || !p.messageId) return null;
     if (p.guildId !== null && typeof p.guildId !== "string") return null;
-    // `capabilities` is optional; when present it must be a string[].
-    if (
-      p.capabilities !== undefined &&
-      (!Array.isArray(p.capabilities) ||
-        !p.capabilities.every((c) => typeof c === "string"))
-    ) {
-      return null;
-    }
 
     // Purpose check is stricter than the structural ones — a token
     // minted for one flow (e.g., 'login') must not be presented at
@@ -185,9 +170,6 @@ export class JwtService {
       guildId: p.guildId as string | null,
       channelId: p.channelId,
       messageId: p.messageId,
-      ...(p.capabilities !== undefined
-        ? { capabilities: p.capabilities as string[] }
-        : {}),
     };
   }
 }

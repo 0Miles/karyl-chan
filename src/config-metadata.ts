@@ -337,6 +337,14 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     productionRequired: false,
     descriptionKey: "config.plugin.autoApproveScopes",
   },
+  "plugin.sessionSigningKey": {
+    group: "plugin",
+    envVar: "PLUGIN_SESSION_SIGNING_KEY",
+    sensitivity: "sensitive",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.plugin.sessionSigningKey",
+  },
 
   // ── behavior ─────────────────────────────────────────────────────────────
   "behavior.profileCacheTtlMs": {

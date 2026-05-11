@@ -54,7 +54,7 @@ vi.mock(
   }),
 );
 
-import { createHash } from "crypto";
+import { createHash, createPublicKey } from "crypto";
 import { config } from "../src/config.js";
 import { sequelize } from "../src/db.js";
 import {
@@ -201,8 +201,19 @@ describe("2. register with per-plugin setup_secret_hash (correct secret)", () =>
       payload: { manifest: makeManifest() },
     });
     expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body) as { dispatchHmacKey: string };
+    const body = JSON.parse(res.body) as {
+      dispatchHmacKey: string;
+      sessionVerifyPublicKey: string;
+    };
     expect(typeof body.dispatchHmacKey).toBe("string");
+    // Register hands back the Ed25519 public key for verifying plugin-session JWTs.
+    expect(body.sessionVerifyPublicKey).toMatch(
+      /^-----BEGIN PUBLIC KEY-----/,
+    );
+    expect(() => createPublicKey(body.sessionVerifyPublicKey)).not.toThrow();
+    expect(createPublicKey(body.sessionVerifyPublicKey).asymmetricKeyType).toBe(
+      "ed25519",
+    );
 
     // Verify DB has the hash.
     const updated = await findPluginByKey("test-plugin");

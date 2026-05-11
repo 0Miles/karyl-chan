@@ -16,6 +16,7 @@ import {
   authStore as defaultAuthStore,
 } from "./auth-store.service.js";
 import { JwtService, jwtService as defaultJwtService } from "./jwt.service.js";
+import { pluginSessionTokenService } from "./plugin-session-token.service.js";
 import {
   resolveLoginRole,
   resolveUserCapabilities,
@@ -321,7 +322,9 @@ export async function createWebServer(
     if (THROTTLE_EXEMPT_PATHS.has(path)) return;
     if (request.pluginAuth) {
       if (
-        pluginWriteRateLimiter.isRateLimited(`plugin:${request.pluginAuth.pluginId}`)
+        pluginWriteRateLimiter.isRateLimited(
+          `plugin:${request.pluginAuth.pluginId}`,
+        )
       ) {
         reply.code(429).send({ error: "Too many plugin requests, slow down" });
       }
@@ -646,15 +649,8 @@ export async function createWebServer(
     const pluginCaps = [...allCaps].filter(
       (c) => c === "admin" || c.startsWith("plugin:"),
     );
-    const { token, expiresAt } = jwt.sign(
-      {
-        purpose: "plugin-session",
-        userId,
-        guildId: null,
-        channelId: "web",
-        messageId: "session",
-        capabilities: pluginCaps,
-      },
+    const { token, expiresAt } = pluginSessionTokenService.sign(
+      { userId, guildId: null, capabilities: pluginCaps },
       { ttlMs: 900_000 },
     );
     return { jwt: token, expiresAt };

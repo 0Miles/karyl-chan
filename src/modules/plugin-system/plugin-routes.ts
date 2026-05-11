@@ -8,6 +8,7 @@ import {
 import { deleteAllCapabilities } from "./models/plugin-capability.model.js";
 import { pluginAuthStore, PluginAuthStore } from "./plugin-auth.service.js";
 import { requireCapability } from "../web-core/route-guards.js";
+import { pluginSessionTokenService } from "../web-core/plugin-session-token.service.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 import {
@@ -208,6 +209,11 @@ export async function registerPluginRoutes(
           },
           token: result.token,
           dispatchHmacKey: result.dispatchHmacKey,
+          // SPKI-PEM Ed25519 public key for verifying `plugin-session`
+          // JWTs (the bot signs them with the matching private key). Same
+          // for every plugin — it's a public key. Plugins that don't run a
+          // WebUI can ignore it.
+          sessionVerifyPublicKey: pluginSessionTokenService.publicKeyPem(),
           // Echo back the heartbeat path/cadence so a fresh plugin
           // doesn't need to hardcode anything.
           heartbeat: { path: "/api/plugins/heartbeat", interval_seconds: 30 },

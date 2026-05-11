@@ -48,6 +48,7 @@ const stubConfig: AppConfig = {
     dmRatePerSec: 30,
     dmWindowMs: 1_000,
     autoApproveScopes: true,
+    sessionSigningKey: null,
   },
   behavior: { profileCacheTtlMs: 300_000 },
   admin: { profileCacheTtlMs: 300_000, sessionCacheTtlMs: 30_000 },
@@ -110,7 +111,7 @@ describe("validateMetadataCoverage", () => {
 // ---------------------------------------------------------------------------
 
 describe("sensitive field set", () => {
-  it("sensitive fields are exactly the expected three keys", () => {
+  it("sensitive fields are exactly the expected keys", () => {
     const actualSensitive = new Set(
       Object.entries(CONFIG_METADATA)
         .filter(([, meta]) => meta.sensitivity === "sensitive")
@@ -120,6 +121,7 @@ describe("sensitive field set", () => {
       "bot.token",
       "crypto.encryptionKey",
       "jwt.secret",
+      "plugin.sessionSigningKey",
     ]);
     expect(actualSensitive).toEqual(expected);
   });
