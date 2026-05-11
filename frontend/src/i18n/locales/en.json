@@ -7,7 +7,7 @@
             "guilds": "Servers",
             "behaviors": "Behaviors",
             "plugins": "Plugins",
-            "admin": "Admin access",
+            "admin": "Permissions",
             "profile": "Profile",
             "signOut": "Sign out",
             "accountMenu": "Account menu",
@@ -842,7 +842,7 @@
         }
     },
     "admin": {
-        "title": "Admin access",
+        "title": "Permissions",
         "accessDenied": {
             "title": "Access denied",
             "body": "Your role doesn't carry the admin capability. Ask an existing admin to grant it."
@@ -928,7 +928,7 @@
         },
         "capabilitiesCatalog": "Known capability tokens",
         "capabilityDesc": {
-            "admin": "Full admin access (bypasses every other capability check)",
+            "admin": "Full access — bypasses every other capability check",
             "dm.message": "Read + write DM channels, messages, reactions, and unread counts",
             "guild.message": "Read + write messages and reactions in every server's channels",
             "guild.manage": "Manage members, roles, settings, and bot features in every server",

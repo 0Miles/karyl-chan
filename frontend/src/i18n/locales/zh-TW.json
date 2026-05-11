@@ -7,7 +7,7 @@
             "guilds": "伺服器",
             "behaviors": "行為",
             "plugins": "外掛",
-            "admin": "後台權限",
+            "admin": "權限",
             "profile": "個人資料",
             "signOut": "登出",
             "accountMenu": "帳號選單",
@@ -842,7 +842,7 @@
         }
     },
     "admin": {
-        "title": "後台權限",
+        "title": "權限",
         "accessDenied": {
             "title": "無存取權限",
             "body": "你的身分組沒有 admin 權限詞條,請向現有管理員申請授予。"
@@ -928,7 +928,7 @@
         },
         "capabilitiesCatalog": "可用權限詞條",
         "capabilityDesc": {
-            "admin": "完整後台權限(可無視其他所有權限檢查)",
+            "admin": "完整權限（可無視其他所有權限檢查）",
             "dm.message": "讀寫 DM 對話列表、訊息、反應與未讀數",
             "guild.message": "讀寫所有伺服器頻道的訊息與反應",
             "guild.manage": "管理所有伺服器的成員、角色、設定與 bot 功能",
