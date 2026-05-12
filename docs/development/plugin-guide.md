@@ -63,6 +63,19 @@ plugin 兩個都收得到；有 v1 就優先驗 v1（method+path bound，防跨�
   RPC 回填那個 deferred reply（Discord 給 15 分鐘）。
 - **autocomplete** — 必須同步回，bot 等 plugin POST `/commands/:name/autocomplete`
   的回應（1.5s budget），逾時 / 失敗 → 回空清單。
+- **元件（按鈕）** — plugin 在它送出的訊息上掛 Discord v1 按鈕，`custom_id` 形如
+  `kc:<pluginKey>:<componentId>`（可再帶 `:<tail>` 夾參數；SDK 的
+  `componentCustomId(pluginKey, id, tail?)` 幫你建）。使用者點擊時 bot 先
+  `deferUpdate()` ack（3s budget，不改訊息），再 POST 到 plugin manifest
+  `endpoints.plugin_component`（預設 `/components`），帶點擊者 id / 顯示名稱 /
+  目前所在語音頻道 id / plugin-scoped capability、訊息 id、以及那次點擊的
+  （新鮮 15 分鐘）`interaction_token`。**不等回應**；plugin 透過
+  `interactions.respond`（PATCH 按鈕所在訊息的 `@original`）回填，或
+  `interactions.followup`（`ephemeral: true`）發個提示。component interaction
+  每次點擊都是全新 interaction（含新 token），所以按鈕在訊息存在期間一直有效。
+  SDK 端：`definePluginComponent({ id, handler })`，handler 拿到 `ComponentContext`，
+  回傳 `{ content?, embeds?, components? }` 就會被拿去 PATCH `@original`，回傳
+  空 / null 則維持訊息原狀。
 - **事件** — manifest `events_subscribed` 宣告要收哪些；bot fan-out 到
   plugin 的 `/events`。
 
@@ -72,9 +85,15 @@ plugin 兩個都收得到；有 v1 就優先驗 v1（method+path bound，防跨�
 能呼叫哪些 method 由 manifest 的 `rpcMethodsUsed` 決定 —— 它就是這個 plugin 被授予的
 scope：register 時 bot 直接把這份清單簽進 token，沒有 admin 核准步驟。每次 RPC 仍會
 檢查 scope（呼叫沒在 manifest 宣告的 method 一律 403），所以 plugin 能呼叫的就是它宣告的。
-常見：`interactions.respond` / `interactions.followup` / `messages.send_dm` /
-`voice.*` / `auth.session` / KV 存取等 —— 完整清單看 bot 端
+常見：`interactions.respond` / `interactions.followup` /
+`messages.send`（可帶 `components` —— v1 action rows）/ `messages.edit`
+（改 bot 送過的訊息；`components: []` 清掉按鈕）/ `messages.delete` /
+`messages.send_dm` / `voice.join` / `voice.play` / `voice.pause`
+（`{ guild_id, paused? }`，省略 `paused` 即切換）/ `voice.stop` /
+`voice.status` / `auth.session` / KV 存取等 —— 完整清單看 bot 端
 `src/modules/plugin-system/plugin-rpc-routes.ts`，SDK 端 `ctx.botRpc(path, body)`。
+`messages.send` / `messages.edit` 受 per-guild feature gate：plugin 在目標頻道
+所在 guild 至少要有一個啟用中的 feature 才能送 / 改訊息。
 
 ### WebUI plugin 的使用者授權（plugin-session token）
 
