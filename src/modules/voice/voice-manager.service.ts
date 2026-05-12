@@ -27,6 +27,7 @@ import {
   type DiscordGatewayAdapterCreator,
 } from "@discordjs/voice";
 import { execSync } from "child_process";
+import { PassThrough, pipeline } from "stream";
 import prism from "prism-media";
 import { moduleLogger } from "../../logger.js";
 
@@ -194,6 +195,12 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // alive across transient network blips (without these the stream
   // stops at the first TCP RST).
   //
+  // -rw_timeout (microseconds) bounds a single input I/O wait: if the
+  // source socket goes silent for ~10 s ffmpeg errors out instead of
+  // hanging forever on a dead connection — and -reconnect then retries
+  // from where it left off. Short network jitter (sub-2 s) is absorbed
+  // by the PassThrough buffer below, so this only trips on real stalls.
+  //
   // -protocol_whitelist locks ffmpeg's *input* side to the HTTP stack
   // (+ pipe/fd for prism's stdout output, + crypto for AES-HLS segments)
   // — so a crafted playlist/manifest can't pivot to file:/concat:/
@@ -210,6 +217,8 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
       "1",
       "-reconnect_delay_max",
       "5",
+      "-rw_timeout",
+      "10000000",
       "-loglevel",
       "error",
       "-i",
@@ -224,15 +233,9 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
       "2",
     ],
   });
-  // Surface ffmpeg stderr so playback failures aren't silent. The
-  // 'error' loglevel above keeps the volume down; we only see real
-  // problems (stream 404s, decode failures) here.
-  ffmpeg.on("error", (err) => {
-    log.error({ err, url, guildId }, "ffmpeg pipeline error");
-  });
   // prism.FFmpeg exposes the underlying child process via .process;
-  // tap stderr so we capture exec-level errors too (the 'error' event
-  // above only fires for transformer-level failures).
+  // tap stderr so we capture exec-level errors too (the pipeline()
+  // callback below only fires for transformer-/stream-level failures).
   const child = (
     ffmpeg as unknown as {
       process?: {
@@ -244,7 +247,20 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
     const text = b.toString("utf8").trim();
     if (text) log.warn({ url, guildId, ffmpeg: text }, "ffmpeg stderr");
   });
-  const resource = createAudioResource(ffmpeg, {
+  // A ~2 s PCM jitter buffer between ffmpeg and the audio player. ffmpeg
+  // races ahead to keep it full (back-pressured once it is), so when the
+  // source CDN hiccups the player drains the buffer instead of starving
+  // — no stutter / speed-up artefact for sub-2 s blips. 192 kB/s is the
+  // 48 kHz·stereo·s16le rate. pipeline() ties their lifecycles together:
+  // an ffmpeg error/EOF tears down the buffer, and the buffer being
+  // destroyed (the player swapping in the next track) kills the ffmpeg
+  // child — so a skip never leaks a zombie ffmpeg.
+  const PCM_BYTES_PER_SECOND = 48_000 * 2 * 2;
+  const buffered = new PassThrough({ highWaterMark: PCM_BYTES_PER_SECOND * 2 });
+  pipeline(ffmpeg, buffered, (err) => {
+    if (err) log.warn({ err, url, guildId }, "ffmpeg → playback buffer error");
+  });
+  const resource = createAudioResource(buffered, {
     inputType: StreamType.Raw,
   });
   log.info(
