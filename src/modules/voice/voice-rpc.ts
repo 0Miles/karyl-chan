@@ -31,16 +31,26 @@ import {
   getStatus,
 } from "./voice-manager.service.js";
 import { findPluginById } from "../plugin-system/models/plugin.model.js";
+import {
+  assertExternalTarget,
+  assertPluginTarget,
+  HostPolicyError,
+} from "../../utils/host-policy.js";
+import { RateLimiter } from "../../utils/rate-limiter.js";
 
 interface VoiceRpcOptions {
   bot?: Client;
 }
 
+/** Throttle voice.play per (plugin, guild) — caps `/radio play`+skip spam
+ *  / a runaway advance loop. Generous (≈2/s) so a burst of skips is fine. */
+const voicePlayLimiter = new RateLimiter({ max: 20, windowMs: 10_000 });
+
 async function requireScope(
   request: FastifyRequest,
   reply: FastifyReply,
   scope: string,
-): Promise<{ pluginId: number } | null> {
+): Promise<{ pluginId: number; pluginUrl: string } | null> {
   const auth = request.pluginAuth;
   if (!auth) {
     reply.code(401).send({ error: "plugin auth missing" });
@@ -57,7 +67,7 @@ async function requireScope(
       .send({ error: "plugin is disabled or inactive on the bot" });
     return null;
   }
-  return { pluginId: auth.pluginId };
+  return { pluginId: auth.pluginId, pluginUrl: plugin.url };
 }
 
 export async function registerVoiceRpcRoutes(
@@ -176,6 +186,50 @@ export async function registerVoiceRpcRoutes(
       }
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
         reply.code(400).send({ error: "only http(s) URLs accepted" });
+        return;
+      }
+      if (
+        voicePlayLimiter.isRateLimited(
+          `voice.play:${ctx.pluginId}:${body.guild_id}`,
+        )
+      ) {
+        reply
+          .code(429)
+          .header("Retry-After", "1")
+          .send({ error: "voice.play rate limited for this guild" });
+        return;
+      }
+      // SSRF guard: a URL pointing at the *calling* plugin's own HTTP
+      // surface is fine (e.g. how the radio plugin serves a downloaded
+      // library track from `/internal/audio/…`) — that's the permissive
+      // plugin-target policy. Anything else is treated as an arbitrary
+      // user-supplied media URL and gets the strict external policy
+      // (blocks RFC1918 / loopback / link-local / cloud metadata).
+      const port = parsed.port
+        ? Number(parsed.port)
+        : parsed.protocol === "https:"
+          ? 443
+          : 80;
+      let pluginOrigin: string | null = null;
+      try {
+        pluginOrigin = new URL(ctx.pluginUrl).origin;
+      } catch {
+        /* malformed plugin url — fall through to the strict check */
+      }
+      try {
+        if (pluginOrigin && parsed.origin === pluginOrigin) {
+          await assertPluginTarget(parsed.hostname, port);
+        } else {
+          await assertExternalTarget(parsed.hostname, port);
+        }
+      } catch (err) {
+        if (err instanceof HostPolicyError) {
+          reply.code(403).send({ error: err.message });
+          return;
+        }
+        reply
+          .code(400)
+          .send({ error: "could not resolve the audio URL's host" });
         return;
       }
       try {

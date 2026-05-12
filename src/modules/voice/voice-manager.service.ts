@@ -186,8 +186,17 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // -reconnect 1 + -reconnect_streamed 1 keeps long radio streams
   // alive across transient network blips (without these the stream
   // stops at the first TCP RST).
+  //
+  // -protocol_whitelist locks ffmpeg's *input* side to the HTTP stack
+  // (+ pipe/fd for prism's stdout output, + crypto for AES-HLS segments)
+  // — so a crafted playlist/manifest can't pivot to file:/concat:/
+  // subfile:/data:/gopher: and read local files or reach other
+  // protocols. Combined with the SSRF host-policy check in voice-rpc.ts,
+  // this keeps `/radio play <url>` from being a foothold.
   const ffmpeg = new prism.FFmpeg({
     args: [
+      "-protocol_whitelist",
+      "http,https,tls,tcp,crypto,pipe,fd",
       "-reconnect",
       "1",
       "-reconnect_streamed",
