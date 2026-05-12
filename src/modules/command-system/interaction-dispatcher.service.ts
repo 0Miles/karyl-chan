@@ -31,6 +31,7 @@ import {
 } from "../behavior/models/behavior.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import { dispatchInteractionToPlugin } from "../plugin-system/plugin-interaction-dispatch.service.js";
+import { dispatchComponentToPlugin } from "../plugin-system/plugin-component-dispatch.service.js";
 import { dispatchInProcessInteraction } from "../builtin-features/in-process-command-registry.service.js";
 import { issueLoginLinkForInteraction } from "../admin/admin-login.service.js";
 import { endSession } from "../behavior/models/behavior-session.model.js";
@@ -116,7 +117,25 @@ export class InteractionDispatcher {
             : undefined,
         },
       );
-      // layer 2 失敗不短路，繼續嘗試 layer 3
+      // layer 2 失敗不短路，繼續嘗試 layer 2.5 / 3
+    }
+
+    // ─ Layer 2.5：plugin 元件（按鈕）── custom_id 為 `kc:<pluginKey>:…`
+    if (interaction.isButton()) {
+      try {
+        const claimed = await dispatchComponentToPlugin(interaction);
+        if (claimed) {
+          return { claimed: true, claimedBy: "plugin_component" };
+        }
+      } catch (err) {
+        botEventLog.record(
+          "error",
+          "bot",
+          `interaction-dispatcher: plugin_component layer 拋出例外：${err instanceof Error ? err.message : String(err)}`,
+          { customId: interaction.customId },
+        );
+        // 失敗不短路，繼續嘗試 layer 3（in-process 可能有同 prefix 的 handler）
+      }
     }
 
     // ─ Layer 3：in-process registry（builtin-features）

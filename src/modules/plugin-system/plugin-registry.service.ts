@@ -253,6 +253,8 @@ export interface PluginManifest {
     events?: string;
     /** v2：取代 v1 的 command。 */
     plugin_command?: string;
+    /** v2：plugin 元件（按鈕）互動派送端點，預設 `/components`。 */
+    plugin_component?: string;
     guild_feature_action?: string;
     /** @deprecated v1 欄位；v2 各 behavior 自帶 webhook_path。 */
     dm_behavior_dispatch?: string;
