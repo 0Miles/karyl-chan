@@ -1067,7 +1067,7 @@
             "deleteAllProgress": "Progress: {done} / {total}",
             "viewDetail": "View details",
             "detail": {
-                "backLink": "← Back to plugins",
+                "backLink": "Back to plugins",
                 "tabOverview": "Overview",
                 "tabBehaviors": "Behaviors",
                 "tabCommands": "Commands",

@@ -1067,7 +1067,7 @@
             "deleteAllProgress": "进度：{done} / {total}",
             "viewDetail": "查看详情",
             "detail": {
-                "backLink": "← 返回插件列表",
+                "backLink": "返回插件列表",
                 "tabOverview": "总览",
                 "tabBehaviors": "Behaviors",
                 "tabCommands": "指令",

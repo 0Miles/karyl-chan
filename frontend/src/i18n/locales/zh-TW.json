@@ -1067,7 +1067,7 @@
             "deleteAllProgress": "進度：{done} / {total}",
             "viewDetail": "查看詳情",
             "detail": {
-                "backLink": "← 返回外掛列表",
+                "backLink": "返回外掛列表",
                 "tabOverview": "總覽",
                 "tabBehaviors": "Behaviors",
                 "tabCommands": "指令",
