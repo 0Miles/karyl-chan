@@ -16,6 +16,7 @@
     "test:typecheck": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.19.2",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^10.0.0",

@@ -13,6 +13,16 @@ FROM node:22-trixie-slim AS backend-build
 
 WORKDIR /usr/src/app
 
+# Build toolchain for native node-gyp modules. `@discordjs/opus` (a native
+# Opus encoder — far cheaper than the pure-JS `opusscript` fallback, so
+# voice audio doesn't stutter under load) ships node-pre-gyp prebuilds but
+# none for Trixie's glibc 2.41, so node-pre-gyp compiles it from source.
+# This stage is discarded — only node_modules/ + build/ are copied to the
+# runtime image — so it doesn't bloat the final image.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 RUN npm ci
 
