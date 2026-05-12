@@ -43,7 +43,12 @@ function stableStringify(value: unknown, path = ""): string {
         }
         return true;
       })
-      .sort();
+      // Plain code-unit ordering — NOT localeCompare. The exact byte
+      // sequence feeds the audit hash chain (see canonicalPayload), so the
+      // key order must stay identical to what every existing row was
+      // hashed against; a locale-aware collator could reorder keys and
+      // break verification.
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     return (
       "{" +
       sorted

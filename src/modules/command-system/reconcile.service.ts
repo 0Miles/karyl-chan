@@ -160,22 +160,28 @@ function commandNeedsPatch(
       : "";
   if (existDesc !== desiredDesc) return true;
 
-  // 比對 contexts
-  const existCtxSorted = (existing.contexts ?? []).slice().sort().join(",");
+  // 比對 contexts — numeric enum values, so sort numerically (both sides
+  // identically) before joining, otherwise the canonical strings can
+  // differ purely from JS's default lexicographic Array.sort().
+  const byNumber = (a: number, b: number): number => a - b;
+  const existCtxSorted = (existing.contexts ?? [])
+    .slice()
+    .sort(byNumber)
+    .join(",");
   const desiredCtx =
     (desired as { contexts?: InteractionContextType[] }).contexts ?? [];
-  const desiredCtxSorted = desiredCtx.slice().sort().join(",");
+  const desiredCtxSorted = desiredCtx.slice().sort(byNumber).join(",");
   if (existCtxSorted !== desiredCtxSorted) return true;
 
-  // 比對 integrationTypes
+  // 比對 integrationTypes — likewise numeric enum values.
   const existItSorted = (existing.integrationTypes ?? [])
     .slice()
-    .sort()
+    .sort(byNumber)
     .join(",");
   const desiredIt =
     (desired as { integrationTypes?: ApplicationIntegrationType[] })
       .integrationTypes ?? [];
-  const desiredItSorted = desiredIt.slice().sort().join(",");
+  const desiredItSorted = desiredIt.slice().sort(byNumber).join(",");
   if (existItSorted !== desiredItSorted) return true;
 
   // 比對 options（sub_command / 參數定義）

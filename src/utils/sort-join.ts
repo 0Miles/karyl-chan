@@ -19,5 +19,5 @@ export function sortJoin(input: string | string[] | undefined | null): string {
         .map((s) => s.trim())
         .filter(Boolean);
   if (arr.length === 0) return "";
-  return [...new Set(arr)].sort().join(",");
+  return [...new Set(arr)].sort((a, b) => a.localeCompare(b)).join(",");
 }

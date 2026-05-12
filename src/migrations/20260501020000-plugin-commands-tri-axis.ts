@@ -70,7 +70,7 @@ interface PluginManifest {
 
 /** sort + dedup，對應 M0-FROZEN §1.4 */
 function sortJoin(arr: string[]): string {
-  return [...new Set(arr)].sort().join(",");
+  return [...new Set(arr)].sort((a, b) => a.localeCompare(b)).join(",");
 }
 
 // ── DB row 型別 ──────────────────────────────────────────────────────────
