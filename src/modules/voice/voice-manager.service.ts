@@ -69,6 +69,9 @@ export interface VoiceStatus {
   connected: boolean;
   channelId: string | null;
   playing: boolean;
+  /** True when the player is user-paused (Paused — not AutoPaused, which
+   *  just means nobody's listening). `playing` stays true while paused. */
+  paused: boolean;
   playingUrl: string | null;
   /** Reflects @discordjs/voice's connection status string. */
   connectionStatus: string | null;
@@ -276,6 +279,27 @@ export function stopPlayback(guildId: string): VoiceStatus {
   return getStatus(guildId);
 }
 
+/**
+ * Pause / resume the current track. `paused` undefined → toggle. No-op
+ * (returns the current status) if not joined or nothing is playing.
+ * Pausing keeps the ffmpeg pipe alive — fine for library files and most
+ * progressive streams, but a live radio stream resumed after a long
+ * pause may have buffered/stalled; callers that care should treat pause
+ * as a short-lived control.
+ */
+export function pausePlayback(
+  guildId: string,
+  paused?: boolean,
+): VoiceStatus {
+  const state = states.get(guildId);
+  if (!state) return getStatus(guildId);
+  const isPaused = state.player.state.status === AudioPlayerStatus.Paused;
+  const want = paused ?? !isPaused;
+  if (want) state.player.pause(true);
+  else state.player.unpause();
+  return getStatus(guildId);
+}
+
 export function getStatus(guildId: string): VoiceStatus {
   const state = states.get(guildId);
   if (!state) {
@@ -283,6 +307,7 @@ export function getStatus(guildId: string): VoiceStatus {
       connected: false,
       channelId: null,
       playing: false,
+      paused: false,
       playingUrl: null,
       connectionStatus: null,
       playerStatus: null,
@@ -291,6 +316,7 @@ export function getStatus(guildId: string): VoiceStatus {
   return {
     connected: state.connection.state.status === VoiceConnectionStatus.Ready,
     channelId: state.channelId,
+    paused: state.player.state.status === AudioPlayerStatus.Paused,
     // "playing" = the player currently holds an audio resource — i.e. any
     // state that isn't Idle (Playing, but also Buffering during a freshly
     // started track, AutoPaused, Paused). Reporting only `=== Playing`

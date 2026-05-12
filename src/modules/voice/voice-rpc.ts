@@ -9,6 +9,7 @@
  *   voice.join     — joinVoiceChannel
  *   voice.leave    — leave
  *   voice.play     — play a URL
+ *   voice.pause    — pause / resume the current track
  *   voice.stop     — stop playback
  *   voice.status   — read connection status
  *
@@ -25,6 +26,7 @@ import {
   joinVoice,
   leaveVoice,
   playUrl,
+  pausePlayback,
   stopPlayback,
   getStatus,
 } from "./voice-manager.service.js";
@@ -191,6 +193,25 @@ export async function registerVoiceRpcRoutes(
         }
         throw err;
       }
+    },
+  );
+
+  // POST /api/plugin/voice.pause
+  // Body: { guild_id: string, paused?: boolean }  (omit `paused` to toggle)
+  // Returns the resulting VoiceStatus (`.paused` reflects the new state).
+  server.post<{ Body: { guild_id?: unknown; paused?: unknown } }>(
+    "/api/plugin/voice.pause",
+    async (request, reply) => {
+      const ctx = await requireScope(request, reply, "voice.pause");
+      if (!ctx) return;
+      const body = request.body ?? {};
+      if (typeof body.guild_id !== "string") {
+        reply.code(400).send({ error: "guild_id required" });
+        return;
+      }
+      const paused =
+        typeof body.paused === "boolean" ? body.paused : undefined;
+      return pausePlayback(body.guild_id, paused);
     },
   );
 
