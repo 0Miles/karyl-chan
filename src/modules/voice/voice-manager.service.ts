@@ -77,6 +77,13 @@ export interface VoiceStatus {
   connectionStatus: string | null;
   /** Reflects @discordjs/voice's player status string. */
   playerStatus: string | null;
+  /**
+   * Non-bot members currently in the bot's voice channel. Filled in by the
+   * `voice.status` RPC (it has the discord.js client; this service doesn't)
+   * — `undefined` when not connected or the channel can't be inspected.
+   * `0` means the bot is alone — a plugin can use this to auto-leave.
+   */
+  listeners?: number;
 }
 
 export interface JoinOptions {

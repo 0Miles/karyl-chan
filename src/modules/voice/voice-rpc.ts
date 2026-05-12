@@ -293,7 +293,27 @@ export async function registerVoiceRpcRoutes(
         reply.code(400).send({ error: "guild_id required" });
         return;
       }
-      return getStatus(body.guild_id);
+      const status = getStatus(body.guild_id);
+      // Augment with the non-bot listener count when connected — this
+      // service has no Discord client, the RPC layer does. Best-effort:
+      // any hiccup leaves `listeners` undefined (callers treat that as
+      // "unknown", not "empty").
+      if (bot && status.connected && status.channelId) {
+        try {
+          const ch =
+            bot.channels.cache.get(status.channelId) ??
+            (await bot.channels.fetch(status.channelId).catch(() => null));
+          if (ch && ch.isVoiceBased()) {
+            return {
+              ...status,
+              listeners: ch.members.filter((m) => !m.user.bot).size,
+            };
+          }
+        } catch {
+          /* leave listeners undefined */
+        }
+      }
+      return status;
     },
   );
 }
