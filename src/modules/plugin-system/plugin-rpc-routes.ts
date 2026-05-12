@@ -133,6 +133,7 @@ export async function registerPluginRpcRoutes(
       channel_id?: unknown;
       content?: unknown;
       embeds?: unknown;
+      components?: unknown;
       allowed_mentions?: unknown;
     };
   }>("/api/plugin/messages.send", async (request, reply) => {
@@ -149,6 +150,9 @@ export async function registerPluginRpcRoutes(
     }
     const content = typeof body.content === "string" ? body.content : undefined;
     const embeds = Array.isArray(body.embeds) ? body.embeds : undefined;
+    const components = Array.isArray(body.components)
+      ? body.components
+      : undefined;
     if (!content && !embeds) {
       reply.code(400).send({ error: "content or embeds required" });
       return;
@@ -208,6 +212,9 @@ export async function registerPluginRpcRoutes(
         // discord.js v14 accepts raw embed objects; if it's malformed
         // it'll throw, which we surface as a 400.
         embeds: embeds as never,
+        // Discord component-v1 action rows passed through verbatim
+        // (e.g. link buttons + action buttons on a "now playing" card).
+        components: components as never,
         allowedMentions: allowedMentions as never,
       });
       botEventLog.record(
@@ -361,6 +368,87 @@ export async function registerPluginRpcRoutes(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       reply.code(400).send({ error: `delete failed: ${msg}` });
+    }
+  });
+
+  // ─── messages.edit ────────────────────────────────────────────────
+  /**
+   * POST /api/plugin/messages.edit
+   * Body: { channel_id, message_id, content?, embeds?, components? }
+   * Returns: { id, channel_id }
+   *
+   * Edit a message the bot sent (typically one it sent via
+   * messages.send). `components: []` clears the buttons. Same per-guild
+   * feature gate as messages.send — a plugin with no enabled feature in
+   * the channel's guild can't edit messages there. Only fields that are
+   * present are touched; pass `content: ""` to clear the text.
+   */
+  server.post<{
+    Body: {
+      channel_id?: unknown;
+      message_id?: unknown;
+      content?: unknown;
+      embeds?: unknown;
+      components?: unknown;
+    };
+  }>("/api/plugin/messages.edit", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "messages.edit");
+    if (!ctx) return;
+    if (!bot) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (
+      typeof body.channel_id !== "string" ||
+      typeof body.message_id !== "string"
+    ) {
+      reply.code(400).send({ error: "channel_id + message_id required" });
+      return;
+    }
+    let channel;
+    try {
+      channel = await bot.channels.fetch(body.channel_id);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(404).send({ error: `channel fetch failed: ${m}` });
+      return;
+    }
+    if (
+      !channel ||
+      !channel.isTextBased() ||
+      channel.type === ChannelType.GroupDM
+    ) {
+      reply.code(400).send({ error: "channel not text-based" });
+      return;
+    }
+    const channelGuildId =
+      "guildId" in channel && typeof channel.guildId === "string"
+        ? channel.guildId
+        : null;
+    if (channelGuildId && !channel.isDMBased()) {
+      const enabledFeatures = await findEnabledFeaturesByPluginGuild(
+        ctx.pluginId,
+        channelGuildId,
+      );
+      if (enabledFeatures.length === 0) {
+        reply.code(403).send({ error: "plugin not enabled in this guild" });
+        return;
+      }
+    }
+    const editPayload: Record<string, unknown> = {
+      allowed_mentions: { parse: [] },
+    };
+    if (typeof body.content === "string") editPayload.content = body.content;
+    if (Array.isArray(body.embeds)) editPayload.embeds = body.embeds;
+    if (Array.isArray(body.components)) editPayload.components = body.components;
+    try {
+      const msg = await channel.messages.fetch(body.message_id);
+      await msg.edit(editPayload as never);
+      return { id: msg.id, channel_id: msg.channelId };
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `edit failed: ${m}` });
     }
   });
 
