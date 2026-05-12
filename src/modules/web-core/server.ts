@@ -105,6 +105,7 @@ import { registerBotEventRoutes } from "../bot-events/bot-event-routes.js";
 import { registerBehaviorRoutes } from "../behavior/behavior-routes.js";
 import { registerScopeTabRoutes } from "../behavior/scope-tab-routes.js";
 import { registerPluginRoutes } from "../plugin-system/plugin-routes.js";
+import { registerPluginProxy } from "../plugin-system/plugin-proxy.js";
 import { registerBotFeatureRoutes } from "../feature-toggle/bot-feature-routes.js";
 import { registerPluginRpcRoutes } from "../plugin-system/plugin-rpc-routes.js";
 import { registerVoiceRpcRoutes } from "../voice/voice-rpc.js";
@@ -333,6 +334,16 @@ export async function createWebServer(
     if (writeRateLimiter.isRateLimited(`write:${key}`)) {
       reply.code(429).send({ error: "Too many write requests, slow down" });
     }
+  });
+
+  // Plugin reverse proxy — encapsulated in its own scope so that the
+  // catch-all content-type parser registered inside registerPluginProxy
+  // overrides @fastify/multipart only for /plugin/* routes, leaving
+  // multipart parsing intact for /api/* routes in the root scope.
+  // @fastify/reply-from is wrapped with fastify-plugin so its reply.from
+  // decorator remains available on the encapsulated instance.
+  await server.register(async (proxyInstance) => {
+    await registerPluginProxy(proxyInstance);
   });
 
   // Security headers. Vue 3 production build extracts all scoped styles

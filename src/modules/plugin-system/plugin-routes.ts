@@ -30,6 +30,7 @@ import {
 import { encryptSecret } from "../../utils/crypto.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
 import { recordAudit } from "../admin/admin-audit.service.js";
+import { config } from "../../config.js";
 import {
   deletePlugin,
   findPluginByKey,
@@ -73,6 +74,20 @@ import { createHash, randomBytes } from "crypto";
  */
 
 const PLUGIN_SETUP_SECRET_HEADER = "x-plugin-setup-secret";
+
+/**
+ * Return the public reverse-proxy base URL for a plugin, or `undefined`
+ * when `config.web.baseUrl` is not set (omit the field from the response
+ * entirely — don't send `null` or an empty string).
+ *
+ * Format: `<WEB_BASE_URL>/plugin/<pluginKey>` with any trailing slash on
+ * `WEB_BASE_URL` stripped first so the result is always a clean URL.
+ */
+function pluginPublicBaseUrl(pluginKey: string): string | undefined {
+  if (!config.web.baseUrl) return undefined;
+  const base = config.web.baseUrl.replace(/\/$/, "");
+  return `${base}/plugin/${pluginKey}`;
+}
 
 function presentedSetupSecret(req: FastifyRequest): string | null {
   const v = req.headers[PLUGIN_SETUP_SECRET_HEADER];
@@ -199,6 +214,12 @@ export async function registerPluginRoutes(
 
       try {
         const result = await pluginRegistry.register(request.body?.manifest);
+        // publicBaseUrl is the browser-reachable URL for this plugin's
+        // WebUI, served via the bot's reverse proxy at
+        // /plugin/<pluginKey>/*. Omitted entirely when WEB_BASE_URL is
+        // not set (so plugins in envs without an external URL don't get a
+        // broken empty string to act on).
+        const publicBaseUrl = pluginPublicBaseUrl(result.plugin.pluginKey);
         return {
           plugin: {
             id: result.plugin.id,
@@ -215,6 +236,10 @@ export async function registerPluginRoutes(
           // Same for every plugin: it's a public key. Plugins that don't
           // run a WebUI can ignore it.
           sessionVerifyPublicKey: jwtService.publicKeyPem(),
+          // publicBaseUrl: the bot reverse-proxies /plugin/<pluginKey>/*
+          // to the plugin's stored manifest url, no TLS cert required.
+          // Omitted when WEB_BASE_URL is not configured.
+          ...(publicBaseUrl !== undefined ? { publicBaseUrl } : {}),
           // Echo back the heartbeat path/cadence so a fresh plugin
           // doesn't need to hardcode anything.
           heartbeat: { path: "/api/plugins/heartbeat", interval_seconds: 30 },
@@ -241,12 +266,17 @@ export async function registerPluginRoutes(
    *
    * Headers: Authorization: Bearer <plugin-token>
    *
-   * No body. Returns `{ ok: true, sessionVerifyPublicKey }` on success.
-   * The public key is echoed on every beat so a plugin picks up a
-   * rotated JWT signing key within one heartbeat interval (~30s)
-   * without re-registering. Used by plugins to keep their `active`
-   * status; missing for >75s flips them to `inactive` via the
-   * registry's reaper.
+   * No body. Returns `{ ok: true, sessionVerifyPublicKey, publicBaseUrl? }`
+   * on success. The public key is echoed on every beat so a plugin picks
+   * up a rotated JWT signing key within one heartbeat interval (~30s)
+   * without re-registering. `publicBaseUrl` is echoed on every beat so a
+   * plugin that caches it always has the current value (e.g. after an
+   * operator changes WEB_BASE_URL). Omitted when WEB_BASE_URL is unset.
+   * Used by plugins to keep their `active` status; missing for >75s flips
+   * them to `inactive` via the registry's reaper.
+   *
+   * The pluginKey is taken from the in-memory auth record (set at
+   * registration) — no extra DB round-trip is needed.
    */
   server.post("/api/plugins/heartbeat", async (request, reply) => {
     const token = presentedBearerToken(request);
@@ -260,7 +290,12 @@ export async function registerPluginRoutes(
       return;
     }
     await pluginRegistry.heartbeat(rec.pluginId, token);
-    return { ok: true, sessionVerifyPublicKey: jwtService.publicKeyPem() };
+    const publicBaseUrl = pluginPublicBaseUrl(rec.pluginKey);
+    return {
+      ok: true,
+      sessionVerifyPublicKey: jwtService.publicKeyPem(),
+      ...(publicBaseUrl !== undefined ? { publicBaseUrl } : {}),
+    };
   });
 
   // ─── Admin-facing ────────────────────────────────────────────────

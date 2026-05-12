@@ -91,6 +91,69 @@ token 是 bot 用 Ed25519 私鑰簽的，plugin 只有公鑰 → 驗得了、偽
 admin 在系統設定頁可以輪替簽發金鑰；輪替後所有現存 token 立即作廢，plugin
 在一個 heartbeat 週期內拿到新公鑰。
 
+## Plugin WebUI 反向代理
+
+Bot 內建反向代理，讓 plugin 的 WebUI 可以借用 bot 的 TLS 憑證與公開 port，不需要自己申請憑證或暴露額外 port。
+
+### 路由規則
+
+| 請求 | 行為 |
+|---|---|
+| `GET /plugin/<pluginKey>` | 301 redirect → `/plugin/<pluginKey>/` |
+| `ANY /plugin/<pluginKey>/*` | 轉發到 plugin 在 manifest 宣告的 `url`，去掉 `/plugin/<pluginKey>` 前綴 |
+
+例：bot 公開網址 `https://bot.example.com`，plugin `karyl-radio` 的 `plugin.url = "http://karyl-radio-plugin:3000"`：
+
+```
+GET https://bot.example.com/plugin/karyl-radio/dashboard?tab=queue
+ → 轉發到 http://karyl-radio-plugin:3000/dashboard?tab=queue
+```
+
+### 認證行為
+
+`/plugin/*` 路由**不需要 bot 登入 session**。Plugin 應自行驗證 `plugin-session` JWT（見上方「WebUI plugin 的使用者授權」）。Discord `?token=` 連結直接降落在此路徑，不需要事先取得 bot 的 access token。
+
+### 代理條件
+
+- Plugin 的 DB 紀錄必須存在且 `status === 'active'`（即 plugin 正在心跳）。
+- `enabled` 旗標**不影響**代理——`enabled` 只控制 Discord 指令 / 事件的派送，不控制 plugin 自身的 HTTP 介面；admin 可以在不重新啟用 Discord 指令的情況下存取停用 plugin 的 WebUI。
+- 未知的 pluginKey 或 `status !== 'active'` → `404 { "error": "unknown plugin" }`。
+- 轉發 URL 取自 DB 儲存的 `plugin.url`（即 manifest 宣告值），不採用任何來自 request 的 host/來源。
+
+### `publicBaseUrl`：plugin 如何知道自己的公開網址
+
+Register 和每次 heartbeat 的回應都新增了 `publicBaseUrl` 欄位：
+
+```json
+{
+  "ok": true,
+  "sessionVerifyPublicKey": "...",
+  "publicBaseUrl": "http://localhost:902/plugin/karyl-radio"
+}
+```
+
+值為 `<WEB_BASE_URL>/plugin/<pluginKey>`（`WEB_BASE_URL` 末尾斜線會自動去除）。
+**當 `WEB_BASE_URL` 未設定時，此欄位完全省略**（不會送 `null` 或空字串）。
+
+有 WebUI 的 plugin 應使用 `publicBaseUrl` 作為瀏覽器可觸及的 base URL，並把路徑部分注入到 server-render 的 HTML 中（例如設定 `<base href="/plugin/karyl-radio/">`），讓 client-side 的 `fetch` / 靜態資源路徑正確落在代理前綴下。
+
+SDK 會在後續版本將此欄位作為屬性暴露（`publicBaseUrl` 欄位已在 register / heartbeat 回應中）。
+
+### CSP 要求
+
+Bot 的 `@fastify/helmet` 設定了嚴格的 `Content-Security-Policy`，此 CSP 會套用到所有 `/plugin/*` 回應。如果 plugin 的 WebUI 回應中包含 `Content-Security-Policy` header，該 header 會覆蓋 bot 的預設 CSP（`@fastify/reply-from` 將 upstream 的 response headers 轉發給瀏覽器）。**有 WebUI 的 plugin 必須自行在回應中送出適當的 `Content-Security-Policy`**；未送出 CSP 的 plugin 將沿用 bot 的嚴格預設 CSP，大多數 inline script / style 都會被封鎖。
+
+### 限制
+
+- **SSE（text/event-stream）**：長時間保持的 SSE 串流會在代理的 30 秒 upstream timeout 到期時被切斷。如果 plugin 的 WebUI 需要 server-sent events，必須在自己的 WebSocket / SSE 連線逾時前重連，或改用其他通訊方式。
+- **WebSocket**：`@fastify/reply-from` 不代理 WebSocket `Upgrade` 請求。未來如有 plugin 需要 WebSocket，代理必須擴充支援。
+
+### 好處
+
+Plugin 不再需要自己的 TLS 憑證或對外 port：bot 的 reverse proxy 替它處理 TLS 終端和對外 URL。
+
+---
+
 ## 部署
 
 每個 plugin 是一個 docker service，掛在 bot 建立的 `karyl-chan-net`
