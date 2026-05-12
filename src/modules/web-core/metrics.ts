@@ -97,7 +97,11 @@ export function setMetricsBotClient(bot: Client): void {
   botRef = bot;
 }
 
-new Gauge({
+// These Gauges are write-only via their `collect()` callbacks and
+// self-register through `registers`, so nothing else references them — but
+// we still bind each to a name so they aren't mistaken for a discarded
+// `new` expression.
+export const botGuildCountGauge = new Gauge({
   name: "karyl_bot_guild_count",
   help: "Number of guilds the bot is currently in",
   registers: [metricsRegistry],
@@ -106,7 +110,7 @@ new Gauge({
   },
 });
 
-new Gauge({
+export const botUserCacheSizeGauge = new Gauge({
   name: "karyl_bot_user_cache_size",
   help: "Number of users currently in the bot's user cache",
   registers: [metricsRegistry],
@@ -115,7 +119,7 @@ new Gauge({
   },
 });
 
-new Gauge({
+export const dmSseConnectionsGauge = new Gauge({
   name: "karyl_dm_sse_connections",
   help: "Active DM event-bus subscribers (SSE connections + others)",
   registers: [metricsRegistry],
@@ -132,7 +136,7 @@ new Gauge({
   },
 });
 
-new Gauge({
+export const guildChannelSseConnectionsGauge = new Gauge({
   name: "karyl_guild_channel_sse_connections",
   help: "Active guild-channel event-bus subscribers",
   registers: [metricsRegistry],
@@ -147,7 +151,7 @@ new Gauge({
   },
 });
 
-new Gauge({
+export const pluginActiveCountGauge = new Gauge({
   name: "karyl_plugin_active_count",
   help: "Plugins currently registered and (best-effort) alive",
   registers: [metricsRegistry],
