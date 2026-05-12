@@ -258,7 +258,11 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   const PCM_BYTES_PER_SECOND = 48_000 * 2 * 2;
   const buffered = new PassThrough({ highWaterMark: PCM_BYTES_PER_SECOND * 2 });
   pipeline(ffmpeg, buffered, (err) => {
-    if (err) log.warn({ err, url, guildId }, "ffmpeg → playback buffer error");
+    // ERR_STREAM_PREMATURE_CLOSE just means the player swapped this track
+    // out (skip / stop / leave) and destroyed the buffer — expected.
+    if (err && (err as NodeJS.ErrnoException).code !== "ERR_STREAM_PREMATURE_CLOSE") {
+      log.warn({ err, url, guildId }, "ffmpeg → playback buffer error");
+    }
   });
   const resource = createAudioResource(buffered, {
     inputType: StreamType.Raw,
