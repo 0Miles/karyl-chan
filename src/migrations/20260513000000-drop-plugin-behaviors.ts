@@ -277,7 +277,9 @@ async function rebuildBehaviors(
       const q = (sql: string): Promise<unknown> =>
         queryInterface.sequelize.query(sql, { transaction: t });
       await q("DROP TABLE IF EXISTS behaviors_new;");
-      await q(newDdl);
+      // The DDL strings declare `CREATE TABLE behaviors (…)` (the final
+      // shape) — build into a staging table first.
+      await q(newDdl.replace("CREATE TABLE behaviors (", "CREATE TABLE behaviors_new ("));
       await q(
         `INSERT INTO behaviors_new (${COPY_COLUMNS}) SELECT ${COPY_COLUMNS} FROM behaviors WHERE source != 'plugin';`,
       );
