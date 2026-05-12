@@ -69,8 +69,9 @@ plugin 兩個都收得到；有 v1 就優先驗 v1（method+path bound，防跨�
 ## Plugin → Bot RPC
 
 `POST /api/plugin/<method>`，`Authorization: Bearer <token>`，body 是 JSON。
-能呼叫哪些 method 由 manifest 的 `rpcMethodsUsed` 決定（bot 簽 token 時把它
-當作 scope allowlist；新增的 scope 要 admin 核准，除非 `PLUGIN_AUTO_APPROVE_SCOPES`）。
+能呼叫哪些 method 由 manifest 的 `rpcMethodsUsed` 決定 —— 它就是這個 plugin 被授予的
+scope：register 時 bot 直接把這份清單簽進 token，沒有 admin 核准步驟。每次 RPC 仍會
+檢查 scope（呼叫沒在 manifest 宣告的 method 一律 403），所以 plugin 能呼叫的就是它宣告的。
 常見：`interactions.respond` / `interactions.followup` / `messages.send_dm` /
 `voice.*` / `auth.session` / KV 存取等 —— 完整清單看 bot 端
 `src/modules/plugin-system/plugin-rpc-routes.ts`，SDK 端 `ctx.botRpc(path, body)`。

@@ -40,12 +40,6 @@ export const Plugin = sequelize.define(
       defaultValue: true,
     },
     lastHeartbeatAt: { type: DataTypes.DATE, allowNull: true },
-    approvedScopesJson: {
-      type: DataTypes.TEXT,
-      allowNull: false,
-      defaultValue: "[]",
-    },
-    pendingScopesJson: { type: DataTypes.TEXT, allowNull: true },
     setupSecretHash: { type: DataTypes.TEXT, allowNull: true },
     dispatchHmacKey: { type: DataTypes.TEXT, allowNull: true },
   },
@@ -68,8 +62,6 @@ export interface PluginRow {
   tokenHash: string | null;
   enabled: boolean;
   lastHeartbeatAt: Date | null;
-  approvedScopesJson: string;
-  pendingScopesJson: string | null;
   /** SHA-256 hash of the per-plugin setup secret. NULL means use global fallback. */
   setupSecretHash: string | null;
   /** Cleartext HMAC key for signing outbound dispatches to this plugin. NULL means use global fallback. */
@@ -91,10 +83,6 @@ function rowOf(model: InstanceType<typeof Plugin>): PluginRow {
     enabled: !!model.getDataValue("enabled"),
     lastHeartbeatAt:
       (model.getDataValue("lastHeartbeatAt") as Date | null) ?? null,
-    approvedScopesJson:
-      (model.getDataValue("approvedScopesJson") as string | null) ?? "[]",
-    pendingScopesJson:
-      (model.getDataValue("pendingScopesJson") as string | null) ?? null,
     setupSecretHash:
       (model.getDataValue("setupSecretHash") as string | null) ?? null,
     dispatchHmacKey:
@@ -148,8 +136,6 @@ export interface UpsertPluginInput {
   url: string;
   manifestJson: string;
   tokenHash: string;
-  approvedScopesJson: string;
-  pendingScopesJson: string | null;
   /** Initial value for newly-created rows. Existing rows preserve their setting. */
   defaultEnabled?: boolean;
 }
@@ -179,8 +165,6 @@ export const upsertPluginRegistration = async (
       tokenHash: input.tokenHash,
       status: "active",
       lastHeartbeatAt: now,
-      approvedScopesJson: input.approvedScopesJson,
-      pendingScopesJson: input.pendingScopesJson,
     });
     return rowOf(existing);
   }
@@ -194,8 +178,6 @@ export const upsertPluginRegistration = async (
     status: "active",
     enabled: input.defaultEnabled ?? true,
     lastHeartbeatAt: now,
-    approvedScopesJson: input.approvedScopesJson,
-    pendingScopesJson: input.pendingScopesJson,
   });
   return rowOf(created);
 };
@@ -250,39 +232,6 @@ export const setPluginEnabled = async (
   await row.update({ enabled });
   return rowOf(row);
 };
-
-/**
- * Approve all pending scopes: move pendingScopesJson → approvedScopesJson
- * (union), clear pending. Returns the updated row, or null if not found.
- */
-export const approvePluginScopes = async (
-  id: number,
-): Promise<PluginRow | null> => {
-  const row = await Plugin.findByPk(id);
-  if (!row) return null;
-  const approved = parseJsonArray(
-    (row.getDataValue("approvedScopesJson") as string | null) ?? "[]",
-  );
-  const pending = parseJsonArray(
-    (row.getDataValue("pendingScopesJson") as string | null) ?? "[]",
-  );
-  const merged = Array.from(new Set([...approved, ...pending]));
-  await row.update({
-    approvedScopesJson: JSON.stringify(merged),
-    pendingScopesJson: null,
-  });
-  return rowOf(row);
-};
-
-function parseJsonArray(json: string): string[] {
-  try {
-    const parsed = JSON.parse(json);
-    if (Array.isArray(parsed)) return parsed as string[];
-  } catch {
-    // ignore malformed
-  }
-  return [];
-}
 
 /**
  * Hard-delete a plugin row by id. Returns true if a row was deleted,

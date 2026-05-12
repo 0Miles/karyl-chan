@@ -1,5 +1,4 @@
 import {
-  approvePluginScopes,
   expireStalePlugins,
   findAllPlugins,
   findPluginById,
@@ -260,40 +259,6 @@ export interface PluginManifest {
     /** @deprecated v1 欄位。 */
     command?: string;
   };
-}
-
-/**
- * Pure function: compute the new approved/pending scope sets given the
- * previous approved scopes and the newly declared scopes from the manifest.
- *
- * Rules:
- *   - Removed = prevApproved ∖ declared → auto-removed (no admin approval)
- *   - Added   = declared ∖ prevApproved → placed in pending
- *   - If autoApprove=true, added scopes go straight to approved (pending=[])
- *
- * Exported for unit testing.
- */
-export function computeScopeDiff(
-  prevApproved: string[],
-  declared: string[],
-  autoApprove: boolean,
-): { approved: string[]; pending: string[] } {
-  const declaredSet = new Set(declared);
-  const prevApprovedSet = new Set(prevApproved);
-
-  // Keep scopes that are still declared; auto-remove those that were removed.
-  const stillApproved = prevApproved.filter((s) => declaredSet.has(s));
-
-  // New scopes not previously approved.
-  const added = declared.filter((s) => !prevApprovedSet.has(s));
-
-  if (autoApprove) {
-    return {
-      approved: Array.from(new Set([...stillApproved, ...added])),
-      pending: [],
-    };
-  }
-  return { approved: stillApproved, pending: added };
 }
 
 /**
@@ -752,14 +717,11 @@ export class PluginRegistry {
    * issue a fresh token and update the manifest snapshot — admin's
    * `enabled` flag stays where they last set it.
    *
-   * Scope approval gate:
-   *   - On first register: approved = manifest scopes, pending = [].
-   *   - On re-register: scopes removed from manifest → auto-removed
-   *     from approved; scopes added to manifest → placed in pending.
-   *   - If config.plugin.autoApproveScopes === true (default): pending
-   *     is immediately merged into approved (backward-compat mode until
-   *     the frontend approval UI ships).
-   *   - Token is always issued with the *approved* scopes only.
+   * RPC scopes: the manifest's declared `rpc_methods_used` ARE the
+   * granted scopes. There's no approval step — the token is always
+   * issued carrying exactly those methods, so the per-RPC-call scope
+   * check (`requireScope`) still rejects a method the plugin didn't
+   * declare.
    */
   async register(rawManifest: unknown): Promise<RegisterResult> {
     const v = await validateManifest(rawManifest);
@@ -768,44 +730,15 @@ export class PluginRegistry {
     }
     const manifest = v.manifest;
 
-    // ── Scope diff ─────────────────────────────────────────────────
+    // ── Declared RPC scopes ────────────────────────────────────────
+    // The manifest's rpc_methods_used are the granted scopes — no
+    // admin approval, no pending/approved distinction.
     const declaredScopes = manifest.rpc_methods_used ?? [];
-
-    // Fetch previous row (null on first register).
-    const prevRow = await findPluginByKey(manifest.plugin.id);
-    let approvedScopes: string[];
-    let pendingScopes: string[];
-
-    if (!prevRow) {
-      // First registration: all declared scopes are immediately approved.
-      approvedScopes = declaredScopes;
-      pendingScopes = [];
-    } else {
-      // Re-registration: compute diff against previous approved list.
-      let prevApproved: string[];
-      try {
-        const parsed = JSON.parse(prevRow.approvedScopesJson);
-        prevApproved = Array.isArray(parsed) ? (parsed as string[]) : [];
-      } catch {
-        prevApproved = [];
-      }
-      const diff = computeScopeDiff(
-        prevApproved,
-        declaredScopes,
-        config.plugin.autoApproveScopes,
-      );
-      approvedScopes = diff.approved;
-      pendingScopes = diff.pending;
-    }
-
-    const approvedScopesJson = JSON.stringify(approvedScopes);
-    const pendingScopesJson =
-      pendingScopes.length > 0 ? JSON.stringify(pendingScopes) : null;
 
     // ── Token issue ────────────────────────────────────────────────
     // Mint token first, persist hash. Cleartext goes back to the
     // plugin in the response and is never stored.
-    // Token is signed with approved scopes only.
+    // Token is signed with the declared scopes.
     // Stable id for token cache: we can't use the not-yet-known
     // plugins.id row id, so we use pluginKey as identity here, then
     // reissue with the real id once we have it. The auth store keys
@@ -813,7 +746,7 @@ export class PluginRegistry {
     const placeholderToken = this.auth.issue({
       pluginId: -1,
       pluginKey: manifest.plugin.id,
-      scopes: approvedScopes,
+      scopes: declaredScopes,
     });
     const persisted = await upsertPluginRegistration({
       pluginKey: manifest.plugin.id,
@@ -822,8 +755,6 @@ export class PluginRegistry {
       url: manifest.plugin.url,
       manifestJson: JSON.stringify(manifest),
       tokenHash: placeholderToken.tokenHash,
-      approvedScopesJson,
-      pendingScopesJson,
     });
     // Re-issue with the real plugins.id so the auth record carries the
     // db-backed id (used by RPC handlers to filter scopes per plugin).
@@ -831,7 +762,7 @@ export class PluginRegistry {
     const real = this.auth.issue({
       pluginId: persisted.id,
       pluginKey: manifest.plugin.id,
-      scopes: approvedScopes,
+      scopes: declaredScopes,
     });
     // Persist the real hash in place of the placeholder.
     persisted.tokenHash = real.tokenHash;
@@ -842,8 +773,6 @@ export class PluginRegistry {
       url: manifest.plugin.url,
       manifestJson: JSON.stringify(manifest),
       tokenHash: real.tokenHash,
-      approvedScopesJson,
-      pendingScopesJson,
     });
 
     botEventLog.record(
@@ -1006,14 +935,6 @@ export class PluginRegistry {
       });
     }
     return row;
-  }
-
-  /**
-   * Approve all pending scopes for a plugin: merge pending into approved,
-   * clear pending. Returns the updated row, or null if not found.
-   */
-  async approveScopes(pluginId: number): Promise<PluginRow | null> {
-    return approvePluginScopes(pluginId);
   }
 
   async list(): Promise<PluginRow[]> {

@@ -315,8 +315,7 @@ export async function registerPluginRoutes(
         enabled: p.enabled,
         lastHeartbeatAt: p.lastHeartbeatAt,
         manifest: safeParse(p.manifestJson),
-        approvedScopes: safeParseArray(p.approvedScopesJson),
-        pendingScopes: safeParseArray(p.pendingScopesJson ?? "[]"),
+        rpcMethods: manifestRpcMethods(p.manifestJson),
       })),
     };
   });
@@ -358,7 +357,7 @@ export async function registerPluginRoutes(
    *
    * Plugin 詳情頁（M1-D2）。依 pluginKey 查詢單一 plugin，額外回傳：
    *   - pluginCommands[]：DB 中的 plugin_commands 行（featureKey=null 的軌三指令）
-   *   - 其他欄位與 GET /api/plugins/:id 相同，加上 approvedScopes / pendingScopes
+   *   - 其他欄位與 GET /api/plugins/:id 相同，加上 rpcMethods（manifest 宣告的 RPC 方法，唯讀）
    *
    * 注意：路由 `/api/plugins/by-key/:pluginKey` 必須放在 `/api/plugins/:id` 之前，
    * 否則 `by-key` 會被 Fastify 當成數字 id 參數解析（雖然驗證會失敗，但為求清晰）。
@@ -410,8 +409,7 @@ export async function registerPluginRoutes(
           manifest: manifest
             ? { ...manifest, behaviors: behaviorsWithEnabled }
             : safeParse(p.manifestJson),
-          approvedScopes: safeParseArray(p.approvedScopesJson),
-          pendingScopes: safeParseArray(p.pendingScopesJson ?? "[]"),
+          rpcMethods: manifestRpcMethods(p.manifestJson),
           pluginCommands: thirdTrackCommands.map((c) => ({
             id: c.id,
             name: c.name,
@@ -1108,58 +1106,6 @@ export async function registerPluginRoutes(
     return { accepted, skipped };
   });
 
-  /**
-   * POST /api/plugins/:id/approve-scopes
-   *
-   * Admin approves all pending scopes for a plugin. Moves
-   * pendingScopes → approvedScopes (union), clears pending. The plugin
-   * must re-register to receive a token that includes the newly approved
-   * scopes (tokens are only issued at registration time).
-   *
-   * Requires admin capability.
-   */
-  server.post<{ Params: { id: string } }>(
-    "/api/plugins/:id/approve-scopes",
-    async (request, reply) => {
-      if (!requireCapability(request, reply, "admin")) return;
-      const id = Number(request.params.id);
-      if (!Number.isInteger(id) || id <= 0) {
-        reply.code(400).send({ error: "invalid id" });
-        return;
-      }
-      const updated = await pluginRegistry.approveScopes(id);
-      if (!updated) {
-        reply.code(404).send({ error: "plugin not found" });
-        return;
-      }
-      const approved = safeParseArray(updated.approvedScopesJson);
-      await recordAudit(
-        request.authUserId ?? "system",
-        "plugin.approve_scopes",
-        `plugin:${id}`,
-        {
-          pluginId: id,
-          pluginKey: updated.pluginKey,
-          approvedScopes: approved,
-        },
-      );
-      botEventLog.record(
-        "info",
-        "bot",
-        `Plugin scopes approved by admin: ${updated.pluginKey} scopes=${approved.join(",")}`,
-        {
-          pluginId: id,
-          pluginKey: updated.pluginKey,
-          approvedScopes: approved,
-        },
-      );
-      return {
-        approved,
-        pending: [],
-      };
-    },
-  );
-
   /** POST /api/plugins/:id/enable | /disable */
   server.post<{ Params: { id: string }; Body: { enabled?: unknown } }>(
     "/api/plugins/:id/enabled",
@@ -1380,8 +1326,6 @@ export async function registerPluginRoutes(
         url: "http://placeholder",
         manifestJson: "{}",
         tokenHash: "",
-        approvedScopesJson: "[]",
-        pendingScopesJson: null,
         defaultEnabled: false,
       });
       created = true;
@@ -1435,12 +1379,13 @@ function safeParse(json: string): unknown {
   }
 }
 
-function safeParseArray(json: string): string[] {
-  try {
-    const parsed = JSON.parse(json);
-    if (Array.isArray(parsed)) return parsed as string[];
-  } catch {
-    // ignore malformed
-  }
-  return [];
+/**
+ * The RPC methods a plugin's manifest declares (`rpc_methods_used`).
+ * These ARE the plugin's granted scopes — surfaced read-only in the
+ * admin UI; there's no approval step. Malformed manifest → [].
+ */
+function manifestRpcMethods(manifestJson: string): string[] {
+  const m = safeParse(manifestJson) as { rpc_methods_used?: unknown } | null;
+  if (!m || !Array.isArray(m.rpc_methods_used)) return [];
+  return m.rpc_methods_used.filter((s): s is string => typeof s === "string");
 }

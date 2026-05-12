@@ -58,7 +58,6 @@ export interface AppConfig {
     kvValueMaxBytes: number;
     dmRatePerSec: number;
     dmWindowMs: number;
-    autoApproveScopes: boolean;
   };
   behavior: {
     profileCacheTtlMs: number;
@@ -211,7 +210,6 @@ function loadConfig(): AppConfig {
       kvValueMaxBytes: parseIntEnv("PLUGIN_KV_VALUE_MAX_BYTES", 64 * 1024),
       dmRatePerSec: parseIntEnv("PLUGIN_DM_PER_SEC", 30),
       dmWindowMs: parseIntEnv("PLUGIN_DM_WINDOW_MS", 1000),
-      autoApproveScopes: parseBoolEnv("PLUGIN_AUTO_APPROVE_SCOPES", false),
     },
     behavior: {
       profileCacheTtlMs: parseIntEnv(
