@@ -15,7 +15,6 @@ import {
     type ScopeTabRow,
     type BehaviorRow,
 } from '../../../api/behavior';
-import { listPlugins, type PluginRecord } from '../../../api/plugins';
 
 const { t } = useI18n();
 const { isMobile } = useBreakpoint();
@@ -31,8 +30,6 @@ const tabs = ref<ScopeTabRow[]>([]);
 const selectedTabId = ref<number>(1);
 const loading = ref(false);
 const error = ref<string | null>(null);
-
-const plugins = ref<PluginRecord[]>([]);
 
 const addBehaviorModalOpen = ref(false);
 const addTabModalOpen = ref(false);
@@ -58,7 +55,6 @@ async function load() {
 
 onMounted(() => {
     void load();
-    listPlugins().then(v => { plugins.value = v; }).catch(() => { plugins.value = []; });
 });
 
 function onSelect(tabId: number) {
@@ -104,7 +100,6 @@ async function onTabCreated(tab: ScopeTabRow) {
             :key="selectedTab.id"
             :tab="selectedTab"
             :can-manage-catalog="canManageCatalog"
-            :plugins="plugins"
             @tab-deleted="onTabDeleted"
             @add-behavior="addBehaviorModalOpen = true"
             @behavior-deleted="onBehaviorDeleted"
@@ -114,7 +109,6 @@ async function onTabCreated(tab: ScopeTabRow) {
             :visible="addBehaviorModalOpen"
             :scope-tab-id="selectedTabId"
             :scope-tab="selectedTab"
-            :preloaded-plugins="plugins"
             @close="addBehaviorModalOpen = false"
             @created="onBehaviorCreated"
         />

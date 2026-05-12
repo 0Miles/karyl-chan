@@ -9,7 +9,6 @@ import AppSelectField from '../../../components/AppSelectField.vue';
 import BehaviorSourceNotice from './BehaviorSourceNotice.vue';
 import {
     type BehaviorRow,
-    type BehaviorSource,
     type BehaviorTriggerType,
     type BehaviorForwardType,
     type BehaviorScope,
@@ -18,20 +17,14 @@ import {
     updateBehavior,
     deleteBehavior,
 } from '../../../api/behavior';
-import type { PluginRecord } from '../../../api/plugins';
 
 /**
- * BehaviorCard v2 — M1-D1
+ * BehaviorCard v2
  *
- * 三種 source 的條件分支（custom / plugin / system）：
- * - 左側 3px source-bar 色條（custom=accent / plugin=紫 / system=muted）
- * - trigger-badge pill（slash / pattern）
- * - source-badge（custom 不顯示 / plugin 顯示 plugin name / system 顯示鎖）
- * - drag-handle 只 custom 可用
- * - custom：完全可編輯
- * - plugin：只可編輯三軸 / audience / enabled / webhookSecret + mode
+ * Two sources:
+ * - custom：完全可編輯（trigger / 三軸 / audience / webhook URL+secret+mode）
  * - system：只可編輯 trigger value + enabled
- * - webhookAuthMode UI（CR-2）：source=custom + webhookSecret 有值時顯示 mode select
+ * webhookAuthMode UI（CR-2）：source=custom + webhookSecret 有值時顯示 mode select
  */
 
 const { t } = useI18n();
@@ -39,7 +32,6 @@ const { confirm } = useConfirm();
 
 const props = defineProps<{
     behavior: BehaviorRow;
-    plugins?: PluginRecord[];
     initiallyOpen?: boolean;
 }>();
 
@@ -54,14 +46,7 @@ const open = ref(!!props.initiallyOpen);
 // ── source 計算屬性 ───────────────────────────────────────────────────────────
 
 const isCustom = computed(() => props.behavior.source === 'custom');
-const isPlugin = computed(() => props.behavior.source === 'plugin');
 const isSystem = computed(() => props.behavior.source === 'system');
-
-// ── 找出 plugin 資訊 ──────────────────────────────────────────────────────────
-
-const linkedPlugin = computed(() =>
-    (props.plugins ?? []).find(p => p.id === props.behavior.pluginId) ?? null
-);
 
 // ── draft（可編輯欄位）────────────────────────────────────────────────────────
 
@@ -72,27 +57,24 @@ interface Draft {
     enabled: boolean;
     forwardType: BehaviorForwardType;
     stopOnMatch: boolean;
-    // trigger（custom 全可改；system 只能改 value；plugin 唯讀）
+    // trigger（custom 全可改；system 只能改 value）
     triggerType: BehaviorTriggerType;
     messagePatternKind: string;
     messagePatternValue: string;
     slashCommandName: string;
     slashCommandDescription: string;
-    // 三軸（custom + plugin 可改；system 唯讀）
+    // 三軸（custom 可改；system 唯讀）
     scope: BehaviorScope;
     integrationTypes: string;
     contexts: string;
-    // audience（custom + plugin 可改）
+    // audience（custom 可改）
     audienceKind: string;
     audienceUserId: string;
     audienceGroupName: string;
-    // webhook（custom 全可改；plugin 只能改 secret/mode）
+    // webhook（custom 全可改）
     webhookUrl: string;
     webhookSecret: string;
     webhookAuthMode: BehaviorWebhookAuthMode | '';
-    // plugin routing（custom 可改）
-    pluginId: number | null;
-    pluginBehaviorKey: string;
 }
 
 function draftFrom(row: BehaviorRow): Draft {
@@ -116,8 +98,6 @@ function draftFrom(row: BehaviorRow): Draft {
         webhookUrl: row.webhookUrl ?? '',
         webhookSecret: row.webhookSecret ?? '',
         webhookAuthMode: row.webhookAuthMode ?? '',
-        pluginId: row.pluginId,
-        pluginBehaviorKey: row.pluginBehaviorKey ?? '',
     };
 }
 
@@ -162,25 +142,6 @@ const webhookAuthModeOptions = computed(() => [
     { value: 'hmac' as BehaviorWebhookAuthMode, label: 'HMAC' },
 ]);
 
-// plugin options（custom 路徑的 plugin routing）
-const eligiblePlugins = computed(() =>
-    (props.plugins ?? []).filter(p =>
-        p.enabled && p.status === 'active' && (p.manifest?.dm_behaviors?.length ?? 0) > 0
-    )
-);
-const pluginOptions = computed(() =>
-    eligiblePlugins.value.map(p => ({ value: p.id, label: `${p.name} (v${p.version})` }))
-);
-const selectedPlugin = computed(() =>
-    eligiblePlugins.value.find(p => p.id === draft.pluginId) ?? null
-);
-const dmBehaviorOptions = computed(() =>
-    (selectedPlugin.value?.manifest?.dm_behaviors ?? []).map(b => ({
-        value: b.key,
-        label: b.description ? `${b.name} — ${b.description}` : b.name,
-    }))
-);
-
 // webhookAuthMode 顯示條件（CR-2）：source=custom + webhookSecret 有值
 const showAuthModeSelect = computed(() =>
     isCustom.value && draft.webhookSecret.length > 0
@@ -210,18 +171,6 @@ const dirty = computed(() => {
         }
         return draft.messagePatternValue !== (b.messagePatternValue ?? '');
     }
-    if (isPlugin.value) {
-        return (
-            draft.scope !== b.scope ||
-            draft.integrationTypes !== b.integrationTypes ||
-            draft.contexts !== b.contexts ||
-            draft.audienceKind !== b.audienceKind ||
-            draft.audienceUserId !== (b.audienceUserId ?? '') ||
-            draft.audienceGroupName !== (b.audienceGroupName ?? '') ||
-            draft.webhookSecret !== (b.webhookSecret ?? '') ||
-            draft.webhookAuthMode !== (b.webhookAuthMode ?? '')
-        );
-    }
     // custom
     return (
         draft.title !== b.title ||
@@ -241,9 +190,7 @@ const dirty = computed(() => {
         draft.webhookSecret !== (b.webhookSecret ?? '') ||
         draft.webhookAuthMode !== (b.webhookAuthMode ?? '') ||
         draft.forwardType !== b.forwardType ||
-        draft.stopOnMatch !== b.stopOnMatch ||
-        (draft.pluginId ?? null) !== (b.pluginId ?? null) ||
-        draft.pluginBehaviorKey !== (b.pluginBehaviorKey ?? '')
+        draft.stopOnMatch !== b.stopOnMatch
     );
 });
 
@@ -287,22 +234,6 @@ async function onSave() {
                 patch.slashCommandName = draft.slashCommandName.trim();
             } else {
                 patch.messagePatternValue = draft.messagePatternValue.trim();
-            }
-        } else if (isPlugin.value) {
-            // plugin：三軸 + audience + webhookSecret/webhookAuthMode
-            patch = {
-                scope: draft.scope,
-                integrationTypes: draft.integrationTypes,
-                contexts: draft.contexts,
-                audienceKind: draft.audienceKind as BehaviorRow['audienceKind'],
-                audienceUserId: draft.audienceKind === 'user' ? (draft.audienceUserId.trim() || null) : null,
-                audienceGroupName: draft.audienceKind === 'group' ? (draft.audienceGroupName.trim() || null) : null,
-            };
-            if (draft.webhookSecret !== (props.behavior.webhookSecret ?? '')) {
-                patch.webhookSecret = draft.webhookSecret.length === 0 ? null : draft.webhookSecret;
-                if (draft.webhookSecret.length > 0) {
-                    patch.webhookAuthMode = (draft.webhookAuthMode as BehaviorWebhookAuthMode) || 'token';
-                }
             }
         } else {
             // custom：全欄位
@@ -360,12 +291,6 @@ async function onSave() {
             } else if (draft.webhookAuthMode !== (props.behavior.webhookAuthMode ?? '')) {
                 patch.webhookAuthMode = (draft.webhookAuthMode as BehaviorWebhookAuthMode) || null;
             }
-            // plugin routing
-            if ((draft.pluginId ?? null) !== (props.behavior.pluginId ?? null) ||
-                draft.pluginBehaviorKey !== (props.behavior.pluginBehaviorKey ?? '')) {
-                patch.pluginId = draft.pluginId;
-                patch.pluginBehaviorKey = draft.pluginBehaviorKey || null;
-            }
         }
 
         const updated = await updateBehavior(props.behavior.id, patch);
@@ -395,7 +320,6 @@ async function onDelete() {
 
 const saveLabel = computed(() => {
     if (isSystem.value) return t('behaviors.card.saveTrigger');
-    if (isPlugin.value) return t('behaviors.card.saveAxes');
     return t('common.save');
 });
 </script>
@@ -421,7 +345,7 @@ const saveLabel = computed(() => {
                 <span
                     v-else
                     class="drag-handle drag-handle--locked"
-                    :title="isSystem ? t('behaviors.card.systemRowLocked') : t('behaviors.card.pluginRowLocked')"
+                    :title="t('behaviors.card.systemRowLocked')"
                     aria-hidden="true"
                 >
                     <Icon icon="material-symbols:lock-outline" width="16" height="16" />
@@ -454,17 +378,9 @@ const saveLabel = computed(() => {
                     {{ behavior.triggerType === 'slash_command' ? 'slash' : 'pattern' }}
                 </span>
 
-                <!-- source-badge（custom 不顯示，plugin 顯示 name，system 顯示鎖） -->
+                <!-- source-badge（custom 不顯示，system 顯示鎖） -->
                 <span
-                    v-if="isPlugin"
-                    class="tag tag-plugin"
-                    :title="t('behaviors.card.tagPlugin')"
-                >
-                    <Icon icon="material-symbols:extension-outline" width="13" height="13" />
-                    {{ linkedPlugin?.name ?? t('behaviors.card.tagPluginShort') }}
-                </span>
-                <span
-                    v-else-if="isSystem"
+                    v-if="isSystem"
                     class="tag tag-system"
                     :title="t('behaviors.card.tagSystem')"
                 >
@@ -528,13 +444,8 @@ const saveLabel = computed(() => {
             <!-- ─ card body ─────────────────────────────────────────────────── -->
             <div v-if="open" class="card-body">
 
-                <!-- source notice banner（plugin/system） -->
-                <BehaviorSourceNotice
-                    v-if="!isCustom"
-                    :source="behavior.source"
-                    :plugin-name="linkedPlugin?.name"
-                    :plugin-key="linkedPlugin?.pluginKey"
-                />
+                <!-- source notice banner（system） -->
+                <BehaviorSourceNotice v-if="isSystem" :source="behavior.source" />
 
                 <!-- ═══ source=custom：完全可編輯 ════════════════════════════ -->
                 <template v-if="isCustom">
@@ -623,71 +534,6 @@ const saveLabel = computed(() => {
                             <input type="checkbox" v-model="draft.stopOnMatch" />
                             <span>{{ t('behaviors.card.stopOnMatch') }}</span>
                         </label>
-                    </div>
-                </template>
-
-                <!-- ═══ source=plugin：三軸 + audience 可編輯，其餘唯讀 ══════ -->
-                <template v-else-if="isPlugin">
-                    <!-- 唯讀區 -->
-                    <div class="grid readonly-grid">
-                        <label class="field full">
-                            <span class="label readonly-label">
-                                {{ t('behaviors.card.title') }}
-                                <Icon icon="material-symbols:lock-outline" width="12" height="12" aria-hidden="true" />
-                            </span>
-                            <input :value="behavior.title" type="text" readonly class="readonly-input" />
-                        </label>
-                        <label class="field full">
-                            <span class="label readonly-label">
-                                {{ t('behaviors.card.triggerValue') }}
-                                <Icon icon="material-symbols:lock-outline" width="12" height="12" aria-hidden="true" />
-                            </span>
-                            <input
-                                :value="behavior.triggerType === 'slash_command'
-                                    ? `/${behavior.slashCommandName ?? ''}`
-                                    : `${behavior.messagePatternKind}: ${behavior.messagePatternValue ?? ''}`"
-                                type="text"
-                                readonly
-                                class="readonly-input"
-                            />
-                        </label>
-                    </div>
-
-                    <!-- 可編輯區：三軸 + audience -->
-                    <div class="section-divider">{{ t('behaviors.card.axesSection') }}</div>
-                    <div class="grid">
-                        <div class="field">
-                            <span class="label">Scope</span>
-                            <AppSelectField v-model="draft.scope" :options="scopeOptions" />
-                        </div>
-                        <label class="field">
-                            <span class="label">Integration Types</span>
-                            <input v-model="draft.integrationTypes" type="text" placeholder="guild_install,user_install" />
-                        </label>
-                        <label class="field">
-                            <span class="label">Contexts</span>
-                            <input v-model="draft.contexts" type="text" placeholder="Guild,BotDM,PrivateChannel" />
-                        </label>
-
-                        <!-- webhookSecret（plugin 可選設定） -->
-                        <label class="field full">
-                            <span class="label">
-                                {{ t('behaviors.card.webhookSecret') }}
-                                <span class="hint">{{ t('behaviors.card.webhookSecretHint') }}</span>
-                            </span>
-                            <input
-                                v-model="draft.webhookSecret"
-                                type="text"
-                                :placeholder="t('behaviors.card.webhookSecretPlaceholder')"
-                                maxlength="200"
-                                autocomplete="off"
-                                spellcheck="false"
-                            />
-                        </label>
-                        <div v-if="draft.webhookSecret.length > 0" class="field">
-                            <span class="label">{{ t('behaviors.card.webhookAuthMode') }}</span>
-                            <AppSelectField v-model="draft.webhookAuthMode" :options="webhookAuthModeOptions" />
-                        </div>
                     </div>
                 </template>
 

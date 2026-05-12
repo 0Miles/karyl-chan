@@ -14,7 +14,6 @@ import {
     type BehaviorRow,
     type ScopeTabRow,
 } from '../../../api/behavior';
-import type { PluginRecord } from '../../../api/plugins';
 import { useUserSummaries } from '../../../composables/use-user-summaries';
 
 const { t } = useI18n();
@@ -22,7 +21,6 @@ const { t } = useI18n();
 const props = defineProps<{
     tab: ScopeTabRow;
     canManageCatalog?: boolean;
-    plugins?: PluginRecord[];
 }>();
 
 const emit = defineEmits<{
@@ -57,15 +55,10 @@ watch(() => props.tab.id, () => {
     void load(props.tab);
 }, { immediate: true });
 
-// ── plugin list ──────────────────────────────────────────────────────────────
-
-const pluginsLocal = computed(() => props.plugins ?? []);
-
 // ── sortable ─────────────────────────────────────────────────────────────────
 
 const systemBehaviors = computed(() => behaviors.value.filter(b => b.source === 'system'));
 const customBehaviors = computed(() => behaviors.value.filter(b => b.source === 'custom'));
-const pluginBehaviors = computed(() => behaviors.value.filter(b => b.source === 'plugin'));
 
 function teardownSortable() {
     if (sortable) { sortable.destroy(); sortable = null; }
@@ -87,7 +80,6 @@ async function ensureSortable() {
             const previous = behaviors.value;
             behaviors.value = [
                 ...systemBehaviors.value,
-                ...pluginBehaviors.value,
                 ...list,
             ];
             try {
@@ -229,18 +221,6 @@ const kindBadge = computed(() => {
                 v-for="b in systemBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :plugins="pluginsLocal"
-                @updated="onUpdated"
-            />
-        </div>
-
-        <!-- plugin behaviors -->
-        <div v-if="pluginBehaviors.length > 0" class="card-list">
-            <BehaviorCard
-                v-for="b in pluginBehaviors"
-                :key="b.id"
-                :behavior="b"
-                :plugins="pluginsLocal"
                 @updated="onUpdated"
             />
         </div>
@@ -251,7 +231,6 @@ const kindBadge = computed(() => {
                 v-for="b in customBehaviors"
                 :key="b.id"
                 :behavior="b"
-                :plugins="pluginsLocal"
                 :initially-open="newlyCreatedId === b.id"
                 @updated="onUpdated"
                 @deleted="onDeleted"

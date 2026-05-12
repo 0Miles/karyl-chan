@@ -7,7 +7,6 @@ import AppModal from '../../../components/AppModal.vue';
 import AppConfirmDialog from '../../../components/AppConfirmDialog.vue';
 import AppButton from '../../../components/AppButton.vue';
 import {
-    approvePluginScopes,
     deletePlugin,
     generatePluginSetupSecret,
     getPluginConfig,
@@ -23,7 +22,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'updated', plugin: { id: number; pluginKey: string; enabled: boolean }): void;
-    (e: 'scopes-updated', payload: { id: number; approvedScopes: string[]; pendingScopes: string[] }): void;
     (e: 'deleted', id: number): void;
 }>();
 
@@ -129,7 +127,6 @@ const lastHeartbeat = computed(() => {
     return d.toLocaleString();
 });
 
-const dmBehaviorCount = computed(() => props.plugin.manifest?.dm_behaviors?.length ?? 0);
 const guildFeatureCount = computed(() => props.plugin.manifest?.guild_features?.length ?? 0);
 // Top-level (truly global) commands and per-feature commands count
 // separately — they have different runtime gating semantics, so the
@@ -143,39 +140,6 @@ const featureCommandCount = computed(() =>
 const commandCount = computed(() => globalCommandCount.value + featureCommandCount.value);
 const rpcScopes = computed(() => props.plugin.manifest?.rpc_methods_used ?? []);
 const description = computed(() => props.plugin.manifest?.plugin.description ?? '');
-
-// ── Scope approval ──────────────────────────────────────────────────
-const approvedScopes = ref<string[]>(props.plugin.approvedScopes ?? []);
-const pendingScopes = ref<string[]>(props.plugin.pendingScopes ?? []);
-
-// Keep local refs in sync when the parent reloads and passes fresh data
-watch(() => props.plugin.approvedScopes, (v) => { approvedScopes.value = v ?? []; });
-watch(() => props.plugin.pendingScopes, (v) => { pendingScopes.value = v ?? []; });
-
-const approveModalOpen = ref(false);
-const approving = ref(false);
-const approveError = ref<string | null>(null);
-
-async function confirmApproveScopes() {
-    if (approving.value) return;
-    approving.value = true;
-    approveError.value = null;
-    try {
-        const result = await approvePluginScopes(props.plugin.id);
-        approvedScopes.value = result.approved;
-        pendingScopes.value = result.pending;
-        approveModalOpen.value = false;
-        emit('scopes-updated', {
-            id: props.plugin.id,
-            approvedScopes: result.approved,
-            pendingScopes: result.pending,
-        });
-    } catch (err) {
-        approveError.value = err instanceof Error ? err.message : String(err);
-    } finally {
-        approving.value = false;
-    }
-}
 
 // ── Setup secret ────────────────────────────────────────────────────
 const setupSecretConfirmOpen = ref(false);
@@ -313,16 +277,6 @@ async function confirmDelete() {
             </button>
             <span class="status-dot" :style="{ background: statusColor }" :title="statusLabel" />
             <span class="status-text">{{ statusLabel }}</span>
-            <button
-                v-if="pendingScopes.length > 0"
-                type="button"
-                class="pending-badge"
-                :title="t('admin.plugins.scopes.pendingHint', { n: pendingScopes.length })"
-                @click.stop="approveModalOpen = true"
-            >
-                <Icon icon="material-symbols:security-rounded" width="13" height="13" />
-                {{ t('admin.plugins.scopes.pendingCount', { n: pendingScopes.length }) }}
-            </button>
             <RouterLink
                 :to="{ name: 'plugin-detail', params: { pluginKey: plugin.pluginKey } }"
                 class="detail-link"
@@ -365,10 +319,6 @@ async function confirmDelete() {
             <p v-if="description" class="desc">{{ description }}</p>
 
             <div class="stats-row">
-                <span class="stat" v-if="dmBehaviorCount > 0">
-                    <Icon icon="material-symbols:forum-outline" width="14" height="14" />
-                    {{ t('admin.plugins.dmBehaviorsCount', { n: dmBehaviorCount }) }}
-                </span>
                 <span class="stat" v-if="guildFeatureCount > 0">
                     <Icon icon="material-symbols:hub-outline" width="14" height="14" />
                     {{ t('admin.plugins.guildFeaturesCount', { n: guildFeatureCount }) }}
@@ -388,22 +338,7 @@ async function confirmDelete() {
                     <dt>{{ t('admin.plugins.lastHeartbeat') }}</dt>
                     <dd>{{ lastHeartbeat }}</dd>
                 </div>
-                <div class="meta-row" v-if="approvedScopes.length > 0">
-                    <dt>{{ t('admin.plugins.scopes.approved') }}</dt>
-                    <dd>
-                        <code v-for="s in approvedScopes" :key="s" class="scope-chip scope-chip--approved">{{ s }}</code>
-                    </dd>
-                </div>
-                <div class="meta-row" v-if="pendingScopes.length > 0">
-                    <dt>{{ t('admin.plugins.scopes.pending') }}</dt>
-                    <dd class="pending-row">
-                        <code v-for="s in pendingScopes" :key="s" class="scope-chip scope-chip--pending">{{ s }}</code>
-                        <AppButton variant="primary" size="sm" icon="material-symbols:check-circle-outline-rounded" :disabled="approving" @click="approveModalOpen = true">
-                            {{ t('admin.plugins.scopes.approveButton') }}
-                        </AppButton>
-                    </dd>
-                </div>
-                <div class="meta-row" v-else-if="approvedScopes.length === 0 && rpcScopes.length > 0">
+                <div class="meta-row" v-if="rpcScopes.length > 0">
                     <dt>{{ t('admin.plugins.rpcScopes') }}</dt>
                     <dd>
                         <code v-for="s in rpcScopes" :key="s" class="scope-chip">{{ s }}</code>
@@ -550,31 +485,6 @@ async function confirmDelete() {
             <div class="secret-result-actions">
                 <AppButton variant="primary" :disabled="!setupSecretAcknowledged" @click="closeSecretResult">
                     {{ t('admin.plugins.setupSecret.closeButton') }}
-                </AppButton>
-            </div>
-        </div>
-    </AppModal>
-
-    <!-- Scope approve confirmation modal -->
-    <AppModal
-        :visible="approveModalOpen"
-        :title="t('admin.plugins.scopes.approveModalTitle')"
-        :close-on-backdrop="!approving"
-        :close-on-escape="!approving"
-        @close="approveModalOpen = false"
-    >
-        <div class="acd-scope-body">
-            <p class="acd-scope-desc">{{ t('admin.plugins.scopes.approveConfirm', { name: plugin.name }) }}</p>
-            <div class="approve-scope-list" role="list">
-                <code v-for="s in pendingScopes" :key="s" role="listitem" class="scope-chip scope-chip--pending">{{ s }}</code>
-            </div>
-            <p v-if="approveError" class="error" role="alert">{{ approveError }}</p>
-            <div class="acd-scope-actions">
-                <AppButton variant="ghost" :disabled="approving" @click="approveModalOpen = false">
-                    {{ t('common.cancel') }}
-                </AppButton>
-                <AppButton variant="primary" :loading="approving" @click="confirmApproveScopes">
-                    {{ t('admin.plugins.scopes.approveButton') }}
                 </AppButton>
             </div>
         </div>

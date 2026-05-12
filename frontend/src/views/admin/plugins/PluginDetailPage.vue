@@ -5,10 +5,8 @@ import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import AppTabs, { type TabDef } from '../../../components/AppTabs.vue';
 import PluginDetailOverview from './PluginDetailOverview.vue';
-import PluginDetailBehaviors from './PluginDetailBehaviors.vue';
 import PluginDetailCommands from './PluginDetailCommands.vue';
 import PluginDetailFeatures from './PluginDetailFeatures.vue';
-import PluginDetailScopes from './PluginDetailScopes.vue';
 import PluginDetailSecurity from './PluginDetailSecurity.vue';
 import { getPluginByKey, type PluginDetailRecord } from '../../../api/plugins';
 
@@ -25,10 +23,8 @@ const activeTab = ref('overview');
 
 const tabs = computed<TabDef[]>(() => [
     { key: 'overview',  label: t('admin.plugins.detail.tabOverview') },
-    { key: 'behaviors', label: t('admin.plugins.detail.tabBehaviors') },
     { key: 'commands',  label: t('admin.plugins.detail.tabCommands') },
     { key: 'features',  label: t('admin.plugins.detail.tabFeatures') },
-    { key: 'scopes',    label: t('admin.plugins.detail.tabScopes') },
     { key: 'security',  label: t('admin.plugins.detail.tabSecurity') },
 ]);
 
@@ -46,10 +42,6 @@ const lastHeartbeat = computed(() => {
     return d.toLocaleString();
 });
 
-const behaviorCount = computed(() => {
-    const m = plugin.value?.manifest;
-    return (m?.behaviors?.length ?? m?.dm_behaviors?.length ?? 0);
-});
 const featureCount = computed(() => plugin.value?.manifest?.guild_features?.length ?? 0);
 const commandCount = computed(() => plugin.value?.pluginCommands?.length ?? 0);
 
@@ -113,10 +105,6 @@ onMounted(load);
                         <span class="heartbeat-label">{{ t('admin.plugins.lastHeartbeat') }}: {{ lastHeartbeat }}</span>
                     </div>
                     <div class="stats-chips">
-                        <span v-if="behaviorCount > 0" class="chip">
-                            <Icon icon="material-symbols:forum-outline" width="13" height="13" />
-                            {{ t('admin.plugins.dmBehaviorsCount', { n: behaviorCount }) }}
-                        </span>
                         <span v-if="featureCount > 0" class="chip">
                             <Icon icon="material-symbols:hub-outline" width="13" height="13" />
                             {{ t('admin.plugins.guildFeaturesCount', { n: featureCount }) }}
@@ -131,14 +119,12 @@ onMounted(load);
 
             <AppTabs v-model="activeTab" :tabs="tabs">
                 <PluginDetailOverview v-if="activeTab === 'overview'" :plugin="plugin" />
-                <PluginDetailBehaviors v-else-if="activeTab === 'behaviors'" :plugin="plugin" />
                 <PluginDetailCommands
                     v-else-if="activeTab === 'commands'"
                     :plugin="plugin"
                     @command-toggled="onCommandToggled"
                 />
                 <PluginDetailFeatures v-else-if="activeTab === 'features'" :plugin="plugin" />
-                <PluginDetailScopes v-else-if="activeTab === 'scopes'" :plugin="plugin" @reload="load" />
                 <PluginDetailSecurity v-else-if="activeTab === 'security'" :plugin="plugin" />
             </AppTabs>
         </template>

@@ -2,7 +2,7 @@ import { ApiError, authedFetch } from "./client";
 
 // ── v2 列舉型別 ──────────────────────────────────────────────────────────────
 
-export type BehaviorSource = "custom" | "plugin" | "system";
+export type BehaviorSource = "custom" | "system";
 export type BehaviorTriggerType = "slash_command" | "message_pattern";
 export type BehaviorMessagePatternKind = "startswith" | "endswith" | "regex";
 export type BehaviorForwardType = "one_time" | "continuous";
@@ -47,8 +47,6 @@ export interface BehaviorRow {
   webhookUrl: string | null;
   webhookSecret: string | null;
   webhookAuthMode: BehaviorWebhookAuthMode | null;
-  pluginId: number | null;
-  pluginBehaviorKey: string | null;
   systemKey: string | null;
   scopeTabId: number;
 }
@@ -88,7 +86,6 @@ export interface ScopeTabRow {
 export interface BehaviorCreatePayload {
   title: string;
   description?: string;
-  source: BehaviorSource;
   triggerType: BehaviorTriggerType;
   messagePatternKind?: BehaviorMessagePatternKind;
   messagePatternValue?: string;
@@ -106,8 +103,6 @@ export interface BehaviorCreatePayload {
   forwardType?: BehaviorForwardType;
   stopOnMatch?: boolean;
   enabled?: boolean;
-  pluginId?: number;
-  pluginBehaviorKey?: string;
   scopeTabId?: number;
 }
 
@@ -131,8 +126,6 @@ export interface BehaviorPatchPayload {
   webhookUrl?: string | null;
   webhookSecret?: string | null;
   webhookAuthMode?: BehaviorWebhookAuthMode | null;
-  pluginId?: number | null;
-  pluginBehaviorKey?: string | null;
 }
 
 // ── 輔助 ──────────────────────────────────────────────────────────────────────

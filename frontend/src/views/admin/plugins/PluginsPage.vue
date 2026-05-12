@@ -35,14 +35,6 @@ function onUpdated(updated: { id: number; pluginKey: string; enabled: boolean })
     );
 }
 
-function onScopesUpdated(payload: { id: number; approvedScopes: string[]; pendingScopes: string[] }) {
-    plugins.value = plugins.value.map(p =>
-        p.id === payload.id
-            ? { ...p, approvedScopes: payload.approvedScopes, pendingScopes: payload.pendingScopes }
-            : p
-    );
-}
-
 function onDeleted(id: number) {
     plugins.value = plugins.value.filter(p => p.id !== id);
 }
@@ -139,7 +131,6 @@ onMounted(load);
                     :key="p.id"
                     :plugin="p"
                     @updated="onUpdated"
-                    @scopes-updated="onScopesUpdated"
                     @deleted="onDeleted"
                 />
             </div>
@@ -175,7 +166,6 @@ onMounted(load);
                     :key="p.id"
                     :plugin="p"
                     @updated="onUpdated"
-                    @scopes-updated="onScopesUpdated"
                     @deleted="onDeleted"
                 />
             </div>

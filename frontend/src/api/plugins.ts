@@ -56,25 +56,6 @@ export interface PluginManifest {
       scope?: "guild" | "global";
     }>;
   }>;
-  dm_behaviors?: Array<{
-    key: string;
-    name: string;
-    description?: string;
-    supports_continuous?: boolean;
-  }>;
-  /** v2 manifest behaviors（軌二），取代 dm_behaviors */
-  behaviors?: Array<{
-    key: string;
-    name: string;
-    description?: string;
-    supports_continuous?: boolean;
-    scope?: string;
-    integration_types?: string[];
-    contexts?: string[];
-    webhook_path?: string;
-    /** OQ-11：admin override 狀態，從 plugin_behavior_overrides 讀取；預設 true */
-    enabled?: boolean;
-  }>;
   /** v2 manifest plugin_commands（軌三），admin 只能 on/off */
   plugin_commands?: Array<{
     name: string;
@@ -116,8 +97,6 @@ export interface PluginRecord {
   enabled: boolean;
   lastHeartbeatAt: string | null;
   manifest: PluginManifest | null;
-  approvedScopes: string[];
-  pendingScopes: string[];
 }
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
@@ -214,22 +193,6 @@ export async function setPluginConfig(
   return jsonOrThrow<{ accepted: string[]; skipped: string[] }>(r);
 }
 
-// ─── Plugin scope approval ─────────────────────────────────────────
-
-export interface ApproveScopesResult {
-  approved: string[];
-  pending: string[];
-}
-
-export async function approvePluginScopes(
-  id: number,
-): Promise<ApproveScopesResult> {
-  const r = await authedFetch(`/api/plugins/${id}/approve-scopes`, {
-    method: "POST",
-  });
-  return jsonOrThrow<ApproveScopesResult>(r);
-}
-
 // ─── Plugin delete ─────────────────────────────────────────────────
 
 export async function deletePlugin(id: number): Promise<void> {
@@ -295,26 +258,3 @@ export async function setPluginCommandEnabled(
   return jsonOrThrow<SetPluginCommandEnabledResult>(r);
 }
 
-// ─── Plugin behavior override toggle (OQ-11) ──────────────────────
-
-/**
- * PATCH /api/plugins/:pluginKey/behaviors/:behaviorKey/enabled
- * OQ-11：admin toggle plugin behavior on/off
- */
-export async function setPluginBehaviorOverride(
-  pluginKey: string,
-  behaviorKey: string,
-  enabled: boolean,
-): Promise<void> {
-  const r = await authedFetch(
-    `/api/plugins/${encodeURIComponent(pluginKey)}/behaviors/${encodeURIComponent(behaviorKey)}/enabled`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    },
-  );
-  await jsonOrThrow<{
-    behavior: { pluginKey: string; behaviorKey: string; enabled: boolean };
-  }>(r);
-}
