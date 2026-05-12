@@ -108,8 +108,10 @@ export function useDiscordDm(opts: UseDiscordDmOptions = {}) {
 
     const messageContext = createDiscordMessageContext({
         botUserId,
-        onReactionAdd: chat.reactAdd,
-        onReactionRemove: chat.reactRemove,
+        // `react*` are async (they own their own error handling); the context
+        // expects void-returning handlers, so discard the promise explicitly.
+        onReactionAdd: (messageId, emoji) => { void chat.reactAdd(messageId, emoji); },
+        onReactionRemove: (messageId, emoji) => { void chat.reactRemove(messageId, emoji); },
         // Reply-header click → workspace.requestScroll, which knows how
         // to fetch-around when the target is older than the loaded
         // window. Falls back to the DOM-only path if the message is

@@ -342,7 +342,6 @@ const matchSummary = computed(() =>
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     transition: opacity var(--transition-base);
-    padding: 16px;
 }
 .user-row.pending { opacity: 0.55; }
 .avatar {

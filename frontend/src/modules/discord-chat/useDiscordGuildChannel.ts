@@ -213,8 +213,14 @@ export function useDiscordGuildChannel(
   const messageContext = createDiscordMessageContext({
     botUserId,
     guildId,
-    onReactionAdd: chat.reactAdd,
-    onReactionRemove: chat.reactRemove,
+    // `react*` are async (they own their own error handling); the context
+    // expects void-returning handlers, so discard the promise explicitly.
+    onReactionAdd: (messageId, emoji) => {
+      void chat.reactAdd(messageId, emoji);
+    },
+    onReactionRemove: (messageId, emoji) => {
+      void chat.reactRemove(messageId, emoji);
+    },
     onReplyClick: (messageId) => workspace.requestScroll(messageId),
     async fetchReactionUsers(messageId, emoji) {
       const gid = guildId.value;

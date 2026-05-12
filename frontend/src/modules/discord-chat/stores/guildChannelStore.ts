@@ -32,7 +32,8 @@ interface GuildEntry {
     roles: GuildRoleSummary[] | null;
     rolesPending: Promise<GuildRoleSummary[]> | null;
     channelMembers: Record<string, GuildChannelMember[]>;
-    channelMembersPending: Record<string, Promise<GuildChannelMember[]>>;
+    // Values are deleted (not nulled) once resolved, so reads can be undefined.
+    channelMembersPending: Record<string, Promise<GuildChannelMember[]> | undefined>;
     /** Active threads for the guild, indexed by id. The store owns this
      *  list (rather than the sidebar) so other consumers (the workspace
      *  machine's selectable-id check, the message thread chip) can reach
@@ -249,7 +250,7 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
     async function ensureRoles(guildId: string): Promise<GuildRoleSummary[]> {
         const entry = getOrCreate(guildId);
         if (entry.roles) return entry.roles;
-        if (entry.rolesPending) return entry.rolesPending;
+        if (entry.rolesPending !== null) return entry.rolesPending;
         const promise = apiListRoles(guildId).then(roles => {
             entry.roles = roles;
             return roles;
@@ -263,7 +264,7 @@ export const useGuildChannelStore = defineStore('discord-guild-channel', () => {
         const cached = entry.channelMembers[channelId];
         if (cached) return cached;
         const pending = entry.channelMembersPending[channelId];
-        if (pending) return pending;
+        if (pending !== undefined) return pending;
         const promise = apiListChannelMembers(guildId, channelId).then(members => {
             entry.channelMembers[channelId] = members;
             return members;

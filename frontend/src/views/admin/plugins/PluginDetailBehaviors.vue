@@ -71,11 +71,7 @@ async function handleToggle(beh: BehaviorItem) {
 
     try {
         await setPluginBehaviorOverride(props.plugin.pluginKey, key, newEnabled);
-        showToast(
-            newEnabled
-                ? t('admin.plugins.detail.behaviors.toggleSuccess')
-                : t('admin.plugins.detail.behaviors.toggleSuccess'),
-        );
+        showToast(t('admin.plugins.detail.behaviors.toggleSuccess'));
     } catch {
         // Rollback
         overrides.value.set(key, !newEnabled);
