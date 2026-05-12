@@ -184,7 +184,6 @@ describe("Change A: plugin proxy routes", () => {
         tokenHash: "abc",
         status: "inactive",
         enabled: true,
-        approvedScopesJson: "[]",
       });
       const res = await server.inject({
         method: "GET",
@@ -210,7 +209,6 @@ describe("Change A: plugin proxy routes", () => {
         tokenHash: "def",
         status: "active",
         enabled: false,
-        approvedScopesJson: "[]",
       });
       const res = await server.inject({
         method: "GET",

@@ -143,8 +143,6 @@ describe("1. register without pre-provisioned setup secret", () => {
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest()),
       tokenHash: "init-hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
     // Row has no setupSecretHash — should be rejected.
     const res = await server.inject({
@@ -182,8 +180,6 @@ describe("2. register with per-plugin setup_secret_hash (correct secret)", () =>
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest()),
       tokenHash: "init-hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
     const row = await findPluginByKey("test-plugin");
     // Write the hash via the admin endpoint.
@@ -233,8 +229,6 @@ describe("3. register with per-plugin hash set but presenting global secret", ()
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest()),
       tokenHash: "init-hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
 
     // Set per-plugin secret via admin endpoint.
@@ -269,8 +263,6 @@ describe("4. dispatch_hmac_key selection", () => {
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest()),
       tokenHash: "init",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
     await server.inject({
       method: "POST",
@@ -301,8 +293,6 @@ describe("4. dispatch_hmac_key selection", () => {
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest("placeholder-plugin")),
       tokenHash: "placeholder-hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
     expect(row.dispatchHmacKey).toBeNull();
   });
@@ -319,8 +309,6 @@ describe("5. POST /api/plugins/setup-secret", () => {
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest("secret-test-plugin")),
       tokenHash: "hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
 
     const res = await server.inject({
@@ -353,8 +341,6 @@ describe("5. POST /api/plugins/setup-secret", () => {
       url: "http://localhost:9999",
       manifestJson: JSON.stringify(makeManifest("auto-secret-plugin")),
       tokenHash: "hash",
-      approvedScopesJson: "[]",
-      pendingScopesJson: null,
     });
 
     const res = await server.inject({

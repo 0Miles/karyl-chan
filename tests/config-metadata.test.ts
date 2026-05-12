@@ -46,7 +46,6 @@ const stubConfig: AppConfig = {
     kvValueMaxBytes: 65_536,
     dmRatePerSec: 30,
     dmWindowMs: 1_000,
-    autoApproveScopes: true,
   },
   behavior: { profileCacheTtlMs: 300_000, sessionExpireHours: 24 },
   admin: { profileCacheTtlMs: 300_000, sessionCacheTtlMs: 30_000 },
