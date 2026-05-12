@@ -33,7 +33,6 @@ import {
   Behavior,
   type BehaviorRow,
 } from "../behavior/models/behavior.model.js";
-import { findAllDisabledBehaviorOverrides } from "../plugin-system/models/plugin-behavior-override.model.js";
 import {
   PluginCommand,
   type PluginCommandRow,
@@ -56,7 +55,6 @@ import { RejectionError } from "./types.js";
 import type {
   PluginManifest,
   ManifestPluginCommandV2,
-  ManifestBehaviorV2,
   ManifestCommandOption,
 } from "../plugin-system/plugin-registry.service.js";
 import { manifestOptionToData } from "../plugin-system/plugin-command-registry.service.js";
@@ -729,10 +727,6 @@ export class CommandReconciler {
   private async buildDesiredSet(): Promise<DesiredItem[]> {
     const items: DesiredItem[] = [];
 
-    // OQ-11 最佳化：一次性讀取所有 plugin_behavior_overrides disabled rows，
-    // 建 Map<pluginId, Set<behaviorKey>> 供後續 in-memory filter，避免 N+1。
-    const disabledOverrides = await findAllDisabledBehaviorOverrides();
-
     // 步驟 1a：behaviors 表 WHERE enabled=true AND triggerType='slash_command'
     const behaviorRows = await Behavior.findAll({
       where: {
@@ -742,26 +736,7 @@ export class CommandReconciler {
     });
 
     for (const row of behaviorRows) {
-      const behaviorRow = rowOfBehavior(row);
-
-      // OQ-11 過濾：source='plugin' 的 behavior 若 admin 已 override disabled，跳過
-      if (
-        behaviorRow.source === "plugin" &&
-        behaviorRow.pluginId !== null &&
-        behaviorRow.pluginBehaviorKey !== null
-      ) {
-        const disabledKeys = disabledOverrides.get(behaviorRow.pluginId);
-        if (disabledKeys?.has(behaviorRow.pluginBehaviorKey)) {
-          botEventLog.record(
-            "info",
-            "bot",
-            `command-reconciler: behavior ${behaviorRow.id} (plugin=${behaviorRow.pluginId} key=${behaviorRow.pluginBehaviorKey}) 被 plugin_behavior_override 停用，跳過`,
-          );
-          continue;
-        }
-      }
-
-      const item = await this.behaviorToDesiredItem(behaviorRow);
+      const item = await this.behaviorToDesiredItem(rowOfBehavior(row));
       if (item) items.push(item);
     }
 
@@ -789,29 +764,6 @@ export class CommandReconciler {
     const integrationTypes = parseIntegrationTypes(row.integrationTypes);
     const contexts = parseContexts(row.contexts);
 
-    // plugin source behaviors may carry slashHints.options from the manifest
-    let slashOptions: ManifestCommandOption[] | undefined;
-    if (
-      row.source === "plugin" &&
-      row.pluginId !== null &&
-      row.pluginBehaviorKey !== null
-    ) {
-      const plugin = await findPluginById(row.pluginId);
-      if (plugin) {
-        try {
-          const manifest = JSON.parse(plugin.manifestJson) as PluginManifest;
-          const behavior = manifest.behaviors?.find(
-            (b: ManifestBehaviorV2) => b.key === row.pluginBehaviorKey,
-          );
-          if (behavior?.slashHints?.options?.length) {
-            slashOptions = behavior.slashHints.options;
-          }
-        } catch {
-          // malformed manifest JSON — proceed without options
-        }
-      }
-    }
-
     let spec: DiscordRegistrationSpec;
     try {
       spec = deriveRegistrationCall(
@@ -820,7 +772,7 @@ export class CommandReconciler {
         row.scope,
         integrationTypes,
         contexts,
-        slashOptions,
+        undefined,
       );
     } catch (err) {
       if (err instanceof RejectionError) {
@@ -1188,9 +1140,6 @@ function rowOfBehavior(model: InstanceType<typeof Behavior>): BehaviorRow {
       (model.getDataValue(
         "webhookAuthMode",
       ) as BehaviorRow["webhookAuthMode"]) ?? null,
-    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
-    pluginBehaviorKey:
-      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
     systemKey:
       (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
     scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,

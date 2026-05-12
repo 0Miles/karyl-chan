@@ -1,33 +1,20 @@
 /**
- * command-system/webhook-forwarder.service.ts — M1-C1 骨架實作
+ * command-system/webhook-forwarder.service.ts
  *
- * WebhookForwarder：統一 source=custom/plugin/system 的外部 HTTP 轉發。
- * 取代分散在 user-slash-behavior.service.ts 與 webhook-behavior.events.ts 的雙路邏輯。
+ * WebhookForwarder：把 `source='custom'` behavior 的 webhook 轉發到 admin
+ * 設定的外部 URL（POST schema 對齊 RESTPostAPIWebhookWithTokenJSONBody）。
  *
- * 對齊 C-runtime §7（裸 Plugin Webhook 相容契約）：
- *   - POST schema 對齊 RESTPostAPIWebhookWithTokenJSONBody
  *   - HMAC 簽署依 behavior.webhookAuthMode（CR-2）：
  *       'token'  → X-Plugin-Webhook-Token: <secret>
- *       'hmac'   → X-Karyl-Signature + X-Karyl-Signature-V1（雙簽，現有路徑）
+ *       'hmac'   → X-Karyl-Signature + X-Karyl-Signature-V1（雙簽）
  *       null     → 不簽（裸 HTTP）
- *   - source=system：不發外部 HTTP（直接 throw，由 InteractionDispatcher 不呼叫此方法）
- *   - source=plugin：URL = {plugins.url}{webhook_path}（從 manifest behaviors[] 找）
- *   - source=custom：URL 從 behaviors.webhookUrl 解密讀
+ *   - source='system' 不發外部 HTTP（InteractionDispatcher 不會呼叫 forward()）
+ *   - URL 從 behaviors.webhookUrl 解密讀
  *   - 解析 response 拿 relayContent + 偵測 [BEHAVIOR:END] sentinel
  *   - 回 ForwardResult { ok, ended, relayContent, status?, error? }
- *
- * 狀態：dormant（M1-C1）。
- *   - 所有真實邏輯已實作（可供 M1-C2 接線）。
- *   - 不從 main.ts import，不掛任何 event listener。
- *
- * M1-C2 接線時：
- *   - InteractionDispatcher 的 constructor 傳入此 WebhookForwarder instance
- *   - MessagePatternMatcher 的 constructor 傳入此 WebhookForwarder instance
- *   - source=system 路徑由 InteractionDispatcher 直接處理，不會流到 forward()
  */
 
 import type { RESTPostAPIWebhookWithTokenJSONBody } from "discord.js";
-import { findPluginById } from "../plugin-system/models/plugin.model.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import {
   buildOutboundSignatureHeaders,
@@ -35,16 +22,11 @@ import {
 } from "../../utils/hmac.js";
 import {
   assertExternalTarget,
-  assertPluginTarget,
   HostPolicyError,
 } from "../../utils/host-policy.js";
 import { decryptSecret } from "../../utils/crypto.js";
 import type { BehaviorRow } from "../behavior/models/behavior.model.js";
 import type { ForwardResult } from "./types.js";
-import type {
-  PluginManifest,
-  ManifestBehaviorV2,
-} from "../plugin-system/plugin-registry.service.js";
 
 // ── 常數 ─────────────────────────────────────────────────────────────────────
 
@@ -130,73 +112,7 @@ export class WebhookForwarder {
       }
     }
 
-    if (behavior.source === "plugin") {
-      // source=plugin：URL = {plugins.url}{webhook_path}（從 manifest behaviors[] 找）
-      if (!behavior.pluginId || !behavior.pluginBehaviorKey) {
-        return {
-          ok: false,
-          error: "plugin behavior 缺少 pluginId 或 pluginBehaviorKey",
-        };
-      }
-      const plugin = await findPluginById(behavior.pluginId);
-      if (!plugin) {
-        return { ok: false, error: `plugin ${behavior.pluginId} 不存在` };
-      }
-      if (!plugin.enabled || plugin.status !== "active") {
-        return {
-          ok: false,
-          error: `plugin ${plugin.pluginKey} 目前離線或已停用`,
-        };
-      }
-
-      // 解析 manifest 找 webhook_path（OQ-14：schema_version 必須為 '2'）
-      let manifest: PluginManifest | null = null;
-      try {
-        const parsed = JSON.parse(plugin.manifestJson) as PluginManifest;
-        if (parsed.schema_version !== "2") {
-          return {
-            ok: false,
-            error: `plugin ${plugin.pluginKey} manifest 非 v2，跳過`,
-          };
-        }
-        manifest = parsed;
-      } catch {
-        return {
-          ok: false,
-          error: `plugin ${plugin.pluginKey} manifest 解析失敗`,
-        };
-      }
-
-      const behaviorDef = this.findBehaviorDef(
-        manifest,
-        behavior.pluginBehaviorKey,
-      );
-      if (!behaviorDef) {
-        return {
-          ok: false,
-          error: `plugin ${plugin.pluginKey} manifest behaviors[] 中找不到 key=${behavior.pluginBehaviorKey}`,
-        };
-      }
-
-      const baseUrl = plugin.url.replace(/\/$/, "");
-      const path = behaviorDef.webhook_path.startsWith("/")
-        ? behaviorDef.webhook_path
-        : `/${behaviorDef.webhook_path}`;
-      return { ok: true, url: `${baseUrl}${path}` };
-    }
-
-    return { ok: false, error: `未知 source：${behavior.source}` };
-  }
-
-  private findBehaviorDef(
-    manifest: PluginManifest,
-    behaviorKey: string,
-  ): ManifestBehaviorV2 | null {
-    return (
-      manifest.behaviors?.find(
-        (b: ManifestBehaviorV2) => b.key === behaviorKey,
-      ) ?? null
-    );
+    return { ok: false, error: `未知或不可轉發的 source：${behavior.source}` };
   }
 
   // ── 私有：HTTP POST ───────────────────────────────────────────────────────
@@ -253,11 +169,7 @@ export class WebhookForwarder {
         : 80;
 
     try {
-      if (behavior.source === "plugin") {
-        await assertPluginTarget(url.hostname, port);
-      } else {
-        await assertExternalTarget(url.hostname, port);
-      }
+      await assertExternalTarget(url.hostname, port);
     } catch (err) {
       if (!(err instanceof HostPolicyError)) throw err;
       return { ok: false, ended: false, relayContent: "", error: err.message };

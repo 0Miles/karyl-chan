@@ -227,9 +227,6 @@ export class InteractionDispatcher {
           (row.getDataValue(
             "webhookAuthMode",
           ) as BehaviorRow["webhookAuthMode"]) ?? null,
-        pluginId: (row.getDataValue("pluginId") as number | null) ?? null,
-        pluginBehaviorKey:
-          (row.getDataValue("pluginBehaviorKey") as string | null) ?? null,
         systemKey:
           (row.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
         scopeTabId: (row.getDataValue("scopeTabId") as number) ?? 1,
@@ -253,7 +250,7 @@ export class InteractionDispatcher {
       return this.dispatchSystemBehavior(interaction, behaviorRow);
     }
 
-    if (source === "custom" || source === "plugin") {
+    if (source === "custom") {
       return this.dispatchWebhookBehavior(interaction, behaviorRow);
     }
 
@@ -407,32 +404,24 @@ export class InteractionDispatcher {
     return { claimed: true, claimedBy: "behavior_system" };
   }
 
-  // ── source=custom / source=plugin dispatch（webhook）────────────────────
+  // ── source=custom dispatch（webhook）────────────────────────────────────
 
   /**
-   * custom/plugin behavior dispatch：建構 payload 後呼叫 WebhookForwarder。
+   * custom behavior dispatch：建構 payload（不含 interaction_token，custom
+   * webhook 是裸外部 URL）後呼叫 WebhookForwarder。
    */
   private async dispatchWebhookBehavior(
     interaction: ChatInputCommandInteraction,
     behaviorRow: BehaviorRow,
   ): Promise<DispatchOutcome> {
     const payload = buildWebhookPayload(interaction);
-
-    if (behaviorRow.source === "custom") {
-      delete (payload._meta as Record<string, unknown>).interaction_token;
-    }
+    delete (payload._meta as Record<string, unknown>).interaction_token;
 
     // Defer reply（slash command 需要在 3s 內 ack）
     try {
       await interaction.deferReply({ ephemeral: true });
     } catch {
-      return {
-        claimed: true,
-        claimedBy:
-          behaviorRow.source === "custom"
-            ? "behavior_custom"
-            : "behavior_plugin",
-      };
+      return { claimed: true, claimedBy: "behavior_custom" };
     }
 
     try {
@@ -447,13 +436,7 @@ export class InteractionDispatcher {
             content: `⚠ Behavior 轉發失敗：${result.error ?? "未知錯誤"}`,
           })
           .catch(() => {});
-        return {
-          claimed: true,
-          claimedBy:
-            behaviorRow.source === "custom"
-              ? "behavior_custom"
-              : "behavior_plugin",
-        };
+        return { claimed: true, claimedBy: "behavior_custom" };
       }
 
       if (result.relayContent) {
@@ -477,10 +460,6 @@ export class InteractionDispatcher {
       );
     }
 
-    return {
-      claimed: true,
-      claimedBy:
-        behaviorRow.source === "custom" ? "behavior_custom" : "behavior_plugin",
-    };
+    return { claimed: true, claimedBy: "behavior_custom" };
   }
 }

@@ -140,41 +140,6 @@ export interface ManifestGuildFeature {
 }
 
 /**
- * @deprecated v1 dm_behaviors[]. v2 請改用 behaviors[]（ManifestBehaviorV2）。
- * 保留以不破壞舊 manifest 的 JSON.parse 型別轉換；v1 manifest 在 validateManifest 已被拒絕。
- */
-export interface ManifestDmBehavior {
-  key: string;
-  name: string;
-  description?: string;
-  supports_continuous?: boolean;
-  config_schema?: ManifestConfigField[];
-}
-
-/**
- * v2 軌二：behaviors[]（webhook 接口層）。
- * 三軸（scope/integration_types/contexts）不在 manifest 寫，由 admin 設定。
- */
-export interface ManifestBehaviorV2 {
-  /** 唯一識別鍵，在 plugin 內不重複。 */
-  key: string;
-  name: string;
-  description?: string;
-  /**
-   * Webhook 接收路徑（相對於 plugin.url）。
-   * 必須以 `/` 開頭，同 plugin 內必須唯一（V-09）。
-   */
-  webhook_path: string;
-  slashHints?: {
-    suggested_name?: string;
-    suggested_description?: string;
-    options?: ManifestCommandOption[];
-  };
-  config_schema?: ManifestConfigField[];
-  supports_continuous?: boolean;
-}
-
-/**
  * v2：plugin 宣告的一個 RBAC 權限詞條（manifest 形式）。
  */
 export interface ManifestCapabilityDecl {
@@ -228,8 +193,6 @@ export interface PluginManifest {
    */
   config_schema?: ManifestConfigField[];
   guild_features?: ManifestGuildFeature[];
-  /** v2 軌二：behaviors（webhook 接口層）。 */
-  behaviors?: ManifestBehaviorV2[];
   /** v2 軌三：plugin 自訂指令（三軸寫死）。 */
   plugin_commands?: ManifestPluginCommandV2[];
   /**
@@ -239,13 +202,8 @@ export interface PluginManifest {
    */
   capabilities?: ManifestCapabilityDecl[];
   /**
-   * @deprecated v1 欄位，v2 改用 behaviors[]。
-   * 保留型別以不破壞 manifestJson 的 JSON.parse；validateManifest 不再接受含此欄位的 manifest。
-   */
-  dm_behaviors?: ManifestDmBehavior[];
-  /**
    * @deprecated v1 欄位，v2 改用 plugin_commands[]。
-   * 同上。
+   * 保留型別以不破壞 manifestJson 的 JSON.parse；validateManifest 不再接受含此欄位的 manifest。
    */
   commands?: ManifestCommand[];
   events_subscribed_global?: string[];
@@ -256,8 +214,6 @@ export interface PluginManifest {
     /** v2：plugin 元件（按鈕）互動派送端點，預設 `/components`。 */
     plugin_component?: string;
     guild_feature_action?: string;
-    /** @deprecated v1 欄位；v2 各 behavior 自帶 webhook_path。 */
-    dm_behavior_dispatch?: string;
     /** @deprecated v1 欄位。 */
     command?: string;
   };
@@ -354,7 +310,7 @@ export type ManifestValidation =
  * Validate a plugin manifest. v2 only: schema_version must be "2".
  * v1 manifests are rejected immediately with a clear error message.
  *
- * Implements V-01 ~ V-10 + V-C1 / V-C2 / V-C3 from B-sdk §4.
+ * Implements V-01 ~ V-08 + V-C1 / V-C2 / V-C3 from B-sdk §4.
  */
 export async function validateManifest(
   input: unknown,
@@ -414,10 +370,9 @@ export async function validateManifest(
     return { ok: false, error: `manifest.plugin.url: ${msg}` };
   }
 
-  // V-04：behaviors / plugin_commands / guild_features 若存在必須是 array
+  // V-04：plugin_commands / guild_features / … 若存在必須是 array
   for (const k of [
     "rpc_methods_used",
-    "behaviors",
     "plugin_commands",
     "guild_features",
     "capabilities",
@@ -471,57 +426,6 @@ export async function validateManifest(
     seenCapKeys.add(c.key);
   }
 
-  // ── behaviors[] 驗證（V-09、V-10）────────────────────────────────────────
-  const behaviors = (m.behaviors as ManifestBehaviorV2[] | undefined) ?? [];
-  const seenWebhookPaths = new Set<string>();
-  for (let i = 0; i < behaviors.length; i++) {
-    const b = behaviors[i];
-    if (!b || typeof b !== "object") {
-      return { ok: false, error: `behaviors[${i}] must be an object` };
-    }
-    if (!b.key || typeof b.key !== "string") {
-      return { ok: false, error: `behaviors[${i}].key required` };
-    }
-    // V-09：webhook_path 必須以 / 開頭，不能為空；同 plugin 內必須唯一
-    if (
-      !b.webhook_path ||
-      typeof b.webhook_path !== "string" ||
-      !b.webhook_path.startsWith("/")
-    ) {
-      return {
-        ok: false,
-        error: `behaviors[${b.key}].webhook_path must be a non-empty string starting with "/"`,
-      };
-    }
-    if (seenWebhookPaths.has(b.webhook_path)) {
-      return {
-        ok: false,
-        error: `behaviors[${b.key}].webhook_path "${b.webhook_path}" is duplicated within the manifest (V-09)`,
-      };
-    }
-    seenWebhookPaths.add(b.webhook_path);
-    // V-10：slashHints.contexts 若存在，必須是合法子集
-    if (b.slashHints !== undefined && b.slashHints !== null) {
-      const sh = b.slashHints as Record<string, unknown>;
-      if (sh.contexts !== undefined) {
-        if (!Array.isArray(sh.contexts)) {
-          return {
-            ok: false,
-            error: `behaviors[${b.key}].slashHints.contexts must be an array`,
-          };
-        }
-        const VALID_CONTEXTS = new Set(["Guild", "BotDM", "PrivateChannel"]);
-        for (const ctx of sh.contexts as unknown[]) {
-          if (typeof ctx !== "string" || !VALID_CONTEXTS.has(ctx)) {
-            return {
-              ok: false,
-              error: `behaviors[${b.key}].slashHints.contexts contains invalid value "${String(ctx)}"`,
-            };
-          }
-        }
-      }
-    }
-  }
 
   // ── plugin_commands[] 驗證（V-05 ~ V-08、V-C1 / V-C2 / V-C3）────────────
   const pluginCommands =

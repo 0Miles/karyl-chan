@@ -103,7 +103,6 @@ export interface DispatchOutcome {
   claimedBy?:
     | "behavior_system"
     | "behavior_custom"
-    | "behavior_plugin"
     | "plugin_command"
     | "plugin_component"
     | "in_process";

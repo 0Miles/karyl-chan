@@ -29,7 +29,6 @@ import {
   Behavior,
   rowOfBehavior,
   type BehaviorRow,
-  type BehaviorSource,
   type BehaviorTriggerType,
   type BehaviorAudienceKind,
   type BehaviorWebhookAuthMode,
@@ -90,7 +89,7 @@ export async function registerBehaviorRoutes(
     if (query.audienceGroupName) {
       where["audienceGroupName"] = query.audienceGroupName;
     }
-    if (query.source && ["custom", "plugin", "system"].includes(query.source)) {
+    if (query.source && ["custom", "system"].includes(query.source)) {
       where["source"] = query.source;
     }
     if (
@@ -132,7 +131,7 @@ export async function registerBehaviorRoutes(
   });
 
   // ── POST /api/behaviors ─────────────────────────────────────────────────────
-  // 只允許 source=custom 建立；plugin/system 不可由 admin 手動建立。
+  // admin 只能建立 source=custom（webhook URL）的 behavior；system 由系統 seed。
 
   server.post("/api/behaviors", async (request, reply) => {
     if (!requireBehaviorAdmin(request, reply)) return;
@@ -140,7 +139,6 @@ export async function registerBehaviorRoutes(
     const body = request.body as {
       title?: string;
       description?: string;
-      source?: BehaviorSource;
       triggerType?: BehaviorTriggerType;
       messagePatternKind?: string;
       messagePatternValue?: string;
@@ -158,22 +156,12 @@ export async function registerBehaviorRoutes(
       forwardType?: string;
       stopOnMatch?: boolean;
       enabled?: boolean;
-      pluginId?: number;
-      pluginBehaviorKey?: string;
       scopeTabId?: number;
     };
 
     // 基本驗證
     if (!body.title?.trim()) {
       return reply.code(400).send({ error: "title 為必填" });
-    }
-    if (!body.source) {
-      return reply.code(400).send({ error: "source 為必填" });
-    }
-    if (!["custom", "plugin"].includes(body.source)) {
-      return reply
-        .code(400)
-        .send({ error: "只能建立 custom 或 plugin source 的 behavior" });
     }
     if (
       !body.triggerType ||
@@ -182,27 +170,13 @@ export async function registerBehaviorRoutes(
       return reply.code(400).send({ error: "無效的 triggerType" });
     }
 
-    // source=custom 驗證
-    if (body.source === "custom") {
-      if (!body.webhookUrl?.trim()) {
-        return reply.code(400).send({ error: "source=custom 需要 webhookUrl" });
-      }
-      const urlCheck = await isValidWebhookUrl(body.webhookUrl.trim());
-      if (!urlCheck.ok) {
-        return reply.code(400).send({ error: urlCheck.reason });
-      }
+    // webhookUrl（custom behavior 必填）驗證
+    if (!body.webhookUrl?.trim()) {
+      return reply.code(400).send({ error: "需要 webhookUrl" });
     }
-
-    // source=plugin 驗證
-    if (body.source === "plugin") {
-      if (!body.pluginId) {
-        return reply.code(400).send({ error: "source=plugin 需要 pluginId" });
-      }
-      if (!body.pluginBehaviorKey?.trim()) {
-        return reply
-          .code(400)
-          .send({ error: "source=plugin 需要 pluginBehaviorKey" });
-      }
+    const urlCheck = await isValidWebhookUrl(body.webhookUrl.trim());
+    if (!urlCheck.ok) {
+      return reply.code(400).send({ error: urlCheck.reason });
     }
 
     // triggerType 相關驗證
@@ -283,7 +257,7 @@ export async function registerBehaviorRoutes(
     const row = await Behavior.create({
       title: body.title.trim(),
       description: body.description ?? "",
-      source: body.source,
+      source: "custom",
       triggerType: body.triggerType,
       messagePatternKind:
         body.triggerType === "message_pattern" ? body.messagePatternKind : null,
@@ -309,19 +283,13 @@ export async function registerBehaviorRoutes(
         derivedAudienceKind === "group" ? derivedAudienceGroupName : null,
       placementGuildId: derivedPlacementGuildId,
       placementChannelId: derivedPlacementChannelId,
-      webhookUrl:
-        body.source === "custom" && body.webhookUrl
-          ? encryptSecret(body.webhookUrl.trim())
-          : null,
+      webhookUrl: encryptSecret(body.webhookUrl.trim()),
       webhookSecret: body.webhookSecret
         ? encryptSecret(body.webhookSecret)
         : null,
       webhookAuthMode: body.webhookSecret
         ? (body.webhookAuthMode ?? "token")
         : null,
-      pluginId: body.source === "plugin" ? (body.pluginId ?? null) : null,
-      pluginBehaviorKey:
-        body.source === "plugin" ? (body.pluginBehaviorKey ?? null) : null,
       systemKey: null,
       forwardType: body.forwardType ?? "one_time",
       stopOnMatch: !!body.stopOnMatch,
@@ -346,7 +314,6 @@ export async function registerBehaviorRoutes(
 
   // ── PATCH /api/behaviors/:id ────────────────────────────────────────────────
   // custom：全欄位可改
-  // plugin：三軸 + audience + enabled + webhookSecret/webhookAuthMode
   // system：只能改 trigger value（slashCommandName / messagePatternValue）+ enabled
 
   server.patch("/api/behaviors/:id", async (request, reply) => {
@@ -394,36 +361,6 @@ export async function registerBehaviorRoutes(
       }
       if ("enabled" in body) {
         patch["enabled"] = !!body["enabled"];
-      }
-    } else if (existingRow.source === "plugin") {
-      // plugin：三軸 + audience + enabled + webhookSecret/webhookAuthMode
-      if ("scope" in body) patch["scope"] = body["scope"];
-      if ("integrationTypes" in body) {
-        patch["integrationTypes"] = sortJoin(
-          body["integrationTypes"] as string,
-        );
-      }
-      if ("contexts" in body) {
-        patch["contexts"] = sortJoin(body["contexts"] as string);
-      }
-      if ("audienceKind" in body) patch["audienceKind"] = body["audienceKind"];
-      if ("audienceUserId" in body)
-        patch["audienceUserId"] = body["audienceUserId"] ?? null;
-      if ("audienceGroupName" in body)
-        patch["audienceGroupName"] = body["audienceGroupName"] ?? null;
-      if ("enabled" in body) patch["enabled"] = !!body["enabled"];
-      if ("webhookSecret" in body) {
-        const secret = body["webhookSecret"] as string | null;
-        if (secret === null || secret === "") {
-          patch["webhookSecret"] = null;
-          patch["webhookAuthMode"] = null;
-        } else {
-          patch["webhookSecret"] = encryptSecret(secret);
-          patch["webhookAuthMode"] =
-            (body["webhookAuthMode"] as BehaviorWebhookAuthMode) ?? "token";
-        }
-      } else if ("webhookAuthMode" in body && existingRow.webhookSecret) {
-        patch["webhookAuthMode"] = body["webhookAuthMode"];
       }
     } else {
       // custom：全欄位可改
@@ -513,9 +450,6 @@ export async function registerBehaviorRoutes(
         }
         patch["webhookAuthMode"] = mode ?? null;
       }
-      if ("pluginId" in body) patch["pluginId"] = body["pluginId"] ?? null;
-      if ("pluginBehaviorKey" in body)
-        patch["pluginBehaviorKey"] = body["pluginBehaviorKey"] ?? null;
     }
 
     if (Object.keys(patch).length === 0) {
@@ -556,11 +490,6 @@ export async function registerBehaviorRoutes(
     const existingRow = rowOfBehavior(existing);
     if (existingRow.source === "system") {
       return reply.code(403).send({ error: "system behavior 不可刪除" });
-    }
-    if (existingRow.source === "plugin") {
-      return reply.code(403).send({
-        error: "plugin behavior 由 plugin manifest 管理，不可由 admin 刪除",
-      });
     }
 
     await existing.destroy();

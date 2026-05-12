@@ -331,9 +331,6 @@ export class MessagePatternMatcher {
         (model.getDataValue(
           "webhookAuthMode",
         ) as BehaviorRow["webhookAuthMode"]) ?? null,
-      pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
-      pluginBehaviorKey:
-        (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
       systemKey:
         (model.getDataValue("systemKey") as BehaviorRow["systemKey"]) ?? null,
       scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,

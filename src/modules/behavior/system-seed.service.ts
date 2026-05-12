@@ -134,8 +134,6 @@ export async function ensureSystemBehaviors(): Promise<{
       webhookUrl: null,
       webhookSecret: null,
       webhookAuthMode: null,
-      pluginId: null,
-      pluginBehaviorKey: null,
       systemKey: seed.systemKey,
       scopeTabId: FIXED_TAB_IDS.all_dms,
     });

@@ -3,7 +3,7 @@ import { sequelize } from "../../../db.js";
 
 // ── v2 列舉型別 ──────────────────────────────────────────────────────────────
 
-export type BehaviorSource = "custom" | "plugin" | "system";
+export type BehaviorSource = "custom" | "system";
 export type BehaviorTriggerType = "slash_command" | "message_pattern";
 export type BehaviorMessagePatternKind = "startswith" | "endswith" | "regex";
 export type BehaviorForwardType = "one_time" | "continuous";
@@ -81,7 +81,7 @@ export const Behavior = sequelize.define(
     source: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: { isIn: [["custom", "plugin", "system"]] },
+      validate: { isIn: [["custom", "system"]] },
     },
     triggerType: {
       type: DataTypes.STRING,
@@ -162,15 +162,6 @@ export const Behavior = sequelize.define(
       allowNull: true,
       validate: { isIn: [[null, "token", "hmac"]] },
     },
-    // source-specific：plugin
-    pluginId: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-    pluginBehaviorKey: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
     // source-specific：system
     systemKey: {
       type: DataTypes.STRING,
@@ -217,8 +208,6 @@ export interface BehaviorRow {
   webhookUrl: string | null;
   webhookSecret: string | null;
   webhookAuthMode: BehaviorWebhookAuthMode | null;
-  pluginId: number | null;
-  pluginBehaviorKey: string | null;
   systemKey: BehaviorSystemKey | null;
   scopeTabId: number;
 }
@@ -265,9 +254,6 @@ export function rowOfBehavior(
       (model.getDataValue(
         "webhookAuthMode",
       ) as BehaviorWebhookAuthMode | null) ?? null,
-    pluginId: (model.getDataValue("pluginId") as number | null) ?? null,
-    pluginBehaviorKey:
-      (model.getDataValue("pluginBehaviorKey") as string | null) ?? null,
     systemKey:
       (model.getDataValue("systemKey") as BehaviorSystemKey | null) ?? null,
     scopeTabId: (model.getDataValue("scopeTabId") as number) ?? 1,
