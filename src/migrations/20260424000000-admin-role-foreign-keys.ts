@@ -133,6 +133,7 @@ const migration: Migration = {
     // open, so flip it off *before* BEGIN. The rebuild can then
     // drop-and-recreate without cascades firing against the stale FKs.
     await sequelize.query("PRAGMA foreign_keys = OFF;");
+    let rebuildError: unknown;
     try {
       await sequelize.transaction(async (transaction) => {
         if (needsAuthorizedUsers)
@@ -140,43 +141,49 @@ const migration: Migration = {
         if (needsRoleCapabilities)
           await rebuildRoleCapabilities(sequelize, transaction);
       });
-    } finally {
-      // Re-enable FK enforcement. If the PRAGMA fails the cached
-      // SQLite connection stays in OFF state — Sequelize 6's SQLite
-      // dialect keeps a singleton in `connectionManager.connections`
-      // and `destroyConnection` / `releaseConnection` both no-op
-      // because the sqlite3 Database has no `.uuid` property. The
-      // only reliable eviction path is to close the raw handle and
-      // delete the cache entry, so the next query reconnects and
-      // the dialect's getConnection re-issues PRAGMA FOREIGN_KEYS=ON.
+    } catch (err) {
+      // Stash and rethrow after FK enforcement is restored below — we
+      // can't rethrow from a `finally` (it would mask a PRAGMA failure).
+      rebuildError = err;
+    }
+
+    // Re-enable FK enforcement whether or not the rebuild succeeded. If
+    // the PRAGMA fails the cached SQLite connection stays in OFF state —
+    // Sequelize 6's SQLite dialect keeps a singleton in
+    // `connectionManager.connections` and `destroyConnection` /
+    // `releaseConnection` both no-op because the sqlite3 Database has no
+    // `.uuid` property. The only reliable eviction path is to close the
+    // raw handle and delete the cache entry, so the next query reconnects
+    // and the dialect's getConnection re-issues PRAGMA FOREIGN_KEYS=ON.
+    try {
+      await sequelize.query("PRAGMA foreign_keys = ON;");
+    } catch (pragmaErr) {
+      console.warn(
+        "[migration 20260424000000] PRAGMA foreign_keys = ON failed — force-evicting SQLite connection so next query reconnects with FK ON:",
+        pragmaErr,
+      );
       try {
-        await sequelize.query("PRAGMA foreign_keys = ON;");
-      } catch (pragmaErr) {
-        console.warn(
-          "[migration 20260424000000] PRAGMA foreign_keys = ON failed — force-evicting SQLite connection so next query reconnects with FK ON:",
-          pragmaErr,
-        );
-        try {
-          const dialectConnMgr = sequelize.connectionManager as unknown as {
-            connections?: Record<string, { close: (cb: () => void) => void }>;
-          };
-          const cachedConn = dialectConnMgr.connections?.["default"];
-          if (cachedConn) {
-            await new Promise<void>((resolve) => cachedConn.close(resolve));
-            delete dialectConnMgr.connections!["default"];
-          }
-        } catch (evictErr) {
-          console.warn(
-            "[migration 20260424000000] Failed to evict SQLite connection after PRAGMA failure:",
-            evictErr,
-          );
+        const dialectConnMgr = sequelize.connectionManager as unknown as {
+          connections?: Record<string, { close: (cb: () => void) => void }>;
+        };
+        const cachedConn = dialectConnMgr.connections?.["default"];
+        if (cachedConn) {
+          await new Promise<void>((resolve) => cachedConn.close(resolve));
+          delete dialectConnMgr.connections!["default"];
         }
-        throw new Error(
-          "PRAGMA foreign_keys = ON failed; SQLite connection evicted to force reconnect",
-          { cause: pragmaErr },
+      } catch (evictErr) {
+        console.warn(
+          "[migration 20260424000000] Failed to evict SQLite connection after PRAGMA failure:",
+          evictErr,
         );
       }
+      throw new Error(
+        "PRAGMA foreign_keys = ON failed; SQLite connection evicted to force reconnect",
+        { cause: pragmaErr },
+      );
     }
+
+    if (rebuildError) throw rebuildError;
   },
 
   down: async () => {

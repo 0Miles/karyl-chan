@@ -126,6 +126,7 @@ const migration: Migration = {
     // it off before BEGIN so the drop-and-rename dance doesn't
     // cascade across the junction table.
     await sequelize.query("PRAGMA foreign_keys = OFF;");
+    let rebuildError: unknown;
     try {
       await sequelize.transaction(async (transaction) => {
         await sequelize.query(
@@ -177,40 +178,46 @@ const migration: Migration = {
           { transaction },
         );
       });
-    } finally {
-      // Re-enable FK enforcement; if PRAGMA fails, force-evict the
-      // SQLite connection. See migration 20260424000000 for the full
-      // reasoning — Sequelize 6's SQLite dialect makes destroyConnection
-      // / releaseConnection no-op, so direct cache eviction is the
-      // only reliable way to recover a connection stuck in FK OFF.
+    } catch (err) {
+      // Stash and rethrow after FK enforcement is restored below — we
+      // can't rethrow from a `finally` (it would mask a PRAGMA failure).
+      rebuildError = err;
+    }
+
+    // Re-enable FK enforcement; if PRAGMA fails, force-evict the
+    // SQLite connection. See migration 20260424000000 for the full
+    // reasoning — Sequelize 6's SQLite dialect makes destroyConnection
+    // / releaseConnection no-op, so direct cache eviction is the
+    // only reliable way to recover a connection stuck in FK OFF.
+    try {
+      await sequelize.query("PRAGMA foreign_keys = ON;");
+    } catch (pragmaErr) {
+      console.warn(
+        "[migration 20260427010000] PRAGMA foreign_keys = ON failed — force-evicting SQLite connection so next query reconnects with FK ON:",
+        pragmaErr,
+      );
       try {
-        await sequelize.query("PRAGMA foreign_keys = ON;");
-      } catch (pragmaErr) {
-        console.warn(
-          "[migration 20260427010000] PRAGMA foreign_keys = ON failed — force-evicting SQLite connection so next query reconnects with FK ON:",
-          pragmaErr,
-        );
-        try {
-          const dialectConnMgr = sequelize.connectionManager as unknown as {
-            connections?: Record<string, { close: (cb: () => void) => void }>;
-          };
-          const cachedConn = dialectConnMgr.connections?.["default"];
-          if (cachedConn) {
-            await new Promise<void>((resolve) => cachedConn.close(resolve));
-            delete dialectConnMgr.connections!["default"];
-          }
-        } catch (evictErr) {
-          console.warn(
-            "[migration 20260427010000] Failed to evict SQLite connection after PRAGMA failure:",
-            evictErr,
-          );
+        const dialectConnMgr = sequelize.connectionManager as unknown as {
+          connections?: Record<string, { close: (cb: () => void) => void }>;
+        };
+        const cachedConn = dialectConnMgr.connections?.["default"];
+        if (cachedConn) {
+          await new Promise<void>((resolve) => cachedConn.close(resolve));
+          delete dialectConnMgr.connections!["default"];
         }
-        throw new Error(
-          "PRAGMA foreign_keys = ON failed; SQLite connection evicted to force reconnect",
-          { cause: pragmaErr },
+      } catch (evictErr) {
+        console.warn(
+          "[migration 20260427010000] Failed to evict SQLite connection after PRAGMA failure:",
+          evictErr,
         );
       }
+      throw new Error(
+        "PRAGMA foreign_keys = ON failed; SQLite connection evicted to force reconnect",
+        { cause: pragmaErr },
+      );
     }
+
+    if (rebuildError) throw rebuildError;
   },
 
   down: async () => {
