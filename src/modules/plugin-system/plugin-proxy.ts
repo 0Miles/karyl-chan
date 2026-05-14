@@ -186,6 +186,15 @@ export async function registerPluginProxy(
           delete headers["forwarded"];
           delete headers["x-real-ip"];
           delete headers["cookie"];
+          // @fastify/reply-from hands us a content-type with media-type
+          // parameters stripped (e.g. "multipart/form-data" without the
+          // ; boundary=... part). Plugins that parse multipart uploads
+          // (fastify-multipart's request.file()) need the boundary, so
+          // restore the original header verbatim before forwarding.
+          const originalCt = request.headers["content-type"];
+          if (typeof originalCt === "string" && originalCt.length > 0) {
+            headers["content-type"] = originalCt;
+          }
           // Set canonical forwarding headers for the upstream. Authorization
           // is kept — a plugin may use it for its own API.
           headers["x-forwarded-for"] = request.ip;
