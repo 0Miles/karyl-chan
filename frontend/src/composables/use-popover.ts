@@ -405,7 +405,13 @@ export function createPopover(
   let hideTimeout: ReturnType<typeof setTimeout> | null = null;
   let originalParent: ParentNode | null = null;
 
+  // 事件監聽器的 cleanup — 會在 setOptions / updateReference 改變 trigger
+  // 設定時整批 teardown + rebind。觀察者類 cleanup（ResizeObserver 等）
+  // 不放這裡，否則 trigger 切換會誤殺它們，dynamic-resize 後就不會重新
+  // 觸發 popper.update()。
   const cleanupFns: (() => void)[] = [];
+  // 跟元素生命週期綁定的長期觀察者 cleanup — 只在 destroy 時釋放。
+  const lifecycleCleanups: (() => void)[] = [];
 
   let isLeaving = false;
   let currentAnimationId = 0;
@@ -658,11 +664,17 @@ export function createPopover(
       modifiers.push(createArrowPositionFixModifier());
     }
 
+    // flip 跟 preventOverflow 共用 boundary —— 否則 flip 仍以
+    // clippingParents 判斷是否翻轉，preventOverflow 卻用 custom boundary
+    // 夾邊，會把彈出層 clip 在錯邊（用戶看到 cut off 而不是翻到對邊）。
+    const boundary = mergedOptions.boundary ?? "clippingParents";
+
     modifiers.push({
       name: "flip",
       enabled: mergedOptions.flip,
       options: {
         fallbackPlacements: mergedOptions.fallbackPlacements,
+        boundary,
       },
     });
 
@@ -670,7 +682,7 @@ export function createPopover(
       name: "preventOverflow",
       enabled: mergedOptions.preventOverflow,
       options: {
-        boundary: mergedOptions.boundary ?? "clippingParents",
+        boundary,
         padding: mergedOptions.overflowPadding,
         altAxis: true,
       },
@@ -746,7 +758,16 @@ export function createPopover(
           typeof mergedOptions.teleportTo === "string"
             ? document.querySelector(mergedOptions.teleportTo)
             : mergedOptions.teleportTo;
-        if (target && content.parentNode !== target) {
+        if (!target) {
+          // 找不到 teleport 目標就靜悄悄停在原位 → 預期的 z-index /
+          // stacking context 完全錯位，畫出來的位置會被父層 transform/
+          // overflow 干擾。發現時越早越好。
+          console.warn(
+            "[use-popover] teleportTo target not found:",
+            mergedOptions.teleportTo,
+            "— popover stays in its original DOM position.",
+          );
+        } else if (content.parentNode !== target) {
           originalParent ??= content.parentNode;
           target.appendChild(content);
         }
@@ -966,6 +987,20 @@ export function createPopover(
   }
 
   function setOptions(newOptions: Partial<PopoverOptions>) {
+    if (
+      import.meta.env?.DEV &&
+      ("closeOnEscape" in newOptions || "closeOnClickOutside" in newOptions)
+    ) {
+      // These two options belong to the usePopover wrapper, not the raw
+      // createPopover layer. The wrapper intercepts them before they hit
+      // here; if a caller wired createPopover directly, they're a silent
+      // no-op — surface that loudly during development.
+      console.warn(
+        "[use-popover] closeOnEscape / closeOnClickOutside are ignored by " +
+          "createPopover.setOptions — use the usePopover composable for those.",
+      );
+    }
+
     const prevTrigger = mergedOptions.trigger;
     const prevCloseOnContentClick = mergedOptions.closeOnContentClick;
     const prevHideOnScroll = mergedOptions.hideOnScroll;
@@ -996,6 +1031,9 @@ export function createPopover(
     cancelCurrentAnimation();
     updateReferenceCleanup?.();
     clearEventListeners();
+    // Lifecycle observers — only released at destroy(); see lifecycleCleanups.
+    lifecycleCleanups.forEach((fn) => fn());
+    lifecycleCleanups.length = 0;
 
     if (popperInstance) {
       popperInstance.destroy();
@@ -1022,45 +1060,35 @@ export function createPopover(
   setupAllEventListeners();
 
   // 觀察 content 尺寸變化，內容撐開時重算位置。
+  // 放 lifecycleCleanups 而非 cleanupFns — 否則切換 trigger 設定的
+  // clearEventListeners() 會把它一起 disconnect 掉,之後 async 內容
+  // 載入或 v-if 展開時 popover 就不會重新定位 (issue #1 from review)。
   if (typeof ResizeObserver !== "undefined") {
     const ro = new ResizeObserver(() => {
       if (isVisible) popperInstance?.update();
     });
     ro.observe(content);
-    cleanupFns.push(() => ro.disconnect());
+    lifecycleCleanups.push(() => ro.disconnect());
   }
 
   /**
-   * 更新 reference 元素，用於面板已開啟時平滑切換對齊目標
+   * 更新 reference 元素，用於面板已開啟時平滑切換對齊目標。
+   *
+   * 註：先前版本會在 content 上設 `top/left` 的 CSS transition 試圖
+   * 做平滑滑動，但 Popper 在 `gpuAcceleration: true`（預設）下用的是
+   * `transform: translate3d(...)`，所以 top/left transition 永遠不會
+   * 觸發，反而留下了一個從不 fire 的 transitionend 監聽（直到下次
+   * clearEventListeners 才會被清）。已移除這段死碼；如真要平滑移動,
+   * 應該對 `transform` 加 transition，但同時要 reflow + 重新計算位置,
+   * 取捨上保留 Popper 的 jump-to-new-position 行為。
    */
   function updateReference(newReference: HTMLElement | VirtualElement) {
     reference = newReference;
 
     if (popperInstance) {
-      // 清除上一次 updateReference 殘留的過渡清理
       updateReferenceCleanup?.();
-
-      const transitionValue = "top 0.15s ease, left 0.15s ease";
-      content.style.transition = transitionValue;
-
       popperInstance.state.elements.reference = newReference;
       popperInstance.forceUpdate();
-
-      let cleaned = false;
-      const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        content.style.transition = "";
-        content.removeEventListener("transitionend", onEnd);
-        clearTimeout(fallbackTimer);
-        updateReferenceCleanup = null;
-      };
-      const onEnd = (e: TransitionEvent) => {
-        if (e.target === content) cleanup();
-      };
-      content.addEventListener("transitionend", onEnd);
-      const fallbackTimer = setTimeout(cleanup, 200);
-      updateReferenceCleanup = cleanup;
     }
 
     // reference 變了，clickOutside 判斷需要更新
@@ -1202,7 +1230,14 @@ export function usePopover(
           }
         }
       }
-      rawSetOptions(newOptions);
+      // Strip the wrapper-managed keys before forwarding, so the
+      // createPopover-level "ignored" guard doesn't fire on every legit
+      // usePopover toggle.
+      const { closeOnEscape: _ce, closeOnClickOutside: _co, ...rest } =
+        newOptions;
+      void _ce;
+      void _co;
+      rawSetOptions(rest);
     };
 
     // 同步受控模式的初始狀態（watch immediate 在 onMounted 前觸發，實例尚未建立）
@@ -1246,14 +1281,17 @@ export function usePopover(
     (newRef, oldRef) => {
       if (newRef && newRef !== oldRef) {
         if (isVisible.value && instance.value) {
-          // 面板已開啟：僅更新 reference，不重建實例，平滑移動
+          // 面板已開啟：僅更新 reference，不重建實例，平滑移動。
+          // 用 default 'post' flush（不再用 'sync'）— sync 會在 Vue
+          // 完成 vdom patch 但瀏覽器還沒做 layout 時就 forceUpdate，
+          // getBoundingClientRect 拿到 0×0，popover 會被釘到 [0,0]。
+          // post 等到 DOM 更新後再執行，量到正確的 rect。
           instance.value.updateReference(newRef);
         } else {
           createInstance();
         }
       }
     },
-    { flush: "sync" },
   );
 
   onMounted(() => {
