@@ -19,6 +19,7 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createI18n } from 'vue-i18n';
 import MessageActionBar from './MessageActionBar.vue';
+import type { Message } from '../../libs/messages/types';
 
 const i18n = createI18n({
     legacy: false,
@@ -39,7 +40,7 @@ const i18n = createI18n({
     },
 });
 
-function makeMessage(id: string) {
+function makeMessage(id: string): Message {
     return {
         id,
         channelId: 'c1',
@@ -47,7 +48,7 @@ function makeMessage(id: string) {
         content: '',
         timestamp: 0,
         reactions: [],
-    } as unknown;
+    } as unknown as Message;
 }
 
 function mountActionBar(messageId: string) {
