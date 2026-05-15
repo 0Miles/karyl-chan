@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useBreakpoint } from '../composables/use-breakpoint';
 import { usePopover, type Placement } from '../composables/use-popover';
 import { useDrawer, type DrawerPlacement } from '../composables/use-drawer';
@@ -126,6 +126,18 @@ const { placement: drawerPlace, backdropClass, panelClass, backdropTransition, p
 function toggle() { isOpen.value = !isOpen.value; }
 function open() { isOpen.value = true; }
 function close() { isOpen.value = false; }
+
+// Viewport-breakpoint flip while a popover is open: usePopover's hide()
+// runs an async leave animation, so the desktop content keeps painting
+// for ~150ms while the mobile drawer is already up — both surfaces
+// visible in the same frame. Cut the leave short by zeroing the inline
+// style usePopover manages, so only the drawer is on screen.
+watch(isMobile, (mobile) => {
+    if (mobile && contentEl.value) {
+        contentEl.value.style.display = 'none';
+        contentEl.value.removeAttribute('data-show');
+    }
+});
 function onContentClick() {
     if (props.closeOnContentClick) close();
 }
