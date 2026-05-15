@@ -18,7 +18,7 @@ export interface ContextMenuAction {
 </script>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, toRef } from 'vue';
+import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useBreakpoint } from '../../composables/use-breakpoint';
 import { useDrawer } from '../../composables/use-drawer';
@@ -42,10 +42,18 @@ const emit = defineEmits<{
 const { isMobile } = useBreakpoint();
 const rootRef = ref<HTMLDivElement | null>(null);
 
-// Final placement is computed once the menu is mounted so we can read
-// its measured size — flips to the left/top edge when the click was
-// near the right/bottom of the viewport.
+// Bumped whenever the menu's measured size changes, so `placement`
+// re-clamps. Without this, async content (e.g. the reaction menu's
+// who-reacted list arriving after the menu opened) grows the panel
+// past the viewport edge and the original clamp stays stale.
+const sizeBump = ref(0);
+let resizeObserver: ResizeObserver | null = null;
+
+// Final placement is computed reactively: depends on x/y/visible AND on
+// `sizeBump` so a resize triggers a re-clamp.
 const placement = computed(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    sizeBump.value; // make computed depend on it
     const root = rootRef.value;
     const margin = 8;
     if (!root || !props.visible) {
@@ -60,6 +68,19 @@ const placement = computed(() => {
     if (top + rect.height > vh - margin) top = Math.max(margin, vh - rect.height - margin);
     return { left: `${left}px`, top: `${top}px` };
 });
+
+watch(
+    () => [props.visible && !isMobile.value, rootRef.value] as const,
+    ([active, root]) => {
+        resizeObserver?.disconnect();
+        resizeObserver = null;
+        if (!active || !root || typeof ResizeObserver === 'undefined') return;
+        resizeObserver = new ResizeObserver(() => {
+            sizeBump.value++;
+        });
+        resizeObserver.observe(root);
+    },
+);
 
 // Mount the popover branch on desktop and the drawer branch on mobile.
 // Two separate computed flags keep the watchers in `useDrawer` from
@@ -94,6 +115,8 @@ onUnmounted(() => {
     window.removeEventListener('mousedown', onWindowDown);
     window.removeEventListener('contextmenu', onWindowDown, { capture: true } as EventListenerOptions);
     window.removeEventListener('keydown', onWindowKey);
+    resizeObserver?.disconnect();
+    resizeObserver = null;
 });
 
 const { backdropClass, panelClass, backdropTransition, panelTransition } = useDrawer({
