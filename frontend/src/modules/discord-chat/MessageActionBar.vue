@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
 import type { Message } from '../../libs/messages/types';
@@ -14,37 +13,34 @@ const props = defineProps<{
     copied: boolean;
 }>();
 
+// React fires with the button DOM the click landed on. Earlier versions
+// kept a Map<messageId, button> populated via onMounted/onBeforeUnmount,
+// which silently broke inside DynamicScroller — the scroller recycles
+// the same component instance across rows, so onMounted only fires once
+// and the Map's (id → button) pair stays bound to whichever message the
+// view rendered first. Reading `currentTarget` per click is reuse-proof
+// (the button DOM is always the one the user just pressed, which is the
+// row currently mounted).
 const emit = defineEmits<{
-    (e: 'react'): void;
+    (e: 'react', el: HTMLButtonElement): void;
     (e: 'reply'): void;
     (e: 'edit'): void;
     (e: 'copy-link'): void;
     (e: 'delete', event: MouseEvent): void;
-    (e: 'register-react-button', el: HTMLButtonElement): void;
-    (e: 'unregister-react-button'): void;
 }>();
 
-const reactButton = ref<HTMLButtonElement | null>(null);
-
-onMounted(() => {
-    if (reactButton.value) emit('register-react-button', reactButton.value);
-});
-
-onBeforeUnmount(() => {
-    emit('unregister-react-button');
-});
-
-defineExpose({ reactButton });
+function onReactClick(ev: MouseEvent) {
+    emit('react', ev.currentTarget as HTMLButtonElement);
+}
 </script>
 
 <template>
     <div class="message-actions">
         <button
-            ref="reactButton"
             type="button"
             :class="['action', { active: reacting }]"
             :title="$t('messages.react')"
-            @click="emit('react')"
+            @click="onReactClick"
         >
             <Icon icon="material-symbols:add-reaction-rounded" width="16" height="16" />
         </button>

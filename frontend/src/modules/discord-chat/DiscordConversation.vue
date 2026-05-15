@@ -99,12 +99,13 @@ const messagesEnd = ref<HTMLDivElement | null>(null);
 const messagesContainer = ref<HTMLElement | null>(null);
 const shiftHeld = useShiftKey();
 const reactingMessageId = ref<string | null>(null);
-const reactingButton = ref<HTMLButtonElement | null>(null);
-const reactingButtons = new Map<string, HTMLButtonElement>();
-function setReactButton(id: string, el: HTMLButtonElement | null) {
-    if (el) reactingButtons.set(id, el);
-    else reactingButtons.delete(id);
-}
+// Anchor for the emoji picker. Set per-click from the actual button /
+// row element. Previously we maintained a Map<messageId, button> via
+// onMounted/onBeforeUnmount on each MessageActionBar, but DynamicScroller
+// recycles component instances across rows, so onMounted only fired once
+// per pooled view — the Map kept a stale (id, button) pair and the
+// picker mis-anchored on every row the view was later reused for.
+const reactingButton = ref<HTMLElement | null>(null);
 
 const drop = useFileDrop((files) => {
     composerRef.value?.addFiles(files);
@@ -142,8 +143,10 @@ const { ctxMenu, ctxActions, onMessageContextMenu, onMessageTouchStart, onMessag
     emit: (event: string, message: Message) => (emit as (e: string, m: Message) => void)(event, message),
     onShowSource: (message) => { sourceModalMessage.value = message; },
     onStartReact: (message, btn) => {
-        reactingButton.value = btn;
-        reactingMessageId.value = message.id;
+        // Context menu hands us the row element (it doesn't know about
+        // the action bar). Same anchor model as the inline click path —
+        // popover binds to whatever HTMLElement we drop in here.
+        startReact(message.id, btn);
     },
     onCopyLink: (message) => copyMessageLink(message),
 });
@@ -199,9 +202,6 @@ const { scrollToBottom, scrollToMessage, isNearBottom } = useScrollMemory({
     onChannelSwitch: closeReactPicker,
 });
 
-onBeforeUnmount(() => {
-    reactingButtons.clear();
-});
 
 defineExpose({
     scrollToBottom,
@@ -222,13 +222,13 @@ function onReactPicked(selection: MediaSelection) {
     emit('react', reactingMessageId.value, selection);
 }
 
-function startReact(messageId: string) {
+function startReact(messageId: string, anchor: HTMLElement | null) {
     if (reactingMessageId.value === messageId) {
         closeReactPicker();
         return;
     }
     reactingMessageId.value = messageId;
-    reactingButton.value = reactingButtons.get(messageId) ?? null;
+    reactingButton.value = anchor;
 }
 
 // Transient "just copied" flag per message id — flips back after the
@@ -364,13 +364,11 @@ const replyToProp = computed(() => props.replyTo);
                             :shift-held="shiftHeld"
                             :reacting="reactingMessageId === message.id"
                             :copied="copiedMessageId === message.id"
-                            @react="startReact(message.id)"
+                            @react="(btn) => startReact(message.id, btn)"
                             @reply="emit('reply', message)"
                             @edit="emit('request-edit', message)"
                             @copy-link="copyMessageLink(message)"
                             @delete="(ev) => emit('delete', message, ev)"
-                            @register-react-button="(el) => setReactButton(message.id, el)"
-                            @unregister-react-button="setReactButton(message.id, null)"
                         />
                     </div>
                 </DynamicScrollerItem>

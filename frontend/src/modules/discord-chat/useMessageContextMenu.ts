@@ -25,7 +25,7 @@ export function useMessageContextMenu(opts: {
     channelId: Ref<string | null>;
     emit: EmitFn;
     onShowSource: (message: Message) => void;
-    onStartReact: (message: Message, btn: HTMLButtonElement | null) => void;
+    onStartReact: (message: Message, anchor: HTMLElement | null) => void;
     onCopyLink: (message: Message) => void;
 }) {
     const { messages, botUserId, canForward, canModerate, channelId, emit, onShowSource, onStartReact, onCopyLink } = opts;
@@ -126,7 +126,7 @@ export function useMessageContextMenu(opts: {
                 // doesn't drift to wherever the inline action button last
                 // landed. The DOM lookup runs inside the same tick the menu
                 // closes, so the row is still mounted.
-                const row = document.querySelector<HTMLButtonElement>(`[data-message-id="${CSS.escape(message.id)}"]`);
+                const row = document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(message.id)}"]`);
                 onStartReact(message, row ?? null);
                 break;
             }
