@@ -42,15 +42,30 @@ const pendingRoles = ref(new Set<string>());
 function isRolePending(name: string) {
     return pendingRoles.value.has(name);
 }
-async function withRoleLock<T>(name: string, fn: () => Promise<T>): Promise<T | undefined> {
-    if (pendingRoles.value.has(name)) return undefined;
+// FIFO queue per role name. The modal's Confirm fires N grant/revoke
+// emits synchronously and they all land here for the same role — a
+// drop-if-locked guard would silently swallow all but the first, so we
+// chain them through a promise per role. `pendingRoles` flips on when
+// the first op enqueues and off when the *last* op resolves, driving
+// the modal's loading state.
+const roleQueues = new Map<string, Promise<unknown>>();
+async function withRoleLock<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const prev = roleQueues.get(name) ?? Promise.resolve();
+    // Catch on the link so an earlier failure doesn't poison the chain.
+    const next = prev.then(() => fn(), () => fn());
+    roleQueues.set(name, next);
     pendingRoles.value = new Set([...pendingRoles.value, name]);
     try {
-        return await fn();
+        return await next;
     } finally {
-        const next = new Set(pendingRoles.value);
-        next.delete(name);
-        pendingRoles.value = next;
+        // Only the call that's currently the tail clears state — earlier
+        // callers in the chain hand off to the next op.
+        if (roleQueues.get(name) === next) {
+            roleQueues.delete(name);
+            const s = new Set(pendingRoles.value);
+            s.delete(name);
+            pendingRoles.value = s;
+        }
     }
 }
 
