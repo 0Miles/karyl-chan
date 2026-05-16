@@ -11,6 +11,7 @@ import {
   listKvKeys,
   setKv,
   sumGuildBytes,
+  withGuildKvLock,
 } from "./models/plugin-kv.model.js";
 import {
   deleteConfigKey,
@@ -692,23 +693,46 @@ export async function registerPluginRpcRoutes(
     }
     // Quota check: sum existing bytes minus what this key already
     // holds (we're overwriting, so subtract it from the budget).
-    const quota = await quotaForGuildKv(ctx.pluginId);
-    const currentTotal = await sumGuildBytes(ctx.pluginId, body.guild_id);
-    const existing = await getKv(ctx.pluginId, body.guild_id, body.key);
-    const projected = currentTotal - (existing?.bytes ?? 0) + incomingBytes;
-    if (projected > quota) {
-      reply.code(413).send({
-        error: `would exceed plugin guild_kv quota (${projected}B / ${quota}B)`,
-      });
+    // The read+write runs under a per-(plugin,guild) mutex so two
+    // concurrent sets to different keys can't both observe a stale
+    // total and slip past the quota — previously the lack of
+    // serialisation let a plugin double-write past its quota.
+    const guildId = body.guild_id;
+    const key = body.key;
+    const value = body.value;
+    const reply413 = (msg: string): void => {
+      reply.code(413).send({ error: msg });
+    };
+    const result = await withGuildKvLock<{
+      ok: boolean;
+      bytes?: number;
+      total_bytes?: number;
+      quota_bytes?: number;
+      error?: string;
+    }>(ctx.pluginId, guildId, async () => {
+      const quota = await quotaForGuildKv(ctx.pluginId);
+      const currentTotal = await sumGuildBytes(ctx.pluginId, guildId);
+      const existing = await getKv(ctx.pluginId, guildId, key);
+      const projected = currentTotal - (existing?.bytes ?? 0) + incomingBytes;
+      if (projected > quota) {
+        return {
+          ok: false,
+          error: `would exceed plugin guild_kv quota (${projected}B / ${quota}B)`,
+        };
+      }
+      const row = await setKv(ctx.pluginId, guildId, key, value);
+      return {
+        ok: true,
+        bytes: row.bytes,
+        total_bytes: currentTotal - (existing?.bytes ?? 0) + row.bytes,
+        quota_bytes: quota,
+      };
+    });
+    if (!result.ok) {
+      reply413(result.error!);
       return;
     }
-    const row = await setKv(ctx.pluginId, body.guild_id, body.key, body.value);
-    return {
-      ok: true,
-      bytes: row.bytes,
-      total_bytes: currentTotal - (existing?.bytes ?? 0) + row.bytes,
-      quota_bytes: quota,
-    };
+    return result;
   });
 
   // ─── storage.kv_increment ─────────────────────────────────────────
