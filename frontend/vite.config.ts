@@ -11,6 +11,19 @@ export default defineConfig({
     },
     build: {
         outDir: 'dist',
-        emptyOutDir: true
+        emptyOutDir: true,
+        rollupOptions: {
+            output: {
+                // Pin heavyweight runtime deps to their own chunks so a
+                // route-only change doesn't bust the framework cache,
+                // and the framework bundle isn't refetched on first
+                // load of every additional admin route.
+                manualChunks: {
+                    'vendor-vue': ['vue', 'vue-router', 'pinia'],
+                    'vendor-i18n': ['vue-i18n'],
+                    'vendor-scroller': ['vue-virtual-scroller'],
+                }
+            }
+        }
     }
 });
