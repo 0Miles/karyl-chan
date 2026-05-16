@@ -167,17 +167,35 @@ const unreadDividerIndex = computed<number>(() => {
  * Whether `message` targets the current bot user — directly (@mention),
  * broadly (@everyone / @here), or by being a reply to one of the bot's
  * messages. Drives the "mentioned-self" highlight so the user can spot
- * pings at a glance.
+ * pings at a glance. The regex compiles once per bot-user-id change
+ * because this is called per-row per-render and `new RegExp` showed up
+ * in scroll profiles in dense channels.
  */
+const selfMentionRe = computed(() =>
+    props.botUserId ? new RegExp(`<@!?${props.botUserId}>`) : null
+);
 function mentionsSelf(message: Message): boolean {
     const selfId = props.botUserId;
     if (!selfId) return false;
-    // `<@id>` + the legacy `<@!id>` nickname-mention variant.
-    if (new RegExp(`<@!?${selfId}>`).test(message.content)) return true;
+    if (selfMentionRe.value?.test(message.content)) return true;
     if (message.mentionEveryone) return true;
     if (message.referencedMessage?.author.id === selfId) return true;
     return false;
 }
+
+// Pre-compute the continuation flag for every loaded message — the
+// template asks for it three times per row (size-dependencies,
+// group-start class, MessageView's `compact` prop). Without this each
+// row would do two `new Date(...)` constructions per ask, i.e. six
+// per row per render.
+const continuationFlags = computed<boolean[]>(() => {
+    const msgs = props.messages;
+    const flags = new Array<boolean>(msgs.length);
+    for (let i = 0; i < msgs.length; i++) {
+        flags[i] = isContinuation(msgs[i - 1], msgs[i]);
+    }
+    return flags;
+});
 
 function closeReactPicker() {
     reactingMessageId.value = null;
@@ -327,7 +345,7 @@ const replyToProp = computed(() => props.replyTo);
                         message.stickers?.length ?? 0,
                         !!message.referencedMessage,
                         editingMessageId === message.id,
-                        isContinuation(messages[idx - 1], message)
+                        continuationFlags[idx]
                     ]"
                     :data-index="idx"
                 >
@@ -341,7 +359,7 @@ const replyToProp = computed(() => props.replyTo);
                     </div>
                     <div
                         :class="['message-wrap', {
-                        'group-start': !isContinuation(messages[idx - 1], message),
+                        'group-start': !continuationFlags[idx]!,
                         'mentioned-self': mentionsSelf(message)
                     }]"
                         :data-message-id="message.id"
@@ -353,7 +371,7 @@ const replyToProp = computed(() => props.replyTo);
                     >
                         <MessageView
                             :message="message"
-                            :compact="isContinuation(messages[idx - 1], message)"
+                            :compact="continuationFlags[idx]"
                             :editing="editingMessageId === message.id"
                             @submit-edit="(content: string) => emit('submit-edit', message, content)"
                             @cancel-edit="emit('cancel-edit')"
