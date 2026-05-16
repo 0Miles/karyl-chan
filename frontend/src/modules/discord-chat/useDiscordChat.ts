@@ -157,7 +157,14 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
   });
   watch(lastMessageId, (newId, oldId) => {
     if (newId && newId !== oldId) {
-      if (isNearBottom()) requestAnimationFrame(scrollToBottom);
+      // Capture the channel at watch-fire time. If the user has
+      // switched channels by the time the RAF lands, `messagesContainer`
+      // would point at the new channel's scroller and we'd snap it to
+      // bottom mid-scroll-restore.
+      const cid = opts.channelId.value;
+      if (isNearBottom()) requestAnimationFrame(() => {
+        if (opts.channelId.value === cid) scrollToBottom();
+      });
     }
   });
 

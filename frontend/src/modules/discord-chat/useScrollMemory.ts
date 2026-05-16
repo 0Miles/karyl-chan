@@ -20,6 +20,9 @@ export function useScrollMemory(opts: {
     const { channelId, messages, messagesContainer, scrollerRef, plainListRef, onScroll, onChannelSwitch } = opts;
     const messageCache = useMessageCacheStore();
     let pendingRestore: PendingRestore | null = null;
+    // Flipped on teardown so any in-flight RAF retry chain stops
+    // scrolling whichever scroller is mounted next.
+    let unmounted = false;
 
     function scrollToBottom() {
         const el = messagesContainer.value;
@@ -36,6 +39,7 @@ export function useScrollMemory(opts: {
     function scrollToBottomStable(maxFrames = 6): void {
         let frame = 0;
         const tick = () => {
+            if (unmounted) return;
             const el = messagesContainer.value;
             if (!el) return;
             el.scrollTop = Number.MAX_SAFE_INTEGER;
@@ -105,6 +109,7 @@ export function useScrollMemory(opts: {
      * measured after mount, so a single pass lands too early.
      */
     function applyRestore(restore: PendingRestore, attempt = 0): void {
+        if (unmounted) return;
         if (restore.channelId !== channelId.value) return;
         const el = messagesContainer.value;
         if (!el) return;
@@ -187,6 +192,7 @@ export function useScrollMemory(opts: {
         if (channelId.value) {
             messageCache.saveScrollPosition(channelId.value, capturePosition());
         }
+        unmounted = true;
     });
 
     return {
