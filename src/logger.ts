@@ -4,7 +4,7 @@ import { config } from "./config.js";
 const isDev = config.env !== "production";
 
 export const logger: Logger = pino({
-  level: process.env.LOG_LEVEL ?? (isDev ? "debug" : "info"),
+  level: config.logging.level,
   // pino-pretty in dev for human-readable output, raw JSON in prod for
   // log aggregators. The transport forks a worker thread in dev so the
   // main event loop isn't blocked by pretty-printing.

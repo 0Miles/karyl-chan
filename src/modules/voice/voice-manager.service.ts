@@ -29,6 +29,7 @@ import {
 import { execSync } from "child_process";
 import { PassThrough, pipeline } from "stream";
 import prism from "prism-media";
+import { config } from "../../config.js";
 import { moduleLogger } from "../../logger.js";
 
 const log = moduleLogger("voice-manager");
@@ -272,7 +273,7 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
       url,
       guildId,
       channelId: state.channelId,
-      ffmpegPath: process.env.FFMPEG_PATH,
+      ffmpegPath: config.voice.ffmpegPath,
     },
     "playUrl: spawning ffmpeg + queueing resource",
   );

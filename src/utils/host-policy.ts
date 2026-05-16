@@ -1,5 +1,6 @@
 import { lookup } from "dns/promises";
 import { isIP } from "net";
+import { config } from "../config.js";
 import { moduleLogger } from "../logger.js";
 
 const log = moduleLogger("host-policy");
@@ -240,7 +241,7 @@ export async function assertExternalTarget(
     throw new HostPolicyError("無效的端口號碼");
   }
 
-  const allowPrivate = process.env.WEBHOOK_ALLOW_PRIVATE === "true";
+  const allowPrivate = config.hostPolicy.webhookAllowPrivate;
   const denyExternal = (): never => {
     throw new HostPolicyError("Webhook 目標不被允許");
   };
@@ -307,7 +308,7 @@ export async function assertPluginTarget(
     throw new HostPolicyError("無效的端口號碼");
   }
 
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = config.env === "production";
   const denyPlugin = (): never => {
     throw new HostPolicyError("Plugin 目標不被允許");
   };

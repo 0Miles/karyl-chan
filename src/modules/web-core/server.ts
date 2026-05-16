@@ -192,7 +192,7 @@ export async function createWebServer(
   );
   const server = Fastify({
     logger: {
-      level: process.env.NODE_ENV === "production" ? "info" : "debug",
+      level: config.logging.level,
     },
     bodyLimit: config.web.bodyLimitBytes,
     ...(https ? { https } : {}),
@@ -208,7 +208,7 @@ export async function createWebServer(
     // Refuse to boot in production rather than silently serve admin APIs
     // to anyone. Dev and tests still get the permissive path with a
     // prominent warning so local work isn't blocked.
-    if (process.env.NODE_ENV === "production") {
+    if (config.env === "production") {
       throw new Error(
         "BOT_OWNER_IDS (or BOT_OWNER_ID) must be set in production — refusing to start an unauthenticated admin API",
       );

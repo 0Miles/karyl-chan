@@ -85,6 +85,18 @@ export interface AppConfig {
     maxAttachmentBytes: number;
     sseMaxListeners: number;
   };
+  logging: {
+    /** Pino log level. Defaults to "info" in production, "debug" otherwise. */
+    level: string;
+  };
+  voice: {
+    /** Override the resolved ffmpeg path. Empty/unset → resolve from PATH. */
+    ffmpegPath: string | null;
+  };
+  hostPolicy: {
+    /** Allow webhook URLs to resolve to RFC1918/loopback. Dev convenience. */
+    webhookAllowPrivate: boolean;
+  };
 }
 
 function parseIntEnv(name: string, fallback: number): number {
@@ -243,6 +255,15 @@ function loadConfig(): AppConfig {
       maxFetchCount: parseIntEnv("DM_MAX_FETCH_COUNT", 500),
       maxAttachmentBytes: parseIntEnv("DM_MAX_ATTACHMENT_BYTES", 1_000_000),
       sseMaxListeners: parseIntEnv("SSE_MAX_LISTENERS", 200),
+    },
+    logging: {
+      level: strEnv("LOG_LEVEL") ?? (env === "production" ? "info" : "debug"),
+    },
+    voice: {
+      ffmpegPath: strEnv("FFMPEG_PATH"),
+    },
+    hostPolicy: {
+      webhookAllowPrivate: parseBoolEnv("WEBHOOK_ALLOW_PRIVATE", false),
     },
   };
 
