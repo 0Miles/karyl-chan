@@ -1,6 +1,5 @@
 import { lookup } from "dns/promises";
 import { isIP } from "net";
-import { config } from "../config.js";
 import { moduleLogger } from "../logger.js";
 
 const log = moduleLogger("host-policy");
@@ -241,7 +240,11 @@ export async function assertExternalTarget(
     throw new HostPolicyError("無效的端口號碼");
   }
 
-  const allowPrivate = config.hostPolicy.webhookAllowPrivate;
+  // Read directly from process.env so tests can flip the escape
+  // hatch per-case without re-importing the frozen `config` module.
+  // Bot operators set this once at deploy time; the boot-frozen value
+  // and the runtime read are observationally equivalent in prod.
+  const allowPrivate = process.env.WEBHOOK_ALLOW_PRIVATE === "true";
   const denyExternal = (): never => {
     throw new HostPolicyError("Webhook 目標不被允許");
   };
@@ -308,7 +311,9 @@ export async function assertPluginTarget(
     throw new HostPolicyError("無效的端口號碼");
   }
 
-  const isProd = config.env === "production";
+  // Same per-call read rationale as `allowPrivate` above — tests
+  // toggle NODE_ENV per-case to assert the prod vs dev branch.
+  const isProd = process.env.NODE_ENV === "production";
   const denyPlugin = (): never => {
     throw new HostPolicyError("Plugin 目標不被允許");
   };

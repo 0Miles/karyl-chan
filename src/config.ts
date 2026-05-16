@@ -93,10 +93,6 @@ export interface AppConfig {
     /** Override the resolved ffmpeg path. Empty/unset → resolve from PATH. */
     ffmpegPath: string | null;
   };
-  hostPolicy: {
-    /** Allow webhook URLs to resolve to RFC1918/loopback. Dev convenience. */
-    webhookAllowPrivate: boolean;
-  };
 }
 
 function parseIntEnv(name: string, fallback: number): number {
@@ -261,9 +257,6 @@ function loadConfig(): AppConfig {
     },
     voice: {
       ffmpegPath: strEnv("FFMPEG_PATH"),
-    },
-    hostPolicy: {
-      webhookAllowPrivate: parseBoolEnv("WEBHOOK_ALLOW_PRIVATE", false),
     },
   };
 
