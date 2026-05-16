@@ -17,6 +17,7 @@ import {
   requireGuildCapability,
 } from "./route-guards.js";
 import { isSnowflake } from "./validators.js";
+import { config } from "../../config.js";
 
 // Discord lookup endpoints feed both the DM and guild chat surfaces, so
 // either of these globally-scoped tokens is sufficient. (Per-guild
@@ -347,6 +348,53 @@ export async function registerDiscordRoutes(
     }
     return { guilds: buckets };
   });
+
+  // Sticker JSON proxy. Lottie-format stickers (formatType=3) embed a
+  // JSON animation that the frontend renders client-side. Discord's
+  // CDN serves them under cdn.discordapp.com/stickers/<id>.json; we
+  // proxy through the bot so the SPA doesn't have to talk to the CDN
+  // directly (also lets us cap response size). Cross-surface: both
+  // DM and guild chat render stickers, so gated on READ_CAPS rather
+  // than dm.message specifically.
+  server.get<{ Params: { stickerId: string } }>(
+    "/api/discord/stickers/:stickerId/lottie",
+    async (request, reply) => {
+      if (!requireAnyCapability(request, reply, READ_CAPS)) return;
+      const id = request.params.stickerId.replace(/[^0-9]/g, "");
+      if (!id) {
+        reply.code(400).send({ error: "invalid sticker id" });
+        return;
+      }
+      const MAX_BYTES = config.dm.maxAttachmentBytes;
+      try {
+        const upstream = await fetch(
+          `https://cdn.discordapp.com/stickers/${id}.json`,
+        );
+        if (!upstream.ok) {
+          reply.code(upstream.status).send({ error: "upstream" });
+          return;
+        }
+        const declaredLen = Number(
+          upstream.headers.get("content-length") ?? "0",
+        );
+        if (declaredLen > MAX_BYTES) {
+          reply.code(502).send({ error: "sticker too large" });
+          return;
+        }
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        if (buf.byteLength > MAX_BYTES) {
+          reply.code(502).send({ error: "sticker too large" });
+          return;
+        }
+        reply.header("content-type", "application/json");
+        reply.header("cache-control", "public, max-age=86400");
+        reply.send(buf);
+      } catch (err) {
+        request.log.error({ err }, "sticker proxy failed");
+        reply.code(502).send({ error: "proxy failed" });
+      }
+    },
+  );
 
   // Cross-surface message forward. Source can be in any guild OR a DM
   // the bot has access to; target likewise. The capability gate

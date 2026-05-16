@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, shallowRef } from 'vue';
-import { authedFetch, ApiError } from '../../../api/client';
+import { fetchUserProfile } from '../../../api/discord';
 
 export interface DiscordUserProfile {
     id: string;
@@ -67,15 +67,8 @@ export const useUserProfileStore = defineStore('discord-user-profile', () => {
         const pending = inflight.get(key);
         if (pending) return pending;
 
-        const url = guildId
-            ? `/api/discord/users/${encodeURIComponent(userId)}?guildId=${encodeURIComponent(guildId)}`
-            : `/api/discord/users/${encodeURIComponent(userId)}`;
         const task = (async () => {
-            const response = await authedFetch(url);
-            if (!response.ok) {
-                throw new ApiError(response.status, response.statusText || `HTTP ${response.status}`);
-            }
-            const body = await response.json() as DiscordUserView;
+            const body = (await fetchUserProfile(userId, guildId)) as DiscordUserView;
             const next = new Map(cache.value);
             next.set(key, { value: body, expiresAt: Date.now() + TTL_MS });
             cache.value = next;

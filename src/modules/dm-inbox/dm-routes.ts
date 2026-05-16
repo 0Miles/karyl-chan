@@ -651,50 +651,6 @@ export async function registerDmRoutes(
     },
   );
 
-  server.get<{ Params: { stickerId: string } }>(
-    "/api/dm/stickers/:stickerId",
-    async (request, reply) => {
-      if (!requireCapability(request, reply, "dm.message")) return;
-      const id = request.params.stickerId.replace(/[^0-9]/g, "");
-      if (!id) {
-        reply.code(400).send({ error: "invalid sticker id" });
-        return;
-      }
-      // Hard ceiling on proxied response size. Lottie sticker JSON
-      // from Discord rarely exceeds ~200KB; 1MB is generous and
-      // protects us from a malicious / misbehaving upstream that
-      // tries to stream a multi-MB blob through our process.
-      const MAX_BYTES = config.dm.maxAttachmentBytes;
-      try {
-        const upstream = await fetch(
-          `https://cdn.discordapp.com/stickers/${id}.json`,
-        );
-        if (!upstream.ok) {
-          reply.code(upstream.status).send({ error: "upstream" });
-          return;
-        }
-        const declaredLen = Number(
-          upstream.headers.get("content-length") ?? "0",
-        );
-        if (declaredLen > MAX_BYTES) {
-          reply.code(502).send({ error: "sticker too large" });
-          return;
-        }
-        const buf = Buffer.from(await upstream.arrayBuffer());
-        if (buf.byteLength > MAX_BYTES) {
-          reply.code(502).send({ error: "sticker too large" });
-          return;
-        }
-        reply.header("content-type", "application/json");
-        reply.header("cache-control", "public, max-age=86400");
-        reply.send(buf);
-      } catch (err) {
-        request.log.error({ err }, "sticker proxy failed");
-        reply.code(502).send({ error: "proxy failed" });
-      }
-    },
-  );
-
   server.get("/api/dm/events", async (request, reply) => {
     if (!requireCapability(request, reply, "dm.message")) return;
 
