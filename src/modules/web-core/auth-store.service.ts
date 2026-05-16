@@ -51,10 +51,38 @@ function newToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+/**
+ * How long the hash of a just-rotated refresh token sticks around in
+ * the reuse-detection set. Anything observed inside this window that
+ * matches a rotated hash is treated as evidence of token theft —
+ * we'd just have rotated it on the legitimate client's next refresh
+ * anyway, so an attempt to use the rotated value AFTER it was
+ * rotated means somebody else holds a copy.
+ *
+ * 5 min is generous — refresh cadence is usually well under access
+ * TTL (10–15 min) so the rotated hash falls out of the window
+ * before the same client rotates again under normal use, and a
+ * stolen token replayed within 5 min still trips the alarm.
+ */
+const REFRESH_REUSE_WINDOW_MS = 5 * 60 * 1000;
+
 export class AuthStore {
   private access = new Map<string, AccessRecord>();
   private refresh = new Map<string, RefreshRecord>();
   private sseTickets = new Map<string, SseTicketRecord>();
+  /**
+   * Hashes of recently-rotated refresh tokens, keyed by the
+   * pre-rotation hash. If a caller presents one of these we know
+   * (a) it WAS valid recently and (b) it isn't valid now — i.e. an
+   * attacker has a copy and is replaying. We force-revoke every
+   * session belonging to that owner so the legitimate user is
+   * pushed back to the login flow and the attacker's session dies
+   * with them.
+   */
+  private rotatedRefresh = new Map<
+    string,
+    { ownerId: string; expiresAt: number }
+  >();
   private cleanupTimer: NodeJS.Timeout;
   private adapter: RefreshStoreAdapter | null;
 
@@ -126,10 +154,29 @@ export class AuthStore {
   ): Promise<IssuedTokens | null> {
     const key = hashToken(token);
     const record = this.refresh.get(key);
-    if (!record) return null;
+    if (!record) {
+      // Token isn't in the live set. Check whether we rotated it
+      // recently — if so, an attacker is replaying a stolen token
+      // after the legitimate client already moved on. Burn every
+      // session for that owner so the thief loses access and the
+      // real user is forced through fresh login.
+      const reused = this.rotatedRefresh.get(key);
+      if (reused && reused.expiresAt > now) {
+        this.rotatedRefresh.delete(key);
+        await this.revokeOwner(reused.ownerId);
+      }
+      return null;
+    }
     this.refresh.delete(key);
     if (this.adapter) await this.adapter.delete(key).catch(() => {});
     if (record.expiresAt <= now) return null;
+    // Stash the just-rotated hash so a future replay of this same
+    // token trips the reuse alarm above. Bounded by the
+    // REFRESH_REUSE_WINDOW_MS TTL purged in purgeExpired.
+    this.rotatedRefresh.set(key, {
+      ownerId: record.ownerId,
+      expiresAt: now + REFRESH_REUSE_WINDOW_MS,
+    });
     return this.issueTokens(record.ownerId, now);
   }
 
@@ -183,6 +230,12 @@ export class AuthStore {
     for (const [key, record] of this.sseTickets) {
       if (record.ownerId === ownerId) this.sseTickets.delete(key);
     }
+    // Also drop the owner's rotated-refresh hashes so a subsequent
+    // login doesn't immediately trip the reuse alarm on a token that
+    // belonged to the same person.
+    for (const [key, record] of this.rotatedRefresh) {
+      if (record.ownerId === ownerId) this.rotatedRefresh.delete(key);
+    }
     if (this.adapter) await this.adapter.deleteByOwner(ownerId).catch(() => {});
   }
 
@@ -195,6 +248,9 @@ export class AuthStore {
     }
     for (const [key, record] of this.sseTickets) {
       if (record.expiresAt <= now) this.sseTickets.delete(key);
+    }
+    for (const [key, record] of this.rotatedRefresh) {
+      if (record.expiresAt <= now) this.rotatedRefresh.delete(key);
     }
     if (this.adapter) {
       void this.adapter.deleteExpired(now).catch(() => {});

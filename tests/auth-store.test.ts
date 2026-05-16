@@ -54,6 +54,42 @@ describe('AuthStore', () => {
             expect(await store.rotateRefresh(issued.refreshToken)).toBeNull();
             expect(store.verifyAccessToken(other.accessToken)).toBe('someone-else');
         });
+
+        it('detects refresh-token reuse and burns every session for that owner', async () => {
+            // Legitimate client rotates. Then somebody (the attacker
+            // with a stolen pre-rotation copy) tries to rotate the
+            // same pre-rotation token again. The reuse alarm fires:
+            // every active session for OWNER is dropped, including
+            // the access + refresh tokens the legitimate rotation
+            // just produced. A second unrelated owner is unaffected.
+            const initial = await store.issueTokens(OWNER);
+            const other = await store.issueTokens('not-the-victim');
+            const rotated = await store.rotateRefresh(initial.refreshToken);
+            expect(rotated).not.toBeNull();
+            // Attacker replays the original token.
+            const replayResult = await store.rotateRefresh(initial.refreshToken);
+            expect(replayResult).toBeNull();
+            // Legitimate user's rotated tokens are now also dead.
+            expect(store.verifyAccessToken(rotated!.accessToken)).toBeNull();
+            expect(await store.rotateRefresh(rotated!.refreshToken)).toBeNull();
+            // Unrelated owner survives.
+            expect(store.verifyAccessToken(other.accessToken)).toBe('not-the-victim');
+        });
+
+        it('stops flagging reuse once the detection window expires', async () => {
+            const now = Date.now();
+            const initial = await store.issueTokens(OWNER, now);
+            await store.rotateRefresh(initial.refreshToken, now);
+            // 6 minutes later — beyond the 5-min reuse window. The
+            // replay still fails (the token IS rotated) but doesn't
+            // wipe other-tab sessions because we no longer have
+            // evidence it's malicious.
+            const other = await store.issueTokens(OWNER, now + 6 * 60_000);
+            const replay = await store.rotateRefresh(initial.refreshToken, now + 6 * 60_000);
+            expect(replay).toBeNull();
+            // The unrelated session for the same owner stays alive.
+            expect(store.verifyAccessToken(other.accessToken)).toBe(OWNER);
+        });
     });
 
     describe('persistence via RefreshStoreAdapter', () => {
