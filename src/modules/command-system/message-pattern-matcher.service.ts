@@ -185,7 +185,14 @@ export class MessagePatternMatcher {
     if (result.ended) {
       await endSession(userId);
       if (result.relayContent) {
-        await dmChannel.send(result.relayContent).catch(() => {});
+        // No allowed_mentions parsing — the response content comes from
+        // an external webhook server, which we don't trust to set ping
+        // policy. DMs don't honour @everyone but role/user pings can
+        // still notify in group-DM contexts, and this also guards
+        // against a future relay site that uses a guild channel.
+        await dmChannel
+          .send({ content: result.relayContent, allowedMentions: { parse: [] } })
+          .catch(() => {});
       }
       return { handled: true, sessionEnded: true, behaviorId: behavior.id };
     }
@@ -234,7 +241,14 @@ export class MessagePatternMatcher {
       }
 
       if (result.relayContent) {
-        await dmChannel.send(result.relayContent).catch(() => {});
+        // No allowed_mentions parsing — the response content comes from
+        // an external webhook server, which we don't trust to set ping
+        // policy. DMs don't honour @everyone but role/user pings can
+        // still notify in group-DM contexts, and this also guards
+        // against a future relay site that uses a guild channel.
+        await dmChannel
+          .send({ content: result.relayContent, allowedMentions: { parse: [] } })
+          .catch(() => {});
       }
     } else {
       botEventLog.record(

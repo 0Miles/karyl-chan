@@ -19,7 +19,10 @@ import { botEventLog } from "../bot-events/bot-event-log.js";
 import {
   buildOutboundSignatureHeaders,
   verifyInboundSignature,
+  SIGNATURE_HEADER,
+  SIGNATURE_HEADER_V1,
 } from "../../utils/hmac.js";
+import { shouldRecord } from "../bot-events/bot-event-dedup.js";
 import {
   assertExternalTarget,
   HostPolicyError,
@@ -206,8 +209,23 @@ export class WebhookForwarder {
       };
     }
 
-    // hmac mode：驗證 response 簽名
-    if (rawSecret && authMode === "hmac") {
+    // Response signature verification:
+    //
+    //  - hmac mode → required, fail closed if missing/invalid.
+    //  - token mode → optional but verified opportunistically: if the
+    //    webhook server signs its response with the shared bearer
+    //    secret as the HMAC key, we verify and trust. If it omits the
+    //    signature headers, we log once (deduped) so the operator
+    //    knows responses from this behavior aren't authenticated,
+    //    but accept the response — most existing token-mode webhooks
+    //    don't sign and forcing them to upgrade in lockstep would
+    //    break compat.
+    //
+    //  Webhook authors who want token-mode signing can use the same
+    //  buildOutboundSignatureHeaders helper from utils/hmac.ts.
+    const hasSignatureHeaders =
+      res.headers.has(SIGNATURE_HEADER) || res.headers.has(SIGNATURE_HEADER_V1);
+    if (rawSecret && (authMode === "hmac" || hasSignatureHeaders)) {
       const verdict = verifyInboundSignature(
         rawSecret,
         res.headers,
@@ -225,6 +243,17 @@ export class WebhookForwarder {
           error: verdict.reason,
         };
       }
+    } else if (
+      authMode === "token" &&
+      rawText.length > 0 &&
+      shouldRecord(`webhook-token-unsigned:${behavior.id}`)
+    ) {
+      botEventLog.record(
+        "warn",
+        "bot",
+        `webhook-forwarder: behavior ${behavior.id} (token mode) returned an unsigned response — content is being relayed unauthenticated. Switch to hmac mode or sign responses with the shared secret to harden.`,
+        { behaviorId: behavior.id, authMode },
+      );
     }
 
     // 解析 response body
