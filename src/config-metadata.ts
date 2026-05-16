@@ -26,7 +26,9 @@ export type ConfigGroup =
   | "admin"
   | "rcon"
   | "botEvents"
-  | "dm";
+  | "dm"
+  | "logging"
+  | "voice";
 
 export type Sensitivity = "sensitive" | "semi-sensitive" | "public";
 export type Editability = "env-only" | "runtime-capable" | "runtime-editable";
@@ -442,6 +444,22 @@ export const CONFIG_METADATA: Record<string, ConfigFieldMeta> = {
     editability: "env-only",
     productionRequired: false,
     descriptionKey: "config.dm.sseMaxListeners",
+  },
+  "logging.level": {
+    group: "logging",
+    envVar: "LOG_LEVEL",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.logging.level",
+  },
+  "voice.ffmpegPath": {
+    group: "voice",
+    envVar: "FFMPEG_PATH",
+    sensitivity: "public",
+    editability: "env-only",
+    productionRequired: false,
+    descriptionKey: "config.voice.ffmpegPath",
   },
 };
 
