@@ -29,6 +29,8 @@ import {
 } from "./models/plugin-config.model.js";
 import { encryptSecret } from "../../utils/crypto.js";
 import type { PluginManifest } from "./plugin-registry.service.js";
+import { pluginCommandRegistry } from "./plugin-command-registry.service.js";
+import { rebuildEventIndex } from "./plugin-event-bridge.service.js";
 import { recordAudit } from "../admin/admin-audit.service.js";
 import { config } from "../../config.js";
 import {
@@ -658,8 +660,6 @@ export async function registerPluginRoutes(
       // register them in this guild; disabled → delete them. Idempotent
       // (a config-only PATCH just re-confirms the current state).
       {
-        const { pluginCommandRegistry } =
-          await import("./plugin-command-registry.service.js");
         const pluginRow = await pluginRegistry.findById(pluginId);
         const manifestObj = pluginRow
           ? (safeParse(pluginRow.manifestJson) as PluginManifest | null)
@@ -825,8 +825,6 @@ export async function registerPluginRoutes(
       if (plugin.enabled && plugin.status === "active") {
         void (async () => {
           try {
-            const { pluginCommandRegistry } =
-              await import("./plugin-command-registry.service.js");
             await pluginCommandRegistry.syncFeatureCommandsAcrossGuilds(
               plugin,
               manifest,
@@ -1098,8 +1096,6 @@ export async function registerPluginRoutes(
       // unregisterAll 刪 DB rows + feature 半部 Discord 指令（discordCommandId 有值）。
       // global 軌三指令（discordCommandId=null）無法由 deleteOne 直接刪，
       // 由後續 reconcileAll 透過 stale 清除機制從名冊 diff 刪除 Discord 端（Batch 1 #4）。
-      const { pluginCommandRegistry } =
-        await import("./plugin-command-registry.service.js");
       await pluginCommandRegistry.unregisterAll(pluginId).catch(() => {
         /* logged inside unregisterAll */
       });
@@ -1140,8 +1136,6 @@ export async function registerPluginRoutes(
         });
 
       // 4. Rebuild the event-dispatch index so the deleted plugin is gone.
-      const { rebuildEventIndex } =
-        await import("./plugin-event-bridge.service.js");
       await rebuildEventIndex().catch(() => {
         /* non-fatal; will self-heal on next bot restart */
       });
