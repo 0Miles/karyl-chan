@@ -45,6 +45,13 @@ async function attemptRefresh(): Promise<boolean> {
 }
 
 export async function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    // Defence-in-depth: refuse to attach the bearer token to anything
+    // that isn't a relative path on this origin. If a future caller
+    // (or a misrouted plugin URL) ever passes an absolute URL through
+    // here, we'd silently send the access token cross-origin.
+    if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith('//')) {
+        throw new Error('authedFetch only accepts same-origin relative paths');
+    }
     if (accessTokenExpired() && getRefreshToken()) {
         await attemptRefresh();
     }

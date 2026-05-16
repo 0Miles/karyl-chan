@@ -40,6 +40,11 @@ onMounted(async () => {
             router.replace({ name: 'dashboard' });
             return;
         }
+        // Strip the token from the URL — even an expired one shouldn't
+        // sit in browser history / Referer headers where it could leak
+        // to a third party and be retried while still within the
+        // server's exchange window.
+        router.replace({ name: 'auth' });
         state.value = 'error';
         errorMessage.value = err instanceof ApiError
             ? err.message
