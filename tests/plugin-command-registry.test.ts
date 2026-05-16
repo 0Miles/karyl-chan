@@ -66,7 +66,7 @@ describe("manifestOptionToData", () => {
       name: "x",
       channel_types: ["GUILD_TEXT"],
     } as never);
-    expect((result as Record<string, unknown>).channelTypes).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>).channelTypes).toBeUndefined();
   });
 
   it("filters unrecognised channel_types out instead of throwing", () => {
@@ -110,7 +110,7 @@ describe("manifestOptionToData", () => {
     expect(result.options?.length).toBe(2);
     // Subcommands can't be "required" at the top of their parent —
     // it's the choice that's selected, not a field that gets filled.
-    expect((result as Record<string, unknown>).required).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>).required).toBeUndefined();
   });
 
   it("does not recurse into flat option types even when options[] is present", () => {
@@ -122,6 +122,6 @@ describe("manifestOptionToData", () => {
       name: "x",
       options: [{ type: "string", name: "nested" }],
     } as never);
-    expect((result as Record<string, unknown>).options).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>).options).toBeUndefined();
   });
 });

@@ -62,6 +62,8 @@ const stubConfig: AppConfig = {
     maxAttachmentBytes: 1_000_000,
     sseMaxListeners: 200,
   },
+  logging: { level: "info" },
+  voice: { ffmpegPath: null },
 };
 
 // ---------------------------------------------------------------------------
