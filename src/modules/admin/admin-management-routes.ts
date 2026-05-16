@@ -31,11 +31,7 @@ import {
   ROLE_DESCRIPTION_MAX,
   USER_NOTE_MAX,
 } from "../web-core/validators.js";
-import { TodoChannel } from "../builtin-features/todo-channel/todo-channel.model.js";
-import { PictureOnlyChannel } from "../builtin-features/picture-only/picture-only-channel.model.js";
-import { RconForwardChannel } from "../builtin-features/rcon-forward/rcon-forward-channel.model.js";
-import { RoleEmojiGroup } from "../builtin-features/role-emoji/role-emoji-group.model.js";
-import { RoleEmoji } from "../builtin-features/role-emoji/role-emoji.model.js";
+import { getBuiltinFeatureStats } from "../builtin-features/guild-builtin.service.js";
 import { AuthorizedUser } from "./models/authorized-user.model.js";
 import { AdminRole } from "./models/admin-role.model.js";
 
@@ -568,59 +564,20 @@ export async function registerAdminManagementRoutes(
   server.get("/api/admin/feature-summary", async (request, reply) => {
     if (!requireAdmin(request, reply)) return;
     try {
-      const [
-        todoChannels,
-        pictureOnlyChannels,
-        rconForwardChannels,
-        roleEmojiGroups,
-        roleEmojis,
-        authorizedUsers,
-        adminRoles,
-        todoGuilds,
-        pictureGuilds,
-        rconGuilds,
-        roleEmojiGroupGuilds,
-      ] = await Promise.all([
-        TodoChannel.count(),
-        PictureOnlyChannel.count(),
-        RconForwardChannel.count(),
-        RoleEmojiGroup.count(),
-        RoleEmoji.count(),
+      const [stats, authorizedUsers, adminRoles] = await Promise.all([
+        getBuiltinFeatureStats(),
         AuthorizedUser.count(),
         AdminRole.count(),
-        TodoChannel.findAll({ attributes: ["guildId"], group: ["guildId"] }),
-        PictureOnlyChannel.findAll({
-          attributes: ["guildId"],
-          group: ["guildId"],
-        }),
-        RconForwardChannel.findAll({
-          attributes: ["guildId"],
-          group: ["guildId"],
-        }),
-        RoleEmojiGroup.findAll({ attributes: ["guildId"], group: ["guildId"] }),
       ]);
-
-      const guildIdSet = new Set<string>();
-      for (const rows of [
-        todoGuilds,
-        pictureGuilds,
-        rconGuilds,
-        roleEmojiGroupGuilds,
-      ]) {
-        for (const row of rows) {
-          guildIdSet.add(row.get("guildId") as string);
-        }
-      }
-
       return {
-        todoChannels,
-        pictureOnlyChannels,
-        rconForwardChannels,
-        roleEmojiGroups,
-        roleEmojis,
+        todoChannels: stats.rowCounts.todoChannels,
+        pictureOnlyChannels: stats.rowCounts.pictureOnlyChannels,
+        rconForwardChannels: stats.rowCounts.rconForwardChannels,
+        roleEmojiGroups: stats.rowCounts.roleEmojiGroups,
+        roleEmojis: stats.rowCounts.roleEmojis,
         authorizedUsers,
         adminRoles,
-        distinctGuilds: guildIdSet.size,
+        distinctGuilds: stats.configuredGuildIds.size,
       };
     } catch (err) {
       request.log.error({ err }, "feature-summary query failed");

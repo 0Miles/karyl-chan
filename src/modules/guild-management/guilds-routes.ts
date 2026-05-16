@@ -1,11 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Client } from "discord.js";
-import { TodoChannel } from "../builtin-features/todo-channel/todo-channel.model.js";
-import { PictureOnlyChannel } from "../builtin-features/picture-only/picture-only-channel.model.js";
-import { RconForwardChannel } from "../builtin-features/rcon-forward/rcon-forward-channel.model.js";
-import { RoleEmoji } from "../builtin-features/role-emoji/role-emoji.model.js";
-import { RoleEmojiGroup } from "../builtin-features/role-emoji/role-emoji-group.model.js";
-import { RoleReceiveMessage } from "../builtin-features/role-emoji/role-receive-message.model.js";
+import { getGuildBuiltinSnapshot } from "../builtin-features/guild-builtin.service.js";
 import { ChannelType } from "discord.js";
 import {
   guildAccessFilter,
@@ -85,50 +80,15 @@ export async function registerGuildsRoutes(
         );
       }
 
-      const [
-        todoChannels,
-        pictureOnlyChannels,
-        rconForwardChannels,
-        roleEmojiGroups,
-        roleReceiveMessages,
-      ] = await Promise.all([
-        TodoChannel.findAll({ where: { guildId: guild.id } }),
-        PictureOnlyChannel.findAll({ where: { guildId: guild.id } }),
-        RconForwardChannel.findAll({ where: { guildId: guild.id } }),
-        RoleEmojiGroup.findAll({
-          where: { guildId: guild.id },
-          order: [["name", "ASC"]],
-        }),
-        RoleReceiveMessage.findAll({ where: { guildId: guild.id } }),
-      ]);
-      // Mappings depend on which groups belong to this guild — pull
-      // them by groupId rather than guildId so we don't expose other
-      // guilds' rows if a stale FK ever sneaks in.
-      const groupIds = roleEmojiGroups.map(
-        (g) => g.getDataValue("id") as number,
-      );
-      const roleEmojis =
-        groupIds.length === 0
-          ? []
-          : await RoleEmoji.findAll({
-              where: { groupId: groupIds },
-              order: [
-                ["groupId", "ASC"],
-                ["sortOrder", "ASC"],
-                ["createdAt", "ASC"],
-              ],
-            });
+      const snapshot = await getGuildBuiltinSnapshot(guild.id);
 
+      // Channel / role names are derived from the live discord.js
+      // cache here at response time — they're not stored in our DB
+      // so the service layer can't know them. Same closures attach
+      // them to each row before returning.
       const channelName = (id: string) =>
         guild.channels.cache.get(id)?.name ?? null;
       const roleName = (id: string) => guild.roles.cache.get(id)?.name ?? null;
-      const roleColor = (id: string) => {
-        const r = guild.roles.cache.get(id);
-        if (!r) return null;
-        const hex =
-          r.color === 0 ? null : `#${r.color.toString(16).padStart(6, "0")}`;
-        return hex;
-      };
 
       return {
         guild: {
@@ -140,39 +100,36 @@ export async function registerGuildsRoutes(
           joinedAt: guild.joinedAt ? guild.joinedAt.toISOString() : null,
           description: guild.description ?? null,
         },
-        todoChannels: todoChannels.map((r) => ({
-          channelId: r.getDataValue("channelId") as string,
-          channelName: channelName(r.getDataValue("channelId") as string),
+        todoChannels: snapshot.todoChannels.map((r) => ({
+          channelId: r.channelId,
+          channelName: channelName(r.channelId),
         })),
-        pictureOnlyChannels: pictureOnlyChannels.map((r) => ({
-          channelId: r.getDataValue("channelId") as string,
-          channelName: channelName(r.getDataValue("channelId") as string),
+        pictureOnlyChannels: snapshot.pictureOnlyChannels.map((r) => ({
+          channelId: r.channelId,
+          channelName: channelName(r.channelId),
         })),
-        rconForwardChannels: rconForwardChannels.map((r) => ({
-          channelId: r.getDataValue("channelId") as string,
-          channelName: channelName(r.getDataValue("channelId") as string),
-          commandPrefix: r.getDataValue("commandPrefix") as string | null,
-          triggerPrefix: r.getDataValue("triggerPrefix") as string | null,
-          host: r.getDataValue("host") as string | null,
-          port: r.getDataValue("port") as number | null,
+        rconForwardChannels: snapshot.rconForwardChannels.map((r) => ({
+          channelId: r.channelId,
+          channelName: channelName(r.channelId),
+          commandPrefix: r.commandPrefix,
+          triggerPrefix: r.triggerPrefix,
+          host: r.host,
+          port: r.port,
         })),
-        roleEmojiGroups: roleEmojiGroups.map((g) => ({
-          id: g.getDataValue("id") as number,
-          name: g.getDataValue("name") as string,
+        roleEmojiGroups: snapshot.roleEmojiGroups,
+        roleEmojis: snapshot.roleEmojis.map((r) => ({
+          groupId: r.groupId,
+          roleId: r.roleId,
+          roleName: roleName(r.roleId),
+          emojiName: r.emojiName,
+          emojiId: r.emojiId,
+          emojiChar: r.emojiChar,
         })),
-        roleEmojis: roleEmojis.map((r) => ({
-          groupId: r.getDataValue("groupId") as number,
-          roleId: r.getDataValue("roleId") as string,
-          roleName: roleName(r.getDataValue("roleId") as string),
-          emojiName: r.getDataValue("emojiName") as string,
-          emojiId: r.getDataValue("emojiId") as string,
-          emojiChar: r.getDataValue("emojiChar") as string,
-        })),
-        roleReceiveMessages: roleReceiveMessages.map((r) => ({
-          channelId: r.getDataValue("channelId") as string,
-          channelName: channelName(r.getDataValue("channelId") as string),
-          messageId: r.getDataValue("messageId") as string,
-          groupId: r.getDataValue("groupId") as number,
+        roleReceiveMessages: snapshot.roleReceiveMessages.map((r) => ({
+          channelId: r.channelId,
+          channelName: channelName(r.channelId),
+          messageId: r.messageId,
+          groupId: r.groupId,
         })),
       };
     },
