@@ -1206,6 +1206,9 @@ export async function registerGuildChannelRoutes(
   // of this guild (Discord rejects voice ops on disconnected members);
   // the route just forwards the discord.js call, which surfaces a 50013
   // when the bot lacks MuteMembers / DeafenMembers / MoveMembers.
+  // Gated on `manage` because these are permanent moderation actions
+  // against members — anyone with `message` (read/write channel
+  // messages) should not also be able to silence or disconnect users.
   server.patch<{
     Params: { guildId: string; userId: string };
     Body: { mute?: unknown };
@@ -1217,7 +1220,7 @@ export async function registerGuildChannelRoutes(
           request,
           reply,
           request.params.guildId,
-          "message",
+          "manage",
         )
       )
         return;
@@ -1254,7 +1257,7 @@ export async function registerGuildChannelRoutes(
           request,
           reply,
           request.params.guildId,
-          "message",
+          "manage",
         )
       )
         return;
@@ -1291,7 +1294,7 @@ export async function registerGuildChannelRoutes(
           request,
           reply,
           request.params.guildId,
-          "message",
+          "manage",
         )
       )
         return;
