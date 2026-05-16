@@ -125,7 +125,24 @@ function renderNode(node: ASTNode, ctx: MessageContext): Renderable {
                 url = ctx.mediaProvider.customEmojiUrl({ id, animated, name }, 44);
             }
             if (!url) return alt;
-            return h('img', { src: url, alt, class: 'custom-emoji', loading: 'lazy' });
+            // onerror fallback: if the Discord CDN returns 404 (emoji
+            // deleted, source guild dropped, or the bot no longer has
+            // access) the broken-image frame iOS Safari paints is
+            // worse than nothing. Replace with the `:name:` chip
+            // matching the alt — same recovery pattern as twemoji.
+            return h('img', {
+                src: url,
+                alt,
+                class: 'custom-emoji',
+                loading: 'lazy',
+                onError: (event: Event) => {
+                    const img = event.target as HTMLImageElement;
+                    const span = document.createElement('span');
+                    span.className = 'custom-emoji-fallback';
+                    span.textContent = alt;
+                    img.replaceWith(span);
+                }
+            });
         }
         case 'twemoji': {
             const raw = String(node.name ?? '');
