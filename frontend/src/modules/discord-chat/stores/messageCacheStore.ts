@@ -171,6 +171,33 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         });
     }
 
+    /**
+     * Apply an optimistic reaction delta and return a rollback closure
+     * that the caller fires only on API failure. The rollback checks
+     * the message reference: if the authoritative SSE-driven state
+     * has replaced the message in the meantime, the rollback is a
+     * no-op (the optimistic write is already gone, and overwriting
+     * truth with our pre-image would corrupt the count). Captures the
+     * post-write message reference so identity, not value, decides.
+     */
+    function optimisticReaction(
+        channelId: string,
+        messageId: string,
+        emoji: MessageEmoji,
+        delta: 1 | -1,
+    ): () => void {
+        applyReactionDelta(channelId, messageId, emoji, delta);
+        const entry = entries[channelId];
+        const optimisticRef = entry?.messages.find(m => m.id === messageId) ?? null;
+        return () => {
+            const e = entries[channelId];
+            if (!e) return;
+            const current = e.messages.find(m => m.id === messageId);
+            if (current !== optimisticRef) return;
+            applyReactionDelta(channelId, messageId, emoji, (delta === 1 ? -1 : 1));
+        };
+    }
+
     return {
         entries,
         get,
@@ -180,6 +207,7 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         loadAround,
         applyEvent,
         applyReactionDelta,
+        optimisticReaction,
         saveScrollPosition,
         getScrollPosition
     };

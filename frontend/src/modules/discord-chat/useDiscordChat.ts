@@ -171,11 +171,11 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
   async function reactAdd(messageId: string, emoji: MessageEmoji) {
     const channelId = opts.channelId.value;
     if (!channelId) return;
-    messageCache.applyReactionDelta(channelId, messageId, emoji, 1);
+    const rollback = messageCache.optimisticReaction(channelId, messageId, emoji, 1);
     try {
       await opts.api.addReaction(channelId, messageId, emoji);
     } catch (err) {
-      messageCache.applyReactionDelta(channelId, messageId, emoji, -1);
+      rollback();
       bail(err);
     }
   }
@@ -183,11 +183,11 @@ export function useDiscordChat(opts: UseDiscordChatOptions) {
   async function reactRemove(messageId: string, emoji: MessageEmoji) {
     const channelId = opts.channelId.value;
     if (!channelId) return;
-    messageCache.applyReactionDelta(channelId, messageId, emoji, -1);
+    const rollback = messageCache.optimisticReaction(channelId, messageId, emoji, -1);
     try {
       await opts.api.removeReaction(channelId, messageId, emoji);
     } catch (err) {
-      messageCache.applyReactionDelta(channelId, messageId, emoji, 1);
+      rollback();
       bail(err);
     }
   }
