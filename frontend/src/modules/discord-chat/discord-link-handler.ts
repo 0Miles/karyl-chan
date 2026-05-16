@@ -2,33 +2,7 @@ import type { Router } from 'vue-router';
 import type { RichLinkHandler } from '../../libs/messages';
 import { flashMessage } from '../../libs/messages/scroll-flash';
 import { useMessageLinkStore } from './stores/messageLinkStore';
-
-// Discord permalink URLs come in several flavours:
-//   https://discord.com/channels/<guildId>/<channelId>/<messageId>        (message link)
-//   https://discord.com/channels/<guildId>/<channelId>                     (channel link)
-//   https://discord.com/channels/@me/<channelId>[/<messageId>]             (DM variants)
-//   https://ptb.discord.com/... / canary.discord.com/... / discordapp.com  (beta + legacy)
-// `@me` maps to `guildId === null`; omitting the trailing id makes it a
-// channel-only link. A trailing slash, query string or fragment is
-// tolerated so users can copy-paste URLs that carry tracking params.
-
-const MSG_LINK_RE = /^https?:\/\/(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(@me|\d+)\/(\d+)(?:\/(\d+))?(?:[/?#].*)?$/;
-
-interface Parsed {
-    guildId: string | null;
-    channelId: string;
-    messageId: string | null;
-}
-
-function parse(url: string): Parsed | null {
-    const m = MSG_LINK_RE.exec(url);
-    if (!m) return null;
-    return {
-        guildId: m[1] === '@me' ? null : m[1],
-        channelId: m[2],
-        messageId: m[3] ?? null
-    };
-}
+import { parseDiscordLink } from './discord-url';
 
 export interface DiscordMessageLinkHandlerOptions {
     router: Router;
@@ -51,7 +25,7 @@ export interface DiscordMessageLinkHandlerOptions {
 export function createDiscordMessageLinkHandler(opts: DiscordMessageLinkHandlerOptions): RichLinkHandler {
     const store = useMessageLinkStore();
     return {
-        matches: (url) => !!parse(url),
+        matches: (url) => !!parseDiscordLink(url),
         async resolve(url) {
             const info = await store.resolve(url);
             if (!info) return null;
@@ -79,7 +53,7 @@ export function createDiscordMessageLinkHandler(opts: DiscordMessageLinkHandlerO
             };
         },
         onClick(_link, url) {
-            const parsed = parse(url);
+            const parsed = parseDiscordLink(url);
             if (!parsed) return;
             const sameGuild = parsed.guildId === opts.currentGuildId();
             if (sameGuild && parsed.channelId === opts.currentChannelId()) {

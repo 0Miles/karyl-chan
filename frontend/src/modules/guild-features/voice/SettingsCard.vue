@@ -26,9 +26,9 @@ const { t } = useI18n();
     </section>
 </template>
 
-<style scoped>
-@import "../_shared/card.css";
+<style scoped src="../_shared/card.css"></style>
 
+<style scoped>
 .card-body {
     padding: 0.5rem 1rem 1rem;
     line-height: 1.6;

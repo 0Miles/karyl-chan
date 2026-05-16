@@ -21,6 +21,7 @@ import {
 } from '../../../api/guilds';
 import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
+import { useScrollToQuery } from '../../../composables/use-scroll-to-query';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import { useToastStore } from '../../../stores/toastStore';
@@ -43,13 +44,7 @@ const toast = useToastStore();
 const { confirm } = useConfirm();
 const guildIdRef = toRef(props, 'guildId');
 const { closeOverlay } = useAppShell();
-
-function clearScrollToQuery() {
-    if (typeof route.query.scrollTo !== 'string' || !route.query.scrollTo) return;
-    const next = { ...route.query };
-    delete next.scrollTo;
-    router.replace({ query: next });
-}
+const { clearScrollToQuery } = useScrollToQuery();
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 const accessDenied = ref(false);

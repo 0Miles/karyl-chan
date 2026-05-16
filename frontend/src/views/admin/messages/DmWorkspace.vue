@@ -10,6 +10,7 @@ import { getPins, runProactiveAction } from '../../../api/dm';
 import { useI18n } from 'vue-i18n';
 import type { Message } from '../../../libs/messages/types';
 import { useAppShell } from '../../../composables/use-app-shell';
+import { useScrollToQuery } from '../../../composables/use-scroll-to-query';
 import { SidebarLayout } from '../../../layouts';
 import AccessDeniedView from '../../../components/AccessDeniedView.vue';
 import { useToastStore } from '../../../stores/toastStore';
@@ -28,17 +29,11 @@ const router = useRouter();
 const route = useRoute();
 const toast = useToastStore();
 const { closeOverlay } = useAppShell();
-
 // `onScrollFinished` fires from the workspace machine once a pending
-// scroll either landed on its target or gave up — we use that as the
-// trigger to drop the `?scrollTo=` query, which otherwise would keep
-// re-triggering the same jump on refresh.
-function clearScrollToQuery() {
-    if (typeof route.query.scrollTo !== 'string' || !route.query.scrollTo) return;
-    const next = { ...route.query };
-    delete next.scrollTo;
-    router.replace({ query: next });
-}
+// scroll either landed on its target or gave up; the composable drops
+// the `?scrollTo=` query so a refresh doesn't keep retriggering the
+// same jump.
+const { clearScrollToQuery } = useScrollToQuery();
 
 const conversationRef = ref<InstanceType<typeof DiscordConversation> | null>(null);
 const accessDenied = ref(false);

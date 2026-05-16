@@ -1,17 +1,6 @@
 import { defineStore } from 'pinia';
 import { fetchMessageLink, type DiscordMessageLinkInfo } from '../../../api/discord';
-
-// Mirrors the matcher in `discord-link-handler.ts` — kept local to the
-// store to avoid a circular import (the handler depends on this store).
-// Tolerates ptb/canary subdomains and any trailing query/fragment; the
-// message id is optional so channel-only links resolve too.
-const MSG_LINK_RE = /^https?:\/\/(?:www\.|ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(@me|\d+)\/(\d+)(?:\/(\d+))?(?:[/?#].*)?$/;
-
-function parseMessageLink(url: string): { guildId: string | null; channelId: string; messageId: string | null } | null {
-    const m = MSG_LINK_RE.exec(url);
-    if (!m) return null;
-    return { guildId: m[1] === '@me' ? null : m[1], channelId: m[2], messageId: m[3] ?? null };
-}
+import { parseDiscordLink } from '../discord-url';
 
 type CachedValue = DiscordMessageLinkInfo | null;
 
@@ -27,7 +16,7 @@ export const useMessageLinkStore = defineStore('discord-message-link', () => {
     const inflight = new Map<string, Promise<CachedValue>>();
 
     async function resolve(url: string): Promise<CachedValue> {
-        const parsed = parseMessageLink(url);
+        const parsed = parseDiscordLink(url);
         if (!parsed) return null;
         if (cache.has(url)) return cache.get(url) ?? null;
         const pending = inflight.get(url);
