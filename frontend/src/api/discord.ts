@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { ApiError, authedFetch, jsonOrThrow } from "./client";
 import type {
   CustomEmoji,
   GuildBucket,
@@ -7,16 +7,6 @@ import type {
 import type { DiscordUserSummary } from "./types";
 
 export type { CustomEmoji, GuildBucket, GuildSticker, DiscordUserSummary };
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      `${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as T;
-}
 
 export async function listEmojis(): Promise<GuildBucket<CustomEmoji>[]> {
   const response = await authedFetch("/api/discord/emojis");

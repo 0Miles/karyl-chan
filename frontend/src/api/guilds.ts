@@ -1,4 +1,4 @@
-import { ApiError, authedFetch, openTicketedSse } from "./client";
+import { ApiError, authedFetch, jsonOrThrow, openTicketedSse } from "./client";
 import type { Message, MessageEmoji } from "../libs/messages";
 
 export interface GuildSummary {
@@ -50,15 +50,6 @@ export interface GuildDetail {
   roleEmojiGroups: RoleEmojiGroupEntry[];
   roleEmojis: RoleEmojiEntry[];
   roleReceiveMessages: RoleReceiveMessageEntry[];
-}
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok)
-    throw new ApiError(
-      response.status,
-      `${response.status} ${response.statusText}`,
-    );
-  return (await response.json()) as T;
 }
 
 export async function listGuilds(): Promise<GuildSummary[]> {

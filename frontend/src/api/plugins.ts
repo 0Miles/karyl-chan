@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { ApiError, authedFetch, jsonOrThrow } from "./client";
 
 /**
  * Plugin admin API client. Mirrors the bot-side route shapes in
@@ -97,19 +97,6 @@ export interface PluginRecord {
   enabled: boolean;
   lastHeartbeatAt: string | null;
   manifest: PluginManifest | null;
-}
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new ApiError(
-      response.status,
-      body.error ?? `${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as T;
 }
 
 export async function listPlugins(): Promise<PluginRecord[]> {

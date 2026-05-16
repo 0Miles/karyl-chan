@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { authedFetch, jsonOrThrow } from "./client";
 
 /**
  * Plugin guild-feature admin API. Two complementary surfaces:
@@ -54,19 +54,6 @@ export interface FeatureDefaultItem {
   effectiveDefault: boolean;
   enabledGuildCount: number;
   disabledGuildCount: number;
-}
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new ApiError(
-      response.status,
-      body.error ?? `${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as T;
 }
 
 export async function listGuildFeatures(

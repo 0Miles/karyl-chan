@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { authedFetch, jsonOrThrow } from "./client";
 
 /**
  * Admin API for the bot's in-process (built-in) features.
@@ -18,19 +18,6 @@ export interface BuiltinFeatureState {
   default: { enabled: boolean; updatedAt: string } | null;
   effectiveDefault: boolean;
   perGuild: Array<{ guildId: string; enabled: boolean; updatedAt: string }>;
-}
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    throw new ApiError(
-      response.status,
-      body.error ?? `${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as T;
 }
 
 export async function listBuiltinFeatureState(): Promise<

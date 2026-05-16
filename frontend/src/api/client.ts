@@ -75,12 +75,33 @@ export async function authedFetch(path: string, init: RequestInit = {}): Promise
     return response;
 }
 
-async function getJson<T>(path: string): Promise<T> {
-    const response = await authedFetch(path);
+/**
+ * Promote a Fastify response into a typed JSON body — or throw an
+ * `ApiError` carrying the richest available message. Surfaces the
+ * server's `body.error` string when it ships one (most routes do),
+ * falls back to the status line, and tolerates non-JSON bodies (proxy
+ * error pages). This is the canonical version; per-module copies in
+ * api/*.ts previously diverged in subtle ways (some lost body.error,
+ * some printed an empty statusText on HTTP/2).
+ */
+export async function jsonOrThrow<T>(response: Response): Promise<T> {
     if (!response.ok) {
-        throw new ApiError(response.status, `${response.status} ${response.statusText}`);
+        let message = `${response.status}${response.statusText ? ' ' + response.statusText : ''}`;
+        try {
+            const body = await response.json();
+            if (body && typeof body.error === 'string' && body.error.length > 0) {
+                message = body.error;
+            }
+        } catch {
+            // Non-JSON body (e.g. proxy error page). Keep the status line.
+        }
+        throw new ApiError(response.status, message);
     }
     return response.json() as Promise<T>;
+}
+
+async function getJson<T>(path: string): Promise<T> {
+    return jsonOrThrow<T>(await authedFetch(path));
 }
 
 export async function exchangeOneTimeToken(token: string): Promise<IssuedTokens> {

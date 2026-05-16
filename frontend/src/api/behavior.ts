@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { authedFetch, jsonOrThrow } from "./client";
 
 // ── v2 列舉型別 ──────────────────────────────────────────────────────────────
 
@@ -126,20 +126,6 @@ export interface BehaviorPatchPayload {
   webhookUrl?: string | null;
   webhookSecret?: string | null;
   webhookAuthMode?: BehaviorWebhookAuthMode | null;
-}
-
-// ── 輔助 ──────────────────────────────────────────────────────────────────────
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new ApiError(
-      response.status,
-      (body as { error?: string }).error ??
-        `${response.status} ${response.statusText}`,
-    );
-  }
-  return (await response.json()) as T;
 }
 
 // ── v2 Behaviors API ─────────────────────────────────────────────────────────

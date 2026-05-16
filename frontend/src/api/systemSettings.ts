@@ -1,5 +1,4 @@
-import { authedFetch } from "./client";
-import { ApiError } from "./client";
+import { authedFetch, jsonOrThrow } from "./client";
 
 // ── Type definitions ──────────────────────────────────────────────────────────
 
@@ -72,23 +71,9 @@ export function isSensitiveField(f: SettingsField): f is SensitiveField {
 
 // ── API call ──────────────────────────────────────────────────────────────────
 
-async function json<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const body = await response.json();
-      if (body && typeof body.error === "string") message = body.error;
-    } catch {
-      // non-JSON body
-    }
-    throw new ApiError(response.status, message);
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function getSystemSettings(): Promise<SystemSettingsResponse> {
   const response = await authedFetch("/api/admin/system-settings");
-  return json<SystemSettingsResponse>(response);
+  return jsonOrThrow<SystemSettingsResponse>(response);
 }
 
 // ── JWT signing key ───────────────────────────────────────────────────────────
@@ -105,7 +90,7 @@ export interface JwtSigningKeyInfo {
 
 export async function getJwtSigningKey(): Promise<JwtSigningKeyInfo> {
   const response = await authedFetch("/api/admin/jwt-signing-key");
-  return json<JwtSigningKeyInfo>(response);
+  return jsonOrThrow<JwtSigningKeyInfo>(response);
 }
 
 export interface RotateJwtSigningKeyResult {
@@ -119,5 +104,5 @@ export async function rotateJwtSigningKey(): Promise<RotateJwtSigningKeyResult> 
   const response = await authedFetch("/api/admin/jwt-signing-key/rotate", {
     method: "POST",
   });
-  return json<RotateJwtSigningKeyResult>(response);
+  return jsonOrThrow<RotateJwtSigningKeyResult>(response);
 }

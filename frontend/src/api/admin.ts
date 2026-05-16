@@ -1,4 +1,4 @@
-import { ApiError, authedFetch } from "./client";
+import { ApiError, authedFetch, jsonOrThrow } from "./client";
 import type {
   AdminAuditEntry,
   AdminLoginEntry,
@@ -41,28 +41,14 @@ export interface AdminUserList {
   users: AuthorizedUser[];
 }
 
-async function json<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = `HTTP ${response.status}`;
-    try {
-      const body = await response.json();
-      if (body && typeof body.error === "string") message = body.error;
-    } catch {
-      // non-JSON error body — keep the generic message
-    }
-    throw new ApiError(response.status, message);
-  }
-  return response.json() as Promise<T>;
-}
-
 export async function getCurrentUser(): Promise<CurrentUser> {
   const response = await authedFetch("/api/admin/me");
-  return json<CurrentUser>(response);
+  return jsonOrThrow<CurrentUser>(response);
 }
 
 export async function listAdminUsers(): Promise<AdminUserList> {
   const response = await authedFetch("/api/admin/users");
-  return json<AdminUserList>(response);
+  return jsonOrThrow<AdminUserList>(response);
 }
 
 export async function upsertAdminUser(payload: {
@@ -75,7 +61,7 @@ export async function upsertAdminUser(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return json<AuthorizedUser>(response);
+  return jsonOrThrow<AuthorizedUser>(response);
 }
 
 export async function deleteAdminUser(userId: string): Promise<void> {
@@ -97,7 +83,7 @@ export async function listAdminCapabilities(): Promise<
   AdminCapabilityCatalogItem[]
 > {
   const response = await authedFetch("/api/admin/capabilities");
-  const body = await json<{ capabilities: AdminCapabilityCatalogItem[] }>(
+  const body = await jsonOrThrow<{ capabilities: AdminCapabilityCatalogItem[] }>(
     response,
   );
   return body.capabilities;
@@ -114,13 +100,13 @@ export async function listPluginCapabilities(): Promise<
   PluginCapabilityGroup[]
 > {
   const response = await authedFetch("/api/admin/plugin-capabilities");
-  const body = await json<{ plugins: PluginCapabilityGroup[] }>(response);
+  const body = await jsonOrThrow<{ plugins: PluginCapabilityGroup[] }>(response);
   return body.plugins;
 }
 
 export async function listAdminRoles(): Promise<AdminRole[]> {
   const response = await authedFetch("/api/admin/roles");
-  const body = await json<{ roles: AdminRole[] }>(response);
+  const body = await jsonOrThrow<{ roles: AdminRole[] }>(response);
   return body.roles;
 }
 
@@ -133,7 +119,7 @@ export async function upsertAdminRole(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  return json<AdminRole>(response);
+  return jsonOrThrow<AdminRole>(response);
 }
 
 export async function patchAdminRole(
@@ -148,7 +134,7 @@ export async function patchAdminRole(
       body: JSON.stringify(payload),
     },
   );
-  return json<AdminRole>(response);
+  return jsonOrThrow<AdminRole>(response);
 }
 
 export async function deleteAdminRole(name: string): Promise<void> {
@@ -212,7 +198,7 @@ export async function fetchRecentAudit(
   const params = new URLSearchParams({ limit: String(limit) });
   if (before !== undefined) params.set("before", String(before));
   const response = await authedFetch(`/api/admin/audit?${params.toString()}`);
-  const body = await json<{ entries: AdminAuditEntry[] }>(response);
+  const body = await jsonOrThrow<{ entries: AdminAuditEntry[] }>(response);
   return body.entries;
 }
 
@@ -232,12 +218,12 @@ export async function fetchBotEvents(
   const response = await authedFetch(
     `/api/admin/bot-events?${params.toString()}`,
   );
-  return json<{ events: BotEvent[]; hasMore: boolean }>(response);
+  return jsonOrThrow<{ events: BotEvent[]; hasMore: boolean }>(response);
 }
 
 export async function fetchAdminLoginStatus(): Promise<{
   admins: AdminLoginEntry[];
 }> {
   const response = await authedFetch("/api/admin/login-status");
-  return json<{ admins: AdminLoginEntry[] }>(response);
+  return jsonOrThrow<{ admins: AdminLoginEntry[] }>(response);
 }

@@ -1,4 +1,4 @@
-import { ApiError, authedFetch, openTicketedSse } from './client';
+import { ApiError, authedFetch, jsonOrThrow, openTicketedSse } from './client';
 import type { Message, MessageEmoji } from '../libs/messages';
 
 export interface DmRecipient {
@@ -33,14 +33,6 @@ export type DmEvent =
     | { type: 'message-deleted'; channelId: string; messageId: string }
     | { type: 'channel-touched'; channel: DmChannelSummary }
     | { type: 'typing-start'; channelId: string; userId: string; userName: string; startedAt: number };
-
-async function jsonOrThrow<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new ApiError(response.status, (body as { error?: string }).error ?? `${response.status} ${response.statusText}`);
-    }
-    return (await response.json()) as T;
-}
 
 export async function listChannels(): Promise<DmChannelSummary[]> {
     const response = await authedFetch('/api/dm/channels');
