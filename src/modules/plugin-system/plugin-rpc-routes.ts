@@ -27,6 +27,34 @@ import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
 import { makePluginCapabilityToken } from "../admin/admin-capabilities.js";
 
 /**
+ * Strip dangerous `parse` entries from a plugin-supplied
+ * `allowed_mentions` object so a `parse: ["everyone"]` field can't be
+ * smuggled into `channel.send`. Only the explicit allowlists (users /
+ * roles / repliedUser) survive — a plugin that wants to ping a role
+ * must opt in by ID via `roles: ["<id>"]`, not by bulk-parsing every
+ * `<@&id>` token in the content. Snowflake-shaped strings only on the
+ * id lists (defence in depth against `everyone` smuggled into `roles`).
+ */
+const SNOWFLAKE_RE = /^[0-9]{17,20}$/;
+function safeAllowedMentions(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object") return { parse: [] };
+  const m = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = { parse: [] };
+  if (Array.isArray(m.users)) {
+    out.users = m.users.filter(
+      (v): v is string => typeof v === "string" && SNOWFLAKE_RE.test(v),
+    );
+  }
+  if (Array.isArray(m.roles)) {
+    out.roles = m.roles.filter(
+      (v): v is string => typeof v === "string" && SNOWFLAKE_RE.test(v),
+    );
+  }
+  if (typeof m.repliedUser === "boolean") out.repliedUser = m.repliedUser;
+  return out;
+}
+
+/**
  * Plugin RPC endpoints: the things plugins are allowed to ask the bot
  * to do on their behalf. Auth (bearer plugin token → request.pluginAuth)
  * is enforced by server.ts onRequest hook before any handler runs.
@@ -199,13 +227,14 @@ export async function registerPluginRpcRoutes(
         return;
       }
     }
-    // Block @everyone / @here / role pings unless the plugin
-    // explicitly opts in. Default to "no parsed mentions" so a
-    // misbehaving plugin can't surprise everyone.
-    const allowedMentions =
-      body.allowed_mentions && typeof body.allowed_mentions === "object"
-        ? (body.allowed_mentions as Record<string, unknown>)
-        : { parse: [] };
+    // Sanitize allowed_mentions — plugins must not be able to force
+    // mass-ping behaviour. We strip `parse` entirely (the field that
+    // toggles broad @everyone / @here / "every role mention in
+    // content" parsing) and only forward the explicit `users` /
+    // `roles` / `repliedUser` allowlists. A plugin wanting to ping
+    // role X must list `<@&X>` in the content AND `roles: ["X"]`
+    // explicitly — no bulk opt-in.
+    const allowedMentions = safeAllowedMentions(body.allowed_mentions);
     try {
       const sent = await channel.send({
         content,
@@ -306,10 +335,7 @@ export async function registerPluginRpcRoutes(
       reply.code(404).send({ error: `user fetch failed: ${msg}` });
       return;
     }
-    const allowedMentions =
-      body.allowed_mentions && typeof body.allowed_mentions === "object"
-        ? (body.allowed_mentions as Record<string, unknown>)
-        : { parse: [] };
+    const allowedMentions = safeAllowedMentions(body.allowed_mentions);
     try {
       const sent = await user.send({
         content,
