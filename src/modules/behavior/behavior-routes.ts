@@ -39,6 +39,7 @@ import {
   rowOf as tabRowOf,
 } from "./models/behavior-scope-tab.model.js";
 import { Op, fn, col } from "sequelize";
+import { sequelize } from "../../db.js";
 import { encryptSecret } from "../../utils/crypto.js";
 import { botEventLog } from "../bot-events/bot-event-log.js";
 import type { CommandReconciler } from "../command-system/reconcile.service.js";
@@ -636,15 +637,28 @@ export async function registerBehaviorRoutes(
     if (!Array.isArray(body.orderedIds)) {
       return reply.code(400).send({ error: "orderedIds 為必填陣列" });
     }
+    // Cap the batch so a malicious / typo'd request can't ship a
+    // gigantic array that takes the lock for seconds.
+    if (body.orderedIds.length > 500) {
+      return reply.code(400).send({ error: "orderedIds 過長 (max 500)" });
+    }
 
-    await Promise.all(
-      body.orderedIds.map((id, index) =>
-        Behavior.update(
+    // Single transaction: a concurrent read of the behaviors table
+    // mid-reorder used to see partially-applied sort orders, and a
+    // failure on the Nth update left the first N-1 rows reordered
+    // with no rollback. Sequelize will wrap the entire block in a
+    // BEGIN/COMMIT against SQLite.
+    await sequelize.transaction(async (transaction) => {
+      for (let index = 0; index < body.orderedIds!.length; index++) {
+        await Behavior.update(
           { sortOrder: index },
-          { where: { id, source: "custom" } },
-        ),
-      ),
-    );
+          {
+            where: { id: body.orderedIds![index], source: "custom" },
+            transaction,
+          },
+        );
+      }
+    });
 
     return reply.send({ ok: true });
   });
