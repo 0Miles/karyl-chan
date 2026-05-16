@@ -28,6 +28,35 @@ import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
 import { makePluginCapabilityToken } from "../admin/admin-capabilities.js";
 
 /**
+ * Map a thrown error from a discord.js call into the right HTTP
+ * status for the plugin RPC reply. Without this, a transient
+ * Discord outage was returned as `400 send failed: …` — the
+ * caller's plugin would treat it as a permanent caller-side fault
+ * and stop retrying. Real classification:
+ *
+ *   Missing Permissions / Missing Access (50013 / 50001) → 403
+ *   Unknown Channel / Message / User    (10003 / 10008 / 10013) → 404
+ *   Rate-limited                         → 429
+ *   Other Discord 5xx                    → 502
+ *   Everything else                      → 400 (caller bug)
+ *
+ * Uses duck-typing on the `code` / `status` fields so we don't have
+ * to import DiscordAPIError at the top of every catch block.
+ */
+function discordErrorStatus(err: unknown): number {
+  if (!err || typeof err !== "object") return 400;
+  const e = err as { code?: unknown; status?: unknown };
+  const code = typeof e.code === "number" ? e.code : null;
+  const status = typeof e.status === "number" ? e.status : null;
+  if (code === 50013 || code === 50001) return 403;
+  if (code === 10003 || code === 10008 || code === 10013 || code === 10007)
+    return 404;
+  if (status === 429) return 429;
+  if (status !== null && status >= 500) return 502;
+  return 400;
+}
+
+/**
  * Strip dangerous `parse` entries from a plugin-supplied
  * `allowed_mentions` object so a `parse: ["everyone"]` field can't be
  * smuggled into `channel.send`. Only the explicit allowlists (users /
@@ -260,7 +289,7 @@ export async function registerPluginRpcRoutes(
       return { id: sent.id, channel_id: sent.channelId };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      reply.code(400).send({ error: `send failed: ${msg}` });
+      reply.code(discordErrorStatus(err)).send({ error: `send failed: ${msg}` });
       return;
     }
   });
@@ -356,7 +385,7 @@ export async function registerPluginRpcRoutes(
       return { id: sent.id, channel_id: sent.channelId };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      reply.code(400).send({ error: `send_dm failed: ${msg}` });
+      reply.code(discordErrorStatus(err)).send({ error: `send_dm failed: ${msg}` });
       return;
     }
   });
@@ -394,7 +423,7 @@ export async function registerPluginRpcRoutes(
       return { ok: true };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      reply.code(400).send({ error: `delete failed: ${msg}` });
+      reply.code(discordErrorStatus(err)).send({ error: `delete failed: ${msg}` });
     }
   });
 
@@ -475,7 +504,7 @@ export async function registerPluginRpcRoutes(
       return { id: msg.id, channel_id: msg.channelId };
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
-      reply.code(400).send({ error: `edit failed: ${m}` });
+      reply.code(discordErrorStatus(err)).send({ error: `edit failed: ${m}` });
     }
   });
 
@@ -511,7 +540,7 @@ export async function registerPluginRpcRoutes(
       return { ok: true };
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
-      reply.code(400).send({ error: `add_reaction failed: ${m}` });
+      reply.code(discordErrorStatus(err)).send({ error: `add_reaction failed: ${m}` });
     }
   });
 
