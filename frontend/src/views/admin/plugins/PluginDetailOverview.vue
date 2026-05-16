@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { getPluginConfig, setPluginConfig, type PluginConfigField, type PluginDetailRecord } from '../../../api/plugins';
+import { safeHref } from '../../../libs/messages/safe-href';
 
 const props = defineProps<{
     plugin: PluginDetailRecord;
@@ -88,7 +89,7 @@ onMounted(() => {
                 <div v-if="manifest?.plugin.homepage" class="meta-row">
                     <dt>{{ t('admin.plugins.detail.overviewMeta.homepage') }}</dt>
                     <dd>
-                        <a :href="manifest.plugin.homepage" target="_blank" rel="noopener" class="link">
+                        <a :href="safeHref(manifest.plugin.homepage)" target="_blank" rel="noopener noreferrer" class="link">
                             {{ manifest.plugin.homepage }}
                         </a>
                     </dd>

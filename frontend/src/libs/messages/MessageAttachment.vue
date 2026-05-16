@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useMessageContext } from './context';
 import { useLightboxStore } from '../../modules/discord-chat/stores/lightboxStore';
+import { safeHref } from './safe-href';
 import type { MessageAttachment } from './types';
 
 const props = defineProps<{
@@ -65,7 +66,7 @@ function open() {
         />
         <video v-else-if="kind === 'video'" :src="attachment.url" controls preload="metadata" class="video" />
         <audio v-else-if="kind === 'audio'" :src="attachment.url" controls class="audio" />
-        <a v-else :href="attachment.url" target="_blank" rel="noopener noreferrer" class="file">
+        <a v-else :href="safeHref(attachment.url)" target="_blank" rel="noopener noreferrer" class="file">
             <span class="filename">{{ attachment.filename }}</span>
             <span class="size">{{ sizeLabel }}</span>
         </a>

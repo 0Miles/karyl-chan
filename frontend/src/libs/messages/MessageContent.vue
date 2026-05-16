@@ -3,6 +3,7 @@ import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import MentionChip from './MentionChip.vue';
 import RichLinkChip from './RichLinkChip.vue';
 import { useMessageContext, type MessageContext } from './context';
+import { safeHref } from './safe-href';
 import { twemojiUrl } from './twemoji';
 import type { ASTNode } from './markdown';
 
@@ -84,8 +85,12 @@ function renderNode(node: ASTNode, ctx: MessageContext): Renderable {
             // plain anchor so this module stays platform-agnostic.
             const handler = ctx.linkHandlers?.find(h => h.matches(target));
             if (handler) return h(RichLinkChip, { url: target, handler });
+            const href = safeHref(target);
+            // Render the autolink's text content regardless, but the
+            // anchor is inert when the scheme isn't web-safe — same
+            // visual, no `javascript:` execution path.
             return h('a', {
-                href: target,
+                href,
                 target: '_blank',
                 rel: 'noopener noreferrer',
                 class: 'link'

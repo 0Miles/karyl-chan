@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import MessageContent from './MessageContent.vue';
 import { parseMessageContent } from './markdown';
+import { safeHref } from './safe-href';
 import type { MessageEmbed } from './types';
 
 const props = defineProps<{ embed: MessageEmbed }>();
@@ -38,7 +39,7 @@ function preferProxy(image: { url: string; proxyUrl?: string }): string {
 <template>
     <a
         v-if="imageOnly && standaloneImage"
-        :href="embed.url ?? standaloneImage.url"
+        :href="safeHref(embed.url ?? standaloneImage.url)"
         target="_blank"
         rel="noopener noreferrer"
         class="image-only"
@@ -50,11 +51,11 @@ function preferProxy(image: { url: string; proxyUrl?: string }): string {
             <div class="embed-body">
                 <div v-if="embed.author" class="author">
                     <img v-if="embed.author.iconUrl" :src="embed.author.iconUrl" alt="" class="icon" />
-                    <a v-if="embed.author.url" :href="embed.author.url" target="_blank" rel="noopener noreferrer">{{ embed.author.name }}</a>
+                    <a v-if="embed.author.url" :href="safeHref(embed.author.url)" target="_blank" rel="noopener noreferrer">{{ embed.author.name }}</a>
                     <span v-else>{{ embed.author.name }}</span>
                 </div>
                 <h3 v-if="embed.title" class="title">
-                    <a v-if="embed.url" :href="embed.url" target="_blank" rel="noopener noreferrer">{{ embed.title }}</a>
+                    <a v-if="embed.url" :href="safeHref(embed.url)" target="_blank" rel="noopener noreferrer">{{ embed.title }}</a>
                     <template v-else>{{ embed.title }}</template>
                 </h3>
                 <MessageContent v-if="descriptionAst" :nodes="descriptionAst" class="description" />
