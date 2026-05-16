@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue';
+import { computed, onBeforeUnmount, ref, type Ref } from 'vue';
 import type { ContextMenuAction } from '../../libs/messages/MessageContextMenu.vue';
 import type { Message } from '../../libs/messages/types';
 import { useUnreadStore } from './stores/unreadStore';
@@ -39,11 +39,8 @@ export function useMessageContextMenu(opts: {
         return !!botUserId.value && message.author.id === botUserId.value;
     }
 
-    function openContextMenu(event: MouseEvent | TouchEvent, message: Message) {
-        const point = 'touches' in event && event.touches.length > 0
-            ? { x: event.touches[0].clientX, y: event.touches[0].clientY }
-            : { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY };
-        ctxMenu.value = { x: point.x, y: point.y, messageId: message.id };
+    function openAt(x: number, y: number, message: Message) {
+        ctxMenu.value = { x, y, messageId: message.id };
     }
 
     function onMessageContextMenu(event: MouseEvent, message: Message) {
@@ -52,15 +49,20 @@ export function useMessageContextMenu(opts: {
         const target = event.target as HTMLElement | null;
         if (target?.closest('[contenteditable="true"], textarea, input')) return;
         event.preventDefault();
-        openContextMenu(event, message);
+        openAt(event.clientX, event.clientY, message);
     }
 
     function onMessageTouchStart(event: TouchEvent, message: Message) {
         if (event.touches.length !== 1) return;
+        // Snapshot the coordinates now — by the time the 500ms timer
+        // fires, `event.touches` may be empty (finger lifted) or
+        // stale, and reading `.clientX` off it would yield NaN and
+        // render the menu at (0, 0).
+        const { clientX: x, clientY: y } = event.touches[0];
         if (longPressTimer) clearTimeout(longPressTimer);
         longPressTimer = setTimeout(() => {
             longPressTimer = null;
-            openContextMenu(event, message);
+            openAt(x, y, message);
         }, LONG_PRESS_MS);
     }
 
@@ -70,6 +72,16 @@ export function useMessageContextMenu(opts: {
             longPressTimer = null;
         }
     }
+
+    // Tear down a pending long-press if the host component unmounts
+    // before it fires — otherwise the timer would open the context
+    // menu on whatever page replaced this one.
+    onBeforeUnmount(() => {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    });
 
     const ctxActions = computed<ContextMenuAction[]>(() => {
         if (!ctxMenu.value) return [];
