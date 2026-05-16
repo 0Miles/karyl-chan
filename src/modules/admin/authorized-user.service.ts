@@ -78,18 +78,24 @@ function toUserRecord(
 // missing defaults.
 
 export async function seedDefaultRoles(): Promise<void> {
-  for (const def of DEFAULT_ROLES) {
-    await AdminRole.findOrCreate({
-      where: { name: def.name },
-      defaults: { name: def.name, description: def.description },
-    });
-    for (const cap of def.capabilities) {
-      await AdminRoleCapability.findOrCreate({
-        where: { role: def.name, capability: cap },
-        defaults: { role: def.name, capability: cap },
-      });
-    }
-  }
+  // Bulk-insert with ignoreDuplicates so each table is hit at most
+  // once. The old per-capability `findOrCreate` loop fired
+  // (1 + N capabilities) sequential DB round-trips for every default
+  // role — at ~12 capabilities on the admin role that's 13 round-
+  // trips behind the readiness check on every cold boot.
+  await AdminRole.bulkCreate(
+    DEFAULT_ROLES.map((def) => ({
+      name: def.name,
+      description: def.description,
+    })),
+    { ignoreDuplicates: true },
+  );
+  await AdminRoleCapability.bulkCreate(
+    DEFAULT_ROLES.flatMap((def) =>
+      def.capabilities.map((cap) => ({ role: def.name, capability: cap })),
+    ),
+    { ignoreDuplicates: true },
+  );
 }
 
 /**
