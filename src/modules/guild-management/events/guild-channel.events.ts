@@ -26,15 +26,24 @@ async function publishReactionUpdate(
   const guildId = (channel as TextChannel).guildId;
   const channelId = reaction.message.channelId;
   const messageId = reaction.message.id;
-  // Wipe the cached message's reactions before the force-fetch, so
-  // discord.js's `_patch` preserve-when-omitted logic preserves an
-  // empty cache instead of stale ghost entries — same root cause as
-  // the bulk-message route. (See guild-channel-routes' fetch path.)
-  const cached = (channel as TextChannel).messages.cache.get(messageId);
-  if (cached) cached.reactions.cache.clear();
-  const message = await (channel as TextChannel).messages
-    .fetch({ message: messageId, force: true })
-    .catch(() => null);
+  // Only force-fetch when the message is partial (not in cache).
+  // For a fully-cached message, the gateway event has already
+  // updated `message.reactions.cache`, so the REST round-trip
+  // is wasted — and at scale (role-emoji on a popular message)
+  // queued behind discord.js's rate-limit bucket.
+  let message: Message | null;
+  if (reaction.message.partial) {
+    // Pre-clear the cached reactions before the force-fetch so
+    // discord.js's `_patch` preserve-when-omitted logic doesn't
+    // keep ghost entries from a stale cache state.
+    const cached = (channel as TextChannel).messages.cache.get(messageId);
+    if (cached) cached.reactions.cache.clear();
+    message = await (channel as TextChannel).messages
+      .fetch({ message: messageId, force: true })
+      .catch(() => null);
+  } else {
+    message = reaction.message as Message;
+  }
   if (!message) return;
   guildChannelEventBus.publish({
     type: "guild-message-updated",

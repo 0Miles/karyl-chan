@@ -2,6 +2,7 @@ import {
   ChannelType,
   type Client,
   type DMChannel,
+  type Message,
   type MessageReaction,
   type PartialMessageReaction,
   type PartialUser,
@@ -29,9 +30,17 @@ async function publishReactionUpdate(
   if (client.user && user.id === client.user.id) return;
   const channelId = reaction.message.channelId;
   const messageId = reaction.message.id;
-  const message = await (channel as DMChannel).messages
-    .fetch({ message: messageId, force: true })
-    .catch(() => null);
+  // The reaction payload from the gateway already mutated
+  // `message.reactions.cache`; only force-fetch when the message
+  // itself is partial (not in cache). `force: true` on every event
+  // burns a REST request per reaction — at 50 users reacting in
+  // sequence that's 50 sequential REST calls behind discord.js's
+  // rate-limit bucket.
+  const message = reaction.message.partial
+    ? await (channel as DMChannel).messages
+        .fetch({ message: messageId, force: true })
+        .catch(() => null)
+    : (reaction.message as Message);
   if (!message) return;
   dmEventBus.publish({
     type: "message-updated",
