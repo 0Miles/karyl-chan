@@ -285,6 +285,12 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
   // got before giving up.
   // INFO level (not debug) so it surfaces in prod where the default
   // is LOG_LEVEL=info; this is intended audit data, not noisy debug.
+  //
+  // Both listeners are removed on Idle. The error handler used to be
+  // registered without cleanup; every playUrl call added a fresh
+  // `error` listener and the AudioPlayer eventually crossed Node's
+  // 10-listener warning threshold, after which Node logs a leak
+  // warning on every play.
   const onStateChange = (
     oldState: { status: string },
     newState: { status: string },
@@ -294,15 +300,17 @@ export function playUrl(guildId: string, url: string): VoiceStatus {
       "audio player state change",
     );
   };
-  state.player.on("stateChange", onStateChange);
-  state.player.on("error", (err) => {
+  const onError = (err: Error): void => {
     log.error({ err, url, guildId }, "audio player error");
-  });
+  };
+  state.player.on("stateChange", onStateChange);
+  state.player.on("error", onError);
   state.player.once(AudioPlayerStatus.Idle, () => {
     if (state.playingUrl === url) {
       state.playingUrl = null;
     }
     state.player.off("stateChange", onStateChange);
+    state.player.off("error", onError);
   });
   return getStatus(guildId);
 }
