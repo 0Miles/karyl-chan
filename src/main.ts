@@ -33,7 +33,7 @@ import {
   auditStoredCapabilities,
   seedDefaultRoles,
 } from "./modules/admin/authorized-user.service.js";
-import { botEventLog } from "./modules/bot-events/bot-event-log.js";
+import { botEventLog, startBotEventLogPruner } from "./modules/bot-events/bot-event-log.js";
 import { ensureSystemBehaviors } from "./modules/behavior/system-seed.service.js";
 import { ensureFixedScopeTabs } from "./modules/behavior/scope-tab-seed.service.js";
 import { shouldRecord } from "./modules/bot-events/bot-event-dedup.js";
@@ -551,6 +551,9 @@ async function run() {
     // beat doesn't trigger). Runs in-process; unref'd so it doesn't
     // hold the event loop alive on shutdown.
     pluginRegistry.startReaper();
+    // Bound the bot_events table — see bot-event-log.ts for the
+    // rationale + caps. Runs in-process every 10 minutes, unref'd.
+    startBotEventLogPruner();
     // Build the in-memory event subscription index from rows already
     // in the plugins table. Without this, plugins that registered
     // before the last bot restart wouldn't receive events until they
