@@ -105,7 +105,11 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
         try {
             const result = await listFn(channelId, { limit: PAGE_SIZE, before: entry.messages[0].id });
             if (result.messages.length === 0) { entry.hasMore = false; return; }
-            entry.messages = [...result.messages, ...entry.messages];
+            // unshift in-place rather than rebuilding the array — Vue's
+            // reactive proxy fires granular invalidations on the
+            // mutated slots only, so DynamicScroller doesn't recycle
+            // every existing row. Same effect for `[...result.messages, ...entry.messages]`.
+            entry.messages.unshift(...result.messages);
             entry.hasMore = result.hasMore;
         } finally {
             entry.loadingOlder = false;
@@ -142,33 +146,44 @@ export const useMessageCacheStore = defineStore('discord-message-cache', () => {
     function applyEvent(event: ChannelMessageEvent): void {
         const entry = entries[event.channelId];
         if (!entry?.loaded) return;
+        // Mutate the messages array in place (push / splice) instead
+        // of replacing the reference. Vue's reactive proxy dispatches
+        // per-index invalidations, so DynamicScroller only re-renders
+        // the row that actually changed — replacing the whole array
+        // reference used to trigger a full visible-window re-render
+        // on every incoming reaction / edit / deletion.
         if (event.type === 'message-created') {
             if (entry.messages.some(m => m.id === event.message.id)) return;
-            entry.messages = [...entry.messages, event.message];
+            entry.messages.push(event.message);
         } else if (event.type === 'message-updated') {
-            entry.messages = entry.messages.map(m =>
-                m.id === event.message.id ? event.message : m
-            );
+            const idx = entry.messages.findIndex(m => m.id === event.message.id);
+            if (idx !== -1) entry.messages.splice(idx, 1, event.message);
         } else if (event.type === 'message-deleted') {
-            entry.messages = entry.messages.filter(m => m.id !== event.messageId);
+            const idx = entry.messages.findIndex(m => m.id === event.messageId);
+            if (idx !== -1) entry.messages.splice(idx, 1);
         }
     }
 
     function applyReactionDelta(channelId: string, messageId: string, emoji: MessageEmoji, delta: 1 | -1): void {
         const entry = entries[channelId];
         if (!entry) return;
-        entry.messages = entry.messages.map(m => {
-            if (m.id !== messageId) return m;
-            const existing = m.reactions ?? [];
-            let found = false;
-            const updated = existing.map(r => {
-                if (!emojiMatches(r.emoji, emoji)) return r;
-                found = true;
-                return { ...r, count: Math.max(0, r.count + delta), me: delta > 0 };
-            }).filter(r => r.count > 0);
-            if (!found && delta > 0) updated.push({ emoji, count: 1, me: true });
-            return { ...m, reactions: updated };
-        });
+        const idx = entry.messages.findIndex(m => m.id === messageId);
+        if (idx === -1) return;
+        const m = entry.messages[idx];
+        const existing = m.reactions ?? [];
+        let found = false;
+        const updated = existing.map(r => {
+            if (!emojiMatches(r.emoji, emoji)) return r;
+            found = true;
+            return { ...r, count: Math.max(0, r.count + delta), me: delta > 0 };
+        }).filter(r => r.count > 0);
+        if (!found && delta > 0) updated.push({ emoji, count: 1, me: true });
+        // Replace just this slot with a new message object. The
+        // `optimisticReaction` rollback below relies on message
+        // reference identity to detect intervening SSE updates, and
+        // splicing a fresh object preserves that semantics — an
+        // in-place `m.reactions = updated` would alias.
+        entry.messages.splice(idx, 1, { ...m, reactions: updated });
     }
 
     /**
