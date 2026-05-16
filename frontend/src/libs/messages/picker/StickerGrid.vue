@@ -24,7 +24,7 @@ const emit = defineEmits<{
             :title="cell.title"
             @click="emit('pick', cell.key, $event)"
         >
-            <img :src="cell.imageUrl" :alt="cell.title" class="sticker" />
+            <img :src="cell.imageUrl" :alt="cell.title" class="sticker" loading="lazy" />
         </button>
     </div>
 </template>
