@@ -24,6 +24,7 @@ import {
 import { hasGuildCapability } from "../admin/admin-capabilities.js";
 import type { AdminCapability } from "../admin/authorized-user.service.js";
 import { DISCORD_MESSAGE_MAX, isSnowflake } from "../web-core/validators.js";
+import { discordErrorStatus } from "../web-core/discord-error.js";
 import { safeWriteSseEvent } from "../web-core/sse-helper.js";
 
 export interface GuildChannelRoutesOptions {
@@ -63,7 +64,18 @@ function emojiResolvable(
   emoji: MessageEmoji,
 ): EmojiIdentifierResolvable | null {
   if (!emoji.id && !emoji.name) return null;
-  if (emoji.id) return `${emoji.name || "_"}:${emoji.id}`;
+  // Custom emoji identifier format for `message.react()`:
+  //   <a:name:id> | <:name:id> | a:name:id | name:id
+  // Include the `a:` prefix when animated so discord.js's
+  // parseEmoji correctly tags the reaction; the bare `name:id`
+  // form parses with animated=false, which made the reaction's
+  // outgoing URL miss the animation hint on Discord's side.
+  if (emoji.id) {
+    const safeName = emoji.name || "_";
+    return emoji.animated
+      ? `a:${safeName}:${emoji.id}`
+      : `${safeName}:${emoji.id}`;
+  }
   return emoji.name;
 }
 
@@ -1143,7 +1155,13 @@ export async function registerGuildChannelRoutes(
         reply.code(204).send();
       } catch (err) {
         request.log.error({ err }, "failed to add reaction to guild message");
-        reply.code(502).send({ error: "Failed to add reaction" });
+        // Surface the actual Discord-side reason so the admin UI can
+        // show "missing permission" / "unknown emoji" etc. instead of
+        // the generic "Failed to add reaction" that hid every cause.
+        const msg = err instanceof Error ? err.message : String(err);
+        reply.code(discordErrorStatus(err)).send({
+          error: `Failed to add reaction: ${msg}`,
+        });
       }
     },
   );
@@ -1196,7 +1214,10 @@ export async function registerGuildChannelRoutes(
           { err },
           "failed to remove reaction from guild message",
         );
-        reply.code(502).send({ error: "Failed to remove reaction" });
+        const msg = err instanceof Error ? err.message : String(err);
+        reply
+          .code(discordErrorStatus(err))
+          .send({ error: `Failed to remove reaction: ${msg}` });
       }
     },
   );

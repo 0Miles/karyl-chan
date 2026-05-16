@@ -1443,8 +1443,20 @@ export async function addGuildReaction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ emoji }),
   });
-  if (!response.ok)
-    throw new ApiError(response.status, "Failed to add reaction");
+  if (!response.ok) {
+    // Surface the server's reason ("Missing Permissions" / "Unknown
+    // Message" / etc.) instead of the previous masked
+    // "Failed to add reaction" placeholder — the admin UI's toast
+    // now tells the operator what Discord rejected and why.
+    const body = await response
+      .json()
+      .catch(() => ({}) as { error?: string });
+    throw new ApiError(
+      response.status,
+      (body as { error?: string }).error ??
+        `Failed to add reaction (HTTP ${response.status})`,
+    );
+  }
 }
 
 export async function removeGuildReaction(
@@ -1459,8 +1471,16 @@ export async function removeGuildReaction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ emoji }),
   });
-  if (!response.ok)
-    throw new ApiError(response.status, "Failed to remove reaction");
+  if (!response.ok) {
+    const body = await response
+      .json()
+      .catch(() => ({}) as { error?: string });
+    throw new ApiError(
+      response.status,
+      (body as { error?: string }).error ??
+        `Failed to remove reaction (HTTP ${response.status})`,
+    );
+  }
 }
 
 export interface GuildEventStreamHandlers {

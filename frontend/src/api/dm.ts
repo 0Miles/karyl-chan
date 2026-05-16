@@ -172,7 +172,13 @@ export async function addReaction(channelId: string, messageId: string, emoji: M
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emoji })
     });
-    if (!response.ok) throw new ApiError(response.status, 'Failed to add reaction');
+    if (!response.ok) {
+        const body = await response.json().catch(() => ({}) as { error?: string });
+        throw new ApiError(
+            response.status,
+            (body as { error?: string }).error ?? `Failed to add reaction (HTTP ${response.status})`,
+        );
+    }
 }
 
 export async function removeReaction(channelId: string, messageId: string, emoji: MessageEmoji): Promise<void> {
@@ -181,7 +187,13 @@ export async function removeReaction(channelId: string, messageId: string, emoji
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ emoji })
     });
-    if (!response.ok) throw new ApiError(response.status, 'Failed to remove reaction');
+    if (!response.ok) {
+        const body = await response.json().catch(() => ({}) as { error?: string });
+        throw new ApiError(
+            response.status,
+            (body as { error?: string }).error ?? `Failed to remove reaction (HTTP ${response.status})`,
+        );
+    }
 }
 
 export interface EventStreamHandlers {

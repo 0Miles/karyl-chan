@@ -17,6 +17,7 @@ import { avatarUrlFor, toApiMessage } from "../web-core/message-mapper.js";
 import type { MessageEmoji } from "../web-core/message-types.js";
 import { requireCapability } from "../web-core/route-guards.js";
 import { DISCORD_MESSAGE_MAX, isSnowflake } from "../web-core/validators.js";
+import { discordErrorStatus } from "../web-core/discord-error.js";
 import { jwtService } from "../web-core/jwt.service.js";
 import { resolveLoginRole } from "../admin/authorized-user.service.js";
 import { safeWriteSseEvent } from "../web-core/sse-helper.js";
@@ -44,7 +45,12 @@ function emojiResolvable(
   emoji: MessageEmoji,
 ): EmojiIdentifierResolvable | null {
   if (!emoji.id && !emoji.name) return null;
-  if (emoji.id) return `${emoji.name || "_"}:${emoji.id}`;
+  if (emoji.id) {
+    const safeName = emoji.name || "_";
+    return emoji.animated
+      ? `a:${safeName}:${emoji.id}`
+      : `${safeName}:${emoji.id}`;
+  }
   return emoji.name;
 }
 
@@ -580,7 +586,10 @@ export async function registerDmRoutes(
         reply.code(204).send();
       } catch (err) {
         request.log.error({ err }, "failed to add reaction");
-        reply.code(502).send({ error: "Failed to add reaction" });
+        const msg = err instanceof Error ? err.message : String(err);
+        reply
+          .code(discordErrorStatus(err))
+          .send({ error: `Failed to add reaction: ${msg}` });
       }
     },
   );
@@ -622,7 +631,10 @@ export async function registerDmRoutes(
         reply.code(204).send();
       } catch (err) {
         request.log.error({ err }, "failed to remove reaction");
-        reply.code(502).send({ error: "Failed to remove reaction" });
+        const msg = err instanceof Error ? err.message : String(err);
+        reply
+          .code(discordErrorStatus(err))
+          .send({ error: `Failed to remove reaction: ${msg}` });
       }
     },
   );
