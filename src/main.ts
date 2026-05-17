@@ -129,6 +129,14 @@ export const bot = new Client({
     IntentsBitField.Flags.MessageContent,
     IntentsBitField.Flags.DirectMessages,
     IntentsBitField.Flags.DirectMessageReactions,
+    // Subscribe to GUILD_EMOJIS_UPDATE / GUILD_STICKERS_UPDATE so the
+    // in-process emoji + sticker caches the admin emoji picker reads
+    // from stay in sync after the initial GUILD_CREATE snapshot.
+    // Without this the cache slowly drifts as operators add/rename/
+    // delete emojis in their servers — long-running bot deployments
+    // hand stale entries to the picker, the user picks one, and
+    // `message.react()` 404s with `Unknown Emoji` (10014).
+    IntentsBitField.Flags.GuildExpressions,
     // Typing intents are high-frequency/low-value; opt-in via BOT_ENABLE_TYPING.
     ...(config.bot.enableTyping
       ? [
