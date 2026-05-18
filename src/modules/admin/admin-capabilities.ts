@@ -64,7 +64,7 @@ export type BehaviorScopedCapability = `behavior:${string}.manage`;
 
 /**
  * Capability declared by a plugin for its own needs. Token shape:
- * `plugin:<pluginKey>:<capKey>`, e.g. `plugin:karyl-radio:webui.access`.
+ * `plugin:<pluginKey>:<capKey>`, e.g. `plugin:karyl-radio:manage`.
  *
  * Plugins enumerate these in their manifest; the bot persists them on
  * register (table `plugin_capabilities`) and surfaces them in the

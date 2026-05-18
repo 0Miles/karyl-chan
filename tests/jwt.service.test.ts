@@ -35,7 +35,7 @@ const sessionClaims: JwtClaims = {
   purpose: "plugin-session",
   userId: "user-1",
   guildId: "guild-1",
-  capabilities: ["admin", "plugin:karyl-radio:webui.access"],
+  capabilities: ["admin", "plugin:karyl-radio:manage"],
 };
 
 describe("JwtService (Ed25519)", () => {

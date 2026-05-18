@@ -994,7 +994,7 @@ export async function registerPluginRpcRoutes(
    * hand them a WebUI link. The bot is the authority on the user's
    * capabilities — the plugin must trust the bot's verdict:
    *   - kind='manage': requires the user to hold `admin` OR
-   *     `plugin:<thisPluginKey>:webui.access`. Otherwise → { allowed:false }.
+   *     `plugin:<thisPluginKey>:manage`. Otherwise → { allowed:false }.
    *     Short-lived (default 15 min) — re-mint as needed.
    *   - kind='session': no capability gate (the slash command that
    *     produced the link is itself permission-gated). Default 6 h.
@@ -1038,7 +1038,7 @@ export async function registerPluginRpcRoutes(
     const allCaps = await resolveUserCapabilities(userId);
     const requiredCap = makePluginCapabilityToken(
       ctx.pluginKey,
-      "webui.access",
+      "manage",
     );
     const privileged = allCaps.has("admin") || allCaps.has(requiredCap);
     if (kind === "manage" && !privileged) {
