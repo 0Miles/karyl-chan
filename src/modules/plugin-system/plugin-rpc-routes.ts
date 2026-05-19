@@ -985,6 +985,67 @@ export async function registerPluginRpcRoutes(
     }
   });
 
+  // ─── interactions.delete_followup ─────────────────────────────────
+  /**
+   * POST /api/plugin/interactions.delete_followup
+   * Body: { interaction_token, message_id }
+   *
+   * Delete a follow-up message (ephemeral or not) the plugin posted
+   * via interactions.followup. `messages.delete` doesn't work for
+   * ephemeral followups because they aren't fetchable through the
+   * normal channel.messages API — Discord routes their lifecycle
+   * through the interaction's webhook instead. Plugins use this to
+   * auto-dismiss short-lived toast nudges (e.g. "已記錄你的投票").
+   *
+   * Within Discord's 15-minute interaction-token window. After that
+   * the followup is unreachable and a delete returns 404.
+   */
+  server.post<{
+    Body: {
+      interaction_token?: unknown;
+      message_id?: unknown;
+    };
+  }>("/api/plugin/interactions.delete_followup", async (request, reply) => {
+    const ctx = await requireScope(
+      request,
+      reply,
+      "interactions.delete_followup",
+    );
+    if (!ctx) return;
+    if (!bot || !bot.application) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (
+      typeof body.interaction_token !== "string" ||
+      body.interaction_token.length === 0
+    ) {
+      reply.code(400).send({ error: "interaction_token required" });
+      return;
+    }
+    if (
+      typeof body.message_id !== "string" ||
+      body.message_id.length === 0
+    ) {
+      reply.code(400).send({ error: "message_id required" });
+      return;
+    }
+    try {
+      await bot.rest.delete(
+        Routes.webhookMessage(
+          bot.application.id,
+          body.interaction_token,
+          body.message_id,
+        ),
+      );
+      return { ok: true };
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `delete followup failed: ${m}` });
+    }
+  });
+
   // ─── auth.session ─────────────────────────────────────────────────
   /**
    * POST /api/plugin/auth.session

@@ -52,6 +52,7 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const THROTTLE_EXEMPT_PATHS = new Set([
   "/api/plugin/interactions.respond",
   "/api/plugin/interactions.followup",
+  "/api/plugin/interactions.delete_followup",
 ]);
 
 function clientKey(request: import("fastify").FastifyRequest): string {
