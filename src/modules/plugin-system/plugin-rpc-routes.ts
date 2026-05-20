@@ -27,6 +27,7 @@ import { jwtService } from "../web-core/jwt.service.js";
 import { resolveUserCapabilities } from "../admin/authorized-user.service.js";
 import { makePluginCapabilityToken } from "../admin/admin-capabilities.js";
 import { discordErrorStatus } from "../web-core/discord-error.js";
+import { assertPluginTarget, HostPolicyError } from "../../utils/host-policy.js";
 
 /**
  * Strip dangerous `parse` entries from a plugin-supplied
@@ -90,6 +91,75 @@ const DEFAULT_KV_QUOTA_BYTES = 64 * 1024;
 
 function rejectForbidden(reply: FastifyReply, scope: string): void {
   reply.code(403).send({ error: `plugin token missing scope '${scope}'` });
+}
+
+/** Max attachments per message, and per-file byte cap. */
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // Discord's non-boosted limit
+
+/**
+ * Resolve plugin-supplied attachment descriptors into Discord-ready
+ * file buffers.
+ *
+ * Plugins describe an attachment as `{ name, path }` where `path` is
+ * a path on the plugin's own HTTP surface (e.g. `/art/merlin.png`).
+ * The bot fetches `<plugin.url><path>` server-side and forwards the
+ * bytes to Discord as a real file. This lets a plugin embed images
+ * (`attachment://<name>`) without needing a Discord-reachable public
+ * URL — the fetch happens over the internal bot↔plugin network.
+ *
+ * SSRF is bounded: the fetch base is the plugin's own registered
+ * `url`, run through the same `assertPluginTarget` host policy used
+ * by the interaction dispatcher; `path` is forced to a leading-slash
+ * relative path so it can't swap the host.
+ *
+ * Throws on any malformed descriptor / disallowed host / oversize
+ * body so the caller can surface a 400.
+ */
+async function resolvePluginAttachments(
+  pluginId: number,
+  raw: unknown,
+): Promise<Array<{ name: string; data: Buffer }>> {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error("attachments must be an array");
+  if (raw.length === 0) return [];
+  if (raw.length > MAX_ATTACHMENTS) {
+    throw new Error(`at most ${MAX_ATTACHMENTS} attachments`);
+  }
+  const plugin = await findPluginById(pluginId);
+  if (!plugin) throw new Error("plugin not found");
+  const base = plugin.url.replace(/\/+$/, "");
+  const parsedBase = new URL(base);
+  const port = parsedBase.port
+    ? Number(parsedBase.port)
+    : parsedBase.protocol === "https:"
+      ? 443
+      : 80;
+  await assertPluginTarget(parsedBase.hostname, port);
+
+  const out: Array<{ name: string; data: Buffer }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") {
+      throw new Error("attachment entry must be an object");
+    }
+    const e = entry as { name?: unknown; path?: unknown };
+    if (typeof e.name !== "string" || e.name.length === 0) {
+      throw new Error("attachment.name required");
+    }
+    if (typeof e.path !== "string" || !e.path.startsWith("/")) {
+      throw new Error("attachment.path must be a leading-slash path");
+    }
+    const res = await fetch(`${base}${e.path}`);
+    if (!res.ok) {
+      throw new Error(`attachment fetch ${e.path} → ${res.status}`);
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength > MAX_ATTACHMENT_BYTES) {
+      throw new Error(`attachment ${e.name} exceeds size cap`);
+    }
+    out.push({ name: e.name, data: buf });
+  }
+  return out;
 }
 
 async function requireScope(
@@ -165,6 +235,7 @@ export async function registerPluginRpcRoutes(
       embeds?: unknown;
       components?: unknown;
       allowed_mentions?: unknown;
+      attachments?: unknown;
     };
   }>("/api/plugin/messages.send", async (request, reply) => {
     const ctx = await requireScope(request, reply, "messages.send");
@@ -185,6 +256,17 @@ export async function registerPluginRpcRoutes(
       : undefined;
     if (!content && !embeds) {
       reply.code(400).send({ error: "content or embeds required" });
+      return;
+    }
+    let attachments: Array<{ name: string; data: Buffer }>;
+    try {
+      attachments = await resolvePluginAttachments(
+        ctx.pluginId,
+        body.attachments,
+      );
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `attachment error: ${m}` });
       return;
     }
     let channel;
@@ -247,6 +329,17 @@ export async function registerPluginRpcRoutes(
         // (e.g. link buttons + action buttons on a "now playing" card).
         components: components as never,
         allowedMentions: allowedMentions as never,
+        // Plugin-supplied files (bot fetched them from the plugin's
+        // own HTTP surface). An embed can reference one via
+        // `attachment://<name>`.
+        ...(attachments.length > 0
+          ? {
+              files: attachments.map((a) => ({
+                attachment: a.data,
+                name: a.name,
+              })),
+            }
+          : {}),
       });
       botEventLog.record(
         "info",
@@ -864,6 +957,7 @@ export async function registerPluginRpcRoutes(
       embeds?: unknown;
       components?: unknown;
       ephemeral?: unknown;
+      attachments?: unknown;
     };
   }>("/api/plugin/interactions.respond", async (request, reply) => {
     const ctx = await requireScope(request, reply, "interactions.respond");
@@ -887,6 +981,17 @@ export async function registerPluginRpcRoutes(
       : undefined;
     if (!content && !embeds && !components) {
       reply.code(400).send({ error: "content, embeds or components required" });
+      return;
+    }
+    let attachments: Array<{ name: string; data: Buffer }>;
+    try {
+      attachments = await resolvePluginAttachments(
+        ctx.pluginId,
+        body.attachments,
+      );
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `attachment error: ${m}` });
       return;
     }
     const ephemeral = body.ephemeral === true;
@@ -914,6 +1019,14 @@ export async function registerPluginRpcRoutes(
             flags: ephemeral ? MessageFlags.Ephemeral : undefined,
             allowed_mentions: { parse: [] },
           },
+          ...(attachments.length > 0
+            ? {
+                files: attachments.map((a) => ({
+                  name: a.name,
+                  data: a.data,
+                })),
+              }
+            : {}),
         },
       );
       return { ok: true };
@@ -939,6 +1052,7 @@ export async function registerPluginRpcRoutes(
       embeds?: unknown;
       components?: unknown;
       ephemeral?: unknown;
+      attachments?: unknown;
     };
   }>("/api/plugin/interactions.followup", async (request, reply) => {
     const ctx = await requireScope(request, reply, "interactions.followup");
@@ -964,6 +1078,17 @@ export async function registerPluginRpcRoutes(
       reply.code(400).send({ error: "content, embeds or components required" });
       return;
     }
+    let attachments: Array<{ name: string; data: Buffer }>;
+    try {
+      attachments = await resolvePluginAttachments(
+        ctx.pluginId,
+        body.attachments,
+      );
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      reply.code(400).send({ error: `attachment error: ${m}` });
+      return;
+    }
     const ephemeral = body.ephemeral === true;
     try {
       const created = (await bot.rest.post(
@@ -976,6 +1101,14 @@ export async function registerPluginRpcRoutes(
             flags: ephemeral ? MessageFlags.Ephemeral : undefined,
             allowed_mentions: { parse: [] },
           },
+          ...(attachments.length > 0
+            ? {
+                files: attachments.map((a) => ({
+                  name: a.name,
+                  data: a.data,
+                })),
+              }
+            : {}),
         },
       )) as { id?: string };
       return { ok: true, id: created.id ?? null };
