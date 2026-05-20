@@ -33,6 +33,7 @@ import {
   parsePluginCapabilityToken,
 } from "../admin/admin-capabilities.js";
 import { Op } from "sequelize";
+import { withBusyRetry } from "../../db.js";
 import { randomBytes } from "crypto";
 
 const log = moduleLogger("plugin-registry");
@@ -561,10 +562,14 @@ export class PluginRegistry {
     // roll back the registration — a plugin with stale capability rows
     // is still useful.
     try {
-      const removedCaps = await reconcilePluginCapabilities(
-        persisted.id,
-        manifest.plugin.id,
-        manifest.capabilities ?? [],
+      // Two plugins registering at once race on plugin_capabilities;
+      // retry so a transient lock can't silently drop a capability row.
+      const removedCaps = await withBusyRetry(() =>
+        reconcilePluginCapabilities(
+          persisted.id,
+          manifest.plugin.id,
+          manifest.capabilities ?? [],
+        ),
       );
       if (removedCaps.length > 0) {
         botEventLog.record(

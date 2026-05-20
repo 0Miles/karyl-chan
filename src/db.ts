@@ -1,4 +1,4 @@
-import { Sequelize } from "sequelize";
+import { Sequelize, Transaction } from "sequelize";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { config } from "./config.js";
@@ -11,6 +11,14 @@ export const sequelize = new Sequelize({
   storage: config.db.sqlitePath ?? DEFAULT_DB_PATH,
   dialect: "sqlite",
   logging: false,
+  // BEGIN IMMEDIATE for every managed transaction. SQLite's default
+  // DEFERRED takes the write lock lazily, so a transaction that reads
+  // then writes — e.g. Sequelize `findOrCreate` — can deadlock a
+  // concurrent one: both hold SHARED, both fail to upgrade, and
+  // `busy_timeout` can't help because waiting would deadlock, so it
+  // surfaces SQLITE_BUSY immediately. IMMEDIATE grabs the write lock
+  // up front, so concurrent writers queue on busy_timeout instead.
+  transactionType: Transaction.TYPES.IMMEDIATE,
   // SQLite needs per-connection PRAGMA tuning that doesn't survive the
   // raw open. afterConnect runs once per underlying connection in the
   // pool — single-connection today, but the hook is also correct for
@@ -40,3 +48,30 @@ export const sequelize = new Sequelize({
     },
   },
 });
+
+/**
+ * Retry a DB operation that still surfaces SQLITE_BUSY. With WAL +
+ * busy_timeout + IMMEDIATE transactions a genuine BUSY is rare — only
+ * a writer holding the lock past busy_timeout produces one — so this
+ * is the last line of defence for writes that must not be silently
+ * dropped (e.g. plugin-capability reconcile on concurrent register).
+ */
+export async function withBusyRetry<T>(
+  op: () => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await op();
+    } catch (err) {
+      const text =
+        err instanceof Error
+          ? `${err.message} ${(err as { parent?: Error }).parent?.message ?? ""}`
+          : String(err);
+      const busy =
+        text.includes("SQLITE_BUSY") || text.includes("database is locked");
+      if (!busy || attempt >= attempts) throw err;
+      await new Promise((r) => setTimeout(r, 50 * attempt));
+    }
+  }
+}
