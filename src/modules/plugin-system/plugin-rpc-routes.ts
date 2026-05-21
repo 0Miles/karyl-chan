@@ -1336,11 +1336,27 @@ export async function registerPluginRpcRoutes(
       // never anything else the member cache happens to hold.
       const members = [...fetched.values()]
         .filter((m) => requested.has(m.id))
-        .map((m) => ({
-          userId: m.id,
-          displayName: m.displayName,
-          avatarUrl: m.displayAvatarURL({ size: 128, extension: "png" }),
-        }));
+        .map((m) => {
+          // Force `.webp` (`forceStatic` stops discord.js swapping to
+          // `.gif`, whose CDN endpoint 415s for many assets) and, for
+          // an animated avatar, append `&animated=true` so the webp
+          // plays — same handling as the karyl-chan frontend.
+          const url = m.displayAvatarURL({
+            size: 128,
+            extension: "webp",
+            forceStatic: true,
+          });
+          const hash = m.avatar ?? m.user.avatar;
+          const animated =
+            typeof hash === "string" && hash.startsWith("a_");
+          return {
+            userId: m.id,
+            displayName: m.displayName,
+            avatarUrl: animated
+              ? `${url}${url.includes("?") ? "&" : "?"}animated=true`
+              : url,
+          };
+        });
       return { members };
     } catch (err) {
       // A whole-batch fetch failure (gateway hiccup, every id stale)
