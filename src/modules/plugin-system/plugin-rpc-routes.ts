@@ -1331,11 +1331,16 @@ export async function registerPluginRpcRoutes(
     }
     try {
       const fetched = await guild.members.fetch({ user: userIds });
-      const members = [...fetched.values()].map((m) => ({
-        userId: m.id,
-        displayName: m.displayName,
-        avatarUrl: m.displayAvatarURL({ size: 128, extension: "png" }),
-      }));
+      const requested = new Set(userIds);
+      // Defensive: only ever return the members that were asked for,
+      // never anything else the member cache happens to hold.
+      const members = [...fetched.values()]
+        .filter((m) => requested.has(m.id))
+        .map((m) => ({
+          userId: m.id,
+          displayName: m.displayName,
+          avatarUrl: m.displayAvatarURL({ size: 128, extension: "png" }),
+        }));
       return { members };
     } catch (err) {
       // A whole-batch fetch failure (gateway hiccup, every id stale)
