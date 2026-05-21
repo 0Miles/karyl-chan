@@ -93,6 +93,9 @@ function rejectForbidden(reply: FastifyReply, scope: string): void {
   reply.code(403).send({ error: `plugin token missing scope '${scope}'` });
 }
 
+/** Max user ids resolvable in one members.get batch. */
+const MEMBERS_GET_MAX = 25;
+
 /** Max attachments per message, and per-file byte cap. */
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // Discord's non-boosted limit
@@ -1254,6 +1257,94 @@ export async function registerPluginRpcRoutes(
       { ttlMs },
     );
     return { allowed: true, token, expiresAt };
+  });
+
+  // ─── members.get ──────────────────────────────────────────────────
+  /**
+   * POST /api/plugin/members.get
+   * Body: { guild_id: string, user_ids: string[] }
+   * Returns: { members: Array<{ userId, displayName, avatarUrl }> }
+   *
+   * Resolve guild-member display names + avatar URLs for a batch of
+   * users — what a plugin WebUI needs to render a player list with the
+   * names/faces the guild actually sees (guild nickname + guild/user
+   * avatar), which the dispatch payload deliberately doesn't carry.
+   *
+   * Gated by the same per-guild feature check as messages.send: the
+   * plugin may only read members of a guild where it has an enabled
+   * feature. Users who have left the guild are simply omitted — the
+   * caller keeps whatever name it captured at interaction time.
+   */
+  server.post<{
+    Body: { guild_id?: unknown; user_ids?: unknown };
+  }>("/api/plugin/members.get", async (request, reply) => {
+    const ctx = await requireScope(request, reply, "members.get");
+    if (!ctx) return;
+    if (!bot) {
+      reply.code(503).send({ error: "bot client unavailable" });
+      return;
+    }
+    const body = request.body ?? {};
+    if (typeof body.guild_id !== "string" || body.guild_id.length === 0) {
+      reply.code(400).send({ error: "guild_id required" });
+      return;
+    }
+    const guildId = body.guild_id;
+    if (!Array.isArray(body.user_ids)) {
+      reply.code(400).send({ error: "user_ids must be an array" });
+      return;
+    }
+    // Snowflake-shaped strings only, de-duplicated. A malformed id
+    // can't poison the batch — it's dropped before the fetch.
+    const userIds = [
+      ...new Set(
+        body.user_ids.filter(
+          (v): v is string => typeof v === "string" && SNOWFLAKE_RE.test(v),
+        ),
+      ),
+    ];
+    if (userIds.length === 0) return { members: [] };
+    if (userIds.length > MEMBERS_GET_MAX) {
+      reply
+        .code(400)
+        .send({ error: `at most ${MEMBERS_GET_MAX} user_ids per call` });
+      return;
+    }
+    // Per-guild feature gate — identical to messages.send. The plugin
+    // must not be able to enumerate members of a guild it isn't
+    // enabled in.
+    const enabledFeatures = await findEnabledFeaturesByPluginGuild(
+      ctx.pluginId,
+      guildId,
+    );
+    if (enabledFeatures.length === 0) {
+      reply.code(403).send({ error: "plugin not enabled in this guild" });
+      return;
+    }
+    let guild;
+    try {
+      guild = await bot.guilds.fetch(guildId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      reply.code(404).send({ error: `guild fetch failed: ${msg}` });
+      return;
+    }
+    try {
+      const fetched = await guild.members.fetch({ user: userIds });
+      const members = [...fetched.values()].map((m) => ({
+        userId: m.id,
+        displayName: m.displayName,
+        avatarUrl: m.displayAvatarURL({ size: 128, extension: "png" }),
+      }));
+      return { members };
+    } catch (err) {
+      // A whole-batch fetch failure (gateway hiccup, every id stale)
+      // isn't fatal for the caller — it keeps its interaction-time
+      // fallback names. Surface an empty list rather than a 5xx.
+      const msg = err instanceof Error ? err.message : String(err);
+      request.log.warn({ err: msg, guildId }, "members.get fetch failed");
+      return { members: [] };
+    }
   });
 
   // ─── plugin self-info ─────────────────────────────────────────────
