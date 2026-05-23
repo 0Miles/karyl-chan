@@ -1,5 +1,6 @@
 # Karyl Chan
-<img src="https://i.imgur.com/1YbH4xE.gif" width="180">
+
+**遷移至 https://github.com/karyl-chan/karyl-chan**
 
 個人 Discord 輔助 bot，附帶在 guild 中提供 todo、圖片頻道、身分組 emoji、RCON 轉發等實用功能。
 
